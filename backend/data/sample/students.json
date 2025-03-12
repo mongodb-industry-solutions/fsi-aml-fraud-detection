@@ -1,0 +1,107 @@
+[
+    {
+        "student_id": "S001",
+        "first_name": "Alice",
+        "last_name": "Johnson",
+        "age": 20,
+        "email": "alice.johnson@example.com",
+        "major": "Computer Science",
+        "enrollment_year": 2021,
+        "courses": [
+            {
+                "course_id": "CS101",
+                "course_name": "Introduction to Computer Science",
+                "grade": "A"
+            },
+            {
+                "course_id": "MATH101",
+                "course_name": "Calculus I",
+                "grade": "B"
+            }
+        ]
+    },
+    {
+        "student_id": "S002",
+        "first_name": "Bob",
+        "last_name": "Smith",
+        "age": 22,
+        "email": "bob.smith@example.com",
+        "major": "Mathematics",
+        "enrollment_year": 2020,
+        "courses": [
+            {
+                "course_id": "MATH201",
+                "course_name": "Linear Algebra",
+                "grade": "A"
+            },
+            {
+                "course_id": "PHYS101",
+                "course_name": "Physics I",
+                "grade": "B+"
+            }
+        ]
+    },
+    {
+        "student_id": "S003",
+        "first_name": "Charlie",
+        "last_name": "Brown",
+        "age": 21,
+        "email": "charlie.brown@example.com",
+        "major": "Physics",
+        "enrollment_year": 2019,
+        "courses": [
+            {
+                "course_id": "PHYS201",
+                "course_name": "Classical Mechanics",
+                "grade": "A-"
+            },
+            {
+                "course_id": "CS102",
+                "course_name": "Data Structures",
+                "grade": "B"
+            }
+        ]
+    },
+    {
+        "student_id": "S004",
+        "first_name": "Diana",
+        "last_name": "Prince",
+        "age": 23,
+        "email": "diana.prince@example.com",
+        "major": "Engineering",
+        "enrollment_year": 2018,
+        "courses": [
+            {
+                "course_id": "ENGR101",
+                "course_name": "Introduction to Engineering",
+                "grade": "A"
+            },
+            {
+                "course_id": "MATH201",
+                "course_name": "Linear Algebra",
+                "grade": "B-"
+            }
+        ]
+    },
+    {
+        "student_id": "S005",
+        "first_name": "Eve",
+        "last_name": "Adams",
+        "age": 19,
+        "email": "eve.adams@example.com",
+        "major": "Biology",
+        "enrollment_year": 2022,
+        "courses": [
+            {
+                "course_id": "BIO101",
+                "course_name": "Introduction to Biology",
+                "grade": "A+"
+            },
+            {
+                "course_id": "CHEM101",
+                "course_name": "General Chemistry",
+                "grade": "A"
+            }
+        ]
+    }
+]

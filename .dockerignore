@@ -1,0 +1,149 @@
+#-------------------------------------------------------- General --------------------------------------------------------
+
+# Byte-compiled files
+__pycache__
+*.py[cod]
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+eggs/
+.egg-info/
+*.egg
+*.egg-info/
+
+# Python-specific files
+*.pyc
+*.pyo
+*.pyd
+
+# Jupyter Notebook files
+.ipynb_checkpoints/
+
+# Test and coverage artifacts
+*.coverage
+.coverage.*
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+*.mo
+*.pot
+*.swp
+
+# IDE and editor-specific files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Node modules
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Build output
+.next/
+out/
+
+# Logs
+logs
+*.log
+
+# Temporary files
+tmp/
+temp/
+
+# Other files to ignore
+coverage/
+jest/
+*.tgz
+
+#-------------------------------------------------------- Backend --------------------------------------------------------
+# Byte-compiled files
+backend/__pycache__
+backend/*.py[cod]
+
+# Virtual Environments
+backend/.venv
+backend/venv
+
+# Distribution / packaging
+backend/.Python
+backend/build/
+backend/develop-eggs/
+backend/dist/
+backend/eggs/
+backend/.egg-info/
+backend/*.egg
+backend/*.egg-info/
+
+# Python-specific files
+backend/*.pyc
+backend/*.pyo
+backend/*.pyd
+
+# Jupyter Notebook files
+backend/.ipynb_checkpoints/
+
+# Test and coverage artifacts
+backend/*.coverage
+backend/.coverage.*
+backend/nosetests.xml
+backend/coverage.xml
+backend/*.cover
+backend/*.log
+backend/*.mo
+backend/*.pot
+backend/*.swp
+
+# IDE and editor-specific files
+backend/.idea/
+backend/.vscode/
+backend/*.sublime-project
+backend/*.sublime-workspace
+
+# System files
+backend/.DS_Store
+backend/Thumbs.db
+
+#-------------------------------------------------------- Frontend --------------------------------------------------------
+# Node modules
+frontend/node_modules/
+frontend/npm-debug.log
+frontend/yarn-debug.log
+frontend/yarn-error.log
+
+# Build output
+frontend/.next/
+frontend/out/
+
+# Logs
+frontend/logs
+frontend/*.log
+
+# Temporary files
+frontend/tmp/
+frontend/temp/
+
+# IDE and editor-specific files
+frontend/.idea/
+frontend/.vscode/
+frontend/*.sublime-project
+frontend/*.sublime-workspace
+
+# OS-specific files
+frontend/.DS_Store
+frontend/Thumbs.db
+
+# Other files to ignore
+frontend/coverage/
+frontend/jest/
+frontend/*.tgz

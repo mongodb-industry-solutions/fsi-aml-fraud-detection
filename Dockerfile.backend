@@ -1,0 +1,22 @@
+FROM python:3.10-slim-buster
+
+ENV GET_POETRY_IGNORE_DEPRECATION=1
+
+WORKDIR /
+
+# Poetry dependencies
+COPY /backend/pyproject.toml /backend/poetry.lock ./
+
+# Poetry installation
+RUN pip install poetry==1.8.4
+
+# Poetry config & install dependencies
+RUN poetry config virtualenvs.in-project true
+RUN poetry lock --no-update
+RUN poetry install --no-interaction -v --no-cache --no-root
+
+COPY ./backend/ .
+
+EXPOSE 8000
+
+CMD ["poetry", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

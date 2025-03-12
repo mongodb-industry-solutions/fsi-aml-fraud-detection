@@ -1,11 +1,31 @@
 services:
-  demoname-backend:
+  fraud-detection-backend:
     build:
       context: .
       no_cache: true
       dockerfile: Dockerfile.backend
-    image: imagename-backend:latest
+    image: fraud-detection-backend:latest
     ports:
       - "8000:8000"
     restart: always
-    container_name: demoname-backend
+    container_name: fraud-detection-backend
+    environment:
+      - MONGODB_URI=${MONGODB_URI:-mongodb://localhost:27017}
+      - DB_NAME=leafy_fraud_detector
+      - TRANSACTIONS_COLLECTION=transactions
+      - RULES_COLLECTION=fraud_detection_rules
+    volumes:
+      - ./backend/.env:/app/.env
+
+  fraud-detection-frontend:
+    build:
+      context: .
+      no_cache: true
+      dockerfile: Dockerfile.frontend
+    image: fraud-detection-frontend:latest
+    ports:
+      - "3000:3000"
+    restart: always
+    container_name: fraud-detection-frontend
+    depends_on:
+      - fraud-detection-backend

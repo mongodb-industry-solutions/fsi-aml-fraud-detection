@@ -1,8 +1,8 @@
 [tool.poetry]
 name = "your-virtual-env"
 version = "0.1.0"
-description = "Your Description"
-authors = ["Your Name <you@example.com>"]
+description = "A PWA designed to demonstrate financial fraud detection using advanced capabilities in MongoDB Atlas—particularly vector search"
+authors = ["Mehar Grewal <mehar.grewal@mongodb.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
@@ -13,7 +13,10 @@ fastapi = "^0.115.4"
 uvicorn = "^0.32.0"
 boto3 = "^1.35.70"
 botocore = "^1.35.70"
-
+sentence-transformers = "^2.7.0"
+torch = "^2.2.2"
+pydantic = "^2.7.0"
+uuid = "^1.30"
 
 [build-system]
 requires = ["poetry-core"]

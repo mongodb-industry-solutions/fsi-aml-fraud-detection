@@ -4,6 +4,12 @@ ENV GET_POETRY_IGNORE_DEPRECATION=1
 
 WORKDIR /
 
+# Install package dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libffi-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 # Poetry dependencies
 COPY /backend/pyproject.toml /backend/poetry.lock ./
 
@@ -16,6 +22,9 @@ RUN poetry lock --no-update
 RUN poetry install --no-interaction -v --no-cache --no-root
 
 COPY ./backend/ .
+
+# Create an empty .env file if it doesn't exist
+RUN touch .env
 
 EXPOSE 8000
 

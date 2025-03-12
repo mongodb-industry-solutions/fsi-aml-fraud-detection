@@ -1,92 +1,139 @@
-# Demo Template: Python Backend with Next.js Frontend
+# MongoDB Fraud Detection Demo
 
-This repository provides a template for creating a web application with a Python backend and a Next.js frontend. The backend is managed using Poetry for dependency management, while the frontend is built with Next.js, offering a modern React-based user interface.
-
-## Table of Contents
-
-- [Features](#features)
-- [Prerequisites](#prerequisites)
-- [Getting Started](#getting-started)
-  - [Create a New Repository](#create-a-new-repository)
-  - [GitHub Desktop Setup](#github-desktop-setup)
-  - [Backend Setup](#backend-setup)
-  - [Frontend Setup](#frontend-setup)
+This project demonstrates a modern web application for financial fraud detection using MongoDB Atlas Vector Search capabilities. It showcases a direct comparison between traditional rules-based fraud detection and vector similarity search approaches.
 
 ## Features
 
-- Python backend with a RESTful API powered by [FastAPI](https://fastapi.tiangolo.com/)
-- Next.js frontend for a responsive user interface
-- Dependency management with Poetry ([More info](https://python-poetry.org/docs/basic-usage/))
-- Easy setup and configuration
+- Real-time fraud detection using both rules-based and vector similarity search
+- Interactive transaction creation and testing
+- Visual comparison of detection methods
+- MongoDB Atlas Vector Search integration
+- Responsive web interface built with Next.js
+
+## Architecture
+
+The application consists of:
+
+- **Backend**: Python FastAPI with MongoDB integration, sentence-transformers for vector embeddings
+- **Frontend**: Next.js with React components
+- **Database**: MongoDB Atlas with Vector Search indexes
+
+The application features:
+- Automatic database and collection creation if they don't exist
+- Robust error handling with clear feedback when required components are missing
+- Vector search as a mandatory component for operation
+- Detailed logging for troubleshooting and diagnostics
+- Optimized MongoDB Atlas vector search integration
 
 ## Prerequisites
 
-Before you begin, ensure you have met the following requirements:
+Before you begin, ensure you have:
 
-- Python 3.10 or higher (but less than 3.11)
+- Python 3.10 (required for sentence-transformers compatibility)
 - Node.js 14 or higher
-- Poetry (install via [Poetry's official documentation](https://python-poetry.org/docs/#installation))
+- Docker and Docker Compose (optional, for containerized deployment)
+- MongoDB Atlas account with Vector Search capability
 
-## Getting Started
+## Setup
 
-Follow these steps to set up the project locally.
+### MongoDB Atlas Configuration
 
-### Create a New Repository
+1. Create a MongoDB Atlas cluster with Vector Search capability
+2. Note your MongoDB connection string for the next steps
 
-1. Navigate to the repository template on GitHub and click on **Use this template**.
-2. Create a new repository.
-3. **Do not** check the "Include all branches" option.
-4. Define a repository name following the naming convention: `<industry>-<project_name>-<highlighted_feature>`. For example, `fsi-leafybank-ai-personal-assistant` (use hyphens to separate words).
-   - The **industry** and **project name** are required; you can be creative with the highlighted feature.
-5. Provide a clear description for the repository, such as: "A repository template to easily create new demos by following the same structure."
-6. Set the visibility to **Internal**.
-7. Click **Create repository**.
-
-### GitHub Desktop Setup
-
-1. Install GitHub Desktop if you haven't already. You can download it from [GitHub Desktop's official website](https://desktop.github.com/).
-2. Open GitHub Desktop and sign in to your GitHub account.
-3. Clone the newly created repository:
-   - Click on **File** > **Clone Repository**.
-   - Select your repository from the list and click **Clone**.
-4. Create your first branch:
-   - In the GitHub Desktop interface, click on the **Current Branch** dropdown.
-   - Select **New Branch** and name it `feature/branch01`.
-   - Click **Create Branch**.
+Note: The application will automatically create the database and collections if they don't exist. It will also create the required vector search index for the transactions collection.
 
 ### Backend Setup
 
-1. (Optional) Set your project description and author information in the `pyproject.toml` file:
-   ```toml
-   description = "Your Description"
-   authors = ["Your Name <you@example.com>"]
-2. Open the project in your preferred IDE (the standard for the team is Visual Studio Code).
-3. Open the Terminal within Visual Studio Code.
-4. Ensure you are in the root project directory where the `makefile` is located.
-5. Execute the following commands:
-  - Poetry start
-    ````bash
-    make poetry_start
-    ````
-  - Poetry install
-    ````bash
-    make poetry_install
-    ````
-6. Verify that the `.venv` folder has been generated within the `/backend` directory.
+1. Navigate to the backend directory:
+   ```bash
+   cd backend
+   ```
+
+2. Copy the example environment file and configure your MongoDB connection:
+   ```bash
+   cp .env.example .env
+   ```
+   Edit the `.env` file with your MongoDB Atlas connection string
+
+3. Set up a Python virtual environment using Poetry:
+   ```bash
+   make poetry_start
+   make poetry_install
+   ```
+
+4. Start the backend server:
+   ```bash
+   poetry run uvicorn main:app --reload
+   ```
+   The API will be available at http://localhost:8000
 
 ### Frontend Setup
 
-1. Navigate to the `frontend` folder.
-2. Install dependencies by running:
-```bash
-npm install
-```
-3. Start the frontend development server with:
-````bash
-npm run dev
-````
-4. The frontend will now be accessible at http://localhost:3000 by default, providing a user interface.
+1. Navigate to the frontend directory:
+   ```bash
+   cd frontend
+   ```
 
-## DEMO README
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-<h1 style="color:red">REPLACE THE CONTENT OF THIS README WITH `README-demo.md` and DELETE THE `README-demo.md` FILE!!!!!!!!! </h1>
+3. Start the development server:
+   ```bash
+   npm run dev
+   ```
+   The web interface will be available at http://localhost:3000
+
+### Docker Deployment
+
+To run the entire application using Docker:
+
+1. Configure your MongoDB Atlas connection string in `backend/.env`
+
+2. Build and start the containers:
+   ```bash
+   make build
+   ```
+
+3. Once the containers are running, access:
+   - Frontend: http://localhost:3000
+   - Backend API: http://localhost:8000
+
+## Usage
+
+1. Generate sample transactions via the UI or API endpoint
+2. Create new transactions with different parameters
+3. Observe the fraud detection results from both methods
+4. Compare the effectiveness of rules-based vs. vector similarity approaches
+
+## Troubleshooting
+
+### Common Issues
+
+1. **MongoDB Connection Issues**
+   - Ensure your MongoDB Atlas connection string is correct in the `.env` file
+   - The application automatically creates necessary database objects, but requires proper connection credentials
+   - Check MongoDB Atlas network access settings to ensure your IP is whitelisted
+
+2. **Vector Search Setup**
+   - MongoDB Atlas M0 (free) clusters don't support vector search capabilities
+   - Ensure your cluster has Vector Search enabled in the Atlas dashboard
+   - The application will attempt to create the vector search index automatically
+   - Vector search is required for the application to function properly
+   - The application will fail with a clear error message if vector search is not available
+
+3. **Sample Data Generation**
+   - If generating sample data fails initially, try again as the system may now have created the required indexes
+   - The system will attempt to create and return as many transactions as possible, even if some fail
+   - Check the backend logs for detailed error information if sample generation is consistently failing
+
+4. **Frontend API Communication**
+   - If the frontend can't connect to the backend, check that the backend is running on port 8000
+   - API routes in Next.js require a proper restart when modified
+   - The frontend includes enhanced error handling to provide better feedback about backend issues
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.

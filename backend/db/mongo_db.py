@@ -1,13 +1,21 @@
 from pymongo import MongoClient
 from typing import Dict, List
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Global MongoDB client instance (singleton)
+_mongo_client = None
 
 
 class MongoDBAccess:
     """  
     A class to provide access to a MongoDB database.  
-    This class handles the connection to the database and provides methods to interact with collections and documents.  
+    This class handles the connection to the database and provides methods to interact with collections and documents.
+    
+    This class uses a singleton pattern to ensure only one MongoClient is created.
     """ 
-
+    
     def __init__(self, uri: str):
         """ 
         Constructor function to initialize the database connection.  
@@ -18,21 +26,28 @@ class MongoDBAccess:
         Returns:  
             None  
         """
-        self.uri = uri
-
-        try:
-            self.client = MongoClient(self.uri)
-        except Exception as e:
-            raise Exception(
-                "The following error occurred: ", e)
-
-    def __del__(self):
-        """ 
-        Destructor function to close the database connection.  
+        global _mongo_client
         
-        This method is called when the object is about to be destroyed.  
-        """
-        self.client.close()
+        self.uri = uri
+        
+        # Use the global client if it exists
+        if _mongo_client is not None:
+            logger.info("Reusing existing MongoDB client")
+            self.client = _mongo_client
+            return
+            
+        # Otherwise create a new client
+        try:
+            logger.info("Creating new MongoDB client connection")
+            self.client = MongoClient(self.uri)
+            _mongo_client = self.client
+            logger.info("MongoDB client created successfully")
+        except Exception as e:
+            logger.error(f"Error creating MongoDB client: {str(e)}")
+            raise Exception(f"Failed to connect to MongoDB: {str(e)}")
+            
+    # We don't need a __del__ method anymore since we're using a singleton pattern
+    # The client will be closed when the application shuts down
 
     def get_client(self):
         """ 

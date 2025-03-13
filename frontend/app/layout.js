@@ -1,14 +1,19 @@
-import { GeistSans } from "geist/font/sans";
+import { GeistSans } from 'geist/font/sans';
+import ClientLayout from '@/components/ClientLayout';
 
 export const metadata = {
-  title: "Home",
-  description: "",
+  title: 'ThreatSight 360 - Fraud Detection',
+  description: 'Advanced fraud detection for financial transactions',
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en" className={GeistSans.className}>
-      <body>{children}</body>
+      <body>
+        <ClientLayout>
+          {children}
+        </ClientLayout>
+      </body>
     </html>
   );
 }

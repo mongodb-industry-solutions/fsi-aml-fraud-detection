@@ -1,92 +1,190 @@
-# Demo Template: Python Backend with Next.js Frontend
+# ThreatSight 360 - Fraud Detection System
 
-This repository provides a template for creating a web application with a Python backend and a Next.js frontend. The backend is managed using Poetry for dependency management, while the frontend is built with Next.js, offering a modern React-based user interface.
+ThreatSight 360 is an advanced fraud detection system for financial transactions, using MongoDB for data storage and AWS Bedrock for AI-powered risk assessment.
 
-## Table of Contents
+## System Overview
 
-- [Features](#features)
-- [Prerequisites](#prerequisites)
-- [Getting Started](#getting-started)
-  - [Create a New Repository](#create-a-new-repository)
-  - [GitHub Desktop Setup](#github-desktop-setup)
-  - [Backend Setup](#backend-setup)
-  - [Frontend Setup](#frontend-setup)
+The system consists of two main components:
+
+1. **Backend**: FastAPI application with fraud detection algorithms and MongoDB integration
+2. **Frontend**: Next.js application with LeafyGreen UI components for transaction simulation and monitoring
 
 ## Features
 
-- Python backend with a RESTful API powered by [FastAPI](https://fastapi.tiangolo.com/)
-- Next.js frontend for a responsive user interface
-- Dependency management with Poetry ([More info](https://python-poetry.org/docs/basic-usage/))
-- Easy setup and configuration
+- **Real-time Fraud Detection**: Evaluate transactions instantly using multiple detection strategies
+- **Transaction Simulator**: Test different fraud scenarios with a user-friendly interface
+- **Risk Assessment**: Comprehensive risk scoring based on multiple factors
+- **Vector Similarity Search**: Find patterns similar to known fraud cases using Amazon Bedrock Titan embeddings
 
 ## Prerequisites
 
-Before you begin, ensure you have met the following requirements:
+- Python 3.10+
+- Node.js 18+
+- MongoDB (local installation or Atlas cluster)
+- AWS account with Bedrock access
+- Docker (optional for containerized deployment)
 
-- Python 3.10 or higher (but less than 3.11)
-- Node.js 14 or higher
-- Poetry (install via [Poetry's official documentation](https://python-poetry.org/docs/#installation))
+## Setup Instructions
 
-## Getting Started
+### 1. Clone the Repository
 
-Follow these steps to set up the project locally.
-
-### Create a New Repository
-
-1. Navigate to the repository template on GitHub and click on **Use this template**.
-2. Create a new repository.
-3. **Do not** check the "Include all branches" option.
-4. Define a repository name following the naming convention: `<industry>-<project_name>-<highlighted_feature>`. For example, `fsi-leafybank-ai-personal-assistant` (use hyphens to separate words).
-   - The **industry** and **project name** are required; you can be creative with the highlighted feature.
-5. Provide a clear description for the repository, such as: "A repository template to easily create new demos by following the same structure."
-6. Set the visibility to **Internal**.
-7. Click **Create repository**.
-
-### GitHub Desktop Setup
-
-1. Install GitHub Desktop if you haven't already. You can download it from [GitHub Desktop's official website](https://desktop.github.com/).
-2. Open GitHub Desktop and sign in to your GitHub account.
-3. Clone the newly created repository:
-   - Click on **File** > **Clone Repository**.
-   - Select your repository from the list and click **Clone**.
-4. Create your first branch:
-   - In the GitHub Desktop interface, click on the **Current Branch** dropdown.
-   - Select **New Branch** and name it `feature/branch01`.
-   - Click **Create Branch**.
-
-### Backend Setup
-
-1. (Optional) Set your project description and author information in the `pyproject.toml` file:
-   ```toml
-   description = "Your Description"
-   authors = ["Your Name <you@example.com>"]
-2. Open the project in your preferred IDE (the standard for the team is Visual Studio Code).
-3. Open the Terminal within Visual Studio Code.
-4. Ensure you are in the root project directory where the `makefile` is located.
-5. Execute the following commands:
-  - Poetry start
-    ````bash
-    make poetry_start
-    ````
-  - Poetry install
-    ````bash
-    make poetry_install
-    ````
-6. Verify that the `.venv` folder has been generated within the `/backend` directory.
-
-### Frontend Setup
-
-1. Navigate to the `frontend` folder.
-2. Install dependencies by running:
 ```bash
+git clone https://github.com/yourusername/threatsight360.git
+cd threatsight360
+```
+
+### 2. Backend Setup
+
+#### Environment Configuration
+
+Create a `.env` file in the `backend` directory:
+
+```
+# MongoDB Connection
+MONGODB_URI=mongodb://localhost:27017
+DB_NAME=threatsight360
+
+# AWS Bedrock Credentials
+AWS_ACCESS_KEY_ID=your_aws_access_key_here
+AWS_SECRET_ACCESS_KEY=your_aws_secret_key_here
+AWS_REGION=us-east-1
+
+# Server Configuration
+HOST=0.0.0.0
+PORT=8000
+
+# Frontend URL for CORS
+FRONTEND_URL=http://localhost:3000
+```
+
+Replace with your actual MongoDB URI and AWS credentials.
+
+#### Install Dependencies
+
+```bash
+cd backend
+pip install poetry
+poetry install
+```
+
+#### Start the Backend Server
+
+```bash
+poetry run uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+The backend API will be available at http://localhost:8000
+
+### 3. Frontend Setup
+
+#### Environment Configuration
+
+Create a `.env.local` file in the `frontend` directory:
+
+```
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+#### Install Dependencies
+
+```bash
+cd frontend
 npm install
 ```
-3. Start the frontend development server with:
-````bash
+
+#### Start the Frontend Development Server
+
+```bash
 npm run dev
-````
-4. The frontend will now be accessible at http://localhost:3000 by default, providing a user interface.
+```
 
-## DEMO README
+The frontend application will be available at http://localhost:3000
 
-<h1 style="color:red">REPLACE THE CONTENT OF THIS README WITH `README-demo.md` and DELETE THE `README-demo.md` FILE!!!!!!!!! </h1>
+## Using the Transaction Simulator
+
+1. Navigate to http://localhost:3000/transaction-simulator
+2. Select a customer from the dropdown
+3. Choose a fraud scenario or configure your own:
+   - Normal Transaction
+   - Unusual Amount
+   - Unusual Location
+   - New Device
+   - Multiple Red Flags
+4. Customize transaction details if needed
+5. Click "Evaluate Transaction" to analyze without storing
+6. Review the risk assessment results
+7. Optionally, use "Submit & Store Transaction" to save the transaction
+
+## Data Seeding
+
+To seed initial customer and fraud pattern data:
+
+```bash
+cd backend
+poetry run python scripts/seed_data.py
+```
+
+## Docker Deployment
+
+Build and run with Docker Compose:
+
+```bash
+docker-compose up -d
+```
+
+## Documentation
+
+- [Transaction Simulator Documentation](./TransactionSimulator-Documentation.md)
+- [Fraud Detection Implementation](./ThreatSight360-Implementation.md)
+- [API Documentation](http://localhost:8000/docs) (when backend is running)
+
+## Testing
+
+### Backend Tests
+
+```bash
+cd backend
+poetry run pytest
+```
+
+### Frontend Tests
+
+```bash
+cd frontend
+npm test
+```
+
+## Demo Scenarios
+
+The Transaction Simulator includes several pre-configured scenarios:
+
+1. **Normal Transaction**: A typical transaction that matches the customer's usual behavior
+2. **Unusual Amount**: A transaction amount significantly higher than the customer's average
+3. **Unusual Location**: A transaction from a geographic location far from usual areas
+4. **New Device**: A transaction originating from a previously unused device
+5. **Multiple Red Flags**: A transaction combining several suspicious indicators
+
+## Architecture
+
+### Backend Components
+
+- **Fraud Detection Service**: Core detection engine with multiple strategies
+- **MongoDB Integration**: Data access layer for customer and transaction data
+- **Bedrock AI Integration**: Vector embeddings for pattern matching
+- **API Endpoints**: RESTful interface for transaction processing
+
+### Frontend Components
+
+- **Transaction Simulator**: Interactive tool for testing fraud scenarios
+- **LeafyGreen UI**: MongoDB's design system for consistent look and feel
+- **Next.js Application**: Modern React framework for frontend development
+
+## Troubleshooting
+
+- **Backend Connection Issues**: Ensure MongoDB is running and credentials are correct
+- **AWS Bedrock Errors**: Verify AWS credentials and region settings
+- **Frontend API Errors**: Check the NEXT_PUBLIC_API_URL is correctly set
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.

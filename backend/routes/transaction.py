@@ -88,17 +88,174 @@ async def evaluate_transaction(
     Evaluate a transaction for potential fraud without storing it in the database.
     This endpoint is useful for pre-screening transactions or simulating fraud detection.
     """
-    # Perform fraud detection
+    # Find similar transactions using vector search
+    similar_transactions, similarity_risk_score = await fraud_service.find_similar_transactions(transaction)
+    
+    # Perform fraud detection (traditional rules-based)
     risk_assessment = await fraud_service.evaluate_transaction(transaction)
     
-    # Return the risk assessment
+    # Smart filtering based on the transaction scenario
+    display_transactions = []
+    
+    # Check if this is a normal or unusual transaction based on risk_assessment
+    is_unusual = risk_assessment.get("level", "medium") in ["medium", "high"] or len(risk_assessment.get("flags", [])) > 0
+    
+    if is_unusual:
+        # For unusual transactions, prioritize medium and high risk transactions in results
+        # First, categorize transactions by risk level
+        high_risk = [t for t in similar_transactions if t.get("risk_assessment", {}).get("level") == "high"]
+        medium_risk = [t for t in similar_transactions if t.get("risk_assessment", {}).get("level") == "medium"]
+        low_risk = [t for t in similar_transactions if t.get("risk_assessment", {}).get("level") == "low"]
+        
+        # Build display list prioritizing medium and high risk
+        display_transactions = high_risk + medium_risk + low_risk
+    else:
+        # For normal transactions, prioritize low risk transactions
+        # First, categorize transactions by risk level
+        low_risk = [t for t in similar_transactions if t.get("risk_assessment", {}).get("level") == "low"]
+        medium_risk = [t for t in similar_transactions if t.get("risk_assessment", {}).get("level") == "medium"]
+        high_risk = [t for t in similar_transactions if t.get("risk_assessment", {}).get("level") == "high"]
+        
+        # Build display list prioritizing low risk
+        display_transactions = low_risk + medium_risk + high_risk
+    
+    # Limit to top 5 after reordering
+    display_transactions = display_transactions[:5] if len(display_transactions) > 5 else display_transactions
+    
+    # Log the filtering results for debugging
+    logger.info(f"Transaction evaluation - Is unusual: {is_unusual}, " +
+               f"High risk matches shown: {len([t for t in display_transactions if t.get('risk_assessment', {}).get('level') == 'high'])}, " +
+               f"Medium risk matches shown: {len([t for t in display_transactions if t.get('risk_assessment', {}).get('level') == 'medium'])}, " +
+               f"Low risk matches shown: {len([t for t in display_transactions if t.get('risk_assessment', {}).get('level') == 'low'])}")
+    
+    # Recalculate similarity risk score based only on displayed transactions
+    recalculated_similarity_risk_score = similarity_risk_score  # Default to original value
+    
+    if display_transactions:
+        # Get current transaction amount for amount comparisons
+        current_amount = transaction.get("amount", 0)
+        
+        # Score categories for different risk levels
+        high_risk_scores = []
+        medium_risk_scores = []
+        low_risk_scores = []
+        
+        # Process displayed transactions only
+        for idx, t in enumerate(display_transactions):
+            # Get the similarity score
+            similarity = t.get("score", 0.5)  # Default to 0.5 if not available
+            
+            # Apply position weight (earlier results have more impact)
+            position_weight = 1.0 if idx < 2 else max(0.7, 1.0 - ((idx - 1) * 0.1))
+            weighted_similarity = similarity * position_weight
+            
+            # Get risk information
+            risk_assessment = t.get("risk_assessment", {})
+            risk_level = risk_assessment.get("level", "unknown")
+            risk_score = risk_assessment.get("score", 50) / 100.0  # Normalize to 0-1 range
+            risk_flags = risk_assessment.get("flags", [])
+            
+            # Get amount for comparison
+            similar_amount = t.get("amount", 0)
+            
+            # Calculate amount similarity (if both amounts are valid)
+            amount_similarity = 1.0
+            if similar_amount > 0 and current_amount > 0:
+                # Calculate ratio of smaller to larger amount (gives 0.0-1.0)
+                amount_ratio = min(current_amount, similar_amount) / max(current_amount, similar_amount)
+                
+                # Strong weight for very similar amounts
+                if amount_ratio > 0.95:  # Very similar
+                    amount_similarity = 1.0
+                elif amount_ratio > 0.8:  # Somewhat similar
+                    amount_similarity = 0.8
+                elif amount_ratio > 0.5:  # Moderately different
+                    amount_similarity = 0.6
+                else:  # Very different
+                    amount_similarity = 0.4
+            
+            # Adjust similarity score based on amount
+            final_similarity = weighted_similarity * 0.7 + amount_similarity * 0.3
+            
+            # Create score object with relevant information
+            score_entry = {
+                "similarity": final_similarity,
+                "risk_score": risk_score,
+                "flags": len(risk_flags)
+            }
+            
+            # Categorize by risk level
+            if risk_level == "high":
+                high_risk_scores.append(score_entry)
+            elif risk_level == "medium":
+                medium_risk_scores.append(score_entry)
+            elif risk_level == "low":
+                low_risk_scores.append(score_entry)
+            else:
+                # Put unknown in medium risk by default
+                medium_risk_scores.append(score_entry)
+        
+        # Calculate final risk score based on displayed transactions
+        if high_risk_scores:
+            # With high risk matches, focus on them using weighted average
+            total_weight = 0
+            weighted_sum = 0
+            
+            for score in high_risk_scores:
+                # Higher similarity and more flags = higher weight
+                weight = score["similarity"] * (1 + score["flags"] * 0.1)
+                weighted_sum += score["risk_score"] * weight
+                total_weight += weight
+                
+            # Calculate weighted risk and add premium for multiple high-risk matches
+            high_risk_factor = min(1.0, weighted_sum / max(1, total_weight))
+            high_risk_boost = min(0.2, len(high_risk_scores) * 0.05)  # Up to 0.2 boost
+            recalculated_similarity_risk_score = min(1.0, high_risk_factor + high_risk_boost)
+            
+        elif low_risk_scores and not medium_risk_scores:
+            # Only low risk matches - likely safe
+            avg_similarity = sum(s["similarity"] for s in low_risk_scores) / len(low_risk_scores)
+            recalculated_similarity_risk_score = max(0.05, 1.0 - (avg_similarity ** 1.5))
+            
+        else:
+            # Mixed risk or medium risk - use weighted calculation across all scores
+            all_scores = high_risk_scores + medium_risk_scores + low_risk_scores
+            
+            if all_scores:
+                # Calculate weighted average of all risk scores
+                total_weight = 0
+                weighted_sum = 0
+                
+                for score in all_scores:
+                    # Balance between similarity and risk factors
+                    weight = score["similarity"] * (1 + 0.2 * score["flags"])
+                    weighted_sum += score["risk_score"] * weight
+                    total_weight += weight
+                    
+                # Normalize to get final score
+                if total_weight > 0:
+                    recalculated_similarity_risk_score = weighted_sum / total_weight
+                else:
+                    recalculated_similarity_risk_score = 0.5
+            else:
+                # Fallback if no categorized scores
+                recalculated_similarity_risk_score = 0.5
+        
+        # Ensure score is in bounds
+        recalculated_similarity_risk_score = max(0.0, min(1.0, recalculated_similarity_risk_score))
+        logger.info(f"Recalculated similarity risk score (top 5 only): {recalculated_similarity_risk_score:.3f} (original: {similarity_risk_score:.3f})")
+    
+    # Return the risk assessment with similar transactions
     return {
         "transaction": {
             "amount": transaction.get("amount"),
             "merchant": transaction.get("merchant", {}).get("category"),
             "transaction_type": transaction.get("transaction_type")
         },
-        "risk_assessment": risk_assessment
+        "risk_assessment": risk_assessment,
+        "similar_transactions": display_transactions,
+        "similar_transactions_count": len(similar_transactions),  # Include total count for context
+        "similarity_risk_score": recalculated_similarity_risk_score
     }
 
 @router.get("/", response_description="List transactions", response_model=List[TransactionResponse])

@@ -14,7 +14,8 @@ The system consists of two main components:
 - **Real-time Fraud Detection**: Evaluate transactions instantly using multiple detection strategies
 - **Transaction Simulator**: Test different fraud scenarios with a user-friendly interface
 - **Risk Assessment**: Comprehensive risk scoring based on multiple factors
-- **Vector Similarity Search**: Find patterns similar to known fraud cases using Amazon Bedrock Titan embeddings
+- **Enhanced Transaction Vector Search**: Advanced semantic matching of transactions against historical data with sophisticated risk scoring and context-aware results filtering
+- **Bedrock-Powered Embeddings**: Leverages Amazon Bedrock Titan embeddings for high-quality semantic understanding
 
 ## Prerequisites
 
@@ -112,7 +113,11 @@ The frontend application will be available at http://localhost:3000
    - Multiple Red Flags
 4. Customize transaction details if needed
 5. Click "Evaluate Transaction" to analyze without storing
-6. Review the risk assessment results
+6. Review the risk assessment results, which include:
+   - Traditional risk assessment based on rules and thresholds
+   - Advanced transaction similarity analysis using vector search
+   - Sophisticated similarity-based risk score with multi-factor weighting
+   - Intelligently filtered similar transactions based on scenario context (high/medium risk for unusual transactions, low risk for normal transactions)
 7. Optionally, use "Submit & Store Transaction" to save the transaction
 
 ## Data Seeding
@@ -178,6 +183,40 @@ The Transaction Simulator includes several pre-configured scenarios:
 - **Transaction Simulator**: Interactive tool for testing fraud scenarios
 - **LeafyGreen UI**: MongoDB's design system for consistent look and feel
 - **Next.js Application**: Modern React framework for frontend development
+
+### MongoDB Vector Search Setup
+
+To enable the enhanced transaction-based vector search, create a vector search index on your transactions collection:
+
+1. In MongoDB Atlas, navigate to your database's "Search" tab
+2. Click "Create Search Index"
+3. Choose JSON editor and use the following configuration:
+
+```json
+{
+  "mappings": {
+    "dynamic": true,
+    "fields": {
+      "vector_embedding": {
+        "type": "knnVector",
+        "dimensions": 1536,
+        "similarity": "cosine"
+      }
+    }
+  }
+}
+```
+
+4. Name your index "transaction_vector_index" (this is the index name used in the code)
+5. Create the index
+
+This setup enables sophisticated semantic search across all transactions in your system. Key benefits include:
+
+- Cross-customer pattern identification that finds similar transactions regardless of customer
+- Comprehensive similarity matching analyzing up to 15 similar transactions for each evaluation
+- Multi-factor risk scoring considering amount similarity, transaction risk level, and vector similarity
+- Intelligent context-aware filtering that prioritizes relevant transactions by risk level based on scenario
+- Wide candidate pool (200 potential matches) for more accurate results
 
 ## Troubleshooting
 

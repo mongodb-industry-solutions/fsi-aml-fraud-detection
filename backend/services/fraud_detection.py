@@ -167,15 +167,9 @@ class FraudDetectionService:
             flags.append("velocity_alert")
             risk_factors["velocity"] = velocity_risk
             
-        # Only run pattern matching if there are already some flags
-        # This optimization prevents unnecessary embedding generation for normal transactions
+        # Skip pattern matching since we're only using transaction-based vector search
         pattern_anomaly = False
         pattern_risk = 0.0
-        if flags:
-            pattern_anomaly, pattern_risk = await self._check_pattern_match(transaction, flags)
-            if pattern_anomaly:
-                flags.append("matches_fraud_pattern")
-                risk_factors["pattern"] = pattern_risk
         
         # Get customer's baseline risk score
         customer_risk_score = 0.0
@@ -540,6 +534,303 @@ class FraudDetectionService:
         except Exception as e:
             logger.error(f"Error checking pattern match: {str(e)}")
             return False, 0.0
+            
+    async def find_similar_transactions(self, transaction: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], float]:
+        """
+        Find similar historical transactions using vector search.
+        
+        This method converts the current transaction to an embedding on-the-fly and
+        performs a vector search against existing transactions in the database.
+        
+        Note: This method returns up to 15 similar transactions to allow for intelligent
+        filtering at the API layer. The routes/transaction.py file handles smart filtering 
+        to prioritize transactions by risk level (high/medium risk for unusual transactions, 
+        low risk for normal transactions) for UI display.
+        
+        Args:
+            transaction: The current transaction being evaluated
+            
+        Returns:
+            Tuple of (similar_transactions_list, similarity_risk_score)
+        """
+        try:
+            # Extract transaction details
+            merchant_category = transaction.get("merchant", {}).get("category", "unknown")
+            transaction_type = transaction.get("transaction_type", "unknown")
+            payment_method = transaction.get("payment_method", "unknown")
+            amount = transaction.get("amount", 0)
+            customer_id = transaction.get("customer_id")
+            
+            # Use the same text representation function that was used to create the stored embeddings
+            transaction_text = self._create_transaction_text_representation(transaction)
+            
+            # Generate embedding for the transaction using the consistent format
+            transaction_embedding = await get_embedding(transaction_text)
+            
+            # Access the transactions collection
+            collection = self.db_client.get_collection(
+                db_name=self.db_name,
+                collection_name=self.transaction_collection
+            )
+            
+            # Skip checking for indexes and directly use the known vector index
+            similar_transactions = []
+            similarity_risk_score = 0.0
+            
+            # Perform vector search against ALL transactions without customer filtering
+            pipeline = [
+                {
+                    "$vectorSearch": {
+                        "index": "transaction_vector_index",  # Using the specified index name
+                        "path": "vector_embedding",
+                        "queryVector": transaction_embedding,
+                        "numCandidates": 200,  # Cast an even wider net
+                        "limit": 15  # Return top 15 matches for more comprehensive analysis
+                    }
+                },
+                {
+                    "$project": {
+                        "_id": 1,
+                        "transaction_id": 1,
+                        "timestamp": 1,
+                        "amount": 1,
+                        "merchant": 1,
+                        "transaction_type": 1,
+                        "payment_method": 1,
+                        "risk_assessment": 1,
+                        "score": {"$meta": "vectorSearchScore"}
+                    }
+                }
+            ]
+            
+            try:
+                # Execute the vector search
+                similar_transactions = list(collection.aggregate(pipeline))
+                logger.info(f"Found {len(similar_transactions)} similar transactions with vector search")
+                
+                # Calculate a risk score based on the similarity results
+                if similar_transactions:
+                    # Get current transaction amount for amount comparisons
+                    current_amount = transaction.get("amount", 0)
+                    
+                    # Score categories for different risk levels
+                    high_risk_scores = []
+                    medium_risk_scores = []
+                    low_risk_scores = []
+                    
+                    # Process all transactions
+                    for idx, t in enumerate(similar_transactions):
+                        # Get the similarity score
+                        similarity = t.get("score", 0.5)  # Default to 0.5 if not available
+                        
+                        # Apply position weight (earlier results have more impact)
+                        # First 5 results maintain high weight, then gradually decrease
+                        position_weight = 1.0 if idx < 5 else max(0.5, 1.0 - ((idx - 5) * 0.05))
+                        weighted_similarity = similarity * position_weight
+                        
+                        # Get risk information
+                        risk_assessment = t.get("risk_assessment", {})
+                        risk_level = risk_assessment.get("level", "unknown")
+                        risk_score = risk_assessment.get("score", 50) / 100.0  # Normalize to 0-1 range
+                        transaction_type = risk_assessment.get("transaction_type", "unknown")
+                        risk_flags = risk_assessment.get("flags", [])
+                        
+                        # Get amount for comparison
+                        similar_amount = t.get("amount", 0)
+                        
+                        # Calculate amount similarity (if both amounts are valid)
+                        amount_similarity = 1.0
+                        if similar_amount > 0 and current_amount > 0:
+                            # Calculate ratio of smaller to larger amount (gives 0.0-1.0)
+                            amount_ratio = min(current_amount, similar_amount) / max(current_amount, similar_amount)
+                            
+                            # Strong weight for very similar amounts
+                            if amount_ratio > 0.95:  # Very similar
+                                amount_similarity = 1.0
+                            elif amount_ratio > 0.8:  # Somewhat similar
+                                amount_similarity = 0.8
+                            elif amount_ratio > 0.5:  # Moderately different
+                                amount_similarity = 0.6
+                            else:  # Very different
+                                amount_similarity = 0.4
+                        
+                        # Adjust similarity score based on amount
+                        final_similarity = weighted_similarity * 0.7 + amount_similarity * 0.3
+                        
+                        # Create score object with relevant information
+                        score_entry = {
+                            "similarity": final_similarity,
+                            "risk_score": risk_score,
+                            "flags": len(risk_flags),
+                            "transaction_id": t.get("transaction_id", "unknown")
+                        }
+                        
+                        # Categorize by risk level
+                        if risk_level == "high" or transaction_type == "fraudulent":
+                            high_risk_scores.append(score_entry)
+                        elif risk_level == "medium" or transaction_type == "suspicious":
+                            medium_risk_scores.append(score_entry)
+                        elif risk_level == "low" or transaction_type == "legitimate":
+                            low_risk_scores.append(score_entry)
+                        else:
+                            # Put unknown in medium risk by default
+                            medium_risk_scores.append(score_entry)
+                            
+                        # Log detailed info for debugging
+                        logger.info(f"Match {idx}: similarity={similarity:.2f}, weighted={weighted_similarity:.2f}, " +
+                                  f"amount_sim={amount_similarity:.2f}, final={final_similarity:.2f}, " +
+                                  f"risk={risk_level}, flags={len(risk_flags)}")
+                    
+                    # Calculate final risk score based on the distribution of risks
+                    # Strategy: prioritize high-risk matches, especially when they have high similarity
+                    
+                    if high_risk_scores:
+                        # With high risk matches, focus on them using weighted average
+                        total_weight = 0
+                        weighted_sum = 0
+                        
+                        for score in high_risk_scores:
+                            # Higher similarity and more flags = higher weight
+                            weight = score["similarity"] * (1 + score["flags"] * 0.1)
+                            weighted_sum += score["risk_score"] * weight
+                            total_weight += weight
+                            
+                        # Calculate weighted risk and add a premium for multiple high-risk matches
+                        high_risk_factor = min(1.0, weighted_sum / max(1, total_weight))
+                        high_risk_boost = min(0.2, len(high_risk_scores) * 0.05)  # Up to 0.2 boost for multiple matches
+                        
+                        # Final high risk score with boost
+                        similarity_risk_score = min(1.0, high_risk_factor + high_risk_boost)
+                        
+                    elif low_risk_scores and not medium_risk_scores:
+                        # Only low risk matches - likely safe
+                        
+                        # Calculate average similarity to low-risk transactions
+                        avg_similarity = sum(s["similarity"] for s in low_risk_scores) / len(low_risk_scores)
+                        
+                        # Higher similarity to low-risk = lower risk score (inverse relationship)
+                        # Use a curve that drops quickly with high similarity
+                        similarity_risk_score = max(0.05, 1.0 - (avg_similarity ** 1.5))
+                        
+                    else:
+                        # Mixed risk or medium risk - use weighted calculation across all scores
+                        all_scores = high_risk_scores + medium_risk_scores + low_risk_scores
+                        
+                        if all_scores:
+                            # Calculate weighted average of all risk scores
+                            total_weight = 0
+                            weighted_sum = 0
+                            
+                            for score in all_scores:
+                                # Balance between similarity and risk factors
+                                weight = score["similarity"] * (1 + 0.2 * score["flags"])
+                                weighted_sum += score["risk_score"] * weight
+                                total_weight += weight
+                                
+                            # Normalize to get final score
+                            if total_weight > 0:
+                                similarity_risk_score = weighted_sum / total_weight
+                            else:
+                                similarity_risk_score = 0.5
+                        else:
+                            # Fallback if no categorized scores
+                            similarity_risk_score = 0.5
+                    
+                    # Ensure the score is in bounds
+                    similarity_risk_score = max(0.0, min(1.0, similarity_risk_score))
+                    
+                    # Log the final calculation
+                    logger.info(f"Final similarity risk calculation: score={similarity_risk_score:.3f}, " +
+                              f"high_risk_matches={len(high_risk_scores)}, " +
+                              f"medium_risk_matches={len(medium_risk_scores)}, " +
+                              f"low_risk_matches={len(low_risk_scores)}")
+                    
+                    logger.info(f"Calculated similarity risk score: {similarity_risk_score}")
+                else:
+                    # No similar transactions means this is very unique 
+                    # This could be a risk if we have many transactions in the system
+                    transaction_count = await self._get_total_transaction_count()
+                    if transaction_count > 10:
+                        # If we have a reasonable number of transactions but none similar
+                        similarity_risk_score = 0.75  # Higher risk for unusual transaction
+                    else:
+                        # Not enough transactions to make a judgment
+                        similarity_risk_score = 0.5  # Moderate risk
+            
+            except Exception as e:
+                logger.error(f"Error in vector search against transactions: {str(e)}")
+                # Log the error and return empty results with moderate risk
+                logger.error(f"Error details: {str(e)}")
+                logger.error(f"Attempted pipeline: {pipeline}")
+                similarity_risk_score = 0.5  # Default to moderate risk on error
+            
+            # Convert ObjectID to strings and format timestamps for JSON
+            for t in similar_transactions:
+                if "_id" in t:
+                    t["_id"] = str(t["_id"])
+                if "timestamp" in t and isinstance(t["timestamp"], datetime):
+                    t["timestamp"] = t["timestamp"].isoformat()
+            
+            return similar_transactions, similarity_risk_score
+            
+        except Exception as e:
+            logger.error(f"Error finding similar transactions: {str(e)}")
+            return [], 0.5  # Return empty list and moderate risk on error
+    
+    async def _customer_has_transactions(self, customer_id: str) -> bool:
+        """Check if a customer has any transaction history"""
+        try:
+            count = self.db_client.get_collection(
+                db_name=self.db_name,
+                collection_name=self.transaction_collection
+            ).count_documents({"customer_id": customer_id})
+            return count > 0
+        except Exception as e:
+            logger.error(f"Error checking customer transactions: {str(e)}")
+            return False
+            
+    async def _get_total_transaction_count(self) -> int:
+        """Get the total count of transactions in the system"""
+        try:
+            count = self.db_client.get_collection(
+                db_name=self.db_name,
+                collection_name=self.transaction_collection
+            ).count_documents({})
+            logger.info(f"Total transaction count in system: {count}")
+            return count
+        except Exception as e:
+            logger.error(f"Error counting transactions: {str(e)}")
+            return 0
+            
+    def _create_transaction_text_representation(self, transaction: Dict[str, Any]) -> str:
+        """Create a text representation of a transaction for embedding
+        
+        This must match exactly how the original transaction embeddings were created.
+        """
+        # Format transaction details as text
+        text = f"""
+        Transaction ID: {transaction.get('transaction_id', 'N/A')}
+        Amount: {transaction.get('amount', 0)} {transaction.get('currency', 'USD')}
+        Merchant: {transaction.get('merchant', {}).get('name', 'N/A')}
+        Merchant Category: {transaction.get('merchant', {}).get('category', 'N/A')}
+        Transaction Type: {transaction.get('transaction_type', 'N/A')}
+        Payment Method: {transaction.get('payment_method', 'N/A')}
+        Location: {transaction.get('location', {}).get('city', 'N/A')}, {transaction.get('location', {}).get('state', 'N/A')}, {transaction.get('location', {}).get('country', 'N/A')}
+        Device: {transaction.get('device_info', {}).get('type', 'N/A')}, {transaction.get('device_info', {}).get('os', 'N/A')}, {transaction.get('device_info', {}).get('browser', 'N/A')}
+        """
+        
+        # Add risk assessment information if available
+        if 'risk_assessment' in transaction:
+            risk = transaction['risk_assessment']
+            flags_text = ', '.join(risk.get('flags', [])) if risk.get('flags', []) else 'None'
+            
+            text += f"""
+            Risk Score: {risk.get('score', 0)}
+            Risk Level: {risk.get('level', 'N/A')}
+            Risk Flags: {flags_text}
+            """
+        
+        return text
     
     def _calculate_risk_score(self, amount_risk: float, location_risk: float, 
                              device_risk: float, velocity_risk: float, pattern_risk: float,

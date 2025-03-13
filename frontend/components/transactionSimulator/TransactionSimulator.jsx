@@ -60,6 +60,11 @@ const MERCHANT_CATEGORIES = [
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+// Tab IDs for the results modal
+const TAB_OVERVIEW = 0;
+const TAB_TRANSACTION_DETAILS = 1;
+const TAB_VECTOR_SEARCH = 2;
+
 function TransactionSimulator() {
   // State variables
   const [customers, setCustomers] = useState([]);
@@ -95,6 +100,8 @@ function TransactionSimulator() {
   const [results, setResults] = useState(null);
   const [showResultsModal, setShowResultsModal] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
+  const [similarTransactions, setSimilarTransactions] = useState([]);
+  const [similarityRiskScore, setSimilarityRiskScore] = useState(0);
 
   // Fetch customers and initial data
   useEffect(() => {
@@ -290,6 +297,18 @@ function TransactionSimulator() {
   };
 
   // Submit transaction for evaluation
+  // Generate a descriptive text of the transaction for embedding
+  const generateTransactionDescription = (transaction, riskAssessment) => {
+    const flags = riskAssessment?.flags || [];
+    const merchant = transaction.merchant?.category || 'unknown';
+    const amount = transaction.amount || 0;
+    const transType = transaction.transaction_type || 'purchase';
+    
+    // Generate a natural language description
+    return `${transType} transaction for $${amount} at ${merchant} merchant with` + 
+      (flags.length > 0 ? ` the following risk indicators: ${flags.join(', ')}` : ' no suspicious indicators');
+  };
+
   const handleSubmitTransaction = async () => {
     const transactionData = prepareTransactionData();
     if (!transactionData) {
@@ -305,8 +324,16 @@ function TransactionSimulator() {
       console.log('Transaction data being sent:', JSON.stringify(transactionData));
       
       // Call the API to evaluate the transaction
-      const response = await axios.post(`${API_BASE_URL}/transactions/evaluate`, transactionData);
+      const response = await axios.post(`${API_BASE_URL}/transactions/evaluate/`, transactionData);
       console.log('Transaction evaluation response:', JSON.stringify(response.data));
+      
+      // Extract similar transactions and similarity risk score
+      const similarTransData = response.data.similar_transactions || [];
+      const simRiskScore = response.data.similarity_risk_score || 0;
+      
+      // Update state with similar transactions data
+      setSimilarTransactions(similarTransData);
+      setSimilarityRiskScore(simRiskScore);
       
       setResults(response.data);
       setShowResultsModal(true);
@@ -318,7 +345,7 @@ function TransactionSimulator() {
       setLoading(false);
     }
   };
-
+  
   // Submit and store transaction
   const handleSubmitAndStoreTransaction = async () => {
     const transactionData = prepareTransactionData();
@@ -335,8 +362,24 @@ function TransactionSimulator() {
       console.log('Transaction data being stored:', JSON.stringify(transactionData));
       
       // Call the API to create and evaluate the transaction
-      const response = await axios.post(`${API_BASE_URL}/transactions`, transactionData);
+      const response = await axios.post(`${API_BASE_URL}/transactions/`, transactionData);
       console.log('Transaction storage response:', JSON.stringify(response.data));
+      
+      // After storing, get similar transactions through the evaluate endpoint
+      try {
+        const evalResponse = await axios.post(`${API_BASE_URL}/transactions/evaluate/`, transactionData);
+        
+        // Extract similar transactions and similarity risk score
+        const similarTransData = evalResponse.data.similar_transactions || [];
+        const simRiskScore = evalResponse.data.similarity_risk_score || 0;
+        
+        // Update state with similar transactions data
+        setSimilarTransactions(similarTransData);
+        setSimilarityRiskScore(simRiskScore);
+      } catch (evalErr) {
+        console.error('Error getting similar transactions:', evalErr);
+        // Continue even if this fails
+      }
       
       setResults(response.data);
       setShowResultsModal(true);
@@ -433,7 +476,7 @@ function TransactionSimulator() {
                             ? palette.yellow.dark2 
                             : palette.green.dark1
                       }}>
-                        {risk.score}
+                        {Math.round(risk.score)}
                       </H1>
                       <Body>Risk Score</Body>
                     </div>
@@ -451,7 +494,7 @@ function TransactionSimulator() {
                           padding: `${spacing[1]}px 0`
                         }}>
                           <Body weight="medium">Customer Base Risk:</Body>
-                          <Body>{risk.diagnostics.customer_base_risk}</Body>
+                          <Body>{Math.round(risk.diagnostics.customer_base_risk)}</Body>
                         </div>
                         
                         {/* Transaction Factors */}
@@ -463,7 +506,7 @@ function TransactionSimulator() {
                               padding: `${spacing[1]}px 0` 
                             }}>
                               <Body weight="medium">{factor.charAt(0).toUpperCase() + factor.slice(1)} Risk:</Body>
-                              <Body>{value}</Body>
+                              <Body>{Math.round(value)}</Body>
                             </div>
                           )
                         ))}
@@ -509,6 +552,7 @@ function TransactionSimulator() {
                 </Card>
               </div>
             </Tab>
+            
             <Tab name="Transaction Details">
               <div style={{ marginTop: spacing[3] }}>
                 <Card>
@@ -529,13 +573,13 @@ function TransactionSimulator() {
                         { key: 'Merchant Category', value: results.transaction?.merchant },
                         { key: 'Transaction Type', value: results.transaction?.transaction_type },
                         { key: 'Risk Level', value: risk.level },
-                        { key: 'Risk Score', value: risk.score },
-                        { key: 'Customer Base Risk', value: risk.diagnostics?.customer_base_risk || 0 },
+                        { key: 'Risk Score', value: Math.round(risk.score) },
+                        { key: 'Customer Base Risk', value: Math.round(risk.diagnostics?.customer_base_risk || 0) },
                         ...Object.entries(risk.diagnostics?.transaction_factors || {})
                           .filter(([_, value]) => value > 0)
                           .map(([factor, value]) => ({ 
                             key: `${factor.charAt(0).toUpperCase() + factor.slice(1)} Risk`, 
-                            value: value 
+                            value: Math.round(value) 
                           })),
                         { key: 'Transaction Classification', value: risk.transaction_type }
                       ].map(datum => (
@@ -550,6 +594,250 @@ function TransactionSimulator() {
                       ))}
                     </TableBody>
                   </Table>
+                </Card>
+              </div>
+            </Tab>
+            
+            <Tab name="Vector Search Fraud Assessment">
+              <div style={{ marginTop: spacing[3] }}>
+                <Card>
+                  <div style={{ marginBottom: spacing[3] }}>
+                    <H3>Vector Search Fraud Analysis</H3>
+                    <Body style={{ marginTop: spacing[1] }}>
+                      Using MongoDB Vector Search to analyze semantically similar transactions for fraud detection
+                    </Body>
+                  </div>
+                  
+                  {/* Transaction description */}
+                  <div style={{ 
+                    padding: spacing[3],
+                    background: palette.gray.light2,
+                    borderRadius: '4px',
+                    marginBottom: spacing[3]
+                  }}>
+                    <Subtitle>Transaction Description:</Subtitle>
+                    <Body style={{ fontStyle: 'italic', marginTop: spacing[1] }}>
+                      {generateTransactionDescription(
+                        {
+                          amount: results.transaction?.amount,
+                          merchant: { category: results.transaction?.merchant },
+                          transaction_type: results.transaction?.transaction_type
+                        }, 
+                        risk
+                      )}
+                    </Body>
+                  </div>
+                  
+                  {/* Vector search representation */}
+                  <div style={{ marginBottom: spacing[3] }}>
+                    <Subtitle>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+                        <Icon glyph="Diagram" fill={palette.blue.base} />
+                        Vector Embedding Process
+                      </div>
+                    </Subtitle>
+                    
+                    <div style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center',
+                      marginTop: spacing[2],
+                      flexWrap: 'wrap'
+                    }}>
+                      <div style={{ 
+                        background: palette.blue.light2, 
+                        padding: spacing[2], 
+                        borderRadius: '4px',
+                        flex: '1 1 200px',
+                        margin: spacing[1]
+                      }}>
+                        <Body weight="medium" style={{ color: palette.blue.dark2 }}>Transaction Text</Body>
+                      </div>
+                      
+                      <div style={{ display: 'flex', alignItems: 'center', padding: `0 ${spacing[1]}px` }}>
+                        <Icon glyph="ArrowRight" />
+                      </div>
+                      
+                      <div style={{ 
+                        background: palette.purple.light2, 
+                        padding: spacing[2], 
+                        borderRadius: '4px',
+                        flex: '1 1 200px',
+                        margin: spacing[1]
+                      }}>
+                        <Body weight="medium" style={{ color: palette.purple.dark2 }}>Bedrock Titan Model</Body>
+                      </div>
+                      
+                      <div style={{ display: 'flex', alignItems: 'center', padding: `0 ${spacing[1]}px` }}>
+                        <Icon glyph="ArrowRight" />
+                      </div>
+                      
+                      <div style={{ 
+                        background: palette.green.light2, 
+                        padding: spacing[2], 
+                        borderRadius: '4px',
+                        flex: '1 1 200px',
+                        margin: spacing[1]
+                      }}>
+                        <Body weight="medium" style={{ color: palette.green.dark2 }}>Vector (1536 dimensions)</Body>
+                      </div>
+                      
+                      <div style={{ display: 'flex', alignItems: 'center', padding: `0 ${spacing[1]}px` }}>
+                        <Icon glyph="ArrowRight" />
+                      </div>
+                      
+                      <div style={{ 
+                        background: palette.yellow.light2, 
+                        padding: spacing[2], 
+                        borderRadius: '4px',
+                        flex: '1 1 200px',
+                        margin: spacing[1]
+                      }}>
+                        <Body weight="medium" style={{ color: palette.yellow.dark2 }}>MongoDB Vector Search</Body>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Similarity Risk Score */}
+                  <div style={{ 
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: spacing[3],
+                    background: palette.gray.light2,
+                    borderRadius: '4px',
+                    marginBottom: spacing[3]
+                  }}>
+                    <div>
+                      <Subtitle>Vector Search Risk Score:</Subtitle>
+                      <Body style={{ marginTop: spacing[1] }}>
+                        Calculated using MongoDB vector search similarity analysis
+                      </Body>
+                    </div>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '80px',
+                      height: '80px',
+                      borderRadius: '50%',
+                      background: 'white',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                      border: `3px solid ${
+                        similarityRiskScore >= 0.7 ? palette.red.base :
+                        similarityRiskScore >= 0.4 ? palette.yellow.base :
+                        palette.green.base
+                      }`
+                    }}>
+                      <H2 style={{ 
+                        color: similarityRiskScore >= 0.7 ? palette.red.base :
+                               similarityRiskScore >= 0.4 ? palette.yellow.base :
+                               palette.green.base
+                      }}>
+                        {Math.round(similarityRiskScore * 100)}
+                      </H2>
+                    </div>
+                  </div>
+                  
+                  {/* Similar transactions list */}
+                  <div>
+                    <Subtitle style={{ marginBottom: spacing[2] }}>
+                      Vector-Matched Transactions:
+                      {results.similar_transactions_count > similarTransactions.length && (
+                        <span style={{ color: palette.gray.dark1, fontWeight: 'normal', fontSize: '14px', marginLeft: spacing[2] }}>
+                          (Showing top {similarTransactions.length} of {results.similar_transactions_count} vector matches)
+                        </span>
+                      )}
+                    </Subtitle>
+                    
+                    {similarTransactions.length > 0 ? (
+                      <div>
+                        {similarTransactions.map((trans, index) => (
+                          <div 
+                            key={trans._id || index} 
+                            style={{ 
+                              padding: spacing[3],
+                              marginBottom: spacing[2],
+                              border: `1px solid ${palette.gray.light2}`,
+                              borderRadius: '4px',
+                              borderLeft: `4px solid ${
+                                trans.risk_assessment?.level === 'high' ? palette.red.base :
+                                trans.risk_assessment?.level === 'medium' ? palette.yellow.base :
+                                palette.green.base
+                              }`
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: spacing[2] }}>
+                              <H3>${trans.amount} {trans.transaction_type} at {trans.merchant?.category}</H3>
+                              {trans.score && (
+                                <div style={{ 
+                                  background: palette.blue.light2, 
+                                  padding: `${spacing[1]}px ${spacing[2]}px`,
+                                  borderRadius: '12px'
+                                }}>
+                                  <Body weight="medium" style={{ color: palette.blue.dark2 }}>
+                                    Vector Similarity: {(trans.score * 100).toFixed(1)}%
+                                  </Body>
+                                </div>
+                              )}
+                            </div>
+                            
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing[2] }}>
+                              <div>
+                                <Body weight="medium">Date:</Body>
+                                <Body>{new Date(trans.timestamp).toLocaleString()}</Body>
+                              </div>
+                              
+                              <div>
+                                <Body weight="medium">Risk Level:</Body>
+                                <Body>{trans.risk_assessment?.level || 'Unknown'}</Body>
+                              </div>
+                              
+                              <div>
+                                <Body weight="medium">Risk Score:</Body>
+                                <Body>{trans.risk_assessment?.score || 'N/A'}</Body>
+                              </div>
+                              
+                              <div>
+                                <Body weight="medium">Payment Method:</Body>
+                                <Body>{trans.payment_method?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown'}</Body>
+                              </div>
+                            </div>
+                            
+                            {trans.risk_assessment?.flags && trans.risk_assessment.flags.length > 0 && (
+                              <div style={{ marginTop: spacing[2] }}>
+                                <Subtitle style={{ fontSize: '14px', marginBottom: spacing[1] }}>Risk Flags:</Subtitle>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing[1] }}>
+                                  {trans.risk_assessment.flags.map((flag, i) => (
+                                    <div 
+                                      key={i}
+                                      style={{ 
+                                        background: palette.gray.light2,
+                                        padding: `${spacing[1]/2}px ${spacing[2]}px`,
+                                        borderRadius: '12px',
+                                        fontSize: '12px'
+                                      }}
+                                    >
+                                      {flag.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ 
+                        padding: spacing[3], 
+                        background: palette.gray.light2, 
+                        borderRadius: '4px',
+                        textAlign: 'center' 
+                      }}>
+                        <Body>No vector matches found in transaction database.</Body>
+                      </div>
+                    )}
+                  </div>
                 </Card>
               </div>
             </Tab>

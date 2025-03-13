@@ -32,12 +32,16 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",  # Local development
-        os.getenv("FRONTEND_URL", ""),  # Production frontend
+        "http://localhost:3000",         # Local development
+        "http://localhost:8080",         # Alternative local port
+        "http://127.0.0.1:3000",         # Another local development option
+        "http://127.0.0.1:8080",         # Another local development option
+        os.getenv("FRONTEND_URL", ""),   # Production frontend
+        "*",                             # Allow all origins for debugging
     ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
 )
 
 # Add health check endpoint

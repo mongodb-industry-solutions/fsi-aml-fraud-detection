@@ -11,13 +11,13 @@ import Icon from "@leafygreen-ui/icon";
 export default function HomepageClient() {
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px' }}>
-      <div style={{ 
+      <Card style={{ 
         textAlign: 'center', 
         marginBottom: spacing[4], 
         padding: spacing[4],
         backgroundColor: palette.green.light3,
-        borderRadius: '8px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+        borderRadius: '24px',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
         border: `1px solid ${palette.green.light1}`
       }}>
         <H1>
@@ -26,9 +26,6 @@ export default function HomepageClient() {
         <H3 style={{ color: palette.gray.dark1, marginBottom: spacing[3] }}>
           Advanced Fraud Detection for Financial Services
         </H3>
-        <Description style={{ maxWidth: '800px', margin: '0 auto', marginBottom: spacing[4], fontSize: '16px' }}>
-          ThreatSight 360 uses advanced machine learning and pattern recognition to detect and prevent fraudulent financial transactions in real-time.
-        </Description>
         <Link href="/transaction-simulator">
           <Button 
             variant="primary" 
@@ -39,19 +36,20 @@ export default function HomepageClient() {
             Try Transaction Simulator
           </Button>
         </Link>
-      </div>
+      </Card>
 
       <div style={{ display: 'flex', gap: spacing[3], flexWrap: 'wrap', marginBottom: spacing[4] }}>
-        <Card style={{ 
+        <Card 
+          contentStyle="clickable"
+          as={Link}
+          href="/transaction-simulator"
+          style={{ 
             flex: '1 1 300px', 
             boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
             border: `1px solid ${palette.blue.light2}`,
-            transition: 'transform 0.2s, box-shadow 0.2s',
-            ':hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: '0 4px 8px rgba(0,0,0,0.12)'
-            }
-          }}>
+            textDecoration: 'none'
+          }}
+        >
           <div style={{ marginBottom: spacing[2], color: palette.blue.base }}>
             <Icon glyph="Charts" size="large" />
           </div>
@@ -63,16 +61,17 @@ export default function HomepageClient() {
           </Description>
         </Card>
 
-        <Card style={{ 
+        <Card 
+          contentStyle="clickable"
+          as={Link}
+          href="/transaction-simulator"
+          style={{ 
             flex: '1 1 300px', 
             boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
             border: `1px solid ${palette.green.light2}`,
-            transition: 'transform 0.2s, box-shadow 0.2s',
-            ':hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: '0 4px 8px rgba(0,0,0,0.12)'
-            }
-          }}>
+            textDecoration: 'none'
+          }}
+        >
           <div style={{ marginBottom: spacing[2], color: palette.green.dark1 }}>
             <Icon glyph="Lock" size="large" />
           </div>
@@ -84,16 +83,17 @@ export default function HomepageClient() {
           </Description>
         </Card>
 
-        <Card style={{ 
+        <Card 
+          contentStyle="clickable"
+          as={Link}
+          href="/transaction-simulator"
+          style={{ 
             flex: '1 1 300px', 
             boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
             border: `1px solid ${palette.yellow.light2}`,
-            transition: 'transform 0.2s, box-shadow 0.2s',
-            ':hover': {
-              transform: 'translateY(-2px)',
-              boxShadow: '0 4px 8px rgba(0,0,0,0.12)'
-            }
-          }}>
+            textDecoration: 'none'
+          }}
+        >
           <div style={{ marginBottom: spacing[2], color: palette.yellow.dark2 }}>
             <Icon glyph="ImportantWithCircle" size="large" />
           </div>
@@ -106,28 +106,28 @@ export default function HomepageClient() {
         </Card>
       </div>
 
-      <div style={{ textAlign: 'center', marginTop: spacing[4] }}>
+      <div style={{ 
+        textAlign: 'center', 
+        marginTop: spacing[4],
+        padding: spacing[3],
+        backgroundColor: palette.gray.light2,
+        borderRadius: '8px'
+      }}>
         <H3 style={{ marginBottom: spacing[3] }}>
           Ready to see it in action?
         </H3>
-        <div style={{ marginBottom: spacing[3] }}>
-          <LGLink 
-            href="/transaction-simulator" 
-            arrowAppearance="persist" 
-            style={{ fontSize: '16px' }}
-          >
-            Go to Transaction Simulator
-          </LGLink>
-        </div>
-        <Link href="/transaction-simulator">
-          <Button 
-            variant="primary" 
-            rightGlyph={<Icon glyph="ArrowRight" fill={palette.green.light3} />}
+        <div style={{ marginBottom: spacing[2] }}>
+          <Button
+            variant="primary"
+            size="large"
+            leftGlyph={<Icon glyph="ArrowRight" fill={palette.gray.light3} />}
+            as={Link}
+            href="/transaction-simulator"
             style={{ backgroundColor: palette.green.dark2, color: palette.gray.light3 }}
           >
-            Start Now
+            Go to Transaction Simulator
           </Button>
-        </Link>
+        </div>
       </div>
     </div>
   );

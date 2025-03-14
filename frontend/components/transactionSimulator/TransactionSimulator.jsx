@@ -8,7 +8,7 @@ import { Select, Option } from '@leafygreen-ui/select';
 import Toggle from '@leafygreen-ui/toggle';
 import Banner from '@leafygreen-ui/banner';
 import { Table, TableBody, TableHead, HeaderRow, HeaderCell, Row, Cell, useLeafyGreenTable, flexRender } from '@leafygreen-ui/table';
-import { Body, H1, H2, H3, Subtitle, InlineCode, Disclaimer } from '@leafygreen-ui/typography';
+import { Body, H1, H2, H3, Subtitle, InlineCode, InlineKeyCode, Disclaimer, Error as ErrorText, Label, Description, BackLink } from '@leafygreen-ui/typography';
 import { Tabs, Tab } from '@leafygreen-ui/tabs';
 import Tooltip from '@leafygreen-ui/tooltip';
 import Icon from '@leafygreen-ui/icon';
@@ -346,51 +346,7 @@ function TransactionSimulator() {
     }
   };
   
-  // Submit and store transaction
-  const handleSubmitAndStoreTransaction = async () => {
-    const transactionData = prepareTransactionData();
-    if (!transactionData) {
-      setError('Cannot create transaction: No customer selected');
-      return;
-    }
-    
-    setLoading(true);
-    setError('');
-    
-    try {
-      // Log the transaction data for debugging
-      console.log('Transaction data being stored:', JSON.stringify(transactionData));
-      
-      // Call the API to create and evaluate the transaction
-      const response = await axios.post(`${API_BASE_URL}/transactions/`, transactionData);
-      console.log('Transaction storage response:', JSON.stringify(response.data));
-      
-      // After storing, get similar transactions through the evaluate endpoint
-      try {
-        const evalResponse = await axios.post(`${API_BASE_URL}/transactions/evaluate/`, transactionData);
-        
-        // Extract similar transactions and similarity risk score
-        const similarTransData = evalResponse.data.similar_transactions || [];
-        const simRiskScore = evalResponse.data.similarity_risk_score || 0;
-        
-        // Update state with similar transactions data
-        setSimilarTransactions(similarTransData);
-        setSimilarityRiskScore(simRiskScore);
-      } catch (evalErr) {
-        console.error('Error getting similar transactions:', evalErr);
-        // Continue even if this fails
-      }
-      
-      setResults(response.data);
-      setShowResultsModal(true);
-    } catch (err) {
-      console.error('Error creating transaction:', err);
-      console.error('Error details:', err.response?.data || err.message);
-      setError('Failed to create transaction. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // No longer needed: Submit and store transaction function has been removed
 
   // Render risk level indicator
   const renderRiskLevelIndicator = (level) => {
@@ -710,9 +666,9 @@ function TransactionSimulator() {
                   }}>
                     <div>
                       <Subtitle>Vector Search Risk Score:</Subtitle>
-                      <Body style={{ marginTop: spacing[1] }}>
+                      <Description style={{ marginTop: spacing[1], color: palette.gray.dark1 }}>
                         Calculated using MongoDB vector search similarity analysis
-                      </Body>
+                      </Description>
                     </div>
                     <div style={{
                       display: 'flex',
@@ -849,9 +805,16 @@ function TransactionSimulator() {
             marginTop: spacing[3],
             gap: spacing[2]
           }}>
-            <Button onClick={() => setShowResultsModal(false)}>Close</Button>
-            <Button variant="primary" onClick={handleSubmitAndStoreTransaction}>
-              Save Transaction
+            <Button 
+              variant="primary"
+              onClick={() => setShowResultsModal(false)} 
+              leftGlyph={<Icon glyph="X" fill={palette.gray.light3} />}
+              style={{ 
+                backgroundColor: palette.green.dark2, 
+                color: palette.gray.light3
+              }}
+            >
+              Close
             </Button>
           </div>
         </div>
@@ -869,6 +832,9 @@ function TransactionSimulator() {
 
   return (
     <div>
+      <div style={{ marginBottom: spacing[2] }}>
+        <BackLink href="/">Back to Home</BackLink>
+      </div>
       <H2 style={{ marginBottom: spacing[3] }}>
         Transaction Simulator
       </H2>
@@ -954,7 +920,7 @@ function TransactionSimulator() {
             <Subtitle style={{ marginBottom: spacing[1] }}>
               Scenario Description
             </Subtitle>
-            <Body style={{ color: palette.gray.dark1 }}>
+            <Description style={{ color: palette.gray.dark1, marginBottom: spacing[2] }}>
               {selectedScenario === SCENARIOS.NORMAL && 
                 "A typical transaction within customer's normal patterns and behaviors."}
               {selectedScenario === SCENARIOS.AMOUNT_ANOMALY && 
@@ -965,7 +931,10 @@ function TransactionSimulator() {
                 "Transaction from a device that hasn't been used by this customer before."}
               {selectedScenario === SCENARIOS.MULTI_FLAG && 
                 "Transaction with multiple anomalies: unusual amount, location, and device."}
-            </Body>
+            </Description>
+            <Disclaimer>
+              Press <InlineKeyCode>Enter</InlineKeyCode> to submit or <InlineKeyCode>Esc</InlineKeyCode> to cancel after making your selection.
+            </Disclaimer>
           </div>
         </Card>
       </div>
@@ -982,8 +951,10 @@ function TransactionSimulator() {
           gap: spacing[4]
         }}>
           <div style={{ marginBottom: spacing[2] }}>
+            <div style={{ marginBottom: spacing[1] }}>
+              <Label>Transaction Type</Label>
+            </div>
             <Select
-              label="Transaction Type"
               onChange={value => setTransactionType(value)}
               value={transactionType}
             >
@@ -1293,26 +1264,23 @@ function TransactionSimulator() {
       {/* Action Buttons */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: spacing[2], marginBottom: spacing[3] }}>
         <Button
-          disabled={loading || !selectedCustomer}
-          onClick={handleSubmitTransaction}
-        >
-          Evaluate Transaction
-        </Button>
-        
-        <Button
           variant="primary"
           disabled={loading || !selectedCustomer}
-          onClick={handleSubmitAndStoreTransaction}
-          leftGlyph={loading ? <Spinner /> : null}
+          onClick={handleSubmitTransaction}
+          leftGlyph={loading ? <Spinner /> : <Icon glyph="Checkmark" fill={palette.gray.light3} />}
+          style={{ 
+            backgroundColor: loading || !selectedCustomer ? palette.gray.light2 : palette.green.dark2,
+            color: loading || !selectedCustomer ? palette.gray.dark1 : palette.gray.light3
+          }}
         >
-          Submit & Store Transaction
+          Evaluate Transaction
         </Button>
       </div>
       
       {/* Error Display */}
       {error && (
         <Banner variant="danger">
-          {error}
+          <ErrorText>{error}</ErrorText>
         </Banner>
       )}
       

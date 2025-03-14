@@ -145,8 +145,9 @@ async def evaluate_transaction(
             # Get the similarity score
             similarity = t.get("score", 0.5)  # Default to 0.5 if not available
             
-            # Apply position weight (earlier results have more impact)
-            position_weight = 1.0 if idx < 2 else max(0.7, 1.0 - ((idx - 1) * 0.1))
+            # Apply a stronger position weight for the filtered top 5 transactions
+            # First result gets full weight, last (5th) gets 0.6 weight
+            position_weight = 1.0 - (idx * 0.1)  # Creates weights: 1.0, 0.9, 0.8, 0.7, 0.6
             weighted_similarity = similarity * position_weight
             
             # Get risk information
@@ -181,7 +182,12 @@ async def evaluate_transaction(
             score_entry = {
                 "similarity": final_similarity,
                 "risk_score": risk_score,
-                "flags": len(risk_flags)
+                "flags": len(risk_flags),
+                "position": idx + 1,
+                "raw_similarity": similarity,
+                "position_weight": position_weight,
+                "weighted_similarity": weighted_similarity,
+                "amount_similarity": amount_similarity
             }
             
             # Categorize by risk level
@@ -244,6 +250,24 @@ async def evaluate_transaction(
         # Ensure score is in bounds
         recalculated_similarity_risk_score = max(0.0, min(1.0, recalculated_similarity_risk_score))
         logger.info(f"Recalculated similarity risk score (top 5 only): {recalculated_similarity_risk_score:.3f} (original: {similarity_risk_score:.3f})")
+        
+        # Log detailed weight information for debugging
+        logger.info(f"Position weights applied to top 5: " + 
+                   ", ".join([f"{i+1}: {1.0 - (i * 0.1):.1f}" for i in range(min(5, len(display_transactions)))]))
+        
+        # Log transaction risk score contributions
+        contribution_log = "Transaction risk contributions:\n"
+        for risk_type, scores in [("High risk", high_risk_scores), ("Medium risk", medium_risk_scores), ("Low risk", low_risk_scores)]:
+            if scores:
+                contribution_log += f"{risk_type} transactions ({len(scores)}):\n"
+                for score in scores:
+                    contribution_log += (f"  Pos {score['position']}: raw_sim={score['raw_similarity']:.2f}, " +
+                                       f"pos_weight={score['position_weight']:.1f}, " +
+                                       f"amount_sim={score['amount_similarity']:.1f}, " +
+                                       f"final_sim={score['similarity']:.2f}, " +
+                                       f"risk={score['risk_score']:.2f}, " +
+                                       f"flags={score['flags']}\n")
+        logger.info(contribution_log)
     
     # Return the risk assessment with similar transactions
     return {

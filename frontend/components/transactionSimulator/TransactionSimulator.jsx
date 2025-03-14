@@ -12,14 +12,24 @@ import { Body, H1, H2, H3, Subtitle, InlineCode, InlineKeyCode, Disclaimer, Erro
 import { Tabs, Tab } from '@leafygreen-ui/tabs';
 import Tooltip from '@leafygreen-ui/tooltip';
 import Icon from '@leafygreen-ui/icon';
-import TextInput from '@leafygreen-ui/text-input';
+import IconButton from '@leafygreen-ui/icon-button';
+import TextInput, { State, SizeVariant, TextInputType } from '@leafygreen-ui/text-input';
 import { RadioGroup, Radio } from '@leafygreen-ui/radio-group';
 import RadioBox from '@leafygreen-ui/radio-box-group';
 import Modal from '@leafygreen-ui/modal';
 import { Spinner } from '@leafygreen-ui/loading-indicator';
+import { 
+  ParagraphSkeleton, 
+  CardSkeleton, 
+  TableSkeleton, 
+  FormSkeleton 
+} from '@leafygreen-ui/skeleton-loader';
 import Callout from '@leafygreen-ui/callout';
+import Popover from '@leafygreen-ui/popover';
+import Code from '@leafygreen-ui/code';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
+import ExpandableCard from '@leafygreen-ui/expandable-card';
 import styles from './TransactionSimulator.module.css';
 
 
@@ -74,7 +84,6 @@ function TransactionSimulator() {
   const [paymentMethod, setPaymentMethod] = useState('credit_card');
   const [amount, setAmount] = useState(50);
   const [merchantCategory, setMerchantCategory] = useState('retail');
-  const [merchantName, setMerchantName] = useState('');
   const [useCommonLocation, setUseCommonLocation] = useState(true);
   const [customLocation, setCustomLocation] = useState({
     city: '',
@@ -102,6 +111,8 @@ function TransactionSimulator() {
   const [activeTab, setActiveTab] = useState(0);
   const [similarTransactions, setSimilarTransactions] = useState([]);
   const [similarityRiskScore, setSimilarityRiskScore] = useState(0);
+  const [showCustomerJson, setShowCustomerJson] = useState(false);
+  const [hoveredButton, setHoveredButton] = useState(false);
 
   // Fetch customers and initial data
   useEffect(() => {
@@ -273,8 +284,8 @@ function TransactionSimulator() {
       deviceData = customDevice;
     }
     
-    // Generate merchant name if not provided
-    const generatedMerchantName = merchantName || `${merchantCategory.charAt(0).toUpperCase() + merchantCategory.slice(1)} Store`;
+    // Generate merchant name based on category
+    const generatedMerchantName = `${merchantCategory.charAt(0).toUpperCase() + merchantCategory.slice(1)} Store`;
     
     // Prepare transaction data
     return {
@@ -304,9 +315,24 @@ function TransactionSimulator() {
     const amount = transaction.amount || 0;
     const transType = transaction.transaction_type || 'purchase';
     
+    // Check if this is a scenario-based transaction and ensure the scenario is reflected in the description
+    let riskDescription;
+    if (flags.length > 0) {
+      riskDescription = ` the following risk indicators: ${flags.join(', ')}`;
+    } else if (selectedScenario === SCENARIOS.LOCATION_ANOMALY) {
+      riskDescription = ' unusual location detected';
+    } else if (selectedScenario === SCENARIOS.AMOUNT_ANOMALY) {
+      riskDescription = ' unusual amount detected';
+    } else if (selectedScenario === SCENARIOS.DEVICE_ANOMALY) {
+      riskDescription = ' unknown device detected';
+    } else if (selectedScenario === SCENARIOS.MULTI_FLAG) {
+      riskDescription = ' multiple suspicious indicators: unusual amount, location, and device';
+    } else {
+      riskDescription = ' no suspicious indicators';
+    }
+    
     // Generate a natural language description
-    return `${transType} transaction for $${amount} at ${merchant} merchant with` + 
-      (flags.length > 0 ? ` the following risk indicators: ${flags.join(', ')}` : ' no suspicious indicators');
+    return `${transType} transaction for $${amount} at ${merchant} merchant with${riskDescription}`;
   };
 
   const handleSubmitTransaction = async () => {
@@ -383,9 +409,84 @@ function TransactionSimulator() {
 
   // Render results modal
   const renderResultsModal = () => {
-    if (!results) return null;
+    if (!results && !loading) return null;
     
-    const risk = results.risk_assessment;
+    // Show skeleton loading state when loading
+    if (loading && showResultsModal) {
+      return (
+        <Modal
+          open={showResultsModal}
+          setOpen={setShowResultsModal}
+          size="large"
+          title="Transaction Risk Assessment"
+          contentstyle={{ zIndex: 1000 }}
+        >
+          <div style={{ padding: spacing[3] }}>
+            <Tabs
+              selected={activeTab}
+              setSelected={setActiveTab}
+              aria-label="Transaction assessment tabs"
+            >
+              <Tab name="Overview">
+                <div style={{ marginTop: spacing[3] }}>
+                  <CardSkeleton style={{ height: '400px' }} />
+                </div>
+              </Tab>
+              
+              <Tab name="Transaction Details">
+                <div style={{ marginTop: spacing[3] }}>
+                  <CardSkeleton style={{ height: '450px', padding: spacing[3] }}>
+                    <div style={{ marginBottom: spacing[3] }}>
+                      <ParagraphSkeleton withHeader />
+                    </div>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[3] }}>
+                      {/* Transaction Details Skeleton */}
+                      <div style={{ 
+                        padding: spacing[3], 
+                        background: palette.gray.light2, 
+                        borderRadius: '4px',
+                        height: '120px'
+                      }}/>
+                      
+                      {/* Risk Assessment Skeleton */}
+                      <div style={{ 
+                        padding: spacing[3], 
+                        background: palette.gray.light2, 
+                        borderRadius: '4px',
+                        height: '120px'
+                      }}/>
+                      
+                      {/* Risk Factors Skeleton */}
+                      <div style={{ 
+                        padding: spacing[3], 
+                        background: palette.gray.light2, 
+                        borderRadius: '4px',
+                        height: '120px'
+                      }}/>
+                    </div>
+                  </CardSkeleton>
+                </div>
+              </Tab>
+              
+              <Tab name="Vector Search Fraud Assessment">
+                <div style={{ marginTop: spacing[3] }}>
+                  <CardSkeleton style={{ height: '500px' }} />
+                </div>
+              </Tab>
+            </Tabs>
+          </div>
+        </Modal>
+      );
+    }
+    
+    // If results are not loaded yet, don't attempt to render content
+    if (!results) {
+      return null;
+    }
+    
+    const risk = results?.risk_assessment || {};
+    const transaction = results?.transaction || {};
     
     return (
       <Modal
@@ -516,40 +617,102 @@ function TransactionSimulator() {
                     Transaction Information
                   </H3>
                   
-                  <Table>
-                    <TableHead>
-                      <HeaderRow>
-                        <HeaderCell>Property</HeaderCell>
-                        <HeaderCell>Value</HeaderCell>
-                      </HeaderRow>
-                    </TableHead>
-                    <TableBody>
-                      {[
-                        { key: 'Amount', value: `$${results.transaction?.amount}` },
-                        { key: 'Merchant Category', value: results.transaction?.merchant },
-                        { key: 'Transaction Type', value: results.transaction?.transaction_type },
-                        { key: 'Risk Level', value: risk.level },
-                        { key: 'Risk Score', value: Math.round(risk.score) },
-                        { key: 'Customer Base Risk', value: Math.round(risk.diagnostics?.customer_base_risk || 0) },
-                        ...Object.entries(risk.diagnostics?.transaction_factors || {})
-                          .filter(([_, value]) => value > 0)
-                          .map(([factor, value]) => ({ 
-                            key: `${factor.charAt(0).toUpperCase() + factor.slice(1)} Risk`, 
-                            value: Math.round(value) 
-                          })),
-                        { key: 'Transaction Classification', value: risk.transaction_type }
-                      ].map(datum => (
-                        <Row key={datum.key}>
-                          <Cell><strong>{datum.key}</strong></Cell>
-                          <Cell>
-                            {datum.key === 'Risk Level' 
-                              ? renderRiskLevelIndicator(datum.value) 
-                              : datum.value}
-                          </Cell>
-                        </Row>
-                      ))}
-                    </TableBody>
-                  </Table>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[3] }}>
+                    {/* Transaction Details Section */}
+                    <div style={{ 
+                      padding: spacing[3], 
+                      background: palette.gray.light2, 
+                      borderRadius: '4px'
+                    }}>
+                      <Subtitle style={{ marginBottom: spacing[2] }}>Transaction Basics</Subtitle>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', rowGap: spacing[2], columnGap: spacing[4] }}>
+                        <div>
+                          <Body weight="medium">Amount:</Body>
+                          <Body>${transaction?.amount || 'N/A'}</Body>
+                        </div>
+                        <div>
+                          <Body weight="medium">Merchant Category:</Body>
+                          <Body>{transaction?.merchant || 'N/A'}</Body>
+                        </div>
+                        <div>
+                          <Body weight="medium">Transaction Type:</Body>
+                          <Body>{transaction?.transaction_type ? 
+                            transaction.transaction_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 
+                            'N/A'}</Body>
+                        </div>
+                        <div>
+                          <Body weight="medium">Classification:</Body>
+                          <Body>{risk.transaction_type?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Standard'}</Body>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Risk Assessment Section */}
+                    <div style={{ 
+                      padding: spacing[3], 
+                      background: palette.gray.light2, 
+                      borderRadius: '4px'
+                    }}>
+                      <Subtitle style={{ marginBottom: spacing[2] }}>Risk Assessment</Subtitle>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', rowGap: spacing[2], columnGap: spacing[4] }}>
+                        <div>
+                          <Body weight="medium">Risk Level:</Body>
+                          <div>{renderRiskLevelIndicator(risk.level)}</div>
+                        </div>
+                        <div>
+                          <Body weight="medium">Risk Score:</Body>
+                          <Body>{Math.round(risk.score)}</Body>
+                        </div>
+                        <div>
+                          <Body weight="medium">Customer Base Risk:</Body>
+                          <Body>{Math.round(risk.diagnostics?.customer_base_risk || 0)}</Body>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Risk Factors Section */}
+                    {Object.entries(risk.diagnostics?.transaction_factors || {})
+                      .filter(([_, value]) => value > 0)
+                      .length > 0 && (
+                        <div style={{ 
+                          padding: spacing[3], 
+                          background: palette.gray.light2, 
+                          borderRadius: '4px'
+                        }}>
+                          <Subtitle style={{ marginBottom: spacing[2] }}>Risk Factors</Subtitle>
+                          <div style={{ 
+                            display: 'grid', 
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', 
+                            gap: spacing[2] 
+                          }}>
+                            {Object.entries(risk.diagnostics?.transaction_factors || {})
+                              .filter(([_, value]) => value > 0)
+                              .map(([factor, value]) => (
+                                <div key={factor} style={{ 
+                                  padding: spacing[2],
+                                  background: 'white',
+                                  borderRadius: '4px',
+                                  boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                                }}>
+                                  <Body weight="medium">{factor.charAt(0).toUpperCase() + factor.slice(1)} Risk:</Body>
+                                  <H3 style={{ 
+                                    color: value > 50 
+                                      ? palette.red.base 
+                                      : value > 25 
+                                        ? palette.yellow.dark2 
+                                        : palette.green.dark1,
+                                    marginTop: spacing[1]
+                                  }}>
+                                    {Math.round(value)}
+                                  </H3>
+                                </div>
+                              ))
+                            }
+                          </div>
+                        </div>
+                      )
+                    }
+                  </div>
                 </Card>
               </div>
             </Tab>
@@ -575,9 +738,9 @@ function TransactionSimulator() {
                     <Body style={{ fontStyle: 'italic', marginTop: spacing[1] }}>
                       {generateTransactionDescription(
                         {
-                          amount: results.transaction?.amount,
-                          merchant: { category: results.transaction?.merchant },
-                          transaction_type: results.transaction?.transaction_type
+                          amount: transaction?.amount,
+                          merchant: { category: transaction?.merchant },
+                          transaction_type: transaction?.transaction_type
                         }, 
                         risk
                       )}
@@ -666,9 +829,6 @@ function TransactionSimulator() {
                   }}>
                     <div>
                       <Subtitle>Vector Search Risk Score:</Subtitle>
-                      <Description style={{ marginTop: spacing[1], color: palette.gray.dark1 }}>
-                        Calculated using MongoDB vector search similarity analysis
-                      </Description>
                     </div>
                     <div style={{
                       display: 'flex',
@@ -698,7 +858,7 @@ function TransactionSimulator() {
                   {/* Similar transactions list */}
                   <div>
                     <Subtitle style={{ marginBottom: spacing[2] }}>
-                      Vector-Matched Transactions:
+                      Vector - Matched Transactions:
                       {results.similar_transactions_count > similarTransactions.length && (
                         <span style={{ color: palette.gray.dark1, fontWeight: 'normal', fontSize: '14px', marginLeft: spacing[2] }}>
                           (Showing top {similarTransactions.length} of {results.similar_transactions_count} vector matches)
@@ -824,8 +984,30 @@ function TransactionSimulator() {
 
   if (initialLoading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: spacing[4] }}>
-        <Spinner />
+      <div style={{ padding: spacing[4] }}>
+        <div style={{ marginBottom: spacing[2] }}>
+          <BackLink href="/">Back to Home</BackLink>
+        </div>
+        <H2 style={{ marginBottom: spacing[3] }}>
+          Transaction Simulator
+        </H2>
+        
+        <div style={{ display: 'flex', gap: spacing[3], flexWrap: 'wrap' }}>
+          {/* Customer Selection Card Skeleton */}
+          <CardSkeleton style={{ flex: '1 1 300px', height: '250px', marginBottom: spacing[3] }} />
+          
+          {/* Scenario Selection Card Skeleton */}
+          <CardSkeleton style={{ flex: '1 1 300px', height: '250px', marginBottom: spacing[3] }} />
+        </div>
+        
+        {/* Transaction Details Card Skeleton */}
+        <CardSkeleton style={{ marginBottom: spacing[3], height: '200px' }} />
+        
+        {/* Location Card Skeleton */}
+        <CardSkeleton style={{ marginBottom: spacing[3], height: '150px' }} />
+        
+        {/* Device Card Skeleton */}
+        <CardSkeleton style={{ marginBottom: spacing[3], height: '200px' }} />
       </div>
     );
   }
@@ -835,9 +1017,24 @@ function TransactionSimulator() {
       <div style={{ marginBottom: spacing[2] }}>
         <BackLink href="/">Back to Home</BackLink>
       </div>
-      <H2 style={{ marginBottom: spacing[3] }}>
-        Transaction Simulator
-      </H2>
+      <div style={{ marginBottom: spacing[3], display: 'flex', alignItems: 'center', gap: spacing[2] }}>
+        <H2 style={{ margin: 0 }}>
+          Transaction Simulator
+        </H2>
+        <Description style={{ 
+          backgroundColor: palette.blue.light3, 
+          color: palette.blue.dark1, 
+          padding: `${spacing[1]/2}px ${spacing[2]}px`,
+          borderRadius: '4px',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: spacing[1],
+          fontSize: '12px'
+        }}>
+          <Icon glyph="Database" fill={palette.blue.base} size="small" />
+          Powered by MongoDB Atlas
+        </Description>
+      </div>
       
       <div style={{ display: 'flex', gap: spacing[3], flexWrap: 'wrap' }}>
         {/* Customer Selection Card */}
@@ -859,31 +1056,59 @@ function TransactionSimulator() {
             ))}
           </Select>
           
-          {selectedCustomer && (
+          {selectedCustomer ? (
             <div style={{ marginTop: spacing[3] }}>
-              <Subtitle style={{ marginBottom: spacing[1] }}>
+              <Subtitle style={{ marginBottom: spacing[2] }}>
                 Profile Summary
               </Subtitle>
-              <div style={{ marginBottom: spacing[1] }}>
-                <Body style={{ color: palette.gray.dark1 }}>
-                  Email: {selectedCustomer.personal_info.email}
-                </Body>
+              
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', 
+                gap: spacing[2],
+                marginBottom: spacing[3],
+                padding: spacing[2],
+                background: palette.gray.light2,
+                borderRadius: '4px'
+              }}>
+                <div>
+                  <Body weight="medium" size="small">Account</Body>
+                  <Body>{selectedCustomer.account_info.account_number}</Body>
+                </div>
+                <div>
+                  <Body weight="medium" size="small">Risk Score</Body>
+                  <Body>{selectedCustomer.risk_profile.overall_risk_score.toFixed(2)}</Body>
+                </div>
+                <div>
+                  <Body weight="medium" size="small">Avg. Transaction</Body>
+                  <Body>${selectedCustomer.behavioral_profile?.transaction_patterns?.avg_transaction_amount.toFixed(2)}</Body>
+                </div>
               </div>
-              <div style={{ marginBottom: spacing[1] }}>
-                <Body style={{ color: palette.gray.dark1 }}>
-                  Account: {selectedCustomer.account_info.account_number}
-                </Body>
-              </div>
-              <div style={{ marginBottom: spacing[1] }}>
-                <Body style={{ color: palette.gray.dark1 }}>
-                  Risk Score: {selectedCustomer.risk_profile.overall_risk_score.toFixed(2)}
-                </Body>
-              </div>
-              <div style={{ marginBottom: spacing[1] }}>
-                <Body style={{ color: palette.gray.dark1 }}>
-                  Avg. Transaction: ${selectedCustomer.behavioral_profile?.transaction_patterns?.avg_transaction_amount.toFixed(2)}
-                </Body>
-              </div>
+              
+              {/* MongoDB Document View with ExpandableCard */}
+              <ExpandableCard
+                title={
+                  <span style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+                    <span style={{ color: palette.blue.base, fontSize: '16px' }}>{ '{' }</span>
+                    <span style={{ fontSize: '13px' }}>
+                    MongoDB Document </span>
+                    <span style={{ color: palette.blue.base, fontSize: '16px' }}>{ '}' }</span>
+                  </span>
+                }
+                defaultOpen={showCustomerJson}
+                onClick={() => setShowCustomerJson(!showCustomerJson)}
+                contentClassName={styles.expandableContent}
+              >
+                <div style={{ maxHeight: '300px', overflow: 'auto' }}>
+                  <Code language="json" copyable={true}>
+                    {JSON.stringify(selectedCustomer, null, 2)}
+                  </Code>
+                </div>
+              </ExpandableCard>
+            </div>
+          ) : (
+            <div style={{ marginTop: spacing[3] }}>
+              <ParagraphSkeleton withHeader />
             </div>
           )}
         </Card>
@@ -932,99 +1157,147 @@ function TransactionSimulator() {
               {selectedScenario === SCENARIOS.MULTI_FLAG && 
                 "Transaction with multiple anomalies: unusual amount, location, and device."}
             </Description>
-            <Disclaimer>
-              Press <InlineKeyCode>Enter</InlineKeyCode> to submit or <InlineKeyCode>Esc</InlineKeyCode> to cancel after making your selection.
-            </Disclaimer>
           </div>
         </Card>
       </div>
       
       {/* Transaction Details Card */}
       <Card style={{ marginBottom: spacing[3] }}>
-        <H3 style={{ marginBottom: spacing[2] }}>
+        <H3 style={{ marginBottom: spacing[3] }}>
           Transaction Details
         </H3>
         
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', 
-          gap: spacing[4]
-        }}>
-          <div style={{ marginBottom: spacing[2] }}>
-            <div style={{ marginBottom: spacing[1] }}>
-              <Label>Transaction Type</Label>
+        <div>
+          {/* Row 1: Transaction Type and Payment Method */}
+          <div className={styles.formRow} style={{ marginBottom: spacing[3] }}>
+            {/* Transaction Type */}
+            <div className={styles.formField}>
+              <Label htmlFor="transaction-type" style={{ 
+                display: 'block', 
+                marginBottom: spacing[1],
+                color: palette.gray.dark2,
+                fontWeight: 'bold' 
+              }}>
+                Transaction Type
+              </Label>
+              <Select
+                id="transaction-type"
+                onChange={value => setTransactionType(value)}
+                value={transactionType}
+                aria-label="Select transaction type"
+                size="default"
+              >
+                {TRANSACTION_TYPES.map(type => (
+                  <Option key={type.value} value={type.value}>
+                    {type.label}
+                  </Option>
+                ))}
+              </Select>
             </div>
-            <Select
-              onChange={value => setTransactionType(value)}
-              value={transactionType}
-            >
-              {TRANSACTION_TYPES.map(type => (
-                <Option key={type.value} value={type.value}>
-                  {type.label}
-                </Option>
-              ))}
-            </Select>
+            
+            {/* Payment Method */}
+            <div className={styles.formField}>
+              <Label htmlFor="payment-method" style={{ 
+                display: 'block', 
+                marginBottom: spacing[1],
+                color: palette.gray.dark2,
+                fontWeight: 'bold'
+              }}>
+                Payment Method
+              </Label>
+              <Select
+                id="payment-method"
+                onChange={value => setPaymentMethod(value)}
+                value={paymentMethod}
+                aria-label="Select payment method"
+                size="default"
+              >
+                {PAYMENT_METHODS.map(method => (
+                  <Option key={method.value} value={method.value}>
+                    {method.label}
+                  </Option>
+                ))}
+              </Select>
+            </div>
           </div>
           
-          <div style={{ marginBottom: spacing[2] }}>
-            <Select
-              label="Payment Method"
-              onChange={value => setPaymentMethod(value)}
-              value={paymentMethod}
-            >
-              {PAYMENT_METHODS.map(method => (
-                <Option key={method.value} value={method.value}>
-                  {method.label}
-                </Option>
-              ))}
-            </Select>
-          </div>
-          
-          <div style={{ marginBottom: spacing[2] }}>
-            <TextInput
-              label="Amount (USD)"
-              onChange={e => setAmount(parseFloat(e.target.value) || 0)}
-              value={amount.toString()}
-              type="number"
-              min="1"
-              step="0.01"
-              style={{ width: '100%' }}
-            />
-            {selectedCustomer?.behavioral_profile?.transaction_patterns && (
-              <Body size="small" style={{ color: palette.gray.dark1 }}>
-                Avg: ${selectedCustomer.behavioral_profile.transaction_patterns.avg_transaction_amount.toFixed(2)}
-                {selectedCustomer.behavioral_profile.transaction_patterns.std_transaction_amount && 
-                  ` (±$${selectedCustomer.behavioral_profile.transaction_patterns.std_transaction_amount.toFixed(2)})`}
-              </Body>
-            )}
-          </div>
-          
-          <div style={{ marginBottom: spacing[2] }}>
-            <Select
-              label="Merchant Category"
-              onChange={value => setMerchantCategory(value)}
-              value={merchantCategory}
-            >
-              {MERCHANT_CATEGORIES.map(category => (
-                <Option key={category.value} value={category.value}>
-                  {category.label}
-                </Option>
-              ))}
-            </Select>
-            {selectedCustomer?.behavioral_profile?.transaction_patterns?.common_merchant_categories && (
-              <Body size="small" style={{ color: palette.gray.dark1 }}>
-                Common categories: {selectedCustomer.behavioral_profile.transaction_patterns.common_merchant_categories.join(', ')}
-              </Body>
-            )}
-          </div>
-          
-          <div style={{ marginBottom: spacing[2] }}>
-            <TextInput
-              label="Merchant Name (Optional)"
-              onChange={e => setMerchantName(e.target.value)}
-              value={merchantName}
-              placeholder="Auto-generated if empty"
-            />
+          {/* Row 2: Amount and Merchant Category */}
+          <div className={styles.formRow}>
+            {/* Amount */}
+            <div className={styles.formField}>
+              <Label htmlFor="amount" style={{ 
+                display: 'block', 
+                marginBottom: spacing[1],
+                color: palette.gray.dark2,
+                fontWeight: 'bold'
+              }}>
+                Amount (USD)
+              </Label>
+              <div className={styles.narrowInput} style={{ position: 'relative' }}>
+                <div style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', zIndex: 0 }}>$</div>
+                <TextInput
+                  id="amount"
+                  onChange={e => setAmount(parseFloat(e.target.value) || 0)}
+                  value={amount.toString()}
+                  type={TextInputType.Number}
+                  min="1"
+                  step="0.01"
+                  sizeVariant={SizeVariant.Default}
+                  style={{ paddingLeft: '24px', width: '100%' }}
+                />
+              </div>
+              {selectedCustomer?.behavioral_profile?.transaction_patterns && (
+                <Body size="small" style={{ 
+                  color: palette.blue.dark1, 
+                  marginTop: spacing[1],
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: spacing[1]
+                }}>
+                  <Icon glyph="InfoWithCircle" fill={palette.blue.base} size="small" />
+                  Avg: ${selectedCustomer.behavioral_profile.transaction_patterns.avg_transaction_amount.toFixed(2)}
+                  {selectedCustomer.behavioral_profile.transaction_patterns.std_transaction_amount && 
+                    ` (±$${selectedCustomer.behavioral_profile.transaction_patterns.std_transaction_amount.toFixed(2)})`}
+                </Body>
+              )}
+            </div>
+            
+            {/* Merchant Category */}
+            <div className={styles.formField}>
+              <Label htmlFor="merchant-category" style={{ 
+                display: 'block', 
+                marginBottom: spacing[1],
+                color: palette.gray.dark2,
+                fontWeight: 'bold'
+              }}>
+                Merchant Category
+              </Label>
+              <Select
+                id="merchant-category"
+                onChange={value => setMerchantCategory(value)}
+                value={merchantCategory}
+                aria-label="Select merchant category"
+                size="default"
+              >
+                {MERCHANT_CATEGORIES.map(category => (
+                  <Option key={category.value} value={category.value}>
+                    {category.label}
+                  </Option>
+                ))}
+              </Select>
+              {selectedCustomer?.behavioral_profile?.transaction_patterns?.common_merchant_categories && (
+                <Body size="small" style={{ 
+                  color: palette.blue.dark1, 
+                  marginTop: spacing[1],
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: spacing[1]
+                }}>
+                  <Icon glyph="InfoWithCircle" fill={palette.blue.base} size="small" />
+                  Common: {selectedCustomer.behavioral_profile.transaction_patterns.common_merchant_categories.join(', ')}
+                </Body>
+              )}
+            </div>
           </div>
         </div>
       </Card>
@@ -1051,34 +1324,56 @@ function TransactionSimulator() {
         </div>
         
         {!useCommonLocation ? (
-          <div style={{ display: 'flex', gap: spacing[3], flexWrap: 'wrap' }}>
-            <div style={{ flex: '1 1 200px', marginBottom: spacing[2] }}>
+          <div className={styles.formRow} style={{ 
+            marginTop: spacing[2]
+          }}>
+            <div className={styles.formField}>
+              <Label htmlFor="city" style={{ display: 'block', marginBottom: spacing[1] }}>City</Label>
               <TextInput
-                label="City"
+                id="city"
+                aria-labelledby="city-label"
                 onChange={e => setCustomLocation({...customLocation, city: e.target.value})}
                 value={customLocation.city}
+                type={TextInputType.Text}
+                sizeVariant={SizeVariant.Default}
+                placeholder="Enter city name"
+                className={styles.narrowInput}
               />
             </div>
             
-            <div style={{ flex: '1 1 200px', marginBottom: spacing[2] }}>
+            <div className={styles.formField}>
+              <Label htmlFor="state" style={{ display: 'block', marginBottom: spacing[1] }}>State/Province</Label>
               <TextInput
-                label="State/Province"
+                id="state"
+                aria-labelledby="state-label"
                 onChange={e => setCustomLocation({...customLocation, state: e.target.value})}
                 value={customLocation.state}
+                type={TextInputType.Text}
+                sizeVariant={SizeVariant.Default}
+                placeholder="Enter state or province"
+                className={styles.narrowInput}
               />
             </div>
             
-            <div style={{ flex: '1 1 200px', marginBottom: spacing[2] }}>
+            <div className={styles.formField}>
+              <Label htmlFor="country" style={{ display: 'block', marginBottom: spacing[1] }}>Country</Label>
               <TextInput
-                label="Country"
+                id="country"
+                aria-labelledby="country-label"
                 onChange={e => setCustomLocation({...customLocation, country: e.target.value})}
                 value={customLocation.country}
+                type={TextInputType.Text}
+                sizeVariant={SizeVariant.Default}
+                placeholder="Enter country name"
+                className={styles.narrowInput}
               />
             </div>
             
-            <div style={{ flex: '1 1 200px', marginBottom: spacing[2] }}>
+            <div className={styles.formField}>
+              <Label htmlFor="longitude" style={{ display: 'block', marginBottom: spacing[1] }}>Longitude</Label>
               <TextInput
-                label="Longitude"
+                id="longitude"
+                aria-labelledby="longitude-label"
                 onChange={e => setCustomLocation({
                   ...customLocation, 
                   coordinates: {
@@ -1087,16 +1382,21 @@ function TransactionSimulator() {
                   }
                 })}
                 value={customLocation.coordinates.coordinates[0].toString()}
-                type="number"
+                type={TextInputType.Number}
                 min="-180"
                 max="180"
                 step="0.000001"
+                sizeVariant={SizeVariant.Default}
+                className={styles.narrowInput}
               />
+              <Description style={{ fontSize: '12px', marginTop: '4px' }}>Value between -180 and 180</Description>
             </div>
             
-            <div style={{ flex: '1 1 200px', marginBottom: spacing[2] }}>
+            <div className={styles.formField}>
+              <Label htmlFor="latitude" style={{ display: 'block', marginBottom: spacing[1] }}>Latitude</Label>
               <TextInput
-                label="Latitude"
+                id="latitude"
+                aria-labelledby="latitude-label"
                 onChange={e => setCustomLocation({
                   ...customLocation, 
                   coordinates: {
@@ -1105,13 +1405,18 @@ function TransactionSimulator() {
                   }
                 })}
                 value={customLocation.coordinates.coordinates[1].toString()}
-                type="number"
+                type={TextInputType.Number}
                 min="-90"
                 max="90"
                 step="0.000001"
+                sizeVariant={SizeVariant.Default}
+                className={styles.narrowInput}
               />
+              <Description style={{ fontSize: '12px', marginTop: '4px' }}>Value between -90 and 90</Description>
             </div>
           </div>
+        ) : initialLoading ? (
+          <FormSkeleton />
         ) : (
           <div>
             {selectedCustomer?.behavioral_profile?.transaction_patterns?.usual_transaction_locations?.length > 0 ? (
@@ -1206,6 +1511,9 @@ function TransactionSimulator() {
                 label="Device ID"
                 onChange={e => setCustomDevice({...customDevice, device_id: e.target.value})}
                 value={customDevice.device_id}
+                type={TextInputType.Text}
+                sizeVariant={SizeVariant.Default}
+                placeholder="Enter a unique device identifier"
               />
             </div>
             
@@ -1255,6 +1563,9 @@ function TransactionSimulator() {
                 onChange={e => setCustomDevice({...customDevice, ip: e.target.value})}
                 value={customDevice.ip}
                 placeholder="192.168.1.1"
+                type={TextInputType.Text}
+                sizeVariant={SizeVariant.Default}
+                description="Format: xxx.xxx.xxx.xxx"
               />
             </div>
           </div>
@@ -1262,18 +1573,27 @@ function TransactionSimulator() {
       </Card>
       
       {/* Action Buttons */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: spacing[2], marginBottom: spacing[3] }}>
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'flex-end', 
+        gap: spacing[2], 
+        marginBottom: spacing[3],
+        borderTop: `1px solid ${palette.gray.light2}`,
+        paddingTop: spacing[3],
+        marginTop: spacing[3]
+      }}>
         <Button
           variant="primary"
           disabled={loading || !selectedCustomer}
           onClick={handleSubmitTransaction}
-          leftGlyph={loading ? <Spinner /> : <Icon glyph="Checkmark" fill={palette.gray.light3} />}
+          leftGlyph={loading ? <Spinner /> : <Icon glyph="Beaker" fill={palette.gray.light3} />}
           style={{ 
             backgroundColor: loading || !selectedCustomer ? palette.gray.light2 : palette.green.dark2,
-            color: loading || !selectedCustomer ? palette.gray.dark1 : palette.gray.light3
+            color: loading || !selectedCustomer ? palette.gray.dark1 : palette.gray.light3,
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
           }}
         >
-          Evaluate Transaction
+          {loading ? 'Evaluating...' : 'Evaluate Transaction'}
         </Button>
       </div>
       

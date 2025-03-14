@@ -54,7 +54,7 @@ async def create_customer(customer: CustomerModel = Body(...), db: MongoDBAccess
     return JSONResponse(status_code=status.HTTP_201_CREATED, content=created_customer)
 
 @router.get("/", response_description="List all customers", response_model=List[CustomerResponse])
-async def list_customers(db: MongoDBAccess = Depends(get_db), limit: int = 10, skip: int = 0):
+async def list_customers(db: MongoDBAccess = Depends(get_db), limit: int = 5, skip: int = 0):
     import logging
     logger = logging.getLogger(__name__)
     

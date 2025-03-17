@@ -35,8 +35,7 @@ def get_db():
     
     # Get the MongoDB URI from environment
     mongodb_uri = os.getenv("MONGODB_URI")
-    logger.info(f"Connecting to MongoDB with URI: {'mongodb+srv:***@ist-shared.n0kts.mongodb.net' if 'mongodb+srv' in mongodb_uri else mongodb_uri}")
-    
+    # Connect to MongoDB without logging the URI
     db = MongoDBAccess(mongodb_uri)
     try:
         yield db

@@ -350,7 +350,7 @@ function TransactionSimulator() {
       console.log('Transaction data being sent:', JSON.stringify(transactionData));
       
       // Call the API to evaluate the transaction
-      const response = await axios.post(`${API_BASE_URL}/transactions/evaluate/`, transactionData);
+      const response = await axios.post(`${API_BASE_URL}/transactions/evaluate`, transactionData);
       console.log('Transaction evaluation response:', JSON.stringify(response.data));
       
       // Extract similar transactions and similarity risk score
@@ -840,8 +840,8 @@ function TransactionSimulator() {
                       background: 'white',
                       boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                       border: `3px solid ${
-                        similarityRiskScore >= 0.7 ? palette.red.base :
-                        similarityRiskScore >= 0.4 ? palette.yellow.base :
+                        similarityRiskScore >= 0.8 ? palette.red.base :
+                        similarityRiskScore >= 0.65 ? palette.yellow.base :
                         palette.green.base
                       }`
                     }}>

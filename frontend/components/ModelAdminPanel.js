@@ -184,7 +184,7 @@ const ModelAdminPanel = () => {
   // Fetch risk models from API
   const fetchModels = React.useCallback(async () => {
     try {
-      const response = await fetch(`${BACKEND_URL}/models`);
+      const response = await fetch(`${BACKEND_URL}/models/`);
       if (!response.ok) throw new Error('Failed to fetch models');
 
       const data = await response.json();
@@ -773,7 +773,7 @@ const ModelAdminPanel = () => {
   // Save a newly created model
   const handleSaveNewModel = async () => {
     try {
-      const response = await fetch(`${BACKEND_URL}/models`, {
+      const response = await fetch(`${BACKEND_URL}/models/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1006,7 +1006,7 @@ const ModelAdminPanel = () => {
         </Banner>
       )}
 
-      <Card style={{ width: '100%', marginBottom: spacing[4] }}>
+      <Card style={{ width: '95%', margin: '0 auto', marginBottom: spacing[4] }}>
         <div style={{ padding: spacing[4] }}>
           <div
             style={{
@@ -1897,9 +1897,10 @@ const ModelAdminPanel = () => {
                           recentlyUpdated.riskFactors &&
                           recentlyUpdated.riskFactors[factor.id];
 
+                        // Using index + factor.id as key to ensure uniqueness
                         return (
                           <div
-                            key={factor.id}
+                            key={`${index}-${factor.id}`}
                             className={
                               isUpdated ? 'highlight-field' : ''
                             }
@@ -1988,9 +1989,10 @@ const ModelAdminPanel = () => {
           {/* MongoDB Advantages Summary */}
           <Card
             style={{
-              width: '100%',
+              width: '95%',
               marginTop: spacing[4],
               padding: spacing[4],
+              margin: '20px auto',
             }}
           >
             <H2>MongoDB Advantages Over SQL Databases</H2>

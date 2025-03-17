@@ -88,6 +88,7 @@ class RiskModelResponse(BaseModel):
 
 # Endpoints
 @router.get("/", response_model=List[RiskModelResponse])
+@router.get("", response_model=List[RiskModelResponse])
 async def get_risk_models(
     status: Optional[str] = Query(None, description="Filter by model status (active, archived, draft)"),
     db = Depends(get_database)
@@ -132,6 +133,7 @@ async def get_risk_model(
     return RiskModelResponse.from_mongo(model)
 
 @router.post("/", response_model=RiskModelResponse)
+@router.post("", response_model=RiskModelResponse)
 async def create_risk_model(
     model: RiskModelCreate,
     db = Depends(get_database)

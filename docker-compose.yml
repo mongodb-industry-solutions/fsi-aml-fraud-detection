@@ -1,11 +1,42 @@
+version: '3.8'
+
 services:
-  demoname-backend:
+  threatsight360-backend:
     build:
       context: .
-      no_cache: true
       dockerfile: Dockerfile.backend
-    image: imagename-backend:latest
+    image: threatsight360-backend:latest
     ports:
       - "8000:8000"
     restart: always
-    container_name: demoname-backend
+    container_name: threatsight360-backend
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017/threatsight360
+    depends_on:
+      - mongodb
+
+  threatsight360-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    image: threatsight360-frontend:latest
+    ports:
+      - "3000:3000"
+    restart: always
+    container_name: threatsight360-frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - threatsight360-backend
+
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    restart: always
+    container_name: threatsight360-mongodb
+
+volumes:
+  mongodb_data:

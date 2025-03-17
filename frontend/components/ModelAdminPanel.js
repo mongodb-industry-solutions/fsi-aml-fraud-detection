@@ -22,7 +22,7 @@ import { spacing } from '@leafygreen-ui/tokens';
 import { palette } from '@leafygreen-ui/palette';
 
 const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+  process.env.NEXT_PUBLIC_API_URL;
 
 // Helper functions for formatting change stream events
 const formatEventTime = () => {

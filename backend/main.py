@@ -10,6 +10,7 @@ from datetime import datetime
 from routes.customer import router as customer_router
 from routes.transaction import router as transaction_router
 from routes.fraud_pattern import router as fraud_pattern_router
+from routes.model_management import router as model_management_router
 
 # Setup logging
 logging.basicConfig(
@@ -36,12 +37,14 @@ app.add_middleware(
         "http://localhost:8080",         # Alternative local port
         "http://127.0.0.1:3000",         # Another local development option
         "http://127.0.0.1:8080",         # Another local development option
+        "ws://localhost:3000",           # WebSocket local development
+        "ws://127.0.0.1:3000",           # WebSocket local development
         os.getenv("FRONTEND_URL", ""),   # Production frontend
         "*",                             # Allow all origins for debugging
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allow_headers=["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
+    allow_headers=["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With", "Sec-WebSocket-Key", "Sec-WebSocket-Version", "Sec-WebSocket-Extensions", "Sec-WebSocket-Protocol"],
 )
 
 # Add health check endpoint
@@ -112,6 +115,7 @@ async def simple_test():
 app.include_router(customer_router)
 app.include_router(transaction_router)
 app.include_router(fraud_pattern_router)
+app.include_router(model_management_router)
 
 if __name__ == "__main__":
     import uvicorn

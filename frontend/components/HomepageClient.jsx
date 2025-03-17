@@ -116,7 +116,7 @@ export default function HomepageClient() {
         <H3 style={{ marginBottom: spacing[3] }}>
           Ready to see it in action?
         </H3>
-        <div style={{ marginBottom: spacing[2] }}>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: spacing[3], marginBottom: spacing[2] }}>
           <Button
             variant="primary"
             size="large"
@@ -126,6 +126,16 @@ export default function HomepageClient() {
             style={{ backgroundColor: palette.green.dark2, color: palette.gray.light3 }}
           >
             Go to Transaction Simulator
+          </Button>
+          
+          <Button
+            variant="baseGreen"
+            size="large"
+            leftGlyph={<Icon glyph="Settings" fill={palette.gray.light3} />}
+            as={Link}
+            href="/risk-models"
+          >
+            Manage Risk Models
           </Button>
         </div>
       </div>

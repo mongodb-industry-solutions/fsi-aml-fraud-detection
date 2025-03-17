@@ -139,6 +139,30 @@ export default function ClientLayout({ children }) {
                     <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>Transaction Simulator</Body>
                   </Link>
                 </li>
+                <li>
+                  <Link
+                    href="/risk-models"
+                    style={{
+                      color: palette.gray.light3,
+                      textDecoration: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: spacing[1],
+                      padding: `${spacing[2]}px ${spacing[3]}px`,
+                      borderRadius: '4px',
+                      transition: 'background-color 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = palette.green.dark1;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <Icon glyph="Settings" fill={palette.gray.light3} /> 
+                    <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>Risk Models</Body>
+                  </Link>
+                </li>
               </ul>
             </nav>
 

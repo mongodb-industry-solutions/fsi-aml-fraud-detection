@@ -37,6 +37,11 @@ function Header() {
           <Body>Transaction Simulator</Body>
         </Link>
         
+        <Link href="/risk-models" className={styles.navLink}>
+          <Icon glyph="Settings" fill={palette.gray.light3} /> 
+          <Body>Risk Models</Body>
+        </Link>
+        
         <div className={styles.linkHideDesktop}>
           <Body>Log Out</Body>
         </div>

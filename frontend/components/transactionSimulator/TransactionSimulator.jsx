@@ -846,8 +846,8 @@ function TransactionSimulator() {
                       }`
                     }}>
                       <H2 style={{ 
-                        color: similarityRiskScore >= 0.7 ? palette.red.base :
-                               similarityRiskScore >= 0.4 ? palette.yellow.base :
+                        color: similarityRiskScore >= 0.8 ? palette.red.base :
+                               similarityRiskScore >= 0.65 ? palette.yellow.base :
                                palette.green.base
                       }}>
                         {Math.round(similarityRiskScore * 100)}

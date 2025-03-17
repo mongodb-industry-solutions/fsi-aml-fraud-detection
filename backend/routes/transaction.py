@@ -34,7 +34,7 @@ def get_db():
     load_dotenv()
     
     # Get the MongoDB URI from environment
-    mongodb_uri = os.getenv("MONGODB_URI", "***REMOVED***")
+    mongodb_uri = os.getenv("MONGODB_URI")
     logger.info(f"Connecting to MongoDB with URI: {'mongodb+srv:***@ist-shared.n0kts.mongodb.net' if 'mongodb+srv' in mongodb_uri else mongodb_uri}")
     
     db = MongoDBAccess(mongodb_uri)

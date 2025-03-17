@@ -27,6 +27,8 @@ app = FastAPI(
     title="ThreatSight 360",
     description="Fraud Detection API for Financial Services",
     version="1.0.0",
+    # Disable automatic redirects for trailing slashes
+    redirect_slashes=False,
 )
 
 # Configure CORS

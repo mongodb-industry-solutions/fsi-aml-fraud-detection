@@ -68,7 +68,7 @@ const MERCHANT_CATEGORIES = [
   { value: 'money_transfer', label: 'Money Transfer' }
 ];
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 // Tab IDs for the results modal
 const TAB_OVERVIEW = 0;

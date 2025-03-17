@@ -32,29 +32,15 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",         # Local development
-        "http://localhost:8080",         # Alternative local port
-        "http://127.0.0.1:3000",         # Another local development option
-        "http://127.0.0.1:8080",         # Another local development option
-        "ws://localhost:3000",           # WebSocket local development
-        "ws://127.0.0.1:3000",           # WebSocket local development
-        os.getenv("FRONTEND_URL", ""),   # Production frontend
-        "*",                             # Allow all origins for debugging
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allow_headers=["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With", "Sec-WebSocket-Key", "Sec-WebSocket-Version", "Sec-WebSocket-Extensions", "Sec-WebSocket-Protocol"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Add health check endpoint
-@app.get("/", tags=["Health"])
-async def read_root(request: Request):
-    return {
-        "status": "online",
-        "message": "ThreatSight 360 API is running",
-        "version": "1.0.0"
-    }
+@app.get("/")
+async def root():
+    return {"status": "Server is running!"}
 
 # Test endpoint for CORS
 @app.get("/test-cors/", tags=["Health"])
@@ -117,11 +103,11 @@ app.include_router(transaction_router)
 app.include_router(fraud_pattern_router)
 app.include_router(model_management_router)
 
-if __name__ == "__main__":
-    import uvicorn
+# if __name__ == "__main__":
+#     import uvicorn
     
-    host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", "8000"))
+#     host = os.getenv("HOST", "0.0.0.0")
+#     port = int(os.getenv("PORT", "8000"))
     
-    logger.info(f"Starting ThreatSight 360 API on {host}:{port}")
-    uvicorn.run("main:app", host=host, port=port, reload=True, log_level="debug")
+#     logger.info(f"Starting ThreatSight 360 API on {host}:{port}")
+#     uvicorn.run("main:app", host=host, port=port, reload=True, log_level="debug")

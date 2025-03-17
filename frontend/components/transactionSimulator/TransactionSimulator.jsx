@@ -784,7 +784,7 @@ function TransactionSimulator() {
                         flex: '1 1 200px',
                         margin: spacing[1]
                       }}>
-                        <Body weight="medium" style={{ color: palette.purple.dark2 }}>Bedrock Titan Model</Body>
+                        <Body weight="medium" style={{ color: palette.purple.dark2 }}>Embedding Model</Body>
                       </div>
                       
                       <div style={{ display: 'flex', alignItems: 'center', padding: `0 ${spacing[1]}px` }}>

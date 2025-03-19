@@ -1505,23 +1505,30 @@ function TransactionSimulator() {
             )}
           </div>
         ) : (
-          <div style={{ display: 'flex', gap: spacing[3], flexWrap: 'wrap' }}>
-            <div style={{ flex: '1 1 200px', marginBottom: spacing[2] }}>
+          <div className={styles.formRow} style={{ 
+            marginTop: spacing[2]
+          }}>
+            <div className={styles.formField} style={{ marginBottom: spacing[3] }}>
+              <Label htmlFor="device-id" style={{ display: 'block', marginBottom: spacing[1] }}>Device ID</Label>
               <TextInput
-                label="Device ID"
+                id="device-id"
+                aria-labelledby="device-id-label"
                 onChange={e => setCustomDevice({...customDevice, device_id: e.target.value})}
                 value={customDevice.device_id}
                 type={TextInputType.Text}
                 sizeVariant={SizeVariant.Default}
                 placeholder="Enter a unique device identifier"
+                className={styles.narrowInput}
               />
             </div>
             
-            <div style={{ flex: '1 1 200px', marginBottom: spacing[2] }}>
+            <div className={styles.formField} style={{ marginBottom: spacing[3] }}>
+              <Label htmlFor="device-type" style={{ display: 'block', marginBottom: spacing[1] }}>Device Type</Label>
               <Select
-                label="Device Type"
+                id="device-type"
                 onChange={value => setCustomDevice({...customDevice, type: value})}
                 value={customDevice.type}
+                className={styles.narrowInput}
               >
                 <Option value="desktop">Desktop</Option>
                 <Option value="laptop">Laptop</Option>
@@ -1530,11 +1537,13 @@ function TransactionSimulator() {
               </Select>
             </div>
             
-            <div style={{ flex: '1 1 200px', marginBottom: spacing[2] }}>
+            <div className={styles.formField} style={{ marginBottom: spacing[3] }}>
+              <Label htmlFor="device-os" style={{ display: 'block', marginBottom: spacing[1] }}>Operating System</Label>
               <Select
-                label="Operating System"
+                id="device-os"
                 onChange={value => setCustomDevice({...customDevice, os: value})}
                 value={customDevice.os}
+                className={styles.narrowInput}
               >
                 <Option value="Windows">Windows</Option>
                 <Option value="macOS">macOS</Option>
@@ -1544,11 +1553,13 @@ function TransactionSimulator() {
               </Select>
             </div>
             
-            <div style={{ flex: '1 1 200px', marginBottom: spacing[2] }}>
+            <div className={styles.formField} style={{ marginBottom: spacing[3] }}>
+              <Label htmlFor="device-browser" style={{ display: 'block', marginBottom: spacing[1] }}>Browser</Label>
               <Select
-                label="Browser"
+                id="device-browser"
                 onChange={value => setCustomDevice({...customDevice, browser: value})}
                 value={customDevice.browser}
+                className={styles.narrowInput}
               >
                 <Option value="Chrome">Chrome</Option>
                 <Option value="Firefox">Firefox</Option>
@@ -1557,16 +1568,19 @@ function TransactionSimulator() {
               </Select>
             </div>
             
-            <div style={{ flex: '1 1 200px', marginBottom: spacing[2] }}>
+            <div className={styles.formField} style={{ marginBottom: spacing[3] }}>
+              <Label htmlFor="device-ip" style={{ display: 'block', marginBottom: spacing[1] }}>IP Address</Label>
               <TextInput
-                label="IP Address"
+                id="device-ip"
+                aria-labelledby="device-ip-label"
                 onChange={e => setCustomDevice({...customDevice, ip: e.target.value})}
                 value={customDevice.ip}
                 placeholder="192.168.1.1"
                 type={TextInputType.Text}
                 sizeVariant={SizeVariant.Default}
-                description="Format: xxx.xxx.xxx.xxx"
+                className={styles.narrowInput}
               />
+              <Description style={{ fontSize: '12px', marginTop: '4px' }}>Format: xxx.xxx.xxx.xxx</Description>
             </div>
           </div>
         )}

@@ -18,11 +18,11 @@ import Icon from '@leafygreen-ui/icon';
 import Modal from '@leafygreen-ui/modal';
 import Banner from '@leafygreen-ui/banner';
 import Callout from '@leafygreen-ui/callout';
+import Code from '@leafygreen-ui/code';
 import { spacing } from '@leafygreen-ui/tokens';
 import { palette } from '@leafygreen-ui/palette';
 
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_API_URL;
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL;
 
 // Helper functions for formatting change stream events
 const formatEventTime = () => {
@@ -1006,7 +1006,13 @@ const ModelAdminPanel = () => {
         </Banner>
       )}
 
-      <Card style={{ width: '95%', margin: '0 auto', marginBottom: spacing[4] }}>
+      <Card
+        style={{
+          width: '95%',
+          margin: '0 auto',
+          marginBottom: spacing[4],
+        }}
+      >
         <div style={{ padding: spacing[4] }}>
           <div
             style={{
@@ -1115,20 +1121,14 @@ const ModelAdminPanel = () => {
                   </summary>
                   <div
                     style={{
-                      backgroundColor: '#2c2c2c',
-                      color: '#f8f8f8',
-                      padding: spacing[3],
-                      borderRadius: '4px',
-                      marginTop: spacing[2],
-                      fontFamily: 'monospace',
-                      fontSize: '13px',
-                      whiteSpace: 'pre-wrap',
-                      overflowX: 'auto',
                       maxHeight: '400px',
-                      overflowY: 'auto',
+                      overflow: 'auto',
+                      marginTop: spacing[2]
                     }}
                   >
-                    {JSON.stringify(selectedModel, null, 2)}
+                    <Code language="json" copyable={true}>
+                      {JSON.stringify(selectedModel, null, 2)}
+                    </Code>
                   </div>
                   <div
                     style={{
@@ -1184,7 +1184,7 @@ const ModelAdminPanel = () => {
                 </div>
 
                 <div>
-                  {!editMode && selectedModel.status !== 'active' && (
+                  {selectedModel.status !== 'active' && (
                     <Button
                       onClick={handleActivateModel}
                       style={{ marginRight: spacing[2] }}
@@ -1232,17 +1232,19 @@ const ModelAdminPanel = () => {
                           >
                             ID
                           </Label>
-                          <TextInput
-                            id="new-risk-factor-id"
-                            placeholder="e.g., geo_velocity, device_mismatch"
-                            value={newRiskFactor.id}
-                            onChange={(e) =>
-                              handleNewRiskFactorChange(
-                                'id',
-                                e.target.value
-                              )
-                            }
-                          />
+                          <div style={{ maxWidth: '95%' }}>
+                            <TextInput
+                              id="new-risk-factor-id"
+                              placeholder="e.g., geo_velocity, device_mismatch"
+                              value={newRiskFactor.id}
+                              onChange={(e) =>
+                                handleNewRiskFactorChange(
+                                  'id',
+                                  e.target.value
+                                )
+                              }
+                            />
+                          </div>
                         </div>
 
                         <div style={{ marginTop: spacing[2] }}>
@@ -1252,17 +1254,19 @@ const ModelAdminPanel = () => {
                           >
                             Description
                           </Label>
-                          <TextInput
-                            id="new-risk-factor-desc"
-                            placeholder="e.g., Unusual device location change"
-                            value={newRiskFactor.description}
-                            onChange={(e) =>
-                              handleNewRiskFactorChange(
-                                'description',
-                                e.target.value
-                              )
-                            }
-                          />
+                          <div style={{ maxWidth: '95%' }}>
+                            <TextInput
+                              id="new-risk-factor-desc"
+                              placeholder="e.g., Unusual device location change"
+                              value={newRiskFactor.description}
+                              onChange={(e) =>
+                                handleNewRiskFactorChange(
+                                  'description',
+                                  e.target.value
+                                )
+                              }
+                            />
+                          </div>
                         </div>
 
                         <div style={{ marginTop: spacing[2] }}>

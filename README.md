@@ -8,8 +8,8 @@ ThreatSight 360 is an enterprise-grade fraud detection platform for financial in
 
 ThreatSight 360 provides comprehensive fraud detection capabilities through two integrated components:
 
-1. **Backend**: FastAPI-powered service with advanced fraud detection algorithms, vector search, and MongoDB Atlas integration
-2. **Frontend**: Responsive Next.js application with MongoDB's LeafyGreen UI for transaction simulation and real-time monitoring
+1. **Backend**: FastAPI-powered service for advanced fraud detection with MongoDB Vector Search, Change Streams and Atlas integration
+2. **Frontend**: Responsive Next.js application with MongoDB's LeafyGreen UI for transaction simulation and real-time monitoring of risk models
 
 ## Key Features
 
@@ -166,13 +166,6 @@ docker-compose up -d
 
 This will build and run both frontend and backend containers with proper networking.
 
-## Documentation
-
-- [Transaction Simulator Documentation](./TransactionSimulator-Documentation.md)
-- [Fraud Detection Implementation](./ThreatSight360-Implementation.md)
-- [API Documentation](http://localhost:8000/docs) (available when backend is running)
-- [Risk Model Management](./backend/README-RISK-MODEL.md)
-- [Vector Search Implementation](./backend/VECTOR_SEARCH_IMPLEMENTATION.md)
 
 ## Technology Stack
 
@@ -251,7 +244,6 @@ ThreatSight 360 includes a flexible risk model management system that allows you
 - Deploy models to production with version control
 - Monitor model performance over time
 
-See [Risk Model Management Documentation](./backend/RISK_MODEL_MANAGEMENT_IMPLEMENTATION.md) for details.
 
 ## Architecture Diagram
 
@@ -289,10 +281,6 @@ The Transaction Simulator includes pre-configured scenarios for testing:
 - **AWS Bedrock Errors**: Ensure your AWS credentials are valid and have appropriate permissions
 - **Frontend API Errors**: Check that the backend server is running and CORS is properly configured
 - **Docker Deployment Issues**: Verify port mappings and network settings in docker-compose.yml
-
-## Contributing
-
-We welcome contributions to ThreatSight 360! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
 
 ## License
 

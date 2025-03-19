@@ -255,7 +255,7 @@ async def create_fraud_patterns(db):
 
     # Create patterns with embeddings
     for pattern in FRAUD_PATTERNS:
-        # Generate embedding using Bedrock Titan
+        # Generate embedding 
         try:
             # Use our get_embedding function to generate an embedding for the pattern description
             embedding = await get_embedding(pattern["description"])

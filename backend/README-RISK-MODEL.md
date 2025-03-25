@@ -24,7 +24,7 @@ This project implements a Risk Model Management system for fraud detection using
 - **Dynamic Risk Factors**: Add new risk factors on-the-fly without schema migrations
 - **Real-Time Model Updates**: WebSocket + Change Streams for instant notifications
 - **Complete Document Model**: All model data in a single document without JOINs
-- **Versioned Models**: Automatic versioning with full model history
+- **Versioned Models**: Automatic versioning with full model history using MongoDB sort capabilities to ensure proper version sequencing
 - **Performance Tracking**: Risk factor distribution and effectiveness metrics
 
 ### API Endpoints

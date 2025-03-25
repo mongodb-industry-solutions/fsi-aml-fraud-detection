@@ -126,7 +126,12 @@ async def get_risk_model(
     # Get risk_models collection
     risk_models_collection = db["risk_models"]
     
-    model = await risk_models_collection.find_one(query)
+    # If looking for the latest non-archived version, sort by version
+    if "status" in query and query["status"] == {"$ne": "archived"}:
+        model = await risk_models_collection.find_one(query, sort=[("version", -1)])
+    else:
+        model = await risk_models_collection.find_one(query)
+        
     if not model:
         raise HTTPException(status_code=404, detail="Risk model not found")
     
@@ -183,8 +188,11 @@ async def update_risk_model(
     # Get risk_models collection
     risk_models_collection = db["risk_models"]
     
-    # Find the model
-    model = await risk_models_collection.find_one({"modelId": model_id, "status": {"$ne": "archived"}})
+    # Find the model - get the latest version by sorting descending
+    model = await risk_models_collection.find_one(
+        {"modelId": model_id, "status": {"$ne": "archived"}},
+        sort=[("version", -1)]  # Sort by version in descending order to get the latest
+    )
     if not model:
         raise HTTPException(status_code=404, detail="Risk model not found")
     

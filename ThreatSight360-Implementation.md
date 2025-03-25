@@ -97,6 +97,7 @@ The system implements a comprehensive fraud detection service that evaluates tra
 - Weighted scoring system for various risk factors
 - Configurable thresholds for risk classification
 - Automatic customer risk profile updates for high-risk transactions
+- Complete model versioning system with proper version sequencing using MongoDB sort capabilities
 
 ### Implementation
 
@@ -151,6 +152,20 @@ The service is used in the transaction API routes to:
 | PUT | `/fraud-patterns/{id}` | Update a pattern (regenerates embeddings) |
 | DELETE | `/fraud-patterns/{id}` | Delete a pattern |
 | POST | `/fraud-patterns/similar-search` | Find similar patterns using vector search |
+
+### Risk Model Management Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/models` | List all risk models with optional status filter |
+| GET | `/models/{model_id}` | Get a specific risk model with optional version |
+| POST | `/models` | Create a new risk model |
+| PUT | `/models/{model_id}` | Update a risk model (creates new version for active models) |
+| DELETE | `/models/{model_id}` | Archive a risk model |
+| POST | `/models/{model_id}/activate` | Activate a specific model version |
+| GET | `/models/{model_id}/performance` | Get performance metrics for a model |
+| POST | `/models/{model_id}/feedback` | Record transaction outcome feedback |
+| WebSocket | `/models/change-stream` | Real-time model updates via MongoDB Change Streams |
 
 ## Vector Search Implementation
 

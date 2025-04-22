@@ -1,0 +1,73 @@
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.flexRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.cardContainer {
+  flex: 1 1 300px;
+}
+
+.riskScore {
+  font-size: 48px;
+  font-weight: bold;
+  text-align: center;
+}
+
+.riskScoreContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f9f9f9;
+  padding: 24px;
+  border-radius: 4px;
+  margin-bottom: 16px;
+}
+
+/* Ensure modals appear above all other content */
+.modalOverride {
+  z-index: 1000 !important;
+}
+
+/* Fix layout for transaction form inputs */
+.formField {
+  flex: 1;
+  min-width: 0; /* Prevent flex items from overflowing */
+  margin-bottom: 16px;
+}
+
+.formRow {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.narrowInput {
+  width: 95% !important;
+  max-width: 95% !important;
+}
+
+.expandableContent {
+  padding: 0 !important;
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .formField {
+    flex: 1 1 100%;
+  }
+}
+
+/* Add custom styles for media queries */
+@media (max-width: 768px) {
+  .cardContainer {
+    flex: 1 1 100%;
+  }
+}

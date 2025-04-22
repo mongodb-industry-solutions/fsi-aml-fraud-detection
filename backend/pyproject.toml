@@ -1,8 +1,8 @@
 [tool.poetry]
 name = "your-virtual-env"
 version = "0.1.0"
-description = "Your Description"
-authors = ["Your Name <you@example.com>"]
+description = "FSI ThreatSight360"
+authors = ["Mehar Grewal <mehar.grewal@mongodb.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
@@ -13,6 +13,8 @@ fastapi = "^0.115.4"
 uvicorn = "^0.32.0"
 boto3 = "^1.35.70"
 botocore = "^1.35.70"
+motor = "^3.7.0"
+websockets = "^15.0.1"
 
 
 [build-system]

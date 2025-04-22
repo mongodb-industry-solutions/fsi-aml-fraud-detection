@@ -1,11 +1,22 @@
 services:
-  demoname-backend:
+  threatsight-front:
+    build:
+      context: .
+      no_cache: true
+      dockerfile: Dockerfile.frontend
+    image: threatsight-front:latest
+    ports:
+      - "3000:3000"
+    restart: always
+    container_name: threatsight-front
+
+  threatsight-back:
     build:
       context: .
       no_cache: true
       dockerfile: Dockerfile.backend
-    image: imagename-backend:latest
+    image: threatsight-back:latest
     ports:
       - "8000:8000"
     restart: always
-    container_name: demoname-backend
+    container_name: threatsight-back

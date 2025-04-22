@@ -1,0 +1,97 @@
+.layout-header {
+  background-color: var(--lg-green-dark-2);
+  color: var(--lg-gray-light-3);
+  padding: 16px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  border-bottom: 1px solid var(--lg-green-dark-3);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.logo-container {
+  display: flex;
+  align-items: center;
+}
+
+.title {
+  margin: 0;
+  font-size: 42px;
+  color: var(--lg-gray-light-3);
+}
+
+.subtitle {
+  margin: 4px 0 0 0;
+  color: var(--lg-gray-light-3);
+}
+
+.leafyLogo {
+  max-height: 50px;
+  width: auto;
+}
+
+.pages-container {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.navLink {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--lg-gray-light-3);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.navLink:hover {
+  color: white;
+}
+
+.right-container {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.logoutIcon, .hamburgerIcon {
+  color: var(--lg-gray-light-3);
+}
+
+.linkHideDesktop {
+  display: none;
+}
+
+/* Responsive Styles */
+@media (max-width: 768px) {
+  .layout-header {
+    flex-wrap: wrap;
+  }
+  
+  .pages-container {
+    display: none;
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    padding-top: 16px;
+    order: 3;
+  }
+  
+  .pages-container.show {
+    display: flex;
+  }
+  
+  .linkHideDesktop {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    margin-top: 8px;
+  }
+  
+  .logoutIcon {
+    display: none;
+  }
+}

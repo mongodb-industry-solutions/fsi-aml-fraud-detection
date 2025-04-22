@@ -1,5 +1,5 @@
 // components/ModelAdminPanel.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Card from '@leafygreen-ui/card';
 import Button from '@leafygreen-ui/button';
 import { Select, Option } from '@leafygreen-ui/select';
@@ -81,6 +81,9 @@ const ModelAdminPanel = () => {
     visible: false,
   });
 
+  // WebSocket reference
+  const wsRef = useRef(null);
+
   // Custom toast function
   const showToast = React.useCallback(
     (message, variant = 'success') => {
@@ -120,6 +123,14 @@ const ModelAdminPanel = () => {
   const [performanceData, setPerformanceData] = useState(null);
   const [performanceTimeframe, setPerformanceTimeframe] =
     useState('24h');
+
+  // State for comparison
+  const [comparisonModelId, setComparisonModelId] = useState(null);
+  const [comparisonData, setComparisonData] = useState(null);
+  const [showComparison, setShowComparison] = useState(false);
+
+  // State for filtering
+  const [statusFilter, setStatusFilter] = useState('');
 
   // Fetch details for a specific model
   const fetchModelDetails = React.useCallback(
@@ -184,7 +195,14 @@ const ModelAdminPanel = () => {
   // Fetch risk models from API
   const fetchModels = React.useCallback(async () => {
     try {
-      const response = await fetch(`${BACKEND_URL}/models/`);
+      // Build query string with filters
+      let url = `${BACKEND_URL}/models/`;
+
+      if (statusFilter) {
+        url += `?status=${statusFilter}`;
+      }
+
+      const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to fetch models');
 
       const data = await response.json();
@@ -209,7 +227,7 @@ const ModelAdminPanel = () => {
       console.error('Error fetching models:', error);
       showToast('Failed to load risk models', 'error');
     }
-  }, [showToast, selectedModelId]);
+  }, [showToast, selectedModelId, statusFilter]);
 
   // Set up useEffect hooks after all callbacks are defined
 
@@ -219,6 +237,7 @@ const ModelAdminPanel = () => {
     const wsUrl =
       BACKEND_URL.replace(/^http/, 'ws') + '/models/change-stream';
     const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
 
     // Handle WebSocket events
     ws.onopen = () => {
@@ -239,6 +258,15 @@ const ModelAdminPanel = () => {
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
+
+      // Handle heartbeat messages
+      if (data.type === 'heartbeat') {
+        console.log(
+          'Received heartbeat from server:',
+          data.timestamp
+        );
+        return;
+      }
 
       // Handle initial models data
       if (data.type === 'initial') {
@@ -671,22 +699,34 @@ const ModelAdminPanel = () => {
     try {
       console.log('Activating model in MongoDB:', selectedModelId);
 
-      // Extract the base model ID from the composite ID
-      const baseModelId = selectedModelId.split('-v')[0];
+      // Extract both model ID and version
+      const parts = selectedModelId.split('-v');
+      const baseModelId = parts[0];
+      const version =
+        parts.length > 1 ? parseInt(parts[1]) : undefined;
 
-      const response = await fetch(
-        `${BACKEND_URL}/models/${baseModelId}/activate`,
-        {
-          method: 'POST',
-        }
-      );
+      // Include version as a query parameter
+      let url = `${BACKEND_URL}/models/${baseModelId}/activate`;
+      if (version) {
+        url += `?version=${version}`;
+      }
+
+      const response = await fetch(url, { method: 'POST' });
 
       if (!response.ok) throw new Error('Failed to activate model');
 
       const result = await response.json();
       console.log('MongoDB activation result:', result);
 
-      showToast('Risk model activated in MongoDB', 'success');
+      // Check if model was already active (improved handling for the updated backend)
+      if (
+        result.message &&
+        result.message.includes('already active')
+      ) {
+        showToast('This model is already active', 'info');
+      } else {
+        showToast('Risk model activated in MongoDB', 'success');
+      }
 
       // Highlight the status field
       highlightField('status');
@@ -699,6 +739,93 @@ const ModelAdminPanel = () => {
     } catch (error) {
       console.error('Error activating model in MongoDB:', error);
       showToast('Failed to activate risk model', 'error');
+    }
+  };
+
+  // Restore an archived model
+  const handleRestoreModel = async () => {
+    try {
+      if (!selectedModel || selectedModel.status !== 'archived') {
+        showToast('Only archived models can be restored', 'warning');
+        return;
+      }
+
+      console.log('Restoring model in MongoDB:', selectedModelId);
+
+      // Extract the base model ID from the composite ID
+      const baseModelId = selectedModelId.split('-v')[0];
+
+      const response = await fetch(
+        `${BACKEND_URL}/models/${baseModelId}/restore`,
+        {
+          method: 'POST',
+        }
+      );
+
+      if (!response.ok) throw new Error('Failed to restore model');
+
+      const result = await response.json();
+      console.log('MongoDB restoration result:', result);
+
+      showToast('Risk model restored from archive', 'success');
+
+      // Refresh models list to get all status changes
+      await fetchModels();
+
+      // Fetch fresh model details from MongoDB
+      await fetchModelDetails(baseModelId);
+    } catch (error) {
+      console.error('Error restoring model in MongoDB:', error);
+      showToast('Failed to restore risk model', 'error');
+    }
+  };
+
+  // Archive a model
+  const handleArchiveModel = async () => {
+    try {
+      console.log('Archiving model in MongoDB:', selectedModelId);
+
+      // Extract both model ID and version
+      const parts = selectedModelId.split('-v');
+      const baseModelId = parts[0];
+      const version =
+        parts.length > 1 ? parseInt(parts[1]) : undefined;
+
+      // Include version as a query parameter
+      let url = `${BACKEND_URL}/models/${baseModelId}`;
+      if (version) {
+        url += `?version=${version}`;
+      }
+
+      const response = await fetch(url, { method: 'DELETE' });
+
+      if (!response.ok) throw new Error('Failed to archive model');
+
+      const result = await response.json();
+      console.log('MongoDB archive result:', result);
+
+      showToast('Risk model archived in MongoDB', 'success');
+
+      // Refresh models list to get all status changes
+      await fetchModels();
+
+      // If the archived model was selected, select another active model
+      if (selectedModelId.split('-v')[0] === baseModelId) {
+        const activeModel = models.find(
+          (model) =>
+            model.status === 'active' && model.modelId !== baseModelId
+        );
+
+        if (activeModel) {
+          const compositeId = `${activeModel.modelId}-v${activeModel.version}`;
+          setSelectedModelId(compositeId);
+        } else {
+          setSelectedModelId(null);
+        }
+      }
+    } catch (error) {
+      console.error('Error archiving model in MongoDB:', error);
+      showToast('Failed to archive risk model', 'error');
     }
   };
 
@@ -1038,6 +1165,63 @@ const ModelAdminPanel = () => {
             </Button>
           </div>
 
+          {/* Status Filter */}
+          <div style={{ marginBottom: spacing[3] }}>
+            <Label>Filter by Status</Label>
+            <div
+              style={{
+                display: 'flex',
+                gap: spacing[2],
+                marginTop: spacing[1],
+                flexWrap: 'wrap',
+              }}
+            >
+              <Button
+                size="small"
+                variant={statusFilter === '' ? 'primary' : 'default'}
+                onClick={() => setStatusFilter('')}
+              >
+                All
+              </Button>
+              <Button
+                size="small"
+                variant={
+                  statusFilter === 'active' ? 'primary' : 'default'
+                }
+                onClick={() => setStatusFilter('active')}
+              >
+                Active
+              </Button>
+              <Button
+                size="small"
+                variant={
+                  statusFilter === 'draft' ? 'primary' : 'default'
+                }
+                onClick={() => setStatusFilter('draft')}
+              >
+                Draft
+              </Button>
+              <Button
+                size="small"
+                variant={
+                  statusFilter === 'inactive' ? 'primary' : 'default'
+                }
+                onClick={() => setStatusFilter('inactive')}
+              >
+                Inactive
+              </Button>
+              <Button
+                size="small"
+                variant={
+                  statusFilter === 'archived' ? 'primary' : 'default'
+                }
+                onClick={() => setStatusFilter('archived')}
+              >
+                Archived
+              </Button>
+            </div>
+          </div>
+
           {/* Model Selection */}
           <div style={{ marginBottom: spacing[4] }}>
             <Label htmlFor="model-select">Select Risk Model</Label>
@@ -1123,7 +1307,7 @@ const ModelAdminPanel = () => {
                     style={{
                       maxHeight: '400px',
                       overflow: 'auto',
-                      marginTop: spacing[2]
+                      marginTop: spacing[2],
                     }}
                   >
                     <Code language="json" copyable={true}>
@@ -1183,23 +1367,38 @@ const ModelAdminPanel = () => {
                   </div>
                 </div>
 
-                <div>
-                  {selectedModel.status !== 'active' && (
-                    <Button
-                      onClick={handleActivateModel}
-                      style={{ marginRight: spacing[2] }}
-                    >
-                      Activate Model
+                <div style={{ display: 'flex', gap: spacing[2] }}>
+                  {selectedModel.status !== 'active' &&
+                    selectedModel.status !== 'archived' && (
+                      <Button onClick={handleActivateModel}>
+                        Activate Model
+                      </Button>
+                    )}
+
+                  {selectedModel.status === 'archived' && (
+                    <Button onClick={handleRestoreModel}>
+                      Restore Model
                     </Button>
                   )}
-                  {!editMode && (
+
+                  {selectedModel.status !== 'archived' && (
                     <Button
-                      variant="default"
-                      onClick={handleEditModel}
+                      variant="danger"
+                      onClick={handleArchiveModel}
                     >
-                      Edit Model
+                      Archive Model
                     </Button>
                   )}
+
+                  {!editMode &&
+                    selectedModel.status !== 'archived' && (
+                      <Button
+                        variant="default"
+                        onClick={handleEditModel}
+                      >
+                        Edit Model
+                      </Button>
+                    )}
                 </div>
               </div>
 

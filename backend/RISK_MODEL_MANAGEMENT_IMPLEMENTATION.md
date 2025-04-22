@@ -452,6 +452,18 @@ With MongoDB:
 3. Easy rollback to previous versions
 4. Complete history with creation and update timestamps
 
+**Implementation Detail**: When retrieving models for updates, we use MongoDB's sort functionality to ensure we always get the latest version:
+
+```python
+# Find the model - get the latest version by sorting descending
+model = await risk_models_collection.find_one(
+    {"modelId": model_id, "status": {"$ne": "archived"}},
+    sort=[("version", -1)]  # Sort by version in descending order to get the latest
+)
+```
+
+This ensures that when creating a new version, we always increment from the most recent version number, rather than potentially creating duplicate versions.
+
 ## Demo Walkthrough
 
 When demonstrating the Risk Model Management feature:

@@ -1,9 +1,5 @@
 # ThreatSight 360 - Financial Fraud Detection System
 
-ThreatSight 360 is an enterprise-grade fraud detection platform for financial institutions, leveraging MongoDB Atlas for data storage and AWS Bedrock for AI-powered risk assessment.
-
-# ThreatSight 360 - Financial Fraud Detection System
-
 ![MongoDB](https://img.shields.io/badge/MongoDB-%234ea94b.svg?style=for-the-badge&logo=mongodb&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)
 ![Next JS](https://img.shields.io/badge/Next-black?style=for-the-badge&logo=next.js&logoColor=white)
@@ -19,7 +15,7 @@ We will walk you through the process of configuring and using [MongoDB Atlas](ht
 
 The architecture we're about to set up is depicted in the diagram below:
 
-![Solution Architecture Diagram](sol arch.png)
+![ThreatSight360 Fraud Detection App Architecture](app/public/architecture.svg)
 
 If you want to learn more about Financial Fraud Detection and AI-powered Risk Assessment, visit the following pages:
 

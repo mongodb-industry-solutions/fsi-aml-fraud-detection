@@ -15,7 +15,7 @@ We will walk you through the process of configuring and using [MongoDB Atlas](ht
 
 The architecture we're about to set up is depicted in the diagram below:
 
-![ThreatSight360 Fraud Detection App Architecture](app/public/sol_arch.png)
+![ThreatSight360 Fraud Detection App Architecture](frontend/public/sol_arch.png)
 
 If you want to learn more about Financial Fraud Detection and AI-powered Risk Assessment, visit the following pages:
 

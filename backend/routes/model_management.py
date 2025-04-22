@@ -22,6 +22,10 @@ router = APIRouter(
 
 # Active WebSocket connections for Change Stream updates
 active_connections = []
+# Last connection cleanup time
+last_cleanup_time = datetime.now()
+# Activation lock to prevent race conditions
+activation_lock = asyncio.Lock()
 
 # Helper function to convert MongoDB documents to JSON-serializable format
 def convert_to_json_serializable(obj):
@@ -86,14 +90,40 @@ class RiskModelResponse(BaseModel):
             data["_id"] = str(data["_id"])
         return cls(**data)
 
+# WebSocket Connection Management
+async def cleanup_stale_connections():
+    """Remove disconnected websocket connections."""
+    global active_connections
+    old_count = len(active_connections)
+    
+    # Test each connection with a small ping and remove if it fails
+    still_active = []
+    for ws in active_connections:
+        try:
+            # Try a ping to see if the connection is still open
+            pong_waiter = await ws.ping()
+            await asyncio.wait_for(pong_waiter, timeout=1.0)
+            still_active.append(ws)
+        except (asyncio.TimeoutError, WebSocketDisconnect, Exception):
+            # Connection is stale, don't add to the active list
+            pass
+    
+    active_connections = still_active
+    removed = old_count - len(active_connections)
+    if removed > 0:
+        logger = logging.getLogger(__name__)
+        logger.info(f"Cleaned up {removed} stale WebSocket connections")
+
 # Endpoints
 @router.get("/", response_model=List[RiskModelResponse])
 @router.get("", response_model=List[RiskModelResponse])
 async def get_risk_models(
     status: Optional[str] = Query(None, description="Filter by model status (active, archived, draft)"),
+    skip: int = Query(0, description="Number of records to skip for pagination"),
+    limit: int = Query(50, description="Maximum number of records to return"),
     db = Depends(get_database)
 ):
-    """Get all risk models with optional status filter."""
+    """Get all risk models with optional status filter and pagination."""
     query = {}
     if status:
         query["status"] = status
@@ -101,9 +131,9 @@ async def get_risk_models(
     # Get risk_models collection
     risk_models_collection = db["risk_models"]
     
-    # Convert cursor to list
+    # Convert cursor to list with pagination
     models = []
-    cursor = risk_models_collection.find(query)
+    cursor = risk_models_collection.find(query).skip(skip).limit(limit).sort("updatedAt", -1)
     async for document in cursor:
         models.append(RiskModelResponse.from_mongo(document))
     
@@ -184,7 +214,14 @@ async def update_risk_model(
     update: RiskModelUpdate,
     db = Depends(get_database)
 ):
-    """Update an existing risk model."""
+    """
+    Update an existing risk model.
+    
+    Behavior:
+    - For active models: Creates a new version with changes (status remains 'draft')
+    - For draft/inactive models: Updates the model in-place
+    - For archived models: Not allowed (will return 400 error)
+    """
     # Get risk_models collection
     risk_models_collection = db["risk_models"]
     
@@ -241,16 +278,15 @@ async def update_risk_model(
         if update.riskFactors:
             updates["riskFactors"] = [factor.dict() for factor in update.riskFactors]
         if update.status:
+            # Don't allow changing status to 'active' here - that should go through the activate endpoint
+            if update.status == "active":
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Use the dedicated /activate endpoint to activate a model"
+                )
             updates["status"] = update.status
         
         updates["updatedAt"] = datetime.now()
-        
-        # If activating a model, deactivate all other active models
-        if update.status == "active":
-            await risk_models_collection.update_many(
-                {"status": "active", "modelId": {"$ne": model_id}},
-                {"$set": {"status": "inactive", "updatedAt": datetime.now()}}
-            )
         
         result = await risk_models_collection.update_one(
             {"_id": model["_id"]},
@@ -300,49 +336,92 @@ async def archive_risk_model(
     
     return {"message": f"Model {model_id} archived successfully"}
 
+@router.post("/{model_id}/restore")
+async def restore_archived_model(
+    model_id: str,
+    version: Optional[int] = None,
+    db = Depends(get_database)
+):
+    """Restore an archived risk model to 'inactive' status."""
+    # Get risk_models collection
+    risk_models_collection = db["risk_models"]
+    
+    query = {"modelId": model_id, "status": "archived"}
+    if version:
+        query["version"] = version
+    
+    model = await risk_models_collection.find_one(query)
+    if not model:
+        raise HTTPException(status_code=404, detail="Archived risk model not found")
+    
+    # Restore the model to inactive status
+    result = await risk_models_collection.update_one(
+        {"_id": model["_id"]},
+        {"$set": {"status": "inactive", "updatedAt": datetime.now()}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=400, detail="Failed to restore model")
+    
+    return {"message": f"Model {model_id} restored successfully"}
+
 @router.post("/{model_id}/activate")
 async def activate_risk_model(
     model_id: str,
     version: Optional[int] = None,
     db = Depends(get_database)
 ):
-    """Activate a specific risk model, deactivating all others."""
-    # Get risk_models collection
-    risk_models_collection = db["risk_models"]
-    
-    query = {"modelId": model_id}
-    if version:
-        query["version"] = version
-    
-    model = await risk_models_collection.find_one(query)
-    if not model:
-        raise HTTPException(status_code=404, detail="Risk model not found")
-    
-    if model["status"] == "archived":
-        raise HTTPException(status_code=400, detail="Cannot activate an archived model")
-    
-    # Deactivate all currently active models
-    await risk_models_collection.update_many(
-        {"status": "active"},
-        {"$set": {"status": "inactive", "updatedAt": datetime.now()}}
-    )
-    
-    # Activate the selected model
-    result = await risk_models_collection.update_one(
-        {"_id": model["_id"]},
-        {"$set": {"status": "active", "updatedAt": datetime.now()}}
-    )
-    
-    if result.modified_count == 0:
-        raise HTTPException(status_code=400, detail="Failed to activate model")
-    
-    return {"message": f"Model {model_id} activated successfully"}
+    """
+    Activate a specific risk model, deactivating all others.
+    This function uses a lock to prevent race conditions when multiple activate requests are made.
+    """
+    # Use a lock to prevent race conditions
+    async with activation_lock:
+        # Get risk_models collection
+        risk_models_collection = db["risk_models"]
+        
+        query = {"modelId": model_id}
+        if version:
+            query["version"] = version
+        
+        model = await risk_models_collection.find_one(query)
+        if not model:
+            raise HTTPException(status_code=404, detail="Risk model not found")
+        
+        # Check if model is already active
+        if model["status"] == "active":
+            return {"message": f"Model {model_id} is already active"}
+        
+        if model["status"] == "archived":
+            raise HTTPException(status_code=400, detail="Cannot activate an archived model")
+        
+        # Use a transaction to ensure atomic operations for activation
+        async with await db.client.start_session() as session:
+            async with session.start_transaction():
+                # Deactivate all currently active models
+                await risk_models_collection.update_many(
+                    {"status": "active"},
+                    {"$set": {"status": "inactive", "updatedAt": datetime.now()}},
+                    session=session
+                )
+                
+                # Activate the selected model
+                result = await risk_models_collection.update_one(
+                    {"_id": model["_id"]},
+                    {"$set": {"status": "active", "updatedAt": datetime.now()}},
+                    session=session
+                )
+        
+        if result.modified_count == 0:
+            raise HTTPException(status_code=400, detail="Failed to activate model")
+        
+        return {"message": f"Model {model_id} activated successfully"}
 
 @router.get("/{model_id}/performance", response_model=Dict[str, Any])
 async def get_model_performance(
     model_id: str,
     version: Optional[int] = None,
-    timeframe: Optional[str] = Query("24h", description="Performance timeframe (24h, 7d, 30d)"),
+    timeframe: Optional[str] = Query("24h", description="Performance timeframe (24h, 7d, 30d, all)"),
     db = Depends(get_database)
 ):
     """Get performance metrics for a risk model."""
@@ -366,16 +445,27 @@ async def get_model_performance(
         start_time = now - timedelta(days=7)
     elif timeframe == "30d":
         start_time = now - timedelta(days=30)
+    elif timeframe == "all":
+        # No time filter, get all data
+        start_time = None
     else:
         start_time = now - timedelta(hours=24)  # Default to 24h
     
-    # Get model usage records
-    usage_records = []
-    cursor = model_performance_collection.find({
+    # Build the time filter query
+    time_query = {}
+    if start_time:
+        time_query = {"timestamp": {"$gte": start_time}}
+    
+    # Combine filters
+    performance_query = {
         "modelId": model_id,
         "modelVersion": model.get("version", 1),
-        "timestamp": {"$gte": start_time}
-    })
+        **time_query
+    }
+    
+    # Get model usage records
+    usage_records = []
+    cursor = model_performance_collection.find(performance_query)
     
     async for document in cursor:
         usage_records.append(document)
@@ -418,10 +508,10 @@ async def get_model_performance(
     
     if records_with_outcome:
         false_positives = sum(1 for r in records_with_outcome 
-                             if r["riskScore"] >= model["thresholds"]["flag"] and r["outcome"] == "legitimate")
+                            if r["riskScore"] >= model["thresholds"]["flag"] and r["outcome"] == "legitimate")
         
         false_negatives = sum(1 for r in records_with_outcome 
-                             if r["riskScore"] < model["thresholds"]["flag"] and r["outcome"] == "fraud")
+                            if r["riskScore"] < model["thresholds"]["flag"] and r["outcome"] == "fraud")
         
         total_with_outcome = len(records_with_outcome)
         false_positive_rate = (false_positives / total_with_outcome) * 100
@@ -465,11 +555,56 @@ async def provide_transaction_feedback(
     
     return {"message": "Feedback recorded successfully"}
 
+@router.get("/{model_id}/compare/{comparison_model_id}")
+async def compare_models(
+    model_id: str,
+    comparison_model_id: str,
+    timeframe: Optional[str] = Query("7d", description="Performance timeframe (24h, 7d, 30d, all)"),
+    db = Depends(get_database)
+):
+    """Compare performance metrics between two models."""
+    # Get performance data for both models
+    model1_perf = await get_model_performance(model_id, None, timeframe, db)
+    model2_perf = await get_model_performance(comparison_model_id, None, timeframe, db)
+    
+    # Calculate differences
+    differences = {}
+    for key in ["avgRiskScore", "falsePositiveRate", "falseNegativeRate"]:
+        if model1_perf.get(key) is not None and model2_perf.get(key) is not None:
+            differences[key] = model1_perf[key] - model2_perf[key]
+    
+    # Compare risk factor distribution
+    rf_diff = {}
+    for factor, pct in model1_perf.get("riskFactorDistribution", {}).items():
+        other_pct = model2_perf.get("riskFactorDistribution", {}).get(factor, 0)
+        rf_diff[factor] = pct - other_pct
+    
+    return {
+        "timeframe": timeframe,
+        "model1": {
+            "id": model_id,
+            "performance": model1_perf
+        },
+        "model2": {
+            "id": comparison_model_id,
+            "performance": model2_perf
+        },
+        "differences": differences,
+        "riskFactorDifferences": rf_diff
+    }
+
 @router.websocket("/change-stream")
 async def websocket_endpoint(websocket: WebSocket, db = Depends(get_database)):
     """WebSocket endpoint for real-time model updates using MongoDB Change Streams."""
     await websocket.accept()
     active_connections.append(websocket)
+    
+    # Check if we need to clean up stale connections
+    global last_cleanup_time
+    now = datetime.now()
+    if (now - last_cleanup_time).total_seconds() > 300:  # Clean up every 5 minutes
+        await cleanup_stale_connections()
+        last_cleanup_time = now
     
     try:
         # Set up pipeline to watch for risk model changes
@@ -479,7 +614,6 @@ async def websocket_endpoint(websocket: WebSocket, db = Depends(get_database)):
         ]
         
         # Create a change stream on the risk_models collection
-        # Don't require full_document_before_change since it may not be configured
         async with db.watch(
             pipeline=pipeline,
             full_document='updateLookup'
@@ -496,6 +630,11 @@ async def websocket_endpoint(websocket: WebSocket, db = Depends(get_database)):
                 "type": "initial",
                 "models": models
             })
+            
+            # Send heartbeat every 30 seconds to keep connection alive
+            heartbeat_task = asyncio.create_task(
+                send_heartbeats(websocket)
+            )
             
             # Process real-time changes
             async for change in change_stream:
@@ -521,12 +660,31 @@ async def websocket_endpoint(websocket: WebSocket, db = Depends(get_database)):
                 await websocket.send_json(change_data)
     
     except WebSocketDisconnect:
-        active_connections.remove(websocket)
+        if websocket in active_connections:
+            active_connections.remove(websocket)
+        if 'heartbeat_task' in locals():
+            heartbeat_task.cancel()
     except Exception as e:
         # Log the error but don't crash
         logger = logging.getLogger(__name__)
         logger.error(f"WebSocket error: {str(e)}")
         try:
-            active_connections.remove(websocket)
-        except ValueError:
+            if websocket in active_connections:
+                active_connections.remove(websocket)
+            if 'heartbeat_task' in locals():
+                heartbeat_task.cancel()
+        except (ValueError, Exception):
             pass
+
+async def send_heartbeats(websocket: WebSocket):
+    """Send periodic heartbeats to keep WebSocket connections alive."""
+    try:
+        while True:
+            await asyncio.sleep(30)
+            await websocket.send_json({"type": "heartbeat", "timestamp": datetime.now().isoformat()})
+    except (WebSocketDisconnect, asyncio.CancelledError):
+        # Connection closed or task cancelled
+        pass
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error sending heartbeat: {str(e)}")

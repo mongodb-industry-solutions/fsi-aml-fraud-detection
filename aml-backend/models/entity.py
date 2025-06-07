@@ -65,7 +65,7 @@ class EntityDetail(BaseModel):
     updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
 
     class Config:
-        allow_population_by_field_name = True
+        validate_by_name = True
         populate_by_name = True
 
 # Response models

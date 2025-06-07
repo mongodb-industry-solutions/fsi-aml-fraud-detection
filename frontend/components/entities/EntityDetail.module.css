@@ -1,0 +1,220 @@
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.riskScoreContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.riskScore {
+  font-size: 48px;
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+.riskLevel {
+  font-size: 18px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.entityInfoGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.infoField {
+  margin-bottom: 16px;
+}
+
+.infoLabel {
+  display: block;
+  color: #757575;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.infoValue {
+  font-size: 14px;
+  font-weight: 500;
+  color: #212121;
+}
+
+.statusActive {
+  color: #2e7d32;
+}
+
+.statusInactive {
+  color: #d32f2f;
+}
+
+.emptyState {
+  padding: 48px 24px;
+  text-align: center;
+  color: #757575;
+}
+
+.emptyStateIcon {
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.tabContent {
+  margin-top: 24px;
+}
+
+.addressCard {
+  margin-bottom: 16px;
+  padding: 20px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background-color: #fff;
+}
+
+.addressGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.watchlistMatch {
+  margin-bottom: 16px;
+  padding: 20px;
+  border: 2px solid #ffcdd2;
+  border-radius: 8px;
+  background-color: #ffeaea;
+}
+
+.matchGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.riskBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.riskBadgeHigh {
+  background-color: #ffebee;
+  color: #c62828;
+  border: 2px solid #c62828;
+}
+
+.riskBadgeMedium {
+  background-color: #fff8e1;
+  color: #f57c00;
+  border: 2px solid #f57c00;
+}
+
+.riskBadgeLow {
+  background-color: #e8f5e8;
+  color: #2e7d32;
+  border: 2px solid #2e7d32;
+}
+
+.riskBadgeUnknown {
+  background-color: #f5f5f5;
+  color: #616161;
+  border: 2px solid #616161;
+}
+
+.profileSection {
+  margin-bottom: 32px;
+}
+
+.sectionTitle {
+  margin-bottom: 16px;
+  color: #212121;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.placeholderContent {
+  text-align: center;
+  padding: 48px 24px;
+  background-color: #fafafa;
+  border-radius: 8px;
+  border: 2px dashed #e0e0e0;
+}
+
+.placeholderIcon {
+  margin-bottom: 16px;
+  opacity: 0.3;
+}
+
+.placeholderTitle {
+  margin-bottom: 8px;
+  color: #424242;
+}
+
+.placeholderDescription {
+  color: #757575;
+  margin-bottom: 24px;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Responsive design */
+@media (max-width: 1024px) {
+  .container {
+    padding: 0 16px;
+  }
+  
+  /* Stack layout on smaller screens */
+  .entityInfoGrid {
+    grid-template-columns: 1fr;
+  }
+  
+  .addressGrid,
+  .matchGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .riskScore {
+    font-size: 36px;
+  }
+  
+  .riskLevel {
+    font-size: 16px;
+  }
+  
+  .placeholderContent {
+    padding: 32px 16px;
+  }
+  
+  .emptyState {
+    padding: 32px 16px;
+  }
+}
+
+/* Table enhancements for mobile */
+@media (max-width: 640px) {
+  .tableContainer {
+    overflow-x: auto;
+  }
+}

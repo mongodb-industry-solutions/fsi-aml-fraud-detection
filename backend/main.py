@@ -11,6 +11,7 @@ from routes.customer import router as customer_router
 from routes.transaction import router as transaction_router
 from routes.fraud_pattern import router as fraud_pattern_router
 from routes.model_management import router as model_management_router
+from routes.entity_resolution import router as entity_resolution_router
 
 # Setup logging
 logging.basicConfig(
@@ -104,6 +105,7 @@ app.include_router(customer_router)
 app.include_router(transaction_router)
 app.include_router(fraud_pattern_router)
 app.include_router(model_management_router)
+app.include_router(entity_resolution_router)
 
 # if __name__ == "__main__":
 #     import uvicorn

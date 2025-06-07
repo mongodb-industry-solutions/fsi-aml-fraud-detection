@@ -37,6 +37,16 @@ function Header() {
           <Body>Transaction Simulator</Body>
         </Link>
         
+        <Link href="/entities" className={styles.navLink}>
+          <Icon glyph="Person" fill={palette.gray.light3} /> 
+          <Body>Entity Management</Body>
+        </Link>
+        
+        <Link href="/entity-resolution" className={styles.navLink}>
+          <Icon glyph="University" fill={palette.gray.light3} /> 
+          <Body>Entity Resolution</Body>
+        </Link>
+        
         <Link href="/risk-models" className={styles.navLink}>
           <Icon glyph="Settings" fill={palette.gray.light3} /> 
           <Body>Risk Models</Body>

@@ -63,8 +63,8 @@ class PotentialMatch(BaseModel):
     entityType: Optional[str] = Field(None, description="Type of entity (individual, organization)")
     
     class Config:
-        allow_population_by_field_name = True
-        schema_extra = {
+        validate_by_name = True
+        json_schema_extra = {
             "example": {
                 "entityId": "C123456",
                 "name_full": "John Smith",

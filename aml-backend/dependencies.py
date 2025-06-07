@@ -53,14 +53,25 @@ async def get_entities_collection():
 
 # Dependencies for getting MongoDB access in FastAPI routes
 def get_db_dependency():
-    """Dependency for injecting MongoDB access into FastAPI routes"""
+    """
+    Dependency for injecting MongoDB access into FastAPI routes.
+    Returns MongoDBAccess wrapper object (legacy pattern).
+    Use get_async_db_dependency() for new routes.
+    """
     return get_mongodb_access()
 
 def get_async_db_dependency():
-    """Dependency for injecting async MongoDB database into FastAPI routes"""
+    """
+    Dependency for injecting async MongoDB database into FastAPI routes.
+    Returns AsyncIOMotorDatabase object directly (recommended pattern).
+    Use this for all new routes and services.
+    """
     return get_database()
 
 # Configuration constants
 ENTITIES_COLLECTION = "entities"
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 100
+
+# Vector Search Configuration
+ENTITY_VECTOR_SEARCH_INDEX = os.getenv("ENTITY_VECTOR_SEARCH_INDEX", "entity_vector_search_index")

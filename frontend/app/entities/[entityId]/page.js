@@ -5,8 +5,8 @@ export const metadata = {
   description: 'Detailed entity information and risk assessment for AML/KYC compliance',
 };
 
-export default function EntityDetailPage({ params }) {
-  const { entityId } = params;
+export default async function EntityDetailPage({ params }) {
+  const { entityId } = await params;
 
   return <EntityDetailWrapper entityId={entityId} />;
 }

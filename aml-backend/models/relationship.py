@@ -65,9 +65,9 @@ class Relationship(BaseModel):
     notes: Optional[str] = Field(None, description="Additional notes about the relationship")
     
     class Config:
-        allow_population_by_field_name = True
+        validate_by_name = True
         json_encoders = {ObjectId: str}
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "source": {
                     "entityId": "C123456",
@@ -183,7 +183,7 @@ class RelationshipOperationResponse(BaseModel):
     affectedEntityIds: List[str] = Field(default_factory=list, description="IDs of affected entities")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "success": True,
                 "message": "Relationship created successfully",

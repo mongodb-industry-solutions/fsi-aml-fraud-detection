@@ -22,6 +22,7 @@ import Code from '@leafygreen-ui/code';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 import { amlAPI, useAMLAPIError, amlUtils } from '@/lib/aml-api';
+import SimilarProfilesSection from './SimilarProfilesSection';
 import styles from './EntityDetail.module.css';
 
 // Tab constants
@@ -461,7 +462,10 @@ export default function EntityDetail({ entityId }) {
           <div style={{ marginBottom: spacing[4] }}>
             <RiskScoreDisplay riskAssessment={entity.riskAssessment} />
           </div>
-          <EntityInfoCard entity={entity} />
+          <div style={{ marginBottom: spacing[4] }}>
+            <EntityInfoCard entity={entity} />
+          </div>
+          <SimilarProfilesSection entity={entity} />
         </div>
 
         {/* Right Panel - Tabs */}

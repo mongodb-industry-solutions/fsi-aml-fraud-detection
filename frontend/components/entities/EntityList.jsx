@@ -14,8 +14,7 @@ import IconButton from '@leafygreen-ui/icon-button';
 import TextInput from '@leafygreen-ui/text-input';
 import { Spinner } from '@leafygreen-ui/loading-indicator';
 import { 
-  ParagraphSkeleton, 
-  TableSkeleton
+  ParagraphSkeleton
 } from '@leafygreen-ui/skeleton-loader';
 import Callout from '@leafygreen-ui/callout';
 import { palette } from '@leafygreen-ui/palette';
@@ -36,6 +35,14 @@ const RISK_LEVELS = [
   { value: 'low', label: 'Low Risk' },
   { value: 'medium', label: 'Medium Risk' },
   { value: 'high', label: 'High Risk' }
+];
+
+const ENTITY_STATUSES = [
+  { value: '', label: 'All Statuses' },
+  { value: 'active', label: 'Active' },
+  { value: 'inactive', label: 'Inactive' },
+  { value: 'under_review', label: 'Under Review' },
+  { value: 'restricted', label: 'Restricted' }
 ];
 
 function RiskBadge({ level, score, size = 'default' }) {
@@ -79,6 +86,47 @@ function RiskBadge({ level, score, size = 'default' }) {
   );
 }
 
+function StatusBadge({ status, size = 'default' }) {
+  const colors = {
+    active: palette.green.base,
+    inactive: palette.gray.base,
+    under_review: palette.yellow.base,
+    restricted: palette.red.base
+  };
+
+  const bgColors = {
+    active: palette.green.light2,
+    inactive: palette.gray.light2,
+    under_review: palette.yellow.light2,
+    restricted: palette.red.light2
+  };
+
+  const statusLower = status?.toLowerCase() || 'inactive';
+  const badgeStyle = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: spacing[1],
+    padding: size === 'small' ? `${spacing[1]}px ${spacing[2]}px` : `${spacing[1]}px ${spacing[3]}px`,
+    borderRadius: '16px',
+    backgroundColor: bgColors[statusLower] || bgColors.inactive,
+    color: colors[statusLower] || colors.inactive,
+    fontSize: size === 'small' ? '12px' : '14px',
+    fontWeight: '600',
+    border: `1px solid ${colors[statusLower] || colors.inactive}`,
+  };
+
+  return (
+    <span style={badgeStyle}>
+      <Icon 
+        glyph={statusLower === 'active' ? 'Checkmark' : statusLower === 'restricted' ? 'Warning' : 'Clock'} 
+        size={size === 'small' ? 12 : 14}
+        fill={colors[statusLower] || colors.inactive}
+      />
+      {amlUtils.formatEntityStatus(status)}
+    </span>
+  );
+}
+
 function EntityRow({ entity, onClick }) {
   const handleRowClick = () => {
     onClick(entity.entityId);
@@ -96,16 +144,28 @@ function EntityRow({ entity, onClick }) {
       <Cell>
         <div>
           <Body weight="medium">{entity.entityId}</Body>
+          {entity.scenarioKey && (
+            <div style={{ marginTop: spacing[1] }}>
+              <Body style={{ color: palette.gray.dark1, fontSize: '12px' }}>
+                {amlUtils.formatScenarioKey(entity.scenarioKey)}
+              </Body>
+            </div>
+          )}
         </div>
       </Cell>
       <Cell>
         <div>
           <Body weight="medium">{entity.name_full}</Body>
+          <div style={{ marginTop: spacing[1] }}>
+            <Body style={{ color: palette.gray.dark1, fontSize: '12px' }}>
+              {amlUtils.formatEntityType(entity.entityType)}
+            </Body>
+          </div>
         </div>
       </Cell>
       <Cell>
-        <div>
-          <Body>{amlUtils.formatEntityType(entity.entityType)}</Body>
+        <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+          <StatusBadge status={entity.status} size="small" />
         </div>
       </Cell>
       <Cell>
@@ -121,7 +181,44 @@ function EntityRow({ entity, onClick }) {
         </div>
       </Cell>
       <Cell>
-        <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2] }}>
+          {entity.watchlist_matches_count > 0 && (
+            <Tooltip 
+              trigger={
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: spacing[1],
+                  padding: `${spacing[1]}px ${spacing[2]}px`,
+                  backgroundColor: palette.red.light2,
+                  color: palette.red.base,
+                  borderRadius: '12px',
+                  fontSize: '12px',
+                  fontWeight: '600'
+                }}>
+                  <Icon glyph="Warning" size={12} fill={palette.red.base} />
+                  {entity.watchlist_matches_count}
+                </span>
+              }
+              triggerEvent="hover"
+            >
+              {entity.watchlist_matches_count} watchlist match{entity.watchlist_matches_count > 1 ? 'es' : ''}
+            </Tooltip>
+          )}
+          {entity.resolution_status && entity.resolution_status !== 'unresolved' && (
+            <Tooltip 
+              trigger={
+                <Icon 
+                  glyph="Link" 
+                  size={14} 
+                  fill={entity.resolution_status === 'resolved' ? palette.green.base : palette.yellow.base}
+                />
+              }
+              triggerEvent="hover"
+            >
+              Resolution status: {amlUtils.formatEntityStatus(entity.resolution_status)}
+            </Tooltip>
+          )}
           <Tooltip 
             trigger={
               <IconButton aria-label="View entity details">
@@ -154,7 +251,10 @@ export default function EntityList() {
   // Filters
   const [entityTypeFilter, setEntityTypeFilter] = useState('');
   const [riskLevelFilter, setRiskLevelFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [scenarioFilter, setScenarioFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [scenarioKeys, setScenarioKeys] = useState([]);
 
   // Load entities
   const loadEntities = async (page = 1, filters = {}) => {
@@ -165,6 +265,8 @@ export default function EntityList() {
       const response = await amlAPI.getEntitiesPaginated(page, DEFAULT_PAGE_SIZE, {
         entity_type: filters.entityType || entityTypeFilter,
         risk_level: filters.riskLevel || riskLevelFilter,
+        status: filters.status || statusFilter,
+        scenario_key: filters.scenarioKey || scenarioFilter,
       });
 
       setEntities(response.entities || []);
@@ -172,6 +274,11 @@ export default function EntityList() {
       setCurrentPage(response.page || page);
       setHasNext(response.has_next || false);
       setHasPrevious(response.has_previous || false);
+      
+      // Update scenario keys from response
+      if (response.scenario_keys && Array.isArray(response.scenario_keys)) {
+        setScenarioKeys(response.scenario_keys.slice(0, 20)); // Limit to first 20 for performance
+      }
 
     } catch (err) {
       console.error('Error loading entities:', err);
@@ -189,11 +296,18 @@ export default function EntityList() {
 
   // Handle filter changes
   const handleFilterChange = (filterType, value) => {
-    const filters = { entityType: entityTypeFilter, riskLevel: riskLevelFilter };
+    const filters = { 
+      entityType: entityTypeFilter, 
+      riskLevel: riskLevelFilter,
+      status: statusFilter,
+      scenarioKey: scenarioFilter
+    };
     filters[filterType] = value;
     
     if (filterType === 'entityType') setEntityTypeFilter(value);
     if (filterType === 'riskLevel') setRiskLevelFilter(value);
+    if (filterType === 'status') setStatusFilter(value);
+    if (filterType === 'scenarioKey') setScenarioFilter(value);
     
     setCurrentPage(1);
     loadEntities(1, filters);
@@ -262,6 +376,37 @@ export default function EntityList() {
             </Select>
           </div>
 
+          <div style={{ minWidth: '200px' }}>
+            <Select
+              label="Status"
+              value={statusFilter}
+              onChange={(value) => handleFilterChange('status', value)}
+            >
+              {ENTITY_STATUSES.map(status => (
+                <Option key={status.value} value={status.value}>
+                  {status.label}
+                </Option>
+              ))}
+            </Select>
+          </div>
+
+          {scenarioKeys.length > 0 && (
+            <div style={{ minWidth: '250px' }}>
+              <Select
+                label="Demo Scenario"
+                value={scenarioFilter}
+                onChange={(value) => handleFilterChange('scenarioKey', value)}
+              >
+                <Option value="">All Scenarios</Option>
+                {scenarioKeys.map(scenario => (
+                  <Option key={scenario} value={scenario}>
+                    {amlUtils.formatScenarioKey(scenario)}
+                  </Option>
+                ))}
+              </Select>
+            </div>
+          )}
+
           <div style={{ minWidth: '300px' }}>
             <TextInput
               label="Search Entities"
@@ -285,9 +430,11 @@ export default function EntityList() {
             onClick={() => {
               setEntityTypeFilter('');
               setRiskLevelFilter('');
+              setStatusFilter('');
+              setScenarioFilter('');
               setSearchTerm('');
               setCurrentPage(1);
-              loadEntities(1, { entityType: '', riskLevel: '' });
+              loadEntities(1, { entityType: '', riskLevel: '', status: '', scenarioKey: '' });
             }}
           >
             Clear Filters
@@ -311,22 +458,29 @@ export default function EntityList() {
       <Card>
         {loading ? (
           <div style={{ padding: spacing[3] }}>
-            <TableSkeleton 
-              rowCount={10}
-              columnCount={6}
-              style={{ height: '600px' }}
-            />
+            <div style={{ height: '600px' }}>
+              <ParagraphSkeleton />
+              <ParagraphSkeleton />
+              <ParagraphSkeleton />
+              <ParagraphSkeleton />
+              <ParagraphSkeleton />
+              <ParagraphSkeleton />
+              <ParagraphSkeleton />
+              <ParagraphSkeleton />
+              <ParagraphSkeleton />
+              <ParagraphSkeleton />
+            </div>
           </div>
         ) : entities.length > 0 ? (
           <Table>
             <TableHead>
               <HeaderRow>
-                <HeaderCell>Entity ID</HeaderCell>
-                <HeaderCell>Name</HeaderCell>
-                <HeaderCell>Type</HeaderCell>
+                <HeaderCell>Entity ID & Scenario</HeaderCell>
+                <HeaderCell>Name & Type</HeaderCell>
+                <HeaderCell>Status</HeaderCell>
                 <HeaderCell>Risk Score</HeaderCell>
                 <HeaderCell>Risk Level</HeaderCell>
-                <HeaderCell>Actions</HeaderCell>
+                <HeaderCell>Indicators & Actions</HeaderCell>
               </HeaderRow>
             </TableHead>
             <TableBody>

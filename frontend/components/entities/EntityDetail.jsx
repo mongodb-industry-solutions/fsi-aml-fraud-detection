@@ -82,6 +82,464 @@ function RiskScoreDisplay({ riskAssessment }) {
           Trend: {riskAssessment.overall.trend}
         </Body>
       )}
+      {riskAssessment.overall.lastUpdated && (
+        <Body style={{ color: palette.gray.dark1, marginTop: spacing[1], fontSize: '12px' }}>
+          Last Updated: {amlUtils.formatDate(riskAssessment.overall.lastUpdated)}
+        </Body>
+      )}
+    </Card>
+  );
+}
+
+function RiskComponentsDisplay({ riskAssessment }) {
+  if (!riskAssessment?.components || Object.keys(riskAssessment.components).length === 0) {
+    return null;
+  }
+
+  return (
+    <Card style={{ padding: spacing[4] }}>
+      <H3 style={{ marginBottom: spacing[3] }}>Risk Component Breakdown</H3>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: spacing[3] }}>
+        {Object.entries(riskAssessment.components).map(([componentName, component]) => {
+          const componentColor = amlUtils.getRiskScoreColor(component.score);
+          const componentBgColor = {
+            red: palette.red.light2,
+            yellow: palette.yellow.light2,
+            green: palette.green.light2,
+            gray: palette.gray.light2
+          }[componentColor];
+          
+          const progressPercentage = (component.score / 100) * 100;
+          const componentColorMap = {
+            red: palette.red.base,
+            yellow: palette.yellow.base,
+            green: palette.green.base,
+            gray: palette.gray.base
+          };
+          
+          return (
+            <div key={componentName} style={{
+              padding: spacing[3],
+              backgroundColor: componentBgColor,
+              borderRadius: '8px',
+              border: `1px solid ${componentColorMap[componentColor]}`,
+              position: 'relative',
+              overflow: 'hidden'
+            }}>
+              {/* Component Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing[2] }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+                  <Icon 
+                    glyph={componentName === 'identity' ? 'Person' : 
+                           componentName === 'profile' ? 'UserProfile' :
+                           componentName === 'activity' ? 'ActivityFeed' :
+                           componentName === 'external' ? 'Cloud' :
+                           componentName === 'network' ? 'Diagram3' : 'Warning'} 
+                    size={18} 
+                    fill={componentColorMap[componentColor]} 
+                  />
+                  <Body weight="medium" style={{ textTransform: 'capitalize', fontSize: '14px' }}>
+                    {componentName.replace(/_/g, ' ')}
+                  </Body>
+                </div>
+                <div style={{ 
+                  fontSize: '20px', 
+                  fontWeight: 'bold', 
+                  color: componentColorMap[componentColor]
+                }}>
+                  {component.score.toFixed(1)}
+                </div>
+              </div>
+              
+              {/* Progress Bar */}
+              <div style={{ marginBottom: spacing[2] }}>
+                <div style={{
+                  width: '100%',
+                  height: '8px',
+                  backgroundColor: palette.gray.light2,
+                  borderRadius: '4px',
+                  overflow: 'hidden'
+                }}>
+                  <div style={{
+                    width: `${progressPercentage}%`,
+                    height: '100%',
+                    backgroundColor: componentColorMap[componentColor],
+                    borderRadius: '4px',
+                    transition: 'width 0.3s ease-in-out'
+                  }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: spacing[1] }}>
+                  <Body style={{ fontSize: '11px', color: palette.gray.dark1 }}>
+                    0
+                  </Body>
+                  <Body style={{ fontSize: '11px', color: palette.gray.dark1, fontWeight: '600' }}>
+                    Weight: {(component.weight * 100).toFixed(0)}%
+                  </Body>
+                  <Body style={{ fontSize: '11px', color: palette.gray.dark1 }}>
+                    100
+                  </Body>
+                </div>
+              </div>
+              
+              {/* Risk Level Badge */}
+              <div style={{ marginBottom: spacing[2] }}>
+                <span style={{
+                  padding: '3px 8px',
+                  backgroundColor: componentColorMap[componentColor],
+                  color: 'white',
+                  borderRadius: '12px',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  textTransform: 'uppercase'
+                }}>
+                  {component.score >= 75 ? 'High Risk' : 
+                   component.score >= 50 ? 'Medium Risk' : 
+                   component.score >= 25 ? 'Low Risk' : 'Minimal Risk'}
+                </span>
+              </div>
+              
+              {/* Top Risk Factors */}
+              {component.factors && component.factors.length > 0 && (
+                <div>
+                  <Body style={{ fontSize: '12px', fontWeight: '600', marginBottom: spacing[1], color: palette.gray.dark2 }}>
+                    Key Risk Factors:
+                  </Body>
+                  {component.factors.slice(0, 3).map((factor, index) => {
+                    const factorPercentage = (factor.impact / 100) * 100;
+                    return (
+                      <div key={index} style={{ marginBottom: spacing[1] }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Body style={{ fontSize: '11px', color: palette.gray.dark1 }}>
+                            {factor.type.replace(/_/g, ' ')}
+                          </Body>
+                          <Body style={{ fontSize: '11px', fontWeight: '600', color: componentColorMap[componentColor] }}>
+                            {factor.impact.toFixed(1)}
+                          </Body>
+                        </div>
+                        <div style={{
+                          width: '100%',
+                          height: '3px',
+                          backgroundColor: palette.gray.light2,
+                          borderRadius: '2px',
+                          marginTop: '2px'
+                        }}>
+                          <div style={{
+                            width: `${factorPercentage}%`,
+                            height: '100%',
+                            backgroundColor: componentColorMap[componentColor],
+                            borderRadius: '2px',
+                            opacity: 0.7
+                          }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+function WatchlistMatchesDisplay({ watchlistMatches }) {
+  if (!watchlistMatches || watchlistMatches.length === 0) {
+    return (
+      <Card style={{ padding: spacing[4] }}>
+        <H3 style={{ marginBottom: spacing[3] }}>Watchlist Screening</H3>
+        <div style={{ textAlign: 'center', padding: spacing[3] }}>
+          <Icon glyph="Checkmark" size={48} fill={palette.green.base} />
+          <Body style={{ marginTop: spacing[2], color: palette.green.dark2 }}>No watchlist matches found</Body>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card style={{ padding: spacing[4] }}>
+      <H3 style={{ marginBottom: spacing[3] }}>Watchlist Matches ({watchlistMatches.length})</H3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[3] }}>
+        {watchlistMatches.map((match, index) => {
+          const statusColor = amlUtils.getWatchlistStatusColor(match.status);
+          const statusBgColor = {
+            red: palette.red.light2,
+            yellow: palette.yellow.light2,
+            green: palette.green.light2,
+            gray: palette.gray.light2
+          }[statusColor];
+          
+          return (
+            <div key={index} style={{
+              padding: spacing[3],
+              backgroundColor: statusBgColor,
+              borderRadius: '8px',
+              border: `1px solid ${{
+                red: palette.red.base,
+                yellow: palette.yellow.base,
+                green: palette.green.base,
+                gray: palette.gray.base
+              }[statusColor]}`
+            }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: spacing[2] }}>
+                <div>
+                  <Label>List ID</Label>
+                  <Body weight="medium">{match.listId}</Body>
+                </div>
+                <div>
+                  <Label>Match Score</Label>
+                  <Body weight="medium">{(match.matchScore * 100).toFixed(1)}%</Body>
+                </div>
+                <div>
+                  <Label>Status</Label>
+                  <Body weight="medium" style={{ color: {
+                    red: palette.red.base,
+                    yellow: palette.yellow.base,
+                    green: palette.green.base,
+                    gray: palette.gray.base
+                  }[statusColor] }}>
+                    {amlUtils.formatWatchlistStatus(match.status)}
+                  </Body>
+                </div>
+                <div>
+                  <Label>Match Date</Label>
+                  <Body>{amlUtils.formatDate(match.matchDate)}</Body>
+                </div>
+              </div>
+              {match.details && (
+                <div style={{ marginTop: spacing[2] }}>
+                  <Label>Additional Details</Label>
+                  <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>
+                    {match.details.reason && `Reason: ${match.details.reason}`}
+                    {match.details.role && ` | Role: ${match.details.role}`}
+                  </Body>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+function EntityResolutionDisplay({ resolution }) {
+  const router = useRouter();
+  
+  if (!resolution || resolution.status === 'unresolved') {
+    return null;
+  }
+
+  const statusColor = resolution.status === 'resolved' ? 'green' : 'yellow';
+  const statusBgColor = {
+    green: palette.green.light2,
+    yellow: palette.yellow.light2
+  }[statusColor];
+  
+  const handleEntityNavigation = (entityId) => {
+    if (entityId) {
+      router.push(`/entities/${entityId}`);
+    }
+  };
+
+  return (
+    <Card style={{ padding: spacing[4] }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing[3] }}>
+        <H3>Entity Resolution Status</H3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+          <Icon 
+            glyph={resolution.status === 'resolved' ? 'CheckmarkWithCircle' : 'InProgressWithCircle'} 
+            size={20} 
+            fill={statusColor === 'green' ? palette.green.base : palette.yellow.base} 
+          />
+          <span style={{
+            padding: '4px 12px',
+            backgroundColor: statusColor === 'green' ? palette.green.base : palette.yellow.base,
+            color: 'white',
+            borderRadius: '16px',
+            fontSize: '12px',
+            fontWeight: '600',
+            textTransform: 'uppercase'
+          }}>
+            {amlUtils.formatEntityStatus(resolution.status)}
+          </span>
+        </div>
+      </div>
+      
+      <div style={{
+        padding: spacing[3],
+        backgroundColor: statusBgColor,
+        borderRadius: '8px',
+        border: `1px solid ${statusColor === 'green' ? palette.green.base : palette.yellow.base}`
+      }}>
+        {/* Resolution Details Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: spacing[3], marginBottom: spacing[3] }}>
+          <div>
+            <Label>Resolution Date</Label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+              <Icon glyph="Calendar" size={14} fill={palette.gray.base} />
+              <Body weight="medium">{amlUtils.formatDate(resolution.lastReviewDate)}</Body>
+            </div>
+          </div>
+          
+          {resolution.masterEntityId && (
+            <div>
+              <Label>Master Entity</Label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+                <Icon glyph="Diagram3" size={14} fill={palette.blue.base} />
+                <Button 
+                  variant="default" 
+                  size="xsmall"
+                  onClick={() => handleEntityNavigation(resolution.masterEntityId)}
+                  style={{ 
+                    fontSize: '11px',
+                    padding: '2px 8px',
+                    fontFamily: 'monospace'
+                  }}
+                >
+                  {resolution.masterEntityId}
+                </Button>
+              </div>
+            </div>
+          )}
+          
+          <div>
+            <Label>Confidence Score</Label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+              <Icon glyph="Charts" size={14} fill={palette.gray.base} />
+              <Body weight="medium" style={{ 
+                color: resolution.confidence >= 0.8 ? palette.green.base :
+                       resolution.confidence >= 0.6 ? palette.yellow.base : palette.red.base
+              }}>
+                {(resolution.confidence * 100).toFixed(1)}%
+              </Body>
+              <div style={{
+                width: '40px',
+                height: '4px',
+                backgroundColor: palette.gray.light2,
+                borderRadius: '2px',
+                overflow: 'hidden'
+              }}>
+                <div style={{
+                  width: `${resolution.confidence * 100}%`,
+                  height: '100%',
+                  backgroundColor: resolution.confidence >= 0.8 ? palette.green.base :
+                                   resolution.confidence >= 0.6 ? palette.yellow.base : palette.red.base,
+                  borderRadius: '2px'
+                }} />
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Linked Entities Section */}
+        {resolution.linkedEntities && resolution.linkedEntities.length > 0 && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1], marginBottom: spacing[2] }}>
+              <Icon glyph="Link" size={16} fill={palette.blue.base} />
+              <Label>Linked Entities ({resolution.linkedEntities.length})</Label>
+            </div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: spacing[2] }}>
+              {resolution.linkedEntities.map((linkedEntity, index) => {
+                const linkTypeColor = {
+                  'confirmed_match': palette.green.base,
+                  'potential_duplicate': palette.yellow.base,
+                  'business_associate': palette.blue.base,
+                  'family_member': palette.purple.base
+                }[linkedEntity.linkType] || palette.gray.base;
+                
+                return (
+                  <div key={index} style={{
+                    padding: spacing[2],
+                    backgroundColor: 'white',
+                    borderRadius: '6px',
+                    border: `1px solid ${linkTypeColor}`,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onClick={() => handleEntityNavigation(linkedEntity.entityId)}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.boxShadow = `0 4px 8px ${linkTypeColor}20`;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+                        <Icon glyph="Person" size={14} fill={linkTypeColor} />
+                        <Body weight="medium" style={{ fontSize: '11px', fontFamily: 'monospace' }}>
+                          {linkedEntity.entityId}
+                        </Body>
+                      </div>
+                      <Icon glyph="ArrowRight" size={12} fill={palette.gray.base} />
+                    </div>
+                    
+                    <div style={{ marginTop: spacing[1] }}>
+                      <span style={{
+                        padding: '2px 6px',
+                        backgroundColor: `${linkTypeColor}20`,
+                        color: linkTypeColor,
+                        borderRadius: '8px',
+                        fontSize: '10px',
+                        fontWeight: '600'
+                      }}>
+                        {linkedEntity.linkType.replace(/_/g, ' ').toUpperCase()}
+                      </span>
+                      
+                      {linkedEntity.confidence && (
+                        <span style={{ 
+                          marginLeft: spacing[1],
+                          fontSize: '10px', 
+                          color: palette.gray.dark1 
+                        }}>
+                          {(linkedEntity.confidence * 100).toFixed(0)}% match
+                        </span>
+                      )}
+                    </div>
+                    
+                    {linkedEntity.matchedAttributes && linkedEntity.matchedAttributes.length > 0 && (
+                      <div style={{ marginTop: spacing[1] }}>
+                        <Body style={{ fontSize: '9px', color: palette.gray.dark1 }}>
+                          Matched: {linkedEntity.matchedAttributes.slice(0, 3).join(', ')}
+                          {linkedEntity.matchedAttributes.length > 3 && ` +${linkedEntity.matchedAttributes.length - 3} more`}
+                        </Body>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        
+        {/* Review Information */}
+        <div style={{ 
+          marginTop: spacing[3], 
+          paddingTop: spacing[2], 
+          borderTop: `1px solid ${palette.gray.light2}`,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+            <Icon glyph="Person" size={12} fill={palette.gray.base} />
+            <Body style={{ fontSize: '11px', color: palette.gray.dark1 }}>
+              Reviewed by: {resolution.reviewedBy || 'System'}
+            </Body>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+            <Icon glyph="Clock" size={12} fill={palette.gray.base} />
+            <Body style={{ fontSize: '11px', color: palette.gray.dark1 }}>
+              {amlUtils.formatDate(resolution.lastReviewDate)}
+            </Body>
+          </div>
+        </div>
+      </div>
     </Card>
   );
 }
@@ -107,11 +565,21 @@ function ComprehensiveOverviewTab({ entity }) {
           <div>
             <Label>Status</Label>
             <Body weight="medium" style={{ 
-              color: entity.status === 'active' ? palette.green.dark2 : palette.red.base 
+              color: amlUtils.getEntityStatusColor(entity.status) === 'green' ? palette.green.dark2 : 
+                     amlUtils.getEntityStatusColor(entity.status) === 'red' ? palette.red.base :
+                     amlUtils.getEntityStatusColor(entity.status) === 'yellow' ? palette.yellow.base : palette.gray.dark1
             }}>
-              {entity.status || 'Unknown'}
+              {amlUtils.formatEntityStatus(entity.status)}
             </Body>
           </div>
+          {entity.scenarioKey && (
+            <div>
+              <Label>Demo Scenario</Label>
+              <Body weight="medium" style={{ color: palette.blue.base }}>
+                {amlUtils.formatScenarioKey(entity.scenarioKey)}
+              </Body>
+            </div>
+          )}
           <div>
             <Label>Source System</Label>
             <Body weight="medium">{entity.sourceSystem || 'N/A'}</Body>
@@ -187,6 +655,15 @@ function ComprehensiveOverviewTab({ entity }) {
             <Body weight="medium">{entity.name.aliases.join(', ')}</Body>
           </div>
         )}
+        
+        {entity.name?.nameComponents && entity.name.nameComponents.length > 0 && (
+          <div style={{ marginTop: spacing[2] }}>
+            <Label>Name Components (for search)</Label>
+            <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>
+              {entity.name.nameComponents.join(', ')}
+            </Body>
+          </div>
+        )}
       </Card>
 
       {/* Addresses */}
@@ -203,33 +680,108 @@ function ComprehensiveOverviewTab({ entity }) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: spacing[2] }}>
                 <div>
                   <Label>Type</Label>
-                  <Body weight="medium">{address.type || 'Unknown'}</Body>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+                    <Icon 
+                      glyph={address.type === 'residential' ? 'Home' : address.type === 'business' ? 'Building' : 'Location'} 
+                      size={16} 
+                      fill={palette.gray.base} 
+                    />
+                    <Body weight="medium">{address.type || 'Unknown'}</Body>
+                  </div>
                 </div>
                 <div>
-                  <Label>Primary</Label>
-                  <Body weight="medium" style={{ 
-                    color: address.primary ? palette.green.dark2 : palette.gray.dark1 
-                  }}>
-                    {address.primary ? 'Yes' : 'No'}
-                  </Body>
+                  <Label>Primary Address</Label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+                    {address.primary ? (
+                      <>
+                        <Icon glyph="Star" size={16} fill={palette.yellow.base} />
+                        <Body weight="medium" style={{ color: palette.green.dark2 }}>Primary</Body>
+                      </>
+                    ) : (
+                      <Body weight="medium" style={{ color: palette.gray.dark1 }}>Secondary</Body>
+                    )}
+                  </div>
                 </div>
                 <div>
-                  <Label>Verified</Label>
-                  <Body weight="medium" style={{ 
-                    color: address.verified ? palette.green.dark2 : palette.red.base 
-                  }}>
-                    {address.verified ? 'Yes' : 'No'}
-                  </Body>
+                  <Label>Verification Status</Label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+                    {address.verified ? (
+                      <>
+                        <Icon glyph="CheckmarkWithCircle" size={16} fill={palette.green.base} />
+                        <span style={{
+                          padding: '2px 8px',
+                          backgroundColor: palette.green.light2,
+                          color: palette.green.dark2,
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: '600'
+                        }}>
+                          Verified
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Icon glyph="Warning" size={16} fill={palette.red.base} />
+                        <span style={{
+                          padding: '2px 8px',
+                          backgroundColor: palette.red.light2,
+                          color: palette.red.dark2,
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: '600'
+                        }}>
+                          Unverified
+                        </span>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
               <div style={{ marginTop: spacing[2] }}>
                 <Label>Full Address</Label>
                 <Body weight="medium">{address.full || 'N/A'}</Body>
               </div>
-              {address.validFrom && (
+              {/* Additional Address Details */}
+              <div style={{ marginTop: spacing[3], display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: spacing[2] }}>
+                {address.validFrom && (
+                  <div>
+                    <Label>Valid From</Label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+                      <Icon glyph="Calendar" size={14} fill={palette.gray.base} />
+                      <Body style={{ fontSize: '12px' }}>{amlUtils.formatDate(address.validFrom)}</Body>
+                    </div>
+                  </div>
+                )}
+                {address.validTo && (
+                  <div>
+                    <Label>Valid To</Label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+                      <Icon glyph="Calendar" size={14} fill={palette.gray.base} />
+                      <Body style={{ fontSize: '12px' }}>{amlUtils.formatDate(address.validTo)}</Body>
+                    </div>
+                  </div>
+                )}
+                {address.verificationMethod && (
+                  <div>
+                    <Label>Verification Method</Label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+                      <Icon glyph="Shield" size={14} fill={palette.blue.base} />
+                      <Body style={{ fontSize: '12px', color: palette.blue.dark1 }}>
+                        {address.verificationMethod.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                      </Body>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {address.coordinates && (
                 <div style={{ marginTop: spacing[2] }}>
-                  <Label>Valid From</Label>
-                  <Body>{amlUtils.formatDate(address.validFrom)}</Body>
+                  <Label>Geographic Coordinates</Label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+                    <Icon glyph="Maps" size={14} fill={palette.green.base} />
+                    <Body style={{ fontSize: '12px', fontFamily: 'monospace', color: palette.gray.dark1 }}>
+                      {address.coordinates[1].toFixed(6)}, {address.coordinates[0].toFixed(6)}
+                    </Body>
+                  </div>
                 </div>
               )}
             </div>
@@ -253,7 +805,7 @@ function ComprehensiveOverviewTab({ entity }) {
             }}>
               <div>
                 <Label>Type</Label>
-                <Body weight="medium">{contact.type?.toUpperCase()}</Body>
+                <Body weight="medium">{amlUtils.formatContactType(contact.type)}</Body>
               </div>
               <div>
                 <Label>Value</Label>
@@ -268,12 +820,38 @@ function ComprehensiveOverviewTab({ entity }) {
                 </Body>
               </div>
               <div>
-                <Label>Verified</Label>
-                <Body weight="medium" style={{ 
-                  color: contact.verified ? palette.green.dark2 : palette.red.base 
-                }}>
-                  {contact.verified ? 'Yes' : 'No'}
-                </Body>
+                <Label>Verification Status</Label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+                  {contact.verified ? (
+                    <>
+                      <Icon glyph="CheckmarkWithCircle" size={14} fill={palette.green.base} />
+                      <span style={{
+                        padding: '1px 6px',
+                        backgroundColor: palette.green.light2,
+                        color: palette.green.dark2,
+                        borderRadius: '10px',
+                        fontSize: '11px',
+                        fontWeight: '600'
+                      }}>
+                        Verified
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Icon glyph="Warning" size={14} fill={palette.red.base} />
+                      <span style={{
+                        padding: '1px 6px',
+                        backgroundColor: palette.red.light2,
+                        color: palette.red.dark2,
+                        borderRadius: '10px',
+                        fontSize: '11px',
+                        fontWeight: '600'
+                      }}>
+                        Unverified
+                      </span>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           ))}
@@ -395,102 +973,13 @@ function ComprehensiveOverviewTab({ entity }) {
       )}
 
       {/* Watchlist Matches */}
-      {entity.watchlistMatches && (
-        <Card style={{ padding: spacing[4] }}>
-          <H3 style={{ marginBottom: spacing[3] }}>Watchlist Screening</H3>
-          {entity.watchlistMatches.length === 0 ? (
-            <div style={{ 
-              textAlign: 'center', 
-              padding: spacing[3],
-              background: palette.green.light3,
-              borderRadius: '6px'
-            }}>
-              <Icon glyph="Shield" size={32} fill={palette.green.base} />
-              <Body style={{ color: palette.green.dark2, marginTop: spacing[1] }}>
-                No watchlist matches found - Clear
-              </Body>
-            </div>
-          ) : (
-            <div>
-              <Callout variant="warning" title="Watchlist Matches Found">
-                This entity has {entity.watchlistMatches.length} watchlist match(es). Please review carefully.
-              </Callout>
-              {entity.watchlistMatches.map((match, index) => (
-                <Card key={index} style={{ 
-                  marginTop: spacing[3], 
-                  padding: spacing[3],
-                  border: `2px solid ${palette.red.light2}`
-                }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: spacing[2] }}>
-                    <div>
-                      <Label>List Name</Label>
-                      <Body weight="medium">{match.list_name || 'Unknown'}</Body>
-                    </div>
-                    <div>
-                      <Label>Match Score</Label>
-                      <Body weight="medium" style={{ color: palette.red.base }}>
-                        {match.match_score ? `${(match.match_score * 100).toFixed(1)}%` : 'N/A'}
-                      </Body>
-                    </div>
-                    <div>
-                      <Label>Matched Name</Label>
-                      <Body weight="medium">{match.matched_name || 'N/A'}</Body>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
-        </Card>
-      )}
+      <WatchlistMatchesDisplay watchlistMatches={entity.watchlistMatches} />
 
-      {/* Resolution Information */}
-      {entity.resolution && (
-        <Card style={{ padding: spacing[4] }}>
-          <H3 style={{ marginBottom: spacing[3] }}>Resolution Status</H3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: spacing[3] }}>
-            <div>
-              <Label>Status</Label>
-              <Body weight="medium" style={{
-                color: entity.resolution.status === 'resolved' ? palette.green.dark2 : palette.yellow.dark2
-              }}>
-                {entity.resolution.status || 'Unknown'}
-              </Body>
-            </div>
-            <div>
-              <Label>Master Entity ID</Label>
-              <Body weight="medium">{entity.resolution.masterEntityId || 'N/A'}</Body>
-            </div>
-            <div>
-              <Label>Confidence</Label>
-              <Body weight="medium">
-                {entity.resolution.confidence ? `${(entity.resolution.confidence * 100).toFixed(1)}%` : 'N/A'}
-              </Body>
-            </div>
-          </div>
-          
-          {entity.resolution.linkedEntities && entity.resolution.linkedEntities.length > 0 && (
-            <div style={{ marginTop: spacing[3] }}>
-              <Label>Linked Entities</Label>
-              <div style={{ display: 'flex', gap: spacing[1], marginTop: spacing[1] }}>
-                {entity.resolution.linkedEntities.map((linkedId, index) => (
-                  <span key={index} style={{
-                    padding: '4px 8px',
-                    background: palette.purple.light2,
-                    color: palette.purple.dark2,
-                    borderRadius: '12px',
-                    fontSize: '12px',
-                    fontWeight: 500,
-                    fontFamily: 'monospace'
-                  }}>
-                    {typeof linkedId === 'string' ? linkedId : linkedId.entityId || 'Unknown Entity'}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </Card>
-      )}
+      {/* Risk Component Breakdown */}
+      <RiskComponentsDisplay riskAssessment={entity.riskAssessment} />
+
+      {/* Entity Resolution Information */}
+      <EntityResolutionDisplay resolution={entity.resolution} />
 
       {/* Profile Summary */}
       {entity.profileSummaryText && (

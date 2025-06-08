@@ -14,12 +14,13 @@ from models.relationship import (
     RelationshipQueryParams,
     RelationshipListResponse,
     RelationshipStats,
-    EntityNetwork,
     RelationshipOperationResponse,
     RelationshipType,
     RelationshipStatus
 )
+from models.network import NetworkDataResponse
 from services.relationship_manager import RelationshipManagerService
+from services.network_service import NetworkService
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +75,7 @@ async def update_relationship(
     try:
         logger.info(f"Updating relationship {relationship_id}")
         
-        relationship_service = RelationshipManagerService(db.database)
+        relationship_service = RelationshipManagerService(db)
         result = await relationship_service.update_relationship(relationship_id, request)
         
         return result
@@ -195,11 +196,13 @@ async def get_relationship_statistics(
             detail=f"Failed to get relationship statistics: {str(e)}"
         )
 
-@router.get("/network/{entity_id}", response_model=EntityNetwork)
+@router.get("/network/{entity_id}", response_model=NetworkDataResponse)
 async def get_entity_network(
     entity_id: str,
     max_depth: int = Query(2, ge=1, le=4, description="Maximum depth to traverse"),
     min_strength: float = Query(0.5, ge=0.0, le=1.0, description="Minimum relationship strength"),
+    include_inactive: bool = Query(False, description="Include inactive relationships"),
+    max_nodes: int = Query(100, ge=10, le=500, description="Maximum number of nodes"),
     db = Depends(get_async_db_dependency)
 ):
     """
@@ -209,7 +212,7 @@ async def get_entity_network(
     traversing relationships up to the specified depth and strength threshold.
     
     **Network Analysis:**
-    - BFS traversal from the center entity
+    - MongoDB $graphLookup traversal from the center entity
     - Configurable depth and strength filtering
     - Returns nodes (entities) and edges (relationships)
     - Includes visualization metadata (colors, sizes)
@@ -224,8 +227,14 @@ async def get_entity_network(
     try:
         logger.info(f"Building network for entity {entity_id} (depth={max_depth}, min_strength={min_strength})")
         
-        relationship_service = RelationshipManagerService(db.database)
-        network = await relationship_service.get_entity_network(entity_id, max_depth, min_strength)
+        network_service = NetworkService(db)
+        network = await network_service.build_entity_network(
+            entity_id, 
+            max_depth, 
+            min_strength, 
+            include_inactive,
+            max_nodes
+        )
         
         logger.info(f"Built network with {network.totalNodes} nodes and {network.totalEdges} edges")
         

@@ -1,0 +1,559 @@
+/* Combined Intelligence Panel Component Styles */
+
+.container {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  border: 1px solid #dee2e6;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  position: relative;
+  overflow: hidden;
+}
+
+.container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #00ED64, #1976d2, #7b1fa2);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #f8f9fa;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.headerIcon {
+  font-size: 32px;
+  background: linear-gradient(135deg, #00ED64 0%, #1976d2 50%, #7b1fa2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+.headerTitle {
+  margin: 0 0 4px 0;
+}
+
+.headerSubtitle {
+  color: #6c757d;
+  margin: 0;
+  font-weight: 400;
+}
+
+.intelligenceScore {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #f8fff9 0%, #e8f5e8 100%);
+  border-radius: 20px;
+  border: 1px solid #c8e6c9;
+}
+
+.scoreIcon {
+  font-size: 18px;
+  color: #2e7d32;
+}
+
+.scoreValue {
+  font-weight: 600;
+  color: #2e7d32;
+}
+
+.scoreLabel {
+  color: #2e7d32;
+  font-size: 14px;
+}
+
+/* Main Content Grid */
+.content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+/* Correlation Analysis */
+.correlationPanel {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 20px;
+  border: 1px solid #e9ecef;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.panelIcon {
+  font-size: 20px;
+}
+
+.panelTitle {
+  margin: 0;
+  font-weight: 600;
+  color: #1c1e21;
+}
+
+.correlationChart {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+  position: relative;
+  height: 120px;
+}
+
+.vennDiagram {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 200px;
+  height: 100px;
+}
+
+.circle {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  color: white;
+  font-size: 14px;
+  border: 2px solid white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.atlasCircle {
+  background: #1976d2;
+  left: 0;
+  z-index: 1;
+}
+
+.vectorCircle {
+  background: #7b1fa2;
+  right: 0;
+  z-index: 1;
+}
+
+.intersectionLabel {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: #00ED64;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  z-index: 2;
+  box-shadow: 0 2px 4px rgba(0, 237, 100, 0.3);
+}
+
+.correlationMetrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.metric {
+  text-align: center;
+  padding: 12px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #dee2e6;
+}
+
+.metricValue {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1c1e21;
+  margin-bottom: 4px;
+}
+
+.metricLabel {
+  font-size: 11px;
+  color: #6c757d;
+  text-transform: uppercase;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+/* Insights Panel */
+.insightsPanel {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 20px;
+  border: 1px solid #e9ecef;
+}
+
+.insightsList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.insight {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 12px;
+  background: white;
+  border-radius: 6px;
+  border-left: 4px solid #00ED64;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.insightIcon {
+  color: #00ED64;
+  font-size: 16px;
+  margin-top: 2px;
+  min-width: 16px;
+}
+
+.insightText {
+  flex: 1;
+  color: #495057;
+  line-height: 1.4;
+  font-size: 14px;
+}
+
+/* Intersection Matches */
+.intersectionSection {
+  margin-bottom: 24px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: between;
+  margin-bottom: 16px;
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+}
+
+.sectionIcon {
+  font-size: 24px;
+  background: linear-gradient(135deg, #00ED64 0%, #1976d2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.intersectionGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.intersectionCard {
+  background: linear-gradient(135deg, #f8fff9 0%, #e8f5e8 100%);
+  border: 2px solid #00ED64;
+  border-radius: 8px;
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.intersectionCard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #00ED64, #1976d2);
+}
+
+.entityHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.entityName {
+  font-weight: 600;
+  color: #1c1e21;
+  margin: 0;
+}
+
+.confidenceBadge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: #00ED64;
+  color: white;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.entityDetails {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.detailItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.detailLabel {
+  color: #6c757d;
+  font-weight: 500;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.detailValue {
+  color: #495057;
+}
+
+.scoreComparison {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid #c8e6c9;
+}
+
+.scoreItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.scoreIcon {
+  font-size: 14px;
+}
+
+.scoreText {
+  color: #495057;
+}
+
+/* Recommendations */
+.recommendationsSection {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 8px;
+  padding: 20px;
+  border: 1px solid #dee2e6;
+}
+
+.recommendationsList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.recommendation {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 12px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.recommendationIcon {
+  color: #ffc010;
+  font-size: 16px;
+  margin-top: 2px;
+  min-width: 16px;
+}
+
+.recommendationText {
+  flex: 1;
+  color: #495057;
+  line-height: 1.4;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.recommendationPriority {
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.recommendationPriority.high {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.recommendationPriority.medium {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.recommendationPriority.low {
+  background: #d1ecf1;
+  color: #0c5460;
+}
+
+/* Empty States */
+.emptyState {
+  text-align: center;
+  padding: 40px 20px;
+  color: #6c757d;
+}
+
+.emptyIcon {
+  font-size: 48px;
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+.emptyText {
+  margin: 0;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .content {
+    grid-template-columns: 1fr;
+  }
+  
+  .correlationChart {
+    height: 100px;
+  }
+  
+  .vennDiagram {
+    width: 180px;
+    height: 80px;
+  }
+  
+  .circle {
+    width: 70px;
+    height: 70px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 16px;
+  }
+  
+  .header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+  
+  .correlationMetrics {
+    grid-template-columns: 1fr;
+  }
+  
+  .intersectionGrid {
+    grid-template-columns: 1fr;
+  }
+  
+  .entityDetails {
+    grid-template-columns: 1fr;
+  }
+  
+  .scoreComparison {
+    flex-direction: column;
+    gap: 8px;
+    align-items: stretch;
+  }
+}
+
+/* Animation Effects */
+.container {
+  animation: slideInUp 0.5s ease-out;
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.intersectionCard {
+  animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Pulse animation for high-confidence matches */
+.intersectionCard.highConfidence::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 2px solid #00ED64;
+  border-radius: 8px;
+  animation: confidencePulse 2s infinite;
+  pointer-events: none;
+}
+
+@keyframes confidencePulse {
+  0%, 100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.3;
+    transform: scale(1.02);
+  }
+}

@@ -134,11 +134,11 @@ async def test_endpoint():
         }
     }
 
-# Include entity routes
-app.include_router(entities_router)
-
-# Include entity resolution routes
+# Include entity resolution routes first (more specific routes)
 app.include_router(entity_resolution_router)
+
+# Include entity routes (has catch-all route)
+app.include_router(entities_router)
 
 # Include relationship management routes
 app.include_router(relationships_router)

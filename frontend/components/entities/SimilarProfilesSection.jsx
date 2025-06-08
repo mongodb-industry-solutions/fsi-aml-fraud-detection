@@ -11,9 +11,6 @@ import Badge from '@leafygreen-ui/badge';
 import Tooltip from '@leafygreen-ui/tooltip';
 import Icon from '@leafygreen-ui/icon';
 import Modal from '@leafygreen-ui/modal';
-import TextInput from '@leafygreen-ui/text-input';
-import { Select, Option } from '@leafygreen-ui/select';
-import { Spinner } from '@leafygreen-ui/loading-indicator';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 import { amlAPI, useAMLAPIError, amlUtils } from '@/lib/aml-api';
@@ -29,11 +26,6 @@ function SimilarProfilesSection({ entity }) {
   const [searchMetadata, setSearchMetadata] = useState(null);
   const [error, setError] = useState(null);
   const [showModal, setShowModal] = useState(false);
-  const [showTextSearch, setShowTextSearch] = useState(false);
-  
-  // Text search state
-  const [queryText, setQueryText] = useState('');
-  const [textSearchLimit, setTextSearchLimit] = useState(5);
   
   // Vector search state
   const [vectorSearchLimit, setVectorSearchLimit] = useState(5);
@@ -68,33 +60,6 @@ function SimilarProfilesSection({ entity }) {
     }
   };
 
-  const handleTextSearch = async () => {
-    if (!queryText.trim() || queryText.trim().length < 10) {
-      setError('Query text must be at least 10 characters long');
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const response = await amlAPI.findSimilarEntitiesByText(
-        queryText.trim(),
-        textSearchLimit,
-        filters
-      );
-      
-      setSimilarEntities(response.similar_entities || []);
-      setSearchMetadata(response.search_metadata || {});
-      setShowModal(true);
-      
-    } catch (err) {
-      const errorMessage = handleError(err);
-      setError(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleEntityClick = (entityId) => {
     setShowModal(false);
@@ -132,8 +97,8 @@ function SimilarProfilesSection({ entity }) {
       </H2>
       
       <Body style={{ marginBottom: spacing[3], color: palette.gray.dark1 }}>
-        Use vector search to find entities with semantically similar profiles based on 
-        their risk characteristics, behavioral patterns, and profile descriptions.
+        Find entities with similar profiles using vector similarity search based on AI embeddings of 
+        risk characteristics, behavioral patterns, and profile descriptions.
       </Body>
 
       {error && (
@@ -142,7 +107,7 @@ function SimilarProfilesSection({ entity }) {
         </Banner>
       )}
 
-      <div style={{ display: 'flex', gap: spacing[2], flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: spacing[2], flexWrap: 'wrap', alignItems: 'center' }}>
         <Button
           variant="primary"
           size="default"
@@ -153,15 +118,17 @@ function SimilarProfilesSection({ entity }) {
           {isLoading ? 'Searching...' : 'Find Similar Profiles'}
         </Button>
 
-        <Button
-          variant="default"
-          size="default"
-          leftGlyph={<Icon glyph="Edit" />}
-          onClick={() => setShowTextSearch(true)}
-          disabled={isLoading}
-        >
-          Text Search
-        </Button>
+        {entity?.profileEmbedding && (
+          <Body style={{ color: palette.green.dark2, fontSize: '12px' }}>
+            ✓ Vector embeddings available ({entity.profileEmbedding.length} dimensions)
+          </Body>
+        )}
+        
+        {!entity?.profileEmbedding && (
+          <Body style={{ color: palette.yellow.dark2, fontSize: '12px' }}>
+            ⚠ No vector embeddings found for this entity
+          </Body>
+        )}
       </div>
 
       {/* Main Results Modal */}
@@ -262,59 +229,6 @@ function SimilarProfilesSection({ entity }) {
         )}
       </Modal>
 
-      {/* Text Search Modal */}
-      <Modal
-        open={showTextSearch}
-        setOpen={setShowTextSearch}
-        size="default"
-      >
-        <H2 style={{ marginBottom: spacing[3] }}>Search by Description</H2>
-        
-        <Body style={{ marginBottom: spacing[3], color: palette.gray.dark1 }}>
-          Enter a narrative description to find entities with similar characteristics.
-          For example: "high-risk individual with offshore banking activities"
-        </Body>
-
-        <div style={{ marginBottom: spacing[3] }}>
-          <TextInput
-            label="Query Description"
-            description="Minimum 10 characters required"
-            value={queryText}
-            onChange={(e) => setQueryText(e.target.value)}
-            placeholder="e.g., individuals involved in shell companies in offshore jurisdictions"
-            state={queryText.length > 0 && queryText.length < 10 ? 'error' : 'none'}
-            errorMessage={queryText.length > 0 && queryText.length < 10 ? 'Must be at least 10 characters' : ''}
-          />
-        </div>
-
-        <div style={{ marginBottom: spacing[4] }}>
-          <Select
-            label="Number of Results"
-            value={textSearchLimit.toString()}
-            onChange={(value) => setTextSearchLimit(parseInt(value))}
-          >
-            <Option value="3">3 results</Option>
-            <Option value="5">5 results</Option>
-            <Option value="10">10 results</Option>
-          </Select>
-        </div>
-
-        <div style={{ display: 'flex', gap: spacing[2], justifyContent: 'flex-end' }}>
-          <Button
-            variant="default"
-            onClick={() => setShowTextSearch(false)}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            onClick={handleTextSearch}
-            disabled={isLoading || queryText.trim().length < 10}
-          >
-            {isLoading ? <Spinner size={16} /> : 'Search'}
-          </Button>
-        </div>
-      </Modal>
     </Card>
   );
 }

@@ -171,30 +171,57 @@ class VectorSearchService:
                 if filter_conditions:
                     pipeline.append({"$match": filter_conditions})
             
-            # Project the fields we need
+            # Project the fields we need for debugging and verification
             pipeline.append({
                 "$project": {
                     "_id": 1,
                     "entityId": 1,
                     "entityType": 1,
                     "name": 1,
+                    "addresses": 1,  # Include for debugging
+                    "identifiers": 1,  # Include for debugging
+                    "dateOfBirth": 1,  # Include for debugging
                     "riskAssessment": 1,
                     "profileSummaryText": 1,
                     "resolution": 1,
-                    "vectorSearchScore": {"$meta": "vectorSearchScore"}
+                    "lastUpdated": 1,
+                    "createdAt": 1,
+                    # Add explicit vector search score handling
+                    "vectorSearchScore": {"$meta": "vectorSearchScore"},
+                    "hasEmbedding": {"$ifNull": [{"$type": "$profileEmbedding"}, "missing"]}
                 }
             })
             
             # Limit results
             pipeline.append({"$limit": limit})
             
-            # Execute the search
+            # Execute the search with comprehensive logging
+            logger.info(f"Executing vector search pipeline: {pipeline}")
+            
             similar_entities = []
+            entity_count = 0
             async for entity in collection.aggregate(pipeline):
+                entity_count += 1
+                
+                # Log vector search score for debugging
+                vector_score = entity.get("vectorSearchScore")
+                entity_id = entity.get("entityId", "unknown")
+                has_embedding = entity.get("hasEmbedding", "unknown")
+                
+                logger.debug(f"Entity {entity_id}: vectorSearchScore={vector_score}, hasEmbedding={has_embedding}")
+                
                 # Convert ObjectId to string for JSON serialization
                 if "_id" in entity:
                     entity["_id"] = str(entity["_id"])
+                    
+                # Handle NaN vector scores
+                if vector_score is None or str(vector_score).lower() == 'nan':
+                    logger.warning(f"Entity {entity_id} has invalid vector search score: {vector_score}")
+                    entity["vectorSearchScore"] = 0.0
+                
                 similar_entities.append(entity)
+            
+            logger.info(f"Vector search completed: found {entity_count} entities")
             
             logger.info(f"Found {len(similar_entities)} similar entities using vector search")
             return similar_entities

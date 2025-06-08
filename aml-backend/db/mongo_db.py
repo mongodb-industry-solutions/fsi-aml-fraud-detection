@@ -143,3 +143,23 @@ class MongoDBAccess:
         """
         collection = self.get_collection(db_name, collection_name)
         return collection.find_one({"entityId": entity_id})
+
+    def get_distinct_values(self, db_name: str, collection_name: str, field: str, filter_dict: Dict = None):
+        """
+        Retrieves distinct values for a specific field in a collection.
+        
+        Args:
+            db_name (str): The name of the database.
+            collection_name (str): The name of the collection.
+            field (str): The field to get distinct values for.
+            filter_dict (Dict): Optional filter criteria for the query.
+        
+        Returns:
+            List: List of distinct values for the specified field.
+        """
+        collection = self.get_collection(db_name, collection_name)
+        
+        if filter_dict is None:
+            filter_dict = {}
+        
+        return collection.distinct(field, filter_dict)

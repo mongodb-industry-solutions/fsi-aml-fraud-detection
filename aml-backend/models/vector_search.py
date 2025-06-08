@@ -28,17 +28,13 @@ class VectorSearchFilters(BaseModel):
 
 class SimilarEntity(BaseModel):
     """Model for a similar entity result from vector search."""
-    entity_id: str = Field(..., alias="entityId", description="Unique entity identifier")
-    entity_type: str = Field(..., alias="entityType", description="Type of entity")
-    name: Dict[str, Any] = Field(..., description="Entity name information")
-    risk_assessment: Dict[str, Any] = Field(..., alias="riskAssessment", description="Risk assessment information")
-    profile_summary_text: Optional[str] = Field(None, alias="profileSummaryText", description="Profile summary")
-    vector_search_score: float = Field(..., alias="vectorSearchScore", description="Vector similarity score (0-1)")
+    entityId: Optional[str] = Field(None, description="Unique entity identifier")
+    entityType: Optional[str] = Field(None, description="Type of entity")
+    name: Optional[Dict[str, Any]] = Field(None, description="Entity name information")
+    riskAssessment: Optional[Dict[str, Any]] = Field(None, description="Risk assessment information")
+    profileSummaryText: Optional[str] = Field(None, description="Profile summary")
+    vectorSearchScore: Optional[float] = Field(None, description="Vector similarity score (0-1)")
     resolution: Optional[Dict[str, Any]] = Field(None, description="Resolution status information")
-
-    class Config:
-        populate_by_name = True
-        validate_by_name = True
 
 class VectorSearchResponse(BaseModel):
     """Response model for vector search results."""

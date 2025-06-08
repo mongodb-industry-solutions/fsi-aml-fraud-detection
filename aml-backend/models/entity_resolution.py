@@ -138,7 +138,7 @@ class SearchQueryBuilder(BaseModel):
     date_match_stage: Optional[Dict[str, Any]] = Field(default=None)
     
     def add_name_search(self, name: str, boost: float = 3.0):
-        """Add fuzzy name search to the query"""
+        """Add fuzzy name search to the query - REQUIRED field"""
         name_query = {
             "text": {
                 "query": name,
@@ -147,7 +147,8 @@ class SearchQueryBuilder(BaseModel):
                 "score": {"boost": {"value": boost}}
             }
         }
-        self.compound.should.append(name_query)
+        # Name search is REQUIRED - use 'must' to ensure relevance
+        self.compound.must.append(name_query)
     
     def add_address_search(self, address: str, boost: float = 2.0):
         """Add fuzzy address search to the query"""
@@ -161,25 +162,82 @@ class SearchQueryBuilder(BaseModel):
         }
         self.compound.should.append(address_query)
     
-    def add_identifier_search(self, identifier: str, boost: float = 5.0):
-        """Add exact identifier search to the query"""
-        identifier_query = {
-            "equals": {
-                "path": "identifiers.value",
-                "value": identifier,
+    def add_profile_text_search(self, text: str, boost: float = 2.0):
+        """Add profile summary text search to the query
+        
+        Args:
+            text: Text to search in profileSummaryText field
+            boost: Score boost for relevance
+        
+        Note: With dynamic mapping, profileSummaryText is auto-detected and supports fuzzy matching
+        """
+        profile_query = {
+            "text": {
+                "query": text,
+                "path": "profileSummaryText",
+                "fuzzy": FuzzyOptions(maxEdits=1).dict(),
                 "score": {"boost": {"value": boost}}
             }
         }
-        self.compound.should.append(identifier_query)
+        self.compound.should.append(profile_query)
+    
+    def add_entity_type_filter(self, entity_type: str):
+        """Add entity type filter to the query
+        
+        Args:
+            entity_type: Entity type to filter by (e.g., "individual", "organization")
+        
+        Note: With dynamic mapping, entityType is auto-detected and optimized for exact matching
+        """
+        entity_type_query = {
+            "text": {
+                "query": entity_type,
+                "path": "entityType"
+            }
+        }
+        # Use filter clause for entity type filtering (no scoring needed)
+        self.compound.filter.append(entity_type_query)
+    
+    def add_identifier_search(self, identifier: str, boost: float = 5.0, use_filter: bool = True):
+        """Add exact identifier search to the query
+        
+        Args:
+            identifier: The identifier value to search for
+            boost: Score boost (only used if use_filter=False)
+            use_filter: If True, use filter clause for performance. If False, use should clause with scoring.
+        
+        Note: With dynamic mapping, identifiers.value is auto-detected and optimized
+        """
+        identifier_query = {
+            "text": {
+                "query": identifier,
+                "path": "identifiers.value"
+            }
+        }
+        
+        if use_filter:
+            # Use filter clause for exact matches (better performance, no scoring)
+            self.compound.filter.append(identifier_query)
+        else:
+            # Use should clause with scoring boost
+            identifier_query["text"]["score"] = {"boost": {"value": boost}}
+            self.compound.should.append(identifier_query)
     
     def add_date_filter(self, date_of_birth: str, years_tolerance: int = 2):
-        """Add date of birth proximity filter as a separate $match stage"""
+        """Add date of birth proximity filter using $match stage
+        
+        Args:
+            date_of_birth: Date in YYYY-MM-DD format
+            years_tolerance: Years tolerance (±)
+        
+        Note: Uses separate $match stage for reliable date filtering
+        """
         try:
             birth_date = datetime.strptime(date_of_birth, '%Y-%m-%d')
             start_date = birth_date.replace(year=birth_date.year - years_tolerance)
             end_date = birth_date.replace(year=birth_date.year + years_tolerance)
             
-            # Store as a separate $match stage instead of inside $search
+            # Use separate $match stage for date filtering
             self.date_match_stage = {
                 "$match": {
                     "dateOfBirth": {
@@ -194,35 +252,40 @@ class SearchQueryBuilder(BaseModel):
     
     def build_aggregation_pipeline(self):
         """Build the complete aggregation pipeline for Atlas Search"""
+        # Build compound query with optimization
+        compound_query = self.compound.dict(exclude_none=True)
+        
+        # Add minimumShouldMatch if we have should clauses (require at least one match)
+        if self.compound.should:
+            compound_query["minimumShouldMatch"] = 1
+        
         search_stage = {
             "$search": {
                 "index": self.index,
-                "compound": self.compound.dict(exclude_none=True),
+                "compound": compound_query,
                 "highlight": {
-                    "path": ["name.full", "addresses.full"]
+                    "path": ["name.full", "addresses.full", "profileSummaryText"]
                 }
             }
         }
         
-        # Add metadata and scoring
-        add_fields_stage = {
-            "$addFields": {
-                "searchScore": {"$meta": "searchScore"},
-                "searchHighlights": {"$meta": "searchHighlights"}
-            }
-        }
-        
-        # Project fields needed for PotentialMatch
+        # Project fields with MongoDB best practice for score collection
         project_stage = {
             "$project": {
                 "entityId": 1,
-                "name.full": 1,
+                "name": 1,  # Include full name object for better debugging
                 "dateOfBirth": 1,
                 "entityType": 1,
-                "addresses": 1,
-                "riskAssessment.overall.score": 1,
-                "searchScore": 1,
-                "searchHighlights": 1,
+                "addresses": 1,  # Include all addresses for debugging
+                "identifiers": 1,  # Include all identifiers for debugging
+                "riskAssessment": 1,  # Include full risk assessment for debugging
+                # Additional fields for relevance verification
+                "profileSummaryText": 1,
+                "lastUpdated": 1,
+                "createdAt": 1,
+                # MongoDB best practice: include score directly in $project stage
+                "searchScore": {"$meta": "searchScore"},
+                "searchHighlights": {"$meta": "searchHighlights"},
                 # Add computed field for primary address
                 "primaryAddress": {
                     "$arrayElemAt": [
@@ -240,4 +303,14 @@ class SearchQueryBuilder(BaseModel):
         # Limit results
         limit_stage = {"$limit": self.limit}
         
-        return [search_stage, add_fields_stage, project_stage, limit_stage]
+        # Build complete pipeline with conditional date filtering
+        pipeline = [search_stage]
+        
+        # Add date filter stage if specified
+        if self.date_match_stage:
+            pipeline.append(self.date_match_stage)
+        
+        # Add projection and limit (score included in projection stage)
+        pipeline.extend([project_stage, limit_stage])
+        
+        return pipeline

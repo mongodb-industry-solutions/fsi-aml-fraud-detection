@@ -21,12 +21,14 @@ from enum import Enum
 class EntityTypeEnum(str, Enum):
     INDIVIDUAL = "individual"
     ORGANIZATION = "organization"
+    CORPORATE = "corporate"
 
 class EntityStatusEnum(str, Enum):
     ACTIVE = "active"
     INACTIVE = "inactive"
     UNDER_REVIEW = "under_review"
     RESTRICTED = "restricted"
+    DORMANT_PENDING_STRIKE_OFF = "dormant_pending_strike_off"
 
 class RiskLevelEnum(str, Enum):
     LOW = "low"

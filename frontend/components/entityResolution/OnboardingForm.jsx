@@ -6,12 +6,16 @@ import {
   validateOnboardingInput, 
   getDemoData, 
   getFuzzyDemoData, 
+  getEnhancedDemoScenarios,
+  getDemoDataByScenario,
+  getScenarioInfo,
   EntityResolutionAPIError 
 } from '../../lib/entity-resolution-api';
 
 // LeafyGreen UI Components
 import Button from '@leafygreen-ui/button';
 import TextInput from '@leafygreen-ui/text-input';
+import { Select, Option } from '@leafygreen-ui/select';
 import { FormField } from '@leafygreen-ui/form-field';
 import Banner from '@leafygreen-ui/banner';
 import { H2, H3, Body } from '@leafygreen-ui/typography';
@@ -33,6 +37,8 @@ const OnboardingForm = ({ onMatchesFound, onError, onLoading }) => {
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [searchPerformed, setSearchPerformed] = useState(false);
+  const [selectedScenario, setSelectedScenario] = useState('exact_match');
+  const [showScenarioInfo, setShowScenarioInfo] = useState(false);
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -98,6 +104,20 @@ const OnboardingForm = ({ onMatchesFound, onError, onLoading }) => {
     setSearchPerformed(false);
   };
 
+  const handleScenarioSelect = (scenarioId) => {
+    setSelectedScenario(scenarioId);
+    const demoData = getDemoDataByScenario(scenarioId);
+    setFormData(demoData);
+    setErrors({});
+    setSearchPerformed(false);
+    setShowScenarioInfo(true);
+    // Hide scenario info after 3 seconds
+    setTimeout(() => setShowScenarioInfo(false), 3000);
+  };
+
+  const enhancedScenarios = getEnhancedDemoScenarios();
+  const currentScenarioInfo = getScenarioInfo(selectedScenario);
+
   const handleReset = () => {
     setFormData({
       name_full: '',
@@ -123,27 +143,71 @@ const OnboardingForm = ({ onMatchesFound, onError, onLoading }) => {
           </Body>
         </div>
 
-        {/* Demo Data Buttons */}
-        <div className={styles.demoButtons}>
-          <Button
-            variant="default"
-            size="small"
-            leftGlyph={<Icon glyph="Beaker" />}
-            onClick={() => handleDemoData(false)}
-            disabled={isLoading}
-          >
-            Load Demo Data
-          </Button>
-          <Button
-            variant="default"
-            size="small"
-            leftGlyph={<Icon glyph="Star" />}
-            onClick={() => handleDemoData(true)}
-            disabled={isLoading}
-            style={{ marginLeft: spacing[2] }}
-          >
-            Fuzzy Match Demo
-          </Button>
+        {/* Enhanced Demo Scenarios */}
+        <div style={{ marginBottom: spacing[4] }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: spacing[3], marginBottom: spacing[3] }}>
+            <div style={{ flex: 1, maxWidth: '400px' }}>
+              <Select
+                label="Demo Scenarios"
+                description="Choose a demo scenario to explore different matching capabilities"
+                value={selectedScenario}
+                onChange={handleScenarioSelect}
+                disabled={isLoading}
+              >
+                {enhancedScenarios.map(scenario => (
+                  <Option key={scenario.id} value={scenario.id}>
+                    {scenario.icon} {scenario.name}
+                  </Option>
+                ))}
+              </Select>
+            </div>
+            
+            <div style={{ display: 'flex', gap: spacing[2] }}>
+              <Button
+                variant="default"
+                size="small"
+                leftGlyph={<Icon glyph="Beaker" />}
+                onClick={() => handleDemoData(false)}
+                disabled={isLoading}
+              >
+                Classic Demo
+              </Button>
+              <Button
+                variant="default"
+                size="small"
+                leftGlyph={<Icon glyph="Star" />}
+                onClick={() => handleDemoData(true)}
+                disabled={isLoading}
+              >
+                Fuzzy Demo
+              </Button>
+            </div>
+          </div>
+
+          {/* Scenario Information Panel */}
+          {currentScenarioInfo && (showScenarioInfo || selectedScenario !== 'exact_match') && (
+            <Card style={{ 
+              padding: spacing[3], 
+              backgroundColor: palette.blue.light3,
+              border: `1px solid ${palette.blue.light1}`,
+              marginBottom: spacing[3]
+            }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: spacing[2] }}>
+                <div style={{ fontSize: '24px' }}>{currentScenarioInfo.icon}</div>
+                <div style={{ flex: 1 }}>
+                  <H3 style={{ color: palette.blue.dark2, marginBottom: spacing[1], fontSize: '16px' }}>
+                    {currentScenarioInfo.name}
+                  </H3>
+                  <Body style={{ color: palette.gray.dark1, fontSize: '14px', marginBottom: spacing[1] }}>
+                    {currentScenarioInfo.description}
+                  </Body>
+                  <Body style={{ color: palette.blue.dark1, fontSize: '12px', fontStyle: 'italic' }}>
+                    Expected: {currentScenarioInfo.expectedResults}
+                  </Body>
+                </div>
+              </div>
+            </Card>
+          )}
         </div>
 
         {/* API Error Banner */}

@@ -20,30 +20,23 @@ import Callout from '@leafygreen-ui/callout';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 import { amlAPI, useAMLAPIError, amlUtils } from '@/lib/aml-api';
+import RiskScoreSlider from './RiskScoreSlider';
 import styles from './EntityList.module.css';
 
 // Constants
 const DEFAULT_PAGE_SIZE = 20;
-const ENTITY_TYPES = [
-  { value: '', label: 'All Types' },
-  { value: 'individual', label: 'Individual' },
-  { value: 'organization', label: 'Organization' }
-];
 
-const RISK_LEVELS = [
-  { value: '', label: 'All Risk Levels' },
-  { value: 'low', label: 'Low Risk' },
-  { value: 'medium', label: 'Medium Risk' },
-  { value: 'high', label: 'High Risk' }
-];
-
-const ENTITY_STATUSES = [
-  { value: '', label: 'All Statuses' },
-  { value: 'active', label: 'Active' },
-  { value: 'inactive', label: 'Inactive' },
-  { value: 'under_review', label: 'Under Review' },
-  { value: 'restricted', label: 'Restricted' }
-];
+// Helper function to create filter options with counts
+const createFilterOptions = (items, allLabel) => {
+  const options = [{ value: '', label: allLabel }];
+  items.forEach(item => {
+    const label = item.count ? 
+      `${amlUtils.formatEntityType(item.id)} (${item.count})` : 
+      amlUtils.formatEntityType(item.id);
+    options.push({ value: item.id, label });
+  });
+  return options;
+};
 
 function RiskBadge({ level, score, size = 'default' }) {
   const colors = {
@@ -253,21 +246,53 @@ export default function EntityList() {
   const [riskLevelFilter, setRiskLevelFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [scenarioFilter, setScenarioFilter] = useState('');
+  const [countryFilter, setCountryFilter] = useState('');
+  const [businessTypeFilter, setBusinessTypeFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [scenarioKeys, setScenarioKeys] = useState([]);
+  const [riskScoreMin, setRiskScoreMin] = useState('');
+  const [riskScoreMax, setRiskScoreMax] = useState('');
+  
+  // Facet data
+  const [facets, setFacets] = useState({});
+  const [filterOptions, setFilterOptions] = useState({
+    entity_types: [],
+    risk_levels: [],
+    statuses: [],
+    countries: [],
+    business_types: [],
+    scenario_keys: [],
+    risk_score_distribution: { min_score: 0, max_score: 100, avg_score: 50 }
+  });
 
-  // Load entities
+  // Load entities using faceted search
   const loadEntities = async (page = 1, filters = {}) => {
     try {
       setLoading(true);
       setError(null);
 
-      const response = await amlAPI.getEntitiesPaginated(page, DEFAULT_PAGE_SIZE, {
-        entity_type: filters.entityType || entityTypeFilter,
-        risk_level: filters.riskLevel || riskLevelFilter,
-        status: filters.status || statusFilter,
-        scenario_key: filters.scenarioKey || scenarioFilter,
+      // Prepare search request with all filters
+      const searchRequest = {
+        search_query: searchTerm || '',
+        entity_type: filters.entityType || entityTypeFilter || undefined,
+        risk_level: filters.riskLevel || riskLevelFilter || undefined,
+        status: filters.status || statusFilter || undefined,
+        scenario_key: filters.scenarioKey || scenarioFilter || undefined,
+        country: filters.country || countryFilter || undefined,
+        business_type: filters.businessType || businessTypeFilter || undefined,
+        risk_score_min: filters.riskScoreMin || riskScoreMin ? parseFloat(filters.riskScoreMin || riskScoreMin) : undefined,
+        risk_score_max: filters.riskScoreMax || riskScoreMax ? parseFloat(filters.riskScoreMax || riskScoreMax) : undefined,
+        skip: (page - 1) * DEFAULT_PAGE_SIZE,
+        limit: DEFAULT_PAGE_SIZE
+      };
+
+      // Remove undefined values
+      Object.keys(searchRequest).forEach(key => {
+        if (searchRequest[key] === undefined || searchRequest[key] === '') {
+          delete searchRequest[key];
+        }
       });
+
+      const response = await amlAPI.facetedEntitySearch(searchRequest);
 
       setEntities(response.entities || []);
       setTotalCount(response.total_count || 0);
@@ -275,9 +300,9 @@ export default function EntityList() {
       setHasNext(response.has_next || false);
       setHasPrevious(response.has_previous || false);
       
-      // Update scenario keys from response
-      if (response.scenario_keys && Array.isArray(response.scenario_keys)) {
-        setScenarioKeys(response.scenario_keys.slice(0, 20)); // Limit to first 20 for performance
+      // Update facets from response
+      if (response.facets) {
+        setFacets(response.facets);
       }
 
     } catch (err) {
@@ -289,8 +314,20 @@ export default function EntityList() {
     }
   };
 
+  // Load filter options on initial load
+  const loadFilterOptions = async () => {
+    try {
+      const options = await amlAPI.getFilterOptions();
+      setFilterOptions(options);
+    } catch (err) {
+      console.error('Error loading filter options:', err);
+      // Continue with default options if this fails
+    }
+  };
+
   // Initial load
   useEffect(() => {
+    loadFilterOptions();
     loadEntities();
   }, []);
 
@@ -300,15 +337,45 @@ export default function EntityList() {
       entityType: entityTypeFilter, 
       riskLevel: riskLevelFilter,
       status: statusFilter,
-      scenarioKey: scenarioFilter
+      scenarioKey: scenarioFilter,
+      country: countryFilter,
+      businessType: businessTypeFilter,
+      riskScoreMin,
+      riskScoreMax
     };
     filters[filterType] = value;
     
-    if (filterType === 'entityType') setEntityTypeFilter(value);
-    if (filterType === 'riskLevel') setRiskLevelFilter(value);
-    if (filterType === 'status') setStatusFilter(value);
-    if (filterType === 'scenarioKey') setScenarioFilter(value);
+    // Update individual filter states
+    switch (filterType) {
+      case 'entityType': setEntityTypeFilter(value); break;
+      case 'riskLevel': setRiskLevelFilter(value); break;
+      case 'status': setStatusFilter(value); break;
+      case 'scenarioKey': setScenarioFilter(value); break;
+      case 'country': setCountryFilter(value); break;
+      case 'businessType': setBusinessTypeFilter(value); break;
+      case 'riskScoreMin': setRiskScoreMin(value); break;
+      case 'riskScoreMax': setRiskScoreMax(value); break;
+    }
     
+    setCurrentPage(1);
+    loadEntities(1, filters);
+  };
+
+  // Handle risk score range changes
+  const handleRiskScoreRangeChange = (min, max) => {
+    const filters = {
+      entityType: entityTypeFilter,
+      riskLevel: riskLevelFilter,
+      status: statusFilter,
+      scenarioKey: scenarioFilter,
+      country: countryFilter,
+      businessType: businessTypeFilter,
+      riskScoreMin: min,
+      riskScoreMax: max
+    };
+    
+    setRiskScoreMin(min);
+    setRiskScoreMax(max);
     setCurrentPage(1);
     loadEntities(1, filters);
   };
@@ -347,98 +414,150 @@ export default function EntityList() {
 
       {/* Filters and Search */}
       <Card style={{ marginBottom: spacing[4], padding: spacing[3] }}>
-        <div style={{ display: 'flex', gap: spacing[3], alignItems: 'flex-end', flexWrap: 'wrap' }}>
-          <div style={{ minWidth: '200px' }}>
-            <Select
-              label="Entity Type"
-              value={entityTypeFilter}
-              onChange={(value) => handleFilterChange('entityType', value)}
-            >
-              {ENTITY_TYPES.map(type => (
-                <Option key={type.value} value={type.value}>
-                  {type.label}
-                </Option>
-              ))}
-            </Select>
-          </div>
-
-          <div style={{ minWidth: '200px' }}>
-            <Select
-              label="Risk Level"
-              value={riskLevelFilter}
-              onChange={(value) => handleFilterChange('riskLevel', value)}
-            >
-              {RISK_LEVELS.map(level => (
-                <Option key={level.value} value={level.value}>
-                  {level.label}
-                </Option>
-              ))}
-            </Select>
-          </div>
-
-          <div style={{ minWidth: '200px' }}>
-            <Select
-              label="Status"
-              value={statusFilter}
-              onChange={(value) => handleFilterChange('status', value)}
-            >
-              {ENTITY_STATUSES.map(status => (
-                <Option key={status.value} value={status.value}>
-                  {status.label}
-                </Option>
-              ))}
-            </Select>
-          </div>
-
-          {scenarioKeys.length > 0 && (
-            <div style={{ minWidth: '250px' }}>
+        <div style={{ display: 'flex', gap: spacing[3], alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          {/* Row 1: Core Entity Filters */}
+          <div style={{ display: 'flex', gap: spacing[3], alignItems: 'flex-end', flexWrap: 'wrap', width: '100%' }}>
+            <div style={{ minWidth: '200px' }}>
               <Select
-                label="Demo Scenario"
-                value={scenarioFilter}
-                onChange={(value) => handleFilterChange('scenarioKey', value)}
+                label="Entity Type"
+                value={entityTypeFilter}
+                onChange={(value) => handleFilterChange('entityType', value)}
               >
-                <Option value="">All Scenarios</Option>
-                {scenarioKeys.map(scenario => (
-                  <Option key={scenario} value={scenario}>
-                    {amlUtils.formatScenarioKey(scenario)}
+                {createFilterOptions(filterOptions.entity_types, 'All Types').map(type => (
+                  <Option key={type.value} value={type.value}>
+                    {type.label}
                   </Option>
                 ))}
               </Select>
             </div>
-          )}
 
-          <div style={{ minWidth: '300px' }}>
-            <TextInput
-              label="Search Entities"
-              placeholder="Search by name or ID..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-            />
+            <div style={{ minWidth: '200px' }}>
+              <Select
+                label="Risk Level"
+                value={riskLevelFilter}
+                onChange={(value) => handleFilterChange('riskLevel', value)}
+              >
+                {createFilterOptions(filterOptions.risk_levels, 'All Risk Levels').map(level => (
+                  <Option key={level.value} value={level.value}>
+                    {level.label}
+                  </Option>
+                ))}
+              </Select>
+            </div>
+
+            <div style={{ minWidth: '200px' }}>
+              <Select
+                label="Status"
+                value={statusFilter}
+                onChange={(value) => handleFilterChange('status', value)}
+              >
+                {createFilterOptions(filterOptions.statuses, 'All Statuses').map(status => (
+                  <Option key={status.value} value={status.value}>
+                    {status.label}
+                  </Option>
+                ))}
+              </Select>
+            </div>
+
+            {filterOptions.countries.length > 0 && (
+              <div style={{ minWidth: '200px' }}>
+                <Select
+                  label="Country"
+                  value={countryFilter}
+                  onChange={(value) => handleFilterChange('country', value)}
+                >
+                  {createFilterOptions(filterOptions.countries, 'All Countries').map(country => (
+                    <Option key={country.value} value={country.value}>
+                      {country.label}
+                    </Option>
+                  ))}
+                </Select>
+              </div>
+            )}
+
+            {filterOptions.business_types.length > 0 && (
+              <div style={{ minWidth: '200px' }}>
+                <Select
+                  label="Business Type"
+                  value={businessTypeFilter}
+                  onChange={(value) => handleFilterChange('businessType', value)}
+                >
+                  {createFilterOptions(filterOptions.business_types, 'All Business Types').map(type => (
+                    <Option key={type.value} value={type.value}>
+                      {type.label}
+                    </Option>
+                  ))}
+                </Select>
+              </div>
+            )}
           </div>
 
-          <Button 
-            variant="primary"
-            onClick={handleSearch}
-            leftGlyph={<Icon glyph="MagnifyingGlass" />}
-          >
-            Search
-          </Button>
+          {/* Row 2: Advanced Filters */}
+          <div style={{ display: 'flex', gap: spacing[3], alignItems: 'flex-end', flexWrap: 'wrap', width: '100%' }}>
+            {filterOptions.scenario_keys.length > 0 && (
+              <div style={{ minWidth: '250px' }}>
+                <Select
+                  label="Demo Scenario"
+                  value={scenarioFilter}
+                  onChange={(value) => handleFilterChange('scenarioKey', value)}
+                >
+                  {createFilterOptions(filterOptions.scenario_keys.slice(0, 20), 'All Scenarios').map(scenario => (
+                    <Option key={scenario.value} value={scenario.value}>
+                      {scenario.label}
+                    </Option>
+                  ))}
+                </Select>
+              </div>
+            )}
 
-          <Button 
-            variant="default"
-            onClick={() => {
-              setEntityTypeFilter('');
-              setRiskLevelFilter('');
-              setStatusFilter('');
-              setScenarioFilter('');
-              setSearchTerm('');
-              setCurrentPage(1);
-              loadEntities(1, { entityType: '', riskLevel: '', status: '', scenarioKey: '' });
-            }}
-          >
-            Clear Filters
-          </Button>
+            <RiskScoreSlider
+              min={filterOptions.risk_score_distribution.min_score || 0}
+              max={filterOptions.risk_score_distribution.max_score || 100}
+              value={[
+                riskScoreMin ? parseFloat(riskScoreMin) : filterOptions.risk_score_distribution.min_score || 0,
+                riskScoreMax ? parseFloat(riskScoreMax) : filterOptions.risk_score_distribution.max_score || 100
+              ]}
+              onChange={handleRiskScoreRangeChange}
+              distribution={filterOptions.risk_score_distribution}
+            />
+
+            <div style={{ minWidth: '300px' }}>
+              <TextInput
+                label="Search Entities"
+                placeholder="Search by name or ID..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+              />
+            </div>
+
+            <Button 
+              variant="primary"
+              onClick={handleSearch}
+              leftGlyph={<Icon glyph="MagnifyingGlass" />}
+            >
+              Search
+            </Button>
+
+            <Button 
+              variant="default"
+              onClick={() => {
+                setEntityTypeFilter('');
+                setRiskLevelFilter('');
+                setStatusFilter('');
+                setScenarioFilter('');
+                setCountryFilter('');
+                setBusinessTypeFilter('');
+                setSearchTerm('');
+                setRiskScoreMin('');
+                setRiskScoreMax('');
+                setCurrentPage(1);
+                loadEntities(1, {});
+              }}
+            >
+              Clear Filters
+            </Button>
+          </div>
         </div>
       </Card>
 

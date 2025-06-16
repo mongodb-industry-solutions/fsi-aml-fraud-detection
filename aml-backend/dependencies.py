@@ -75,3 +75,6 @@ MAX_PAGE_SIZE = 100
 
 # Vector Search Configuration
 ENTITY_VECTOR_SEARCH_INDEX = os.getenv("ENTITY_VECTOR_SEARCH_INDEX", "entity_vector_search_index")
+
+# Atlas Search Configuration
+ATLAS_SEARCH_INDEX = os.getenv("ATLAS_SEARCH_INDEX", "entity_search_index_v2")

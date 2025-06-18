@@ -1,67 +1,181 @@
 """
-Pydantic models for entity vector search functionality.
+Vector Search Models - Data models for vector search operations
+
+Models for vector similarity search, embedding operations, and semantic matching.
 """
 
-from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
 from datetime import datetime
+from typing import Dict, List, Optional, Any
+from pydantic import BaseModel, Field
 
-class VectorSearchByEntityRequest(BaseModel):
-    """Request model for finding similar entities by entity ID."""
-    entity_id: str = Field(..., description="ID of the entity to find similar entities for")
-    limit: int = Field(default=5, ge=1, le=20, description="Maximum number of results to return")
-    filters: Optional[Dict[str, Any]] = Field(None, description="Optional filters for results")
 
-class VectorSearchByTextRequest(BaseModel):
-    """Request model for finding similar entities by text query."""
-    query_text: str = Field(..., min_length=10, description="Text description to search for similar entities")
-    limit: int = Field(default=5, ge=1, le=20, description="Maximum number of results to return")
-    filters: Optional[Dict[str, Any]] = Field(None, description="Optional filters for results")
+class VectorSearchRequest(BaseModel):
+    """Request model for vector similarity search"""
+    
+    query_text: Optional[str] = None
+    query_vector: Optional[List[float]] = None
+    limit: int = Field(default=10, ge=1, le=100)
+    similarity_threshold: float = Field(default=0.6, ge=0.0, le=1.0)
+    
+    # Filter options
+    entity_type: Optional[str] = None
+    exclude_entity_ids: Optional[List[str]] = None
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "query_text": "John Smith with SSN 123-45-6789",
+                "limit": 10,
+                "similarity_threshold": 0.7,
+                "entity_type": "individual"
+            }
+        }
 
-class VectorSearchFilters(BaseModel):
-    """Optional filters for vector search queries."""
-    entity_type: Optional[str] = Field(None, description="Filter by entity type (individual, organization)")
-    risk_level: Optional[str] = Field(None, description="Filter by risk level (low, medium, high)")
-    min_risk_score: Optional[float] = Field(None, ge=0.0, le=1.0, description="Minimum risk score")
-    max_risk_score: Optional[float] = Field(None, ge=0.0, le=1.0, description="Maximum risk score")
-    resolution_status: Optional[str] = Field(None, description="Filter by resolution status")
 
-class SimilarEntity(BaseModel):
-    """Model for a similar entity result from vector search."""
-    entityId: Optional[str] = Field(None, description="Unique entity identifier")
-    entityType: Optional[str] = Field(None, description="Type of entity")
-    name: Optional[Dict[str, Any]] = Field(None, description="Entity name information")
-    riskAssessment: Optional[Dict[str, Any]] = Field(None, description="Risk assessment information")
-    profileSummaryText: Optional[str] = Field(None, description="Profile summary")
-    vectorSearchScore: Optional[float] = Field(None, description="Vector similarity score (0-1)")
-    resolution: Optional[Dict[str, Any]] = Field(None, description="Resolution status information")
+class VectorSearchResult(BaseModel):
+    """Individual vector search result"""
+    
+    entity_id: str
+    entity_data: Dict[str, Any]
+    similarity_score: float
+    search_metadata: Optional[Dict[str, Any]] = None
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
 
 class VectorSearchResponse(BaseModel):
-    """Response model for vector search results."""
-    query_info: Dict[str, Any] = Field(..., description="Information about the search query")
-    similar_entities: List[SimilarEntity] = Field(..., description="List of similar entities")
-    total_found: int = Field(..., description="Total number of entities found")
-    search_metadata: Dict[str, Any] = Field(..., description="Search execution metadata")
+    """Response for vector search operations"""
+    
+    results: List[VectorSearchResult]
+    query_info: Dict[str, Any]
+    total_found: int
+    search_time_ms: float
+    similarity_threshold: float
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
+class EmbeddingRequest(BaseModel):
+    """Request for generating embeddings"""
+    
+    text: str
+    entity_id: Optional[str] = None
+    model_name: Optional[str] = "default"
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "text": "John Smith, DOB: 1985-03-15, Address: 123 Main St",
+                "entity_id": "ENT123456"
+            }
+        }
+
+
+class EmbeddingResponse(BaseModel):
+    """Response containing generated embedding"""
+    
+    embedding: List[float]
+    text: str
+    model_name: str
+    generation_time_ms: float
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
+class VectorSearchByEntityRequest(BaseModel):
+    """Request for vector search using an existing entity"""
+    
+    entity_id: str
+    limit: int = Field(default=10, ge=1, le=100)
+    similarity_threshold: float = Field(default=0.6, ge=0.0, le=1.0)
+    exclude_self: bool = True
+    
+    # Filter options
+    entity_type: Optional[str] = None
+    exclude_entity_ids: Optional[List[str]] = None
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
+class VectorSearchByTextRequest(BaseModel):
+    """Request for vector search using text query"""
+    
+    query_text: str = Field(..., min_length=1)
+    limit: int = Field(default=10, ge=1, le=100)
+    similarity_threshold: float = Field(default=0.6, ge=0.0, le=1.0)
+    
+    # Filter options
+    entity_type: Optional[str] = None
+    exclude_entity_ids: Optional[List[str]] = None
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
 
 class VectorSearchStatsResponse(BaseModel):
-    """Response model for vector search statistics."""
-    total_entities: int = Field(..., description="Total number of entities in the database")
-    entities_with_embeddings: int = Field(..., description="Number of entities with profile embeddings")
-    embedding_coverage: float = Field(..., description="Percentage of entities with embeddings")
-    vector_index_name: str = Field(..., description="Name of the vector search index")
-    entity_types: Dict[str, int] = Field(..., description="Count of entities by type")
-    risk_levels: Dict[str, int] = Field(..., description="Count of entities by risk level")
+    """Response containing vector search statistics"""
+    
+    total_entities_with_embeddings: int
+    total_entities_without_embeddings: int
+    average_similarity_scores: Dict[str, float]
+    search_performance_metrics: Dict[str, Any]
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
 
 class VectorSearchDemoRequest(BaseModel):
-    """Request model for vector search demo scenarios."""
-    scenario: str = Field(..., description="Demo scenario name")
-    limit: int = Field(default=5, ge=1, le=10, description="Number of results to return")
+    """Request for vector search demo scenarios"""
+    
+    demo_scenario: str = "similarity_search"
+    sample_query: Optional[str] = None
+    limit: int = Field(default=5, ge=1, le=20)
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
 
 class VectorSearchDemoResponse(BaseModel):
-    """Response model for vector search demo scenarios."""
-    scenario_name: str = Field(..., description="Name of the demo scenario")
-    scenario_description: str = Field(..., description="Description of what this scenario demonstrates")
-    query_entity: Dict[str, Any] = Field(..., description="The entity used as the search query")
-    similar_entities: List[SimilarEntity] = Field(..., description="Similar entities found")
-    insights: List[str] = Field(..., description="Key insights from this search")
-    search_time_ms: float = Field(..., description="Search execution time in milliseconds")
+    """Response containing vector search demo results"""
+    
+    demo_scenario: str
+    results: List[VectorSearchResult]
+    demo_description: str
+    sample_queries: List[str]
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
+class SimilarEntity(BaseModel):
+    """Similar entity from vector search"""
+    
+    entity_id: str
+    entity_data: Dict[str, Any]
+    similarity_score: float
+    match_reasons: List[str] = []
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }

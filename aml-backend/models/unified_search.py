@@ -1,186 +1,133 @@
 """
-Pydantic models for unified entity search (Atlas Search + Vector Search)
+Unified Search Models - Data models for unified search operations
+
+Models for combined Atlas Search and Vector Search operations with
+intelligent result merging and ranking.
 """
 
-from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any, Union
 from datetime import datetime
-from enum import Enum
+from typing import Dict, List, Optional, Any, Literal
+from pydantic import BaseModel, Field
 
-from .entity_resolution import PotentialMatch
-from .vector_search import SimilarEntity
-
-class SearchMethod(str, Enum):
-    """Available search methods"""
-    ATLAS = "atlas"
-    VECTOR = "vector"
-    BOTH = "both"
-
-class MatchCorrelationType(str, Enum):
-    """Types of match correlation between search methods"""
-    INTERSECTION = "intersection"  # Found by both methods
-    ATLAS_UNIQUE = "atlas_unique"  # Only found by Atlas Search
-    VECTOR_UNIQUE = "vector_unique"  # Only found by Vector Search
 
 class UnifiedSearchRequest(BaseModel):
-    """Request model for unified entity search (Atlas Search + Vector Search)"""
+    """Request model for unified search operations"""
     
-    # Traditional Atlas Search fields
-    name_full: Optional[str] = Field(None, description="Full name for Atlas Search fuzzy matching")
-    address_full: Optional[str] = Field(None, description="Full address for Atlas Search")
-    date_of_birth: Optional[str] = Field(None, description="Date of birth for Atlas Search (YYYY-MM-DD)")
-    identifier_value: Optional[str] = Field(None, description="Identifier value for exact Atlas Search matching")
+    # Search query
+    query: str = Field(..., min_length=1, description="Search query text")
     
-    # Vector Search fields
-    semantic_query: Optional[str] = Field(None, description="Semantic text query for Vector Search")
+    # Search options
+    limit: int = Field(default=10, ge=1, le=50)
+    atlas_weight: float = Field(default=0.6, ge=0.0, le=1.0)
+    vector_weight: float = Field(default=0.4, ge=0.0, le=1.0)
     
-    # Search method selection
-    search_methods: List[SearchMethod] = Field(
-        default=[SearchMethod.ATLAS, SearchMethod.VECTOR], 
-        description="Which search methods to use"
-    )
+    # Filter options
+    entity_type: Optional[str] = None
+    status: Optional[str] = None
+    risk_level: Optional[str] = None
     
-    # Configuration
-    limit: int = Field(default=10, ge=1, le=20, description="Maximum results per search method")
-    filters: Optional[Dict[str, Any]] = Field(None, description="Optional filters for both search methods")
+    # Search method preference
+    search_strategy: Literal["balanced", "fuzzy_focused", "semantic_focused"] = "balanced"
     
-    # Demo and testing support
-    scenario_name: Optional[str] = Field(None, description="Demo scenario identifier")
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "query": "John Smith DOB 1985-03-15",
+                "limit": 10,
+                "atlas_weight": 0.6,
+                "vector_weight": 0.4,
+                "search_strategy": "balanced"
+            }
+        }
 
-class EntityMatch(BaseModel):
-    """Model for entity matches that combines Atlas and Vector search results"""
-    entity_id: str = Field(..., description="Entity identifier")
-    entity_type: str = Field(..., description="Type of entity")
-    name: Dict[str, Any] = Field(..., description="Entity name information")
-    risk_assessment: Optional[Dict[str, Any]] = Field(None, description="Risk assessment data")
-    
-    # Atlas Search specific fields
-    atlas_search_score: Optional[float] = Field(None, description="Atlas Search score (if found by Atlas)")
-    atlas_match_reasons: List[str] = Field(default_factory=list, description="Atlas Search match reasons")
-    
-    # Vector Search specific fields
-    vector_search_score: Optional[float] = Field(None, description="Vector similarity score (if found by Vector)")
-    semantic_relevance: Optional[str] = Field(None, description="Why this entity is semantically relevant")
-    
-    # Combined intelligence
-    found_by_methods: List[SearchMethod] = Field(..., description="Which search methods found this entity")
-    correlation_type: MatchCorrelationType = Field(..., description="How this match correlates between methods")
-    combined_confidence: Optional[float] = Field(None, description="Combined confidence score across methods")
 
-class CorrelationAnalysis(BaseModel):
-    """Analysis of how Atlas Search and Vector Search results correlate"""
-    total_atlas_results: int = Field(..., description="Total results from Atlas Search")
-    total_vector_results: int = Field(..., description="Total results from Vector Search")
-    intersection_count: int = Field(..., description="Number of entities found by both methods")
-    atlas_unique_count: int = Field(..., description="Entities only found by Atlas Search")
-    vector_unique_count: int = Field(..., description="Entities only found by Vector Search")
+class UnifiedSearchMatch(BaseModel):
+    """Individual unified search result with combined scoring"""
     
-    # Analysis insights
-    correlation_percentage: float = Field(..., description="Percentage of overlap between methods")
-    atlas_precision: Optional[float] = Field(None, description="Atlas Search precision for this query")
-    vector_precision: Optional[float] = Field(None, description="Vector Search precision for this query")
+    entity_id: str
+    entity_data: Dict[str, Any]
     
-    # Recommendations
-    recommended_method: Optional[SearchMethod] = Field(None, description="Recommended primary search method")
-    reasoning: List[str] = Field(default_factory=list, description="Reasoning for recommendations")
+    # Combined scoring
+    combined_score: float
+    atlas_score: float = 0.0
+    vector_score: float = 0.0
+    
+    # Match information
+    match_reasons: List[str] = []
+    search_methods: List[str] = []
+    confidence_level: str = "medium"
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
 
-class SearchPerformanceMetrics(BaseModel):
-    """Performance metrics for search execution"""
-    atlas_search_time_ms: Optional[float] = Field(None, description="Atlas Search execution time")
-    vector_search_time_ms: Optional[float] = Field(None, description="Vector Search execution time")
-    correlation_time_ms: float = Field(..., description="Time to correlate results")
-    total_search_time_ms: float = Field(..., description="Total search execution time")
-    
-    # Search method details
-    atlas_index_used: Optional[str] = Field(None, description="Atlas Search index used")
-    vector_index_used: Optional[str] = Field(None, description="Vector Search index used")
-    embedding_model: Optional[str] = Field(None, description="Embedding model used for vector search")
-
-class CombinedIntelligence(BaseModel):
-    """Intelligence derived from combining Atlas Search and Vector Search results"""
-    
-    # Categorized results
-    intersection_matches: List[EntityMatch] = Field(
-        default_factory=list, 
-        description="Entities found by both search methods"
-    )
-    atlas_unique: List[PotentialMatch] = Field(
-        default_factory=list, 
-        description="Entities only found by Atlas Search"
-    )
-    vector_unique: List[SimilarEntity] = Field(
-        default_factory=list, 
-        description="Entities only found by Vector Search"
-    )
-    
-    # Analysis and insights
-    correlation_analysis: CorrelationAnalysis = Field(..., description="Analysis of search method correlation")
-    key_insights: List[str] = Field(default_factory=list, description="Key insights from the combined search")
-    recommendations: List[str] = Field(default_factory=list, description="Recommendations for investigation")
-    
-    # Intelligence scores
-    search_comprehensiveness: float = Field(..., description="How comprehensive the combined search was (0-1)")
-    confidence_level: float = Field(..., description="Overall confidence in the results (0-1)")
-
-class SearchMetadata(BaseModel):
-    """Metadata about the unified search execution"""
-    query_timestamp: datetime = Field(default_factory=datetime.utcnow, description="When the search was executed")
-    search_methods_used: List[SearchMethod] = Field(..., description="Which search methods were used")
-    performance_metrics: SearchPerformanceMetrics = Field(..., description="Performance metrics")
-    
-    # Search configuration
-    filters_applied: Dict[str, Any] = Field(default_factory=dict, description="Filters applied to search")
-    limits_used: Dict[str, int] = Field(default_factory=dict, description="Limits used per search method")
-    
-    # Quality metrics
-    result_quality_score: Optional[float] = Field(None, description="Overall quality score for results")
-    search_effectiveness: Optional[str] = Field(None, description="Assessment of search effectiveness")
 
 class UnifiedSearchResponse(BaseModel):
-    """Response model for unified entity search"""
+    """Response for unified search operations"""
     
-    # Query information
-    query_info: Dict[str, Any] = Field(..., description="Information about the search query")
+    matches: List[UnifiedSearchMatch]
+    query: str
+    total_found: int
+    search_time_ms: float
     
-    # Individual search method results
-    atlas_results: List[PotentialMatch] = Field(default_factory=list, description="Atlas Search results")
-    vector_results: List[SimilarEntity] = Field(default_factory=list, description="Vector Search results")
+    # Search composition
+    atlas_results_count: int = 0
+    vector_results_count: int = 0
+    combined_results_count: int = 0
     
-    # Combined intelligence
-    combined_intelligence: CombinedIntelligence = Field(..., description="Intelligence from combining both methods")
+    # Search metadata
+    search_strategy: str
+    weights_used: Dict[str, float]
+    performance_metrics: Optional[Dict[str, Any]] = None
     
-    # Metadata
-    search_metadata: SearchMetadata = Field(..., description="Search execution metadata")
-    
-    # Summary statistics
-    total_unique_entities: int = Field(..., description="Total unique entities across all methods")
-    search_success: bool = Field(default=True, description="Whether the search completed successfully")
-    error_messages: List[str] = Field(default_factory=list, description="Any error messages encountered")
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
 
-# Demo scenario models
+
+class SearchComparison(BaseModel):
+    """Model for comparing different search approaches"""
+    
+    query: str
+    atlas_only_results: List[Dict[str, Any]]
+    vector_only_results: List[Dict[str, Any]]
+    unified_results: List[UnifiedSearchMatch]
+    
+    performance_comparison: Dict[str, Any]
+    recommendation: str
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
 
 class DemoScenario(BaseModel):
-    """Model for predefined demo scenarios"""
-    scenario_id: str = Field(..., description="Unique scenario identifier")
-    name: str = Field(..., description="Display name for the scenario")
-    description: str = Field(..., description="Description of what this scenario demonstrates")
+    """Demo scenario for unified search testing"""
     
-    # Scenario input
-    search_request: UnifiedSearchRequest = Field(..., description="The search request for this scenario")
+    scenario_name: str
+    description: str
+    query: str
+    expected_results: int
+    search_strategy: str = "balanced"
     
-    # Expected outcomes
-    expected_atlas_count: Optional[int] = Field(None, description="Expected Atlas Search result count")
-    expected_vector_count: Optional[int] = Field(None, description="Expected Vector Search result count")
-    expected_intersection: Optional[int] = Field(None, description="Expected intersection count")
-    
-    # Demo insights
-    key_demonstrations: List[str] = Field(..., description="What this scenario demonstrates")
-    business_value: List[str] = Field(..., description="Business value shown by this scenario")
-    wow_factor: str = Field(..., description="The main 'wow factor' for this demo")
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
 
 class DemoScenarioResponse(BaseModel):
-    """Response model for demo scenario execution"""
-    scenario: DemoScenario = Field(..., description="The demo scenario that was executed")
-    search_results: UnifiedSearchResponse = Field(..., description="The search results")
-    demo_insights: List[str] = Field(..., description="Insights specific to this demo")
-    success_metrics: Dict[str, Any] = Field(..., description="Metrics showing demo success")
+    """Response containing demo scenarios for unified search"""
+    
+    scenarios: List[DemoScenario]
+    total_scenarios: int
+    description: str
+    usage_instructions: str
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }

@@ -1,193 +1,320 @@
 """
-Pydantic models for entity relationships and relationship management
+Relationship Models - Data models for entity relationships
+
+Models for managing relationships between entities, including
+relationship evidence, confidence scoring, and lifecycle management.
 """
 
-from typing import List, Optional, Dict, Any
 from datetime import datetime
+from typing import Dict, List, Optional, Any, Literal
 from pydantic import BaseModel, Field
-from bson import ObjectId
-from enum import Enum
 
-class RelationshipType(str, Enum):
-    """Types of relationships between entities"""
-    CONFIRMED_SAME_ENTITY = "confirmed_same_entity"
-    POTENTIAL_DUPLICATE = "potential_duplicate"
-    BUSINESS_ASSOCIATE = "business_associate"
-    FAMILY_MEMBER = "family_member"
-    SHARED_ADDRESS = "shared_address"
-    SHARED_IDENTIFIER = "shared_identifier"
-    TRANSACTION_COUNTERPARTY = "transaction_counterparty"
-    CORPORATE_STRUCTURE = "corporate_structure"
-
-class RelationshipDirection(str, Enum):
-    """Relationship direction options"""
-    BIDIRECTIONAL = "bidirectional"
-    SOURCE_TO_TARGET = "source_to_target"
-    TARGET_TO_SOURCE = "target_to_source"
-
-class RelationshipStatus(str, Enum):
-    """Relationship status options"""
-    ACTIVE = "active"
-    DISMISSED = "dismissed"
-    PENDING_REVIEW = "pending_review"
-    ARCHIVED = "archived"
-
-class EntityReference(BaseModel):
-    """Reference to an entity in a relationship"""
-    entityId: str = Field(..., description="Entity identifier")
-    entityType: str = Field(..., description="Type of entity (individual, organization)")
-    entityName: Optional[str] = Field(None, description="Display name of the entity")
 
 class RelationshipEvidence(BaseModel):
     """Evidence supporting a relationship between entities"""
-    matchedAttributes: List[str] = Field(default_factory=list, description="Attributes that match between entities")
-    searchScore: Optional[float] = Field(None, ge=0.0, le=1.0, description="Atlas Search score")
-    manualConfidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Manual confidence assessment")
-    similarities: Optional[Dict[str, float]] = Field(default_factory=dict, description="Similarity scores for specific attributes")
-    differences: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Key differences between entities")
-    additionalData: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Additional supporting data")
-
-class Relationship(BaseModel):
-    """Model for relationships between entities"""
-    id: Optional[str] = Field(None, alias="_id", description="MongoDB ObjectId as string")
-    source: EntityReference = Field(..., description="Source entity")
-    target: EntityReference = Field(..., description="Target entity")
-    type: RelationshipType = Field(..., description="Type of relationship")
-    direction: RelationshipDirection = Field(default=RelationshipDirection.BIDIRECTIONAL)
-    strength: float = Field(..., ge=0.0, le=1.0, description="Relationship strength/confidence")
-    evidence: RelationshipEvidence = Field(default_factory=RelationshipEvidence)
-    datasource: str = Field(default="analyst_resolution_workbench", description="Source of the relationship")
-    createdAt: datetime = Field(default_factory=datetime.utcnow)
-    createdBy: Optional[str] = Field(None, description="User who created the relationship")
-    updatedAt: Optional[datetime] = Field(None, description="Last update timestamp")
-    updatedBy: Optional[str] = Field(None, description="User who last updated the relationship")
-    status: RelationshipStatus = Field(default=RelationshipStatus.ACTIVE)
-    notes: Optional[str] = Field(None, description="Additional notes about the relationship")
+    
+    evidence_type: str  # "shared_address", "shared_phone", "transaction", etc.
+    evidence_value: Any
+    confidence: float = Field(ge=0.0, le=1.0)
+    source: str
+    
+    # Temporal information
+    discovered_date: datetime = Field(default_factory=datetime.utcnow)
+    evidence_date: Optional[datetime] = None
+    
+    # Verification
+    verified: bool = False
+    verified_by: Optional[str] = None
+    verification_date: Optional[datetime] = None
     
     class Config:
-        validate_by_name = True
-        json_encoders = {ObjectId: str}
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
+class Relationship(BaseModel):
+    """Relationship between two entities"""
+    
+    relationship_id: str
+    source_entity_id: str
+    target_entity_id: str
+    relationship_type: str
+    
+    # Relationship strength and confidence
+    strength: float = Field(ge=0.0, le=1.0)
+    confidence: float = Field(ge=0.0, le=1.0)
+    
+    # Evidence and verification
+    evidence: List[RelationshipEvidence] = []
+    evidence_count: int = 0
+    
+    # Status and lifecycle
+    status: Literal["active", "inactive", "under_review", "disputed"] = "active"
+    created_date: datetime = Field(default_factory=datetime.utcnow)
+    updated_date: datetime = Field(default_factory=datetime.utcnow)
+    
+    # Analysis metadata
+    risk_impact: Optional[float] = None
+    network_importance: Optional[float] = None
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
+class RelationshipRequest(BaseModel):
+    """Request for creating or updating relationships"""
+    
+    source_entity_id: str
+    target_entity_id: str
+    relationship_type: str
+    
+    # Initial evidence
+    evidence: Optional[List[RelationshipEvidence]] = None
+    
+    # Relationship attributes
+    strength: Optional[float] = None
+    confidence: Optional[float] = None
+    notes: Optional[str] = None
+    
+    class Config:
         json_schema_extra = {
             "example": {
-                "source": {
-                    "entityId": "C123456",
-                    "entityType": "individual",
-                    "entityName": "John Smith"
-                },
-                "target": {
-                    "entityId": "C789012", 
-                    "entityType": "individual",
-                    "entityName": "Jon Smith"
-                },
-                "type": "confirmed_same_entity",
-                "direction": "bidirectional",
-                "strength": 0.95,
-                "evidence": {
-                    "matchedAttributes": ["name", "address", "date_of_birth"],
-                    "searchScore": 0.87,
-                    "manualConfidence": 0.95,
-                    "similarities": {
-                        "name_similarity": 0.89,
-                        "address_similarity": 0.95,
-                        "dob_exact_match": 1.0
+                "source_entity_id": "ENT123456",
+                "target_entity_id": "ENT789012",
+                "relationship_type": "family_member",
+                "evidence": [
+                    {
+                        "evidence_type": "shared_address",
+                        "evidence_value": "123 Main St, City, State",
+                        "confidence": 0.9,
+                        "source": "KYC_verification"
                     }
-                },
-                "datasource": "analyst_resolution_workbench",
-                "status": "active"
+                ]
             }
         }
 
-class CreateRelationshipRequest(BaseModel):
-    """Request model for creating a new relationship"""
-    sourceEntityId: str = Field(..., description="Source entity ID")
-    targetEntityId: str = Field(..., description="Target entity ID")
-    type: RelationshipType = Field(..., description="Type of relationship")
-    direction: RelationshipDirection = Field(default=RelationshipDirection.BIDIRECTIONAL)
-    strength: float = Field(..., ge=0.0, le=1.0, description="Relationship strength")
-    evidence: Optional[RelationshipEvidence] = Field(default_factory=RelationshipEvidence)
-    datasource: Optional[str] = Field(default="analyst_resolution_workbench")
-    createdBy: Optional[str] = Field(None, description="User creating the relationship")
-    notes: Optional[str] = Field(None, description="Additional notes")
 
-class UpdateRelationshipRequest(BaseModel):
-    """Request model for updating an existing relationship"""
-    type: Optional[RelationshipType] = Field(None, description="Type of relationship")
-    direction: Optional[RelationshipDirection] = Field(None)
-    strength: Optional[float] = Field(None, ge=0.0, le=1.0, description="Relationship strength")
-    evidence: Optional[RelationshipEvidence] = Field(None)
-    status: Optional[RelationshipStatus] = Field(None)
-    notes: Optional[str] = Field(None, description="Additional notes")
-    updatedBy: Optional[str] = Field(None, description="User updating the relationship")
+class RelationshipAnalysis(BaseModel):
+    """Analysis results for a relationship"""
+    
+    relationship_id: str
+    analysis_type: str
+    analysis_results: Dict[str, Any]
+    confidence_score: float
+    
+    # Risk assessment
+    risk_indicators: List[str] = []
+    risk_score: Optional[float] = None
+    
+    # Recommendations
+    recommendations: List[str] = []
+    requires_review: bool = False
+    
+    # Analysis metadata
+    analysis_date: datetime = Field(default_factory=datetime.utcnow)
+    analysis_method: str = "automated"
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
 
-class RelationshipQueryParams(BaseModel):
-    """Query parameters for searching relationships"""
-    entityId: Optional[str] = Field(None, description="Find relationships for specific entity")
-    type: Optional[RelationshipType] = Field(None, description="Filter by relationship type")
-    status: Optional[RelationshipStatus] = Field(None, description="Filter by status")
-    minStrength: Optional[float] = Field(None, ge=0.0, le=1.0, description="Minimum strength threshold")
-    datasource: Optional[str] = Field(None, description="Filter by data source")
-    createdBy: Optional[str] = Field(None, description="Filter by creator")
-    createdAfter: Optional[datetime] = Field(None, description="Filter by creation date")
-    limit: int = Field(default=50, ge=1, le=1000, description="Maximum number of results")
-    skip: int = Field(default=0, ge=0, description="Number of results to skip")
 
-class RelationshipListResponse(BaseModel):
-    """Response model for relationship listing"""
-    relationships: List[Relationship] = Field(..., description="List of relationships")
-    totalCount: int = Field(..., description="Total number of relationships matching criteria")
-    page: int = Field(..., description="Current page number")
-    pageSize: int = Field(..., description="Number of items per page")
-    hasMore: bool = Field(..., description="Whether there are more results available")
-
-class RelationshipStats(BaseModel):
-    """Statistics about relationships"""
-    totalRelationships: int = Field(..., description="Total number of relationships")
-    relationshipsByType: Dict[str, int] = Field(..., description="Count by relationship type")
-    relationshipsByStatus: Dict[str, int] = Field(..., description="Count by status")
-    averageStrength: float = Field(..., description="Average relationship strength")
-    highConfidenceCount: int = Field(..., description="Number of high confidence relationships (>0.8)")
-
-class NetworkNode(BaseModel):
-    """Node in a relationship network"""
-    entityId: str = Field(..., description="Entity identifier")
-    entityType: str = Field(..., description="Entity type")
-    entityName: Optional[str] = Field(None, description="Entity display name")
-    riskScore: Optional[float] = Field(None, description="Entity risk score")
-    nodeSize: Optional[float] = Field(None, description="Node size for visualization")
-    color: Optional[str] = Field(None, description="Node color based on risk or type")
-
-class NetworkEdge(BaseModel):
-    """Edge in a relationship network"""
-    source: str = Field(..., description="Source entity ID")
-    target: str = Field(..., description="Target entity ID")
-    relationshipType: RelationshipType = Field(..., description="Type of relationship")
-    strength: float = Field(..., description="Relationship strength")
-    width: Optional[float] = Field(None, description="Edge width for visualization")
-    color: Optional[str] = Field(None, description="Edge color based on type")
-
-class EntityNetwork(BaseModel):
-    """Complete network structure for an entity"""
-    centerEntityId: str = Field(..., description="Central entity ID")
-    nodes: List[NetworkNode] = Field(..., description="All nodes in the network")
-    edges: List[NetworkEdge] = Field(..., description="All edges in the network")
-    totalNodes: int = Field(..., description="Total number of nodes")
-    totalEdges: int = Field(..., description="Total number of edges")
-    maxDepth: int = Field(..., description="Maximum depth from center entity")
-    stats: RelationshipStats = Field(..., description="Network statistics")
-
-class RelationshipOperationResponse(BaseModel):
-    """Generic response for relationship operations"""
-    success: bool = Field(..., description="Whether the operation was successful")
-    message: str = Field(..., description="Status message")
-    relationshipId: Optional[str] = Field(None, description="ID of the affected relationship")
-    affectedEntityIds: List[str] = Field(default_factory=list, description="IDs of affected entities")
+class RelationshipSearchRequest(BaseModel):
+    """Request for searching relationships"""
+    
+    # Entity filtering
+    entity_id: Optional[str] = None
+    entity_ids: Optional[List[str]] = None
+    
+    # Relationship filtering
+    relationship_types: Optional[List[str]] = None
+    min_strength: Optional[float] = None
+    min_confidence: Optional[float] = None
+    status: Optional[str] = None
+    
+    # Pagination
+    limit: int = Field(default=20, ge=1, le=100)
+    offset: int = Field(default=0, ge=0)
+    
+    # Sorting
+    sort_by: Optional[str] = "strength"
+    sort_order: Optional[Literal["asc", "desc"]] = "desc"
     
     class Config:
         json_schema_extra = {
             "example": {
-                "success": True,
-                "message": "Relationship created successfully",
-                "relationshipId": "60f1b2b3c4d5e6f7g8h9i0j1",
-                "affectedEntityIds": ["C123456", "C789012"]
+                "entity_id": "ENT123456",
+                "relationship_types": ["family_member", "business_partner"],
+                "min_confidence": 0.7,
+                "limit": 20
             }
+        }
+
+
+class RelationshipSearchResponse(BaseModel):
+    """Response for relationship search operations"""
+    
+    relationships: List[Relationship]
+    total_count: int
+    page_info: Dict[str, Any]
+    search_time_ms: float
+    
+    # Search metadata
+    filters_applied: Dict[str, Any]
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
+class BulkRelationshipOperation(BaseModel):
+    """Request for bulk relationship operations"""
+    
+    operation: Literal["create", "update", "delete", "analyze"]
+    relationships: List[Dict[str, Any]]
+    
+    # Operation options
+    validate_entities: bool = True
+    update_network: bool = True
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "operation": "create",
+                "relationships": [
+                    {
+                        "source_entity_id": "ENT123456",
+                        "target_entity_id": "ENT789012",
+                        "relationship_type": "family_member"
+                    }
+                ]
+            }
+        }
+
+
+class BulkRelationshipResponse(BaseModel):
+    """Response for bulk relationship operations"""
+    
+    operation: str
+    total_requested: int
+    successful: int
+    failed: int
+    
+    # Detailed results
+    results: List[Dict[str, Any]] = []
+    errors: List[Dict[str, Any]] = []
+    
+    # Operation timing
+    processing_time_ms: float
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
+class CreateRelationshipRequest(BaseModel):
+    """Request for creating a new relationship"""
+    
+    source_entity_id: str
+    target_entity_id: str
+    relationship_type: str
+    
+    # Optional attributes
+    strength: Optional[float] = None
+    confidence: Optional[float] = None
+    evidence: Optional[List[RelationshipEvidence]] = None
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
+class UpdateRelationshipRequest(BaseModel):
+    """Request for updating an existing relationship"""
+    
+    # Updatable fields
+    relationship_type: Optional[str] = None
+    strength: Optional[float] = None
+    confidence: Optional[float] = None
+    status: Optional[str] = None
+    evidence: Optional[List[RelationshipEvidence]] = None
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
+class RelationshipQueryParams(BaseModel):
+    """Query parameters for relationship operations"""
+    
+    # Entity filtering
+    entity_id: Optional[str] = None
+    entity_ids: Optional[List[str]] = None
+    
+    # Relationship filtering
+    relationship_types: Optional[List[str]] = None
+    min_strength: Optional[float] = None
+    min_confidence: Optional[float] = None
+    status: Optional[str] = None
+    
+    # Pagination
+    limit: int = Field(default=20, ge=1, le=100)
+    offset: int = Field(default=0, ge=0)
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
+class RelationshipListResponse(BaseModel):
+    """Response for relationship list operations"""
+    
+    relationships: List[Relationship]
+    total_count: int
+    page_info: Dict[str, Any]
+    search_time_ms: Optional[float] = None
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
+class RelationshipStats(BaseModel):
+    """Statistics about relationships in the system"""
+    
+    total_relationships: int
+    relationships_by_type: Dict[str, int]
+    relationships_by_status: Dict[str, int]
+    average_strength: float
+    average_confidence: float
+    verified_count: int
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
+class RelationshipOperationResponse(BaseModel):
+    """Response for relationship operation requests"""
+    
+    success: bool
+    operation: str
+    relationship_id: Optional[str] = None
+    message: Optional[str] = None
+    data: Optional[Dict[str, Any]] = None
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
         }

@@ -5,10 +5,22 @@ import os
 import logging
 from datetime import datetime
 
-# Import routes
-from routes.entities import router as entities_router
-from routes.entity_resolution import router as entity_resolution_router
-from routes.relationships import router as relationships_router
+# Import organized routes with error handling
+import sys
+
+# Import organized routes from updated routes package
+from routes import (
+    core_entities_router,
+    core_entity_resolution_router,
+    atlas_search_router,
+    vector_search_router,
+    unified_search_router,
+    network_analysis_router,
+    search_debug_router,
+    relationships_router
+)
+
+# Note: Fallback routes removed after successful migration to organized structure
 
 # Setup logging
 logging.basicConfig(
@@ -80,13 +92,26 @@ async def root():
             "Network Analysis"
         ],
         "endpoints": {
-            "entities": "/entities/",
-            "entity_resolution": "/entities/onboarding/find_matches",
-            "entity_merging": "/entities/resolve", 
+            "core": {
+                "entities": "/entities/",
+                "entity_resolution": "/entities/onboarding/find_matches",
+                "entity_merging": "/entities/resolve"
+            },
+            "search": {
+                "atlas_search": "/search/atlas/",
+                "vector_search": "/search/vector/",
+                "unified_search": "/search/unified/"
+            },
+            "network": {
+                "analysis": "/network/",
+                "entity_network": "/network/{entity_id}"
+            },
             "relationships": "/relationships/",
-            "network_analysis": "/relationships/network/{entity_id}",
-            "health": "/health",
-            "docs": "/docs"
+            "debug": "/debug/",
+            "system": {
+                "health": "/health",
+                "docs": "/docs"
+            }
         },
         "timestamp": datetime.now().isoformat()
     }
@@ -134,14 +159,41 @@ async def test_endpoint():
         }
     }
 
-# Include entity resolution routes first (more specific routes)
-app.include_router(entity_resolution_router)
+# Helper function to safely include routers
+def include_router_safely(app_instance, router, router_name):
+    """Safely include router with error handling"""
+    if router is not None:
+        try:
+            app_instance.include_router(router)
+            logger.info(f"Successfully included {router_name} router")
+        except Exception as e:
+            logger.error(f"Failed to include {router_name} router: {e}")
+    else:
+        logger.warning(f"{router_name} router is None, skipping inclusion")
 
-# Include entity routes (has catch-all route)
-app.include_router(entities_router)
+# Include routes in priority order (most specific first)
 
-# Include relationship management routes
-app.include_router(relationships_router)
+# 1. Search routes (most specific prefixes)
+include_router_safely(app, atlas_search_router, "Atlas Search")
+include_router_safely(app, vector_search_router, "Vector Search") 
+include_router_safely(app, unified_search_router, "Unified Search")
+
+# 2. Network analysis routes
+include_router_safely(app, network_analysis_router, "Network Analysis")
+
+# 3. Debug routes
+include_router_safely(app, search_debug_router, "Search Debug")
+
+# 4. Core entity resolution routes (before general entity routes)
+include_router_safely(app, core_entity_resolution_router, "Core Entity Resolution")
+
+# 5. Core entity routes (has catch-all routes, so include after more specific routes)  
+include_router_safely(app, core_entities_router, "Core Entities")
+
+# 6. Relationship management routes
+include_router_safely(app, relationships_router, "Updated Relationships")
+
+logger.info("Route registration completed")
 
 if __name__ == "__main__":
     import uvicorn

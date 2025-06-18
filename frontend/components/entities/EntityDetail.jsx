@@ -1549,7 +1549,7 @@ export default function EntityDetail({ entityId }) {
         setError(null);
 
         const response = await amlAPI.getEntity(entityId);
-        setEntity(response);
+        setEntity(response.data || response);
 
       } catch (err) {
         console.error('Error loading entity:', err);

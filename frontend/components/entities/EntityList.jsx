@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Card from '@leafygreen-ui/card';
 import Button from '@leafygreen-ui/button';
@@ -20,30 +20,13 @@ import Callout from '@leafygreen-ui/callout';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 import { amlAPI, useAMLAPIError, amlUtils } from '@/lib/aml-api';
+import EnhancedSearchBar from './EnhancedSearchBar';
+import AdvancedFacetedFilters from './AdvancedFacetedFilters';
+import MongoDBInsightsPanel from './MongoDBInsightsPanel';
 import styles from './EntityList.module.css';
 
 // Constants
 const DEFAULT_PAGE_SIZE = 20;
-const ENTITY_TYPES = [
-  { value: '', label: 'All Types' },
-  { value: 'individual', label: 'Individual' },
-  { value: 'organization', label: 'Organization' }
-];
-
-const RISK_LEVELS = [
-  { value: '', label: 'All Risk Levels' },
-  { value: 'low', label: 'Low Risk' },
-  { value: 'medium', label: 'Medium Risk' },
-  { value: 'high', label: 'High Risk' }
-];
-
-const ENTITY_STATUSES = [
-  { value: '', label: 'All Statuses' },
-  { value: 'active', label: 'Active' },
-  { value: 'inactive', label: 'Inactive' },
-  { value: 'under_review', label: 'Under Review' },
-  { value: 'restricted', label: 'Restricted' }
-];
 
 function RiskBadge({ level, score, size = 'default' }) {
   const colors = {
@@ -248,75 +231,159 @@ export default function EntityList() {
   const [hasNext, setHasNext] = useState(false);
   const [hasPrevious, setHasPrevious] = useState(false);
   
-  // Filters
-  const [entityTypeFilter, setEntityTypeFilter] = useState('');
-  const [riskLevelFilter, setRiskLevelFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [scenarioFilter, setScenarioFilter] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [scenarioKeys, setScenarioKeys] = useState([]);
+  // Search and Filters
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filters, setFilters] = useState({});
+  const [facets, setFacets] = useState({});
+  
+  // MongoDB Insights State
+  const [autocompleteActive, setAutocompleteActive] = useState(false);
+  const [lastApiCall, setLastApiCall] = useState(null);
+  const [searchResponseTime, setSearchResponseTime] = useState(null);
+  const autocompleteTimeoutRef = useRef(null);
 
-  // Load entities
-  const loadEntities = async (page = 1, filters = {}) => {
+  // Load entities using unified search API for all cases (replaces dual API approach)
+  const loadEntities = async (page = 1, searchQuery = '', filters = {}) => {
+    const startTime = performance.now();
     try {
       setLoading(true);
       setError(null);
 
-      const response = await amlAPI.getEntitiesPaginated(page, DEFAULT_PAGE_SIZE, {
-        entity_type: filters.entityType || entityTypeFilter,
-        risk_level: filters.riskLevel || riskLevelFilter,
-        status: filters.status || statusFilter,
-        scenario_key: filters.scenarioKey || scenarioFilter,
-      });
+      // Build query parameters for the unified search endpoint using camelCase
+      const params = new URLSearchParams();
+      if (searchQuery && searchQuery.trim()) params.append('q', searchQuery);
+      if (filters.entityType) params.append('entityType', filters.entityType);
+      if (filters.riskLevel) params.append('riskLevel', filters.riskLevel);
+      if (filters.country) params.append('country', filters.country);
+      if (filters.city) params.append('city', filters.city);
+      if (filters.nationality) params.append('nationality', filters.nationality);
+      if (filters.residency) params.append('residency', filters.residency);
+      if (filters.jurisdiction) params.append('jurisdiction', filters.jurisdiction);
+      if (filters.identifierType) params.append('identifierType', filters.identifierType);
+      if (filters.businessType) params.append('businessType', filters.businessType);
+      if (filters.scenarioKey) params.append('scenarioKey', filters.scenarioKey);
+      params.append('facets', 'true');
+      params.append('limit', DEFAULT_PAGE_SIZE.toString());
+      params.append('page', page.toString());
 
-      setEntities(response.entities || []);
-      setTotalCount(response.total_count || 0);
-      setCurrentPage(response.page || page);
-      setHasNext(response.has_next || false);
-      setHasPrevious(response.has_previous || false);
+      const response = await fetch(`http://localhost:8001/entities/search/unified?${params.toString()}`);
       
-      // Update scenario keys from response
-      if (response.scenario_keys && Array.isArray(response.scenario_keys)) {
-        setScenarioKeys(response.scenario_keys.slice(0, 20)); // Limit to first 20 for performance
+      if (!response.ok) {
+        throw new Error(`Search failed: ${response.status} ${response.statusText}`);
       }
 
-    } catch (err) {
-      console.error('Error loading entities:', err);
-      setError(handleError(err));
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Search request failed');
+      }
+
+      // Extract entities and metadata from the unified search response
+      const results = data.data?.results || [];
+      const resultData = data.data || {};
+      
+      setEntities(results);
+      setFacets(resultData.facets || {});
+      setTotalCount(resultData.total_count || results.length);
+      setCurrentPage(resultData.page || page);
+      setHasNext(resultData.has_next || false);
+      setHasPrevious(resultData.has_previous || false);
+
+      // Fetch real backend analytics instead of frontend timing
+      try {
+        const analyticsResponse = await fetch('http://localhost:8001/entities/search/analytics');
+        if (analyticsResponse.ok) {
+          const analyticsData = await analyticsResponse.json();
+          const backendMetrics = analyticsData.data?.backend_performance;
+          
+          if (backendMetrics) {
+            setSearchResponseTime(Math.round(backendMetrics.average_response_time_ms || 0));
+            setLastApiCall({
+              timestamp: new Date(),
+              query: searchQuery,
+              filters: filters,
+              responseTime: Math.round(backendMetrics.average_response_time_ms || 0),
+              resultCount: results.length,
+              timingSource: 'atlas_search_backend'
+            });
+          }
+        }
+      } catch (analyticsError) {
+        console.warn('Failed to fetch backend analytics:', analyticsError);
+        // Fallback to frontend timing if backend analytics fail
+        const endTime = performance.now();
+        const responseTime = Math.round(endTime - startTime);
+        setSearchResponseTime(responseTime);
+        setLastApiCall({
+          timestamp: new Date(),
+          query: searchQuery,
+          filters: filters,
+          responseTime: responseTime,
+          resultCount: results.length,
+          timingSource: 'frontend_fallback'
+        });
+      }
+
+    } catch (error) {
+      const errorMessage = handleError(error);
+      setError(errorMessage);
       setEntities([]);
+      setTotalCount(0);
+      setSearchResponseTime(null);
     } finally {
       setLoading(false);
     }
   };
 
-  // Initial load
+  // Initial load - use unified search API
   useEffect(() => {
-    loadEntities();
+    loadEntities(1, '', {});
   }, []);
 
-  // Handle filter changes
-  const handleFilterChange = (filterType, value) => {
-    const filters = { 
-      entityType: entityTypeFilter, 
-      riskLevel: riskLevelFilter,
-      status: statusFilter,
-      scenarioKey: scenarioFilter
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (autocompleteTimeoutRef.current) {
+        clearTimeout(autocompleteTimeoutRef.current);
+      }
     };
-    filters[filterType] = value;
+  }, []);
+
+  // Handle search query changes
+  const handleSearchQueryChange = (query) => {
+    setSearchQuery(query);
     
-    if (filterType === 'entityType') setEntityTypeFilter(value);
-    if (filterType === 'riskLevel') setRiskLevelFilter(value);
-    if (filterType === 'status') setStatusFilter(value);
-    if (filterType === 'scenarioKey') setScenarioFilter(value);
+    // Clear any existing timeout to prevent flickering
+    if (autocompleteTimeoutRef.current) {
+      clearTimeout(autocompleteTimeoutRef.current);
+      autocompleteTimeoutRef.current = null;
+    }
     
-    setCurrentPage(1);
-    loadEntities(1, filters);
+    // Track autocomplete activity for MongoDB insights
+    if (query.length >= 2) {
+      setAutocompleteActive(true);
+      // Set a timeout to clear autocomplete activity after user stops typing
+      autocompleteTimeoutRef.current = setTimeout(() => {
+        setAutocompleteActive(false);
+      }, 30000);
+    } else {
+      setAutocompleteActive(false);
+    }
   };
 
-  // Handle search
-  const handleSearch = () => {
+  // Handle search execution
+  const handleSearch = (query) => {
+    const searchTerm = query || searchQuery;
+    setSearchQuery(searchTerm);
     setCurrentPage(1);
-    loadEntities(1);
+    loadEntities(1, searchTerm, filters);
+  };
+
+  // Handle filter changes
+  const handleFiltersChange = (newFilters) => {
+    setFilters(newFilters);
+    setCurrentPage(1);
+    loadEntities(1, searchQuery, newFilters);
   };
 
   // Handle entity click
@@ -327,7 +394,7 @@ export default function EntityList() {
   // Handle pagination
   const handlePageChange = (newPage) => {
     setCurrentPage(newPage);
-    loadEntities(newPage);
+    loadEntities(newPage, searchQuery, filters);
   };
 
   return (
@@ -345,102 +412,35 @@ export default function EntityList() {
         </div>
       )}
 
-      {/* Filters and Search */}
+      {/* Enhanced Search Bar */}
       <Card style={{ marginBottom: spacing[4], padding: spacing[3] }}>
-        <div style={{ display: 'flex', gap: spacing[3], alignItems: 'flex-end', flexWrap: 'wrap' }}>
-          <div style={{ minWidth: '200px' }}>
-            <Select
-              label="Entity Type"
-              value={entityTypeFilter}
-              onChange={(value) => handleFilterChange('entityType', value)}
-            >
-              {ENTITY_TYPES.map(type => (
-                <Option key={type.value} value={type.value}>
-                  {type.label}
-                </Option>
-              ))}
-            </Select>
-          </div>
-
-          <div style={{ minWidth: '200px' }}>
-            <Select
-              label="Risk Level"
-              value={riskLevelFilter}
-              onChange={(value) => handleFilterChange('riskLevel', value)}
-            >
-              {RISK_LEVELS.map(level => (
-                <Option key={level.value} value={level.value}>
-                  {level.label}
-                </Option>
-              ))}
-            </Select>
-          </div>
-
-          <div style={{ minWidth: '200px' }}>
-            <Select
-              label="Status"
-              value={statusFilter}
-              onChange={(value) => handleFilterChange('status', value)}
-            >
-              {ENTITY_STATUSES.map(status => (
-                <Option key={status.value} value={status.value}>
-                  {status.label}
-                </Option>
-              ))}
-            </Select>
-          </div>
-
-          {scenarioKeys.length > 0 && (
-            <div style={{ minWidth: '250px' }}>
-              <Select
-                label="Demo Scenario"
-                value={scenarioFilter}
-                onChange={(value) => handleFilterChange('scenarioKey', value)}
-              >
-                <Option value="">All Scenarios</Option>
-                {scenarioKeys.map(scenario => (
-                  <Option key={scenario} value={scenario}>
-                    {amlUtils.formatScenarioKey(scenario)}
-                  </Option>
-                ))}
-              </Select>
-            </div>
-          )}
-
-          <div style={{ minWidth: '300px' }}>
-            <TextInput
-              label="Search Entities"
-              placeholder="Search by name or ID..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-            />
-          </div>
-
-          <Button 
-            variant="primary"
-            onClick={handleSearch}
-            leftGlyph={<Icon glyph="MagnifyingGlass" />}
-          >
-            Search
-          </Button>
-
-          <Button 
-            variant="default"
-            onClick={() => {
-              setEntityTypeFilter('');
-              setRiskLevelFilter('');
-              setStatusFilter('');
-              setScenarioFilter('');
-              setSearchTerm('');
-              setCurrentPage(1);
-              loadEntities(1, { entityType: '', riskLevel: '', status: '', scenarioKey: '' });
-            }}
-          >
-            Clear Filters
-          </Button>
+        <div style={{ width: '95%' }}>
+          <EnhancedSearchBar
+            onSearch={handleSearch}
+            onQueryChange={handleSearchQueryChange}
+            placeholder="Search entities by name, ID, or identifier..."
+          />
         </div>
       </Card>
+
+      {/* Advanced Faceted Filters */}
+      <AdvancedFacetedFilters
+        onFiltersChange={handleFiltersChange}
+        initialFilters={filters}
+        loading={loading}
+      />
+
+      {/* MongoDB Atlas Search Insights Panel */}
+      <MongoDBInsightsPanel
+        searchQuery={searchQuery}
+        activeFilters={filters}
+        facetCounts={facets}
+        lastApiCall={lastApiCall}
+        autocompleteActive={autocompleteActive}
+        searchResponseTime={searchResponseTime}
+      />
+      
+      <div style={{ marginBottom: spacing[4] }}></div>
 
       {/* Results Summary */}
       {!loading && (

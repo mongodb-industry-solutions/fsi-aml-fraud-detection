@@ -44,32 +44,37 @@ def get_repository_factory() -> RepositoryFactory:
         raise
 
 
+@lru_cache()
 def get_entity_repository():
-    """Get EntityRepository through factory"""
+    """Get EntityRepository through factory (cached singleton)"""
     factory = get_repository_factory()
     return factory.get_entity_repository()
 
 
+@lru_cache()
 def get_relationship_repository():
-    """Get RelationshipRepository through factory"""
+    """Get RelationshipRepository through factory (cached singleton)"""
     factory = get_repository_factory()
     return factory.get_relationship_repository()
 
 
+@lru_cache()
 def get_atlas_search_repository():
-    """Get AtlasSearchRepository through factory"""
+    """Get AtlasSearchRepository through factory (cached singleton)"""
     factory = get_repository_factory()
     return factory.get_atlas_search_repository()
 
 
+@lru_cache()
 def get_vector_search_repository():
-    """Get VectorSearchRepository through factory"""
+    """Get VectorSearchRepository through factory (cached singleton)"""
     factory = get_repository_factory()
     return factory.get_vector_search_repository()
 
 
+@lru_cache()
 def get_network_repository():
-    """Get NetworkRepository through factory"""
+    """Get NetworkRepository through factory (cached singleton)"""
     factory = get_repository_factory()
     return factory.get_network_repository()
 
@@ -147,6 +152,18 @@ async def get_unified_search_service(
     return UnifiedSearchService(
         atlas_search_service=atlas_search_service,
         vector_search_service=vector_search_service
+    )
+
+
+def get_entity_search_service(
+    atlas_search_repo = Depends(get_atlas_search_repository),
+    entity_repo = Depends(get_entity_repository)
+):
+    """Get EntitySearchService with injected repositories - Phase 7 Implementation"""
+    from services.search.entity_search_service import EntitySearchService
+    return EntitySearchService(
+        atlas_search_repo=atlas_search_repo,
+        entity_repo=entity_repo
     )
 
 

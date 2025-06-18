@@ -9,7 +9,7 @@ import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
-from repositories.interfaces.atlas_search_repository import AtlasSearchRepositoryInterface
+from repositories.impl.atlas_search_repository import AtlasSearchRepository
 from models.api.requests import EntitySearchRequest
 from models.api.responses import SearchResponse, SearchMatch
 from models.core.entity import Entity
@@ -26,7 +26,7 @@ class AtlasSearchService:
     entity matching, identifier search, and fuzzy text matching.
     """
     
-    def __init__(self, atlas_search_repo: AtlasSearchRepositoryInterface):
+    def __init__(self, atlas_search_repo: AtlasSearchRepository):
         """
         Initialize Atlas Search service
         
@@ -264,7 +264,7 @@ class AtlasSearchService:
             List[str]: Autocomplete suggestions
         """
         try:
-            from repositories.interfaces.atlas_search_repository import AutocompleteParams
+            from repositories.impl.atlas_search_repository import AutocompleteParams
             
             params = AutocompleteParams(
                 query=partial_name,

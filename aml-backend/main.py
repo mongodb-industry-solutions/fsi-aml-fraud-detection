@@ -15,6 +15,7 @@ from routes import (
     atlas_search_router,
     vector_search_router,
     unified_search_router,
+    entity_search_router,  # Phase 7 Stage 2
     network_analysis_router,
     search_debug_router,
     relationships_router
@@ -100,7 +101,8 @@ async def root():
             "search": {
                 "atlas_search": "/search/atlas/",
                 "vector_search": "/search/vector/",
-                "unified_search": "/search/unified/"
+                "unified_search": "/search/unified/",
+                "entity_search": "/entities/search/"
             },
             "network": {
                 "analysis": "/network/",
@@ -177,6 +179,7 @@ def include_router_safely(app_instance, router, router_name):
 include_router_safely(app, atlas_search_router, "Atlas Search")
 include_router_safely(app, vector_search_router, "Vector Search") 
 include_router_safely(app, unified_search_router, "Unified Search")
+include_router_safely(app, entity_search_router, "Entity Search - Phase 7")  # Phase 7 Stage 2
 
 # 2. Network analysis routes
 include_router_safely(app, network_analysis_router, "Network Analysis")

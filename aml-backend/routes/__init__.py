@@ -25,11 +25,13 @@ try:
     from .search.atlas_search import router as atlas_search_router
     from .search.vector_search import router as vector_search_router
     from .search.unified_search import router as unified_search_router
+    from .search.entity_search import router as entity_search_router  # Phase 7 Stage 2
 except ImportError as e:
     print(f"Warning: Could not import search routes: {e}")
     atlas_search_router = None
     vector_search_router = None
     unified_search_router = None
+    entity_search_router = None
 
 # Network routes
 try:
@@ -58,6 +60,7 @@ __all__ = [
     "atlas_search_router",
     "vector_search_router",
     "unified_search_router",
+    "entity_search_router",  # Phase 7 Stage 2
     "network_analysis_router",
     "search_debug_router",
     "relationships_router"

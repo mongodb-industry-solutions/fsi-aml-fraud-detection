@@ -579,31 +579,49 @@ class EntityRepository(EntityRepositoryInterface):
     # ==================== HELPER METHODS ====================
     
     def _build_match_conditions(self, criteria: Dict[str, Any]) -> Dict[str, Any]:
-        """Build MongoDB match conditions from search criteria"""
+        """Build MongoDB match conditions from search criteria with correct field mappings"""
         conditions = {}
         
         # Text search
         if "query" in criteria and criteria["query"]:
             conditions["$text"] = {"$search": criteria["query"]}
         
-        # Exact field matches
-        for field in ["entity_type", "status", "nationality"]:
-            if field in criteria and criteria[field]:
-                conditions[field] = criteria[field]
+        # Field mapping: criteria_key -> mongodb_field_name
+        # Handles both snake_case (from core routes) and camelCase (from search routes) inputs
+        field_mapping = {
+            # Entity type mapping (handle both formats)
+            "entity_type": "entityType",     # snake_case -> camelCase (database field)
+            "entityType": "entityType",      # camelCase -> camelCase (passthrough)
+            
+            # Risk level mapping (handle both formats) 
+            "risk_level": "riskAssessment.overall.level",   # snake_case -> correct nested path
+            "riskLevel": "riskAssessment.overall.level",    # camelCase -> correct nested path
+            
+            # Standard field mappings (same names in database)
+            "status": "status",
+            "nationality": "nationality", 
+            "residency": "residency",
+            "jurisdiction": "jurisdictionOfIncorporation",  # ✅ Fixed: was "jurisdiction", now correct path
+            "businessType": "customerInfo.businessType"  # Map to correct nested path
+        }
         
-        # Risk level filtering
-        if "risk_level" in criteria and criteria["risk_level"]:
-            conditions["risk_assessment.level"] = criteria["risk_level"]
+        # Apply field mappings
+        for criteria_key, mongodb_field in field_mapping.items():
+            if criteria_key in criteria and criteria[criteria_key]:
+                conditions[mongodb_field] = criteria[criteria_key]
+                logger.debug(f"Mapped filter: {criteria_key} → {mongodb_field} = {criteria[criteria_key]}")
         
-        # Date range filtering
+
+        # Date range filtering (fix field name to match database schema)
         if "created_after" in criteria or "created_before" in criteria:
             date_filter = {}
             if "created_after" in criteria:
                 date_filter["$gte"] = criteria["created_after"]
             if "created_before" in criteria:
                 date_filter["$lte"] = criteria["created_before"]
-            conditions["created_date"] = date_filter
+            conditions["createdAt"] = date_filter  # Fixed: was "created_date", now "createdAt"
         
+        logger.debug(f"Final MongoDB conditions: {conditions}")
         return conditions
     
     def _get_matched_identifiers(self, entity_identifiers: Dict[str, str], 

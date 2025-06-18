@@ -101,7 +101,7 @@ class RepositoryFactory:
             self._repositories["atlas_search"] = AtlasSearchRepository(
                 mongodb_repo=self.mongodb_repo,
                 collection_name="entities",
-                search_index_name="entity_resolution_search"
+                search_index_name=os.getenv("ATLAS_SEARCH_INDEX", "entity_search_index_v2")
             )
             logger.debug("Created AtlasSearchRepository instance")
         

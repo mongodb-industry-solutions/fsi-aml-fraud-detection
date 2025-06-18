@@ -1,28 +1,26 @@
-# Repository Layer - Clean data access abstraction using mongodb_core_lib
+# Repository Layer - Simplified data access using mongodb_core_lib
 from .interfaces import (
     EntityRepositoryInterface,
     RelationshipRepositoryInterface,
-    AtlasSearchRepositoryInterface,
     VectorSearchRepositoryInterface,
     NetworkRepositoryInterface
 )
 from .impl import (
     EntityRepository,
     RelationshipRepository,
-    AtlasSearchRepository,
+    AtlasSearchRepository,  # Now concrete class only
     VectorSearchRepository
 )
 from .factory import RepositoryFactory
 
 __all__ = [
-    # Interfaces
+    # Interfaces (reduced by 1)
     "EntityRepositoryInterface",
     "RelationshipRepositoryInterface", 
-    "AtlasSearchRepositoryInterface",
     "VectorSearchRepositoryInterface",
     "NetworkRepositoryInterface",
     
-    # Implementations (only ones that exist)
+    # Implementations (AtlasSearchRepository now concrete)
     "EntityRepository",
     "RelationshipRepository",
     "AtlasSearchRepository",

@@ -471,12 +471,45 @@ class AIVectorSearch:
                  embedding_model: str = "amazon.titan-embed-text-v1",
                  llm_model: str = "anthropic.claude-v2"):
         self.collection = collection
-        self.bedrock = bedrock_client or boto3.client('bedrock-runtime')
+        self.bedrock = bedrock_client or self._create_bedrock_client()
         self.embedding_model = embedding_model
         self.llm_model = llm_model
+    
+    def _create_bedrock_client(self):
+        """Create a properly configured bedrock client with region handling"""
+        try:
+            import os
+            
+            # Get region from environment variables (same pattern as working code)
+            region = os.environ.get("AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "us-east-1"))
+            
+            # Support AWS profiles for CLI-based authentication
+            session_kwargs = {"region_name": region}
+            profile_name = os.environ.get("AWS_PROFILE")
+            
+            if profile_name:
+                session_kwargs["profile_name"] = profile_name
+            
+            # Create session first, then client (same pattern as working code)
+            session = boto3.Session(**session_kwargs)
+            
+            bedrock_client = session.client(
+                service_name='bedrock-runtime',
+                region_name=region
+            )
+            
+            logger.info(f"Bedrock client created successfully for region: {region}")
+            return bedrock_client
+            
+        except Exception as e:
+            logger.warning(f"Could not create Bedrock client: {e}. AI features will be disabled.")
+            return None
         
     async def generate_embedding(self, text: str) -> List[float]:
         """Generate embeddings using AWS Bedrock"""
+        if not self.bedrock:
+            raise RuntimeError("Bedrock client not available. AI features are disabled.")
+            
         try:
             response = self.bedrock.invoke_model(
                 modelId=self.embedding_model,
@@ -554,6 +587,9 @@ class AIVectorSearch:
     async def rag_query(self, query: str, context_limit: int = 5,
                        system_prompt: Optional[str] = None) -> str:
         """Retrieval Augmented Generation using AWS Bedrock"""
+        if not self.bedrock:
+            raise RuntimeError("Bedrock client not available. AI features are disabled.")
+            
         # Retrieve relevant documents
         relevant_docs = await self.semantic_search(query, limit=context_limit)
         

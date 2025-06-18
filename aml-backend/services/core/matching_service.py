@@ -10,7 +10,7 @@ from typing import Dict, Any, Optional, List, Tuple
 from datetime import datetime
 
 from repositories.interfaces.entity_repository import EntityRepositoryInterface
-from repositories.interfaces.atlas_search_repository import AtlasSearchRepositoryInterface  
+from repositories.impl.atlas_search_repository import AtlasSearchRepository  
 from repositories.interfaces.vector_search_repository import VectorSearchRepositoryInterface
 from models.api.requests import EntitySearchRequest
 from models.api.responses import StandardResponse
@@ -29,7 +29,7 @@ class MatchingService:
     
     def __init__(self, 
                  entity_repo: EntityRepositoryInterface,
-                 atlas_search_repo: AtlasSearchRepositoryInterface,
+                 atlas_search_repo: AtlasSearchRepository,
                  vector_search_repo: VectorSearchRepositoryInterface):
         """
         Initialize Matching service

@@ -373,33 +373,4 @@ class EntitySearchService:
             logger.error(f"Error getting available facets: {e}")
             return {}
     
-    async def get_search_analytics(self) -> Dict[str, Any]:
-        """
-        Get search analytics for admin dashboard
-        
-        Returns:
-            Dictionary containing search analytics data
-        """
-        try:
-            return await self.atlas_search.get_search_analytics()
-            
-        except Exception as e:
-            logger.error(f"Error getting search analytics: {e}")
-            return {"error": str(e)}
     
-    async def get_popular_searches(self, limit: int = 10) -> List[Dict[str, Any]]:
-        """
-        Get most popular search queries
-        
-        Args:
-            limit: Maximum number of popular queries to return
-            
-        Returns:
-            List of popular search queries with counts
-        """
-        try:
-            return await self.atlas_search.get_popular_queries(limit)
-            
-        except Exception as e:
-            logger.error(f"Error getting popular searches: {e}")
-            return []

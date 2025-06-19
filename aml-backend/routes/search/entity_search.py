@@ -43,10 +43,15 @@ class EntitySearchResponse(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
     error: Optional[str] = None
 
+class AutocompleteSuggestion(BaseModel):
+    """Individual autocomplete suggestion with entity ID for navigation"""
+    entityId: str
+    name: str
+
 class AutocompleteResponse(BaseModel):
     """Response model for autocomplete operations"""
     success: bool = True
-    data: Dict[str, List[str]] = Field(default_factory=dict)
+    data: Dict[str, List[AutocompleteSuggestion]] = Field(default_factory=dict)
     metadata: Dict[str, Any] = Field(default_factory=dict)
     error: Optional[str] = None
 
@@ -427,47 +432,6 @@ async def get_search_analytics(
             detail="Internal server error while retrieving analytics"
         )
 
-@router.get("/popular", response_model=EntitySearchResponse)
-async def get_popular_searches(
-    limit: int = Query(10, ge=1, le=50, description="Number of popular queries"),
-    entity_search_service: EntitySearchService = Depends(get_entity_search_service)
-):
-    """
-    Get most popular search queries
-    
-    Returns:
-    - Most frequently searched terms
-    - Search frequency counts
-    - Trending queries
-    
-    Features:
-    - Configurable result limit
-    - Real-time popularity tracking
-    - Useful for search suggestions and UX insights
-    """
-    try:
-        logger.info(f"Getting popular searches: limit={limit}")
-        
-        popular_searches = await entity_search_service.get_popular_searches(limit)
-        
-        metadata = {
-            "query_type": "popular_searches",
-            "limit": limit,
-            "count": len(popular_searches)
-        }
-        
-        return EntitySearchResponse(
-            success=True,
-            data={"popular_queries": popular_searches},
-            metadata=metadata
-        )
-        
-    except Exception as e:
-        logger.error(f"Get popular searches failed: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="Internal server error while retrieving popular searches"
-        )
 
 # ==================== HEALTH CHECK ENDPOINT ====================
 

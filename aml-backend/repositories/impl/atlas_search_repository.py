@@ -6,8 +6,6 @@ Eliminates 89% of unused code while preserving all production functionality.
 """
 
 import logging
-import time
-from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from bson import ObjectId
 from dataclasses import dataclass
@@ -76,12 +74,6 @@ class AtlasSearchRepository:
         self.ai_search = self.repo.ai_search(collection_name)
         self.aggregation = self.repo.aggregation
         
-        # Initialize search analytics tracking
-        self._search_analytics = {
-            "total_searches": 0,
-            "popular_queries": {},
-            "performance_metrics": []
-        }
         
         logger.info(f"Simplified AtlasSearchRepository initialized with index: {self.search_index_name}")
     
@@ -103,10 +95,8 @@ class AtlasSearchRepository:
                        .project({project_field: 1, "_id": 1, "entityId": 1})
                        .build())
             
-            # Execute autocomplete search with timing
-            start_time = time.time()
+            # Execute autocomplete search
             results = await self.repo.execute_pipeline(self.collection_name, pipeline)
-            response_time_ms = round((time.time() - start_time) * 1000)
             
             logger.debug(f"Autocomplete pipeline results count: {len(results)}")
             
@@ -134,8 +124,6 @@ class AtlasSearchRepository:
                     })
                     seen.add(name_value)
             
-            # Track autocomplete analytics
-            self._track_search_analytics(f"autocomplete:{params.query}", len(suggestions), response_time_ms)
             
             logger.debug(f"Extracted {len(suggestions)} suggestions with entity IDs")
             return suggestions[:params.limit]
@@ -214,8 +202,7 @@ class AtlasSearchRepository:
                               )
                               .build())
             
-            # Execute faceted search with timing
-            start_time = time.time()
+            # Execute faceted search
             facet_results = await self.repo.execute_pipeline(self.collection_name, facets_pipeline)
             
             # Get search results using fluent interface (only if there's a query)
@@ -232,9 +219,6 @@ class AtlasSearchRepository:
                 # For wildcard queries, just return empty results with facets
                 search_results = []
             
-            response_time_ms = round((time.time() - start_time) * 1000)
-            # Track faceted search analytics
-            self._track_search_analytics(f"faceted:{query}", len(search_results), response_time_ms)
             
             return {
                 "results": search_results,
@@ -248,96 +232,9 @@ class AtlasSearchRepository:
             logger.error(f"Faceted search failed for query '{query}': {e}")
             return {"results": [], "facets": {}, "query": query, "error": str(e)}
     
-    async def get_search_analytics(self, start_date: Optional[str] = None,
-                                 end_date: Optional[str] = None) -> Dict[str, Any]:
-        """Get search analytics and metrics with real backend timing"""
-        try:
-            return {
-                "total_searches": self._search_analytics["total_searches"],
-                "date_range": {
-                    "start_date": start_date,
-                    "end_date": end_date
-                },
-                "top_queries": list(self._search_analytics["popular_queries"].items())[:10],
-                "average_response_time": self._calculate_average_response_time(),
-                "search_volume_trend": self._get_search_volume_trend()
-            }
-            
-        except Exception as e:
-            logger.error(f"Failed to get search analytics: {e}")
-            return {"error": str(e)}
     
-    async def get_search_performance_metrics(self) -> Dict[str, Any]:
-        """Get search performance metrics with real Atlas Search timing"""
-        try:
-            metrics = self._search_analytics["performance_metrics"]
-            
-            if not metrics:
-                return {
-                    "average_response_time_ms": 0,
-                    "total_queries": 0,
-                    "fastest_query_ms": 0,
-                    "slowest_query_ms": 0
-                }
-            
-            response_times = [m["response_time"] for m in metrics]
-            
-            return {
-                "average_response_time_ms": sum(response_times) / len(response_times),
-                "total_queries": len(metrics),
-                "fastest_query_ms": min(response_times),
-                "slowest_query_ms": max(response_times),
-                "timing_source": "atlas_search_backend"
-            }
-            
-        except Exception as e:
-            logger.error(f"Failed to get performance metrics: {e}")
-            return {"error": str(e)}
     
     # ==================== HELPER METHODS ====================
     
-    def _track_search_analytics(self, query: str, result_count: int, response_time_ms: int = 100):
-        """Track search analytics with real performance timing"""
-        try:
-            self._search_analytics["total_searches"] += 1
-            
-            # Track popular queries
-            if query in self._search_analytics["popular_queries"]:
-                self._search_analytics["popular_queries"][query] += 1
-            else:
-                self._search_analytics["popular_queries"][query] = 1
-            
-            # Track performance with real timing
-            self._search_analytics["performance_metrics"].append({
-                "timestamp": datetime.utcnow(),
-                "query": query,
-                "result_count": result_count,
-                "response_time": response_time_ms  # Real backend timing!
-            })
-            
-            # Keep only recent metrics (last 7 days)
-            cutoff = datetime.utcnow() - timedelta(days=7)
-            self._search_analytics["performance_metrics"] = [
-                m for m in self._search_analytics["performance_metrics"]
-                if m["timestamp"] > cutoff
-            ]
-            
-        except Exception as e:
-            logger.error(f"Failed to track search analytics: {e}")
     
-    def _calculate_average_response_time(self) -> float:
-        """Calculate average response time from real backend metrics"""
-        metrics = self._search_analytics["performance_metrics"]
-        if not metrics:
-            return 0.0
-        
-        return sum(m["response_time"] for m in metrics) / len(metrics)
     
-    def _get_search_volume_trend(self) -> List[Dict[str, Any]]:
-        """Get search volume trend over time"""
-        # Simplified implementation
-        return [
-            {"date": "2024-01-01", "searches": 100},
-            {"date": "2024-01-02", "searches": 150},
-            {"date": "2024-01-03", "searches": 120}
-        ]

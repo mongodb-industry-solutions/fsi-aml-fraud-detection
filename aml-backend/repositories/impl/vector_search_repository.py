@@ -45,6 +45,7 @@ class VectorSearchRepository(VectorSearchRepositoryInterface):
         self.collection_name = collection_name
         self.vector_index_name = vector_index_name
         self.collection = self.repo.collection(collection_name)
+        self.embedding_field = "profileEmbedding"  # Correct embedding field name
         
         # Initialize vector search capabilities
         self.ai_search = self.repo.ai_search(collection_name)
@@ -67,7 +68,7 @@ class VectorSearchRepository(VectorSearchRepositoryInterface):
                 {
                     "$vectorSearch": {
                         "index": self.vector_index_name,
-                        "path": "embedding",
+                        "path": self.embedding_field,
                         "queryVector": params.query_vector,
                         "numCandidates": params.num_candidates,
                         "limit": params.limit
@@ -182,10 +183,10 @@ class VectorSearchRepository(VectorSearchRepositoryInterface):
                 logger.warning(f"No embedding found for entity {entity_id}")
                 return []
             
-            # Add filter to exclude the original entity
+            # Add filter to exclude the original entity (using custom entityId field)
             if filters is None:
                 filters = {}
-            filters["_id"] = {"$ne": ObjectId(entity_id)}
+            filters["entityId"] = {"$ne": entity_id}
             
             # Perform vector search
             return await self.find_similar_by_vector(
@@ -205,7 +206,7 @@ class VectorSearchRepository(VectorSearchRepositoryInterface):
         """Store or update embedding for an entity"""
         try:
             update_data = {
-                "embedding": embedding,
+                self.embedding_field: embedding,
                 "embedding_updated": datetime.utcnow(),
                 "embedding_dimensions": len(embedding)
             }
@@ -214,7 +215,7 @@ class VectorSearchRepository(VectorSearchRepositoryInterface):
                 update_data["embedding_metadata"] = metadata
             
             result = await self.collection.update_one(
-                {"_id": ObjectId(entity_id)},
+                {"entityId": entity_id},
                 {
                     "$set": update_data,
                     "$inc": {"version": 1}
@@ -235,12 +236,12 @@ class VectorSearchRepository(VectorSearchRepositoryInterface):
         """Get embedding for an entity"""
         try:
             result = await self.collection.find_one(
-                {"_id": ObjectId(entity_id)},
-                {"embedding": 1}
+                {"entityId": entity_id},
+                {self.embedding_field: 1}
             )
             
-            if result and "embedding" in result:
-                return result["embedding"]
+            if result and self.embedding_field in result:
+                return result[self.embedding_field]
             
             return None
             
@@ -252,10 +253,10 @@ class VectorSearchRepository(VectorSearchRepositoryInterface):
         """Delete embedding for an entity"""
         try:
             result = await self.collection.update_one(
-                {"_id": ObjectId(entity_id)},
+                {"entityId": entity_id},
                 {
                     "$unset": {
-                        "embedding": "",
+                        self.embedding_field: "",
                         "embedding_updated": "",
                         "embedding_dimensions": "",
                         "embedding_metadata": ""
@@ -414,14 +415,14 @@ class VectorSearchRepository(VectorSearchRepositoryInterface):
                     "$facet": {
                         "total_count": [{"$count": "count"}],
                         "with_embeddings": [
-                            {"$match": {"embedding": {"$exists": True}}},
+                            {"$match": {self.embedding_field: {"$exists": True}}},
                             {"$count": "count"}
                         ],
                         "embedding_info": [
-                            {"$match": {"embedding": {"$exists": True}}},
+                            {"$match": {self.embedding_field: {"$exists": True}}},
                             {
                                 "$project": {
-                                    "embedding_length": {"$size": "$embedding"}
+                                    "embedding_length": {"$size": f"${self.embedding_field}"}
                                 }
                             },
                             {

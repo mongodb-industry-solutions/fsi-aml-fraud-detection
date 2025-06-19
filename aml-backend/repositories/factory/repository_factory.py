@@ -118,7 +118,7 @@ class RepositoryFactory:
             self._repositories["vector_search"] = VectorSearchRepository(
                 mongodb_repo=self.mongodb_repo,
                 collection_name="entities",
-                vector_index_name="entity_vector_search_index"
+                vector_index_name=os.getenv("ENTITY_VECTOR_SEARCH_INDEX", "entity_vector_search_index")
             )
             logger.debug("Created VectorSearchRepository instance")
         
@@ -398,3 +398,60 @@ def cleanup_global_factory() -> None:
         _global_factory.cleanup()
         _global_factory = None
         logger.info("Cleaned up global repository factory")
+
+
+# ==================== FASTAPI DEPENDENCY FUNCTIONS ====================
+
+def get_vector_search_repository() -> VectorSearchRepository:
+    """
+    FastAPI dependency function to get VectorSearchRepository instance
+    
+    Returns:
+        VectorSearchRepository: Configured vector search repository
+    """
+    factory = get_global_repository_factory()
+    return factory.get_vector_search_repository()
+
+
+def get_entity_repository() -> EntityRepository:
+    """
+    FastAPI dependency function to get EntityRepository instance
+    
+    Returns:
+        EntityRepository: Configured entity repository
+    """
+    factory = get_global_repository_factory()
+    return factory.get_entity_repository()
+
+
+def get_atlas_search_repository() -> AtlasSearchRepository:
+    """
+    FastAPI dependency function to get AtlasSearchRepository instance
+    
+    Returns:
+        AtlasSearchRepository: Configured Atlas Search repository
+    """
+    factory = get_global_repository_factory()
+    return factory.get_atlas_search_repository()
+
+
+def get_relationship_repository() -> RelationshipRepository:
+    """
+    FastAPI dependency function to get RelationshipRepository instance
+    
+    Returns:
+        RelationshipRepository: Configured relationship repository
+    """
+    factory = get_global_repository_factory()
+    return factory.get_relationship_repository()
+
+
+def get_network_repository() -> NetworkRepository:
+    """
+    FastAPI dependency function to get NetworkRepository instance
+    
+    Returns:
+        NetworkRepository: Configured network repository
+    """
+    factory = get_global_repository_factory()
+    return factory.get_network_repository()

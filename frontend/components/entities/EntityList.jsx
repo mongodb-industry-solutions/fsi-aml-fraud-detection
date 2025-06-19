@@ -379,7 +379,7 @@ export default function EntityList() {
           <EnhancedSearchBar
             onSearch={handleSearch}
             onQueryChange={handleSearchQueryChange}
-            placeholder="Search entities by name, ID, or identifier..."
+            placeholder="Search entities by name..."
           />
         </div>
       </Card>

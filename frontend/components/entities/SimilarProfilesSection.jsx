@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Card from '@leafygreen-ui/card';
+import ExpandableCard from '@leafygreen-ui/expandable-card';
 import Button from '@leafygreen-ui/button';
 import Banner from '@leafygreen-ui/banner';
 import { Table, TableBody, TableHead, HeaderRow, HeaderCell, Row, Cell } from '@leafygreen-ui/table';
@@ -11,6 +12,7 @@ import Badge from '@leafygreen-ui/badge';
 import Tooltip from '@leafygreen-ui/tooltip';
 import Icon from '@leafygreen-ui/icon';
 import Modal from '@leafygreen-ui/modal';
+import Code from '@leafygreen-ui/code';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 import { amlAPI, useAMLAPIError, amlUtils } from '@/lib/aml-api';
@@ -26,6 +28,8 @@ function SimilarProfilesSection({ entity }) {
   const [searchMetadata, setSearchMetadata] = useState(null);
   const [error, setError] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [showJsonModal, setShowJsonModal] = useState(false);
+  const [showEntityJson, setShowEntityJson] = useState(false);
   
   // Vector search state
   const [vectorSearchLimit, setVectorSearchLimit] = useState(5);
@@ -227,6 +231,96 @@ function SimilarProfilesSection({ entity }) {
             </Table>
           </div>
         )}
+      </Modal>
+
+      {/* MongoDB Document View with ExpandableCard */}
+      <ExpandableCard
+        title={
+          <span style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+            <span style={{ color: palette.blue.base, fontSize: '16px' }}>{ '{' }</span>
+            <span style={{ fontSize: '13px' }}>
+              MongoDB Document 
+            </span>
+            <span style={{ color: palette.blue.base, fontSize: '16px' }}>{ '}' }</span>
+            <Button
+              variant="default"
+              size="small"
+              leftGlyph={<Icon glyph="Fullscreen" />}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowJsonModal(true);
+              }}
+              style={{ marginLeft: 'auto' }}
+            >
+              Fullscreen
+            </Button>
+          </span>
+        }
+        defaultOpen={showEntityJson}
+        onClick={() => setShowEntityJson(!showEntityJson)}
+        contentClassName={styles.expandableContent}
+        style={{ marginTop: spacing[4] }}
+      >
+        <div style={{ maxHeight: '400px', overflow: 'auto' }}>
+          <Code 
+            language="json" 
+            copyable={true}
+            style={{ fontSize: '12px', lineHeight: '1.4' }}
+          >
+            {JSON.stringify(entity, null, 2)}
+          </Code>
+        </div>
+      </ExpandableCard>
+
+      {/* Fullscreen JSON Modal */}
+      <Modal
+        open={showJsonModal}
+        setOpen={setShowJsonModal}
+        size="large"
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing[3] }}>
+          <H2 style={{ margin: 0 }}>
+            <Icon glyph="Code" style={{ marginRight: spacing[2] }} />
+            MongoDB Document Structure
+          </H2>
+          <Body style={{ color: palette.gray.dark1, fontSize: '12px' }}>
+            Entity ID: {entity?.entityId}
+          </Body>
+        </div>
+        
+        <div style={{ 
+          maxHeight: '70vh', 
+          overflow: 'auto',
+          border: `1px solid ${palette.gray.light2}`,
+          borderRadius: '6px',
+          backgroundColor: palette.gray.light3
+        }}>
+          <Code 
+            language="json" 
+            copyable={true}
+            style={{ 
+              fontSize: '13px', 
+              lineHeight: '1.5',
+              margin: 0
+            }}
+          >
+            {JSON.stringify(entity, null, 2)}
+          </Code>
+        </div>
+
+        <div style={{ 
+          marginTop: spacing[3], 
+          padding: spacing[2], 
+          backgroundColor: palette.blue.light3, 
+          borderRadius: '6px',
+          border: `1px solid ${palette.blue.light2}`
+        }}>
+          <Body style={{ fontSize: '12px', color: palette.blue.dark2 }}>
+            <Icon glyph="InfoWithCircle" style={{ marginRight: spacing[1] }} />
+            This shows the complete MongoDB document structure as stored in the database, 
+            including all fields, nested objects, and metadata.
+          </Body>
+        </div>
       </Modal>
 
     </Card>

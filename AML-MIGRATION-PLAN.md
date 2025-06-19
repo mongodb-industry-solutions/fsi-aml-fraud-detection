@@ -3262,3 +3262,95 @@ With API endpoints validated and working, proceed to:
 - ✅ Ready for frontend integration
 
 **Ready for Stage 3 Implementation!** 🚀
+
+
+# Vector Search Migration to Repository Pattern
+
+## Analysis of Current State (Entity Similar Profiles)
+
+### Current Architecture Issues:
+1. **Complex Service Layer**: VectorSearchService returns SearchResponse which doesn't match API expectations
+2. **Model Mismatch**: VectorSearchByEntityRequest missing filters field but API tries to access it
+3. **Legacy Models**: Using old vector search models instead of clean repository interface
+4. **Multiple Response Formats**: API returns VectorSearchResponse but frontend expects different structure
+
+### Clean Repository Interface Available:
+- VectorSearchRepository.find_similar_by_entity_id(entity_id, limit, filters) 
+- Returns List[Dict[str, Any]] with entity data + similarity_score
+- Simple, clean, and exactly what we need
+
+### Frontend Requirements:
+- POST /search/vector/find_similar_by_entity with {entity_id, limit, filters}
+- Expects response: {similar_entities: [...], search_metadata: {...}}
+
+## Migration Strategy: Direct Repository Usage
+
+**Approach**: Remove complex service layer, use repository directly in API endpoint for clean, simple implementation.
+
+### Changes Made:
+
+#### Step 1: Create Clean Vector Search Models
+
+
+#### 1.1 - Created Clean Vector Search Models ✅
+- Created models/api/vector_search.py with SimilarEntitiesRequest/Response  
+- Models match frontend expectations exactly
+- Removed old models/vector_search.py (legacy models deleted)
+
+#### 1.2 - Streamlined Vector Search API Endpoint ✅
+- Updated routes/search/vector_search.py to use repository directly
+- Removed complex service layer abstraction
+- Simple flow: Request → Repository → Response transformation
+- Removed all legacy endpoints (find_similar_by_text, stats, demo)
+- Clean dependency injection using repository factory
+
+#### 1.3 - Added Repository Factory Dependencies ✅
+- Enhanced repository_factory.py with FastAPI dependency functions
+- get_vector_search_repository() function for clean DI
+- Global factory pattern for consistent repository instances
+
+
+### Issue Identified: Entity ID Format Mismatch ❌
+
+**Problem**: Repository assumes entity IDs are MongoDB ObjectIds but they're custom strings
+- Entity ID: 'INC0-7FB68E2DDE' 
+- Error: 'INC0-7FB68E2DDE' is not a valid ObjectId
+- Repository trying: ObjectId(entity_id) in find_one queries
+
+**Root Cause**: VectorSearchRepository.get_embedding() uses ObjectId conversion
+**Solution**: Fix repository to handle custom entity ID format correctly
+
+### Step 2: Fix Repository Entity ID Handling ✅
+
+**Problem Fixed**: Repository methods updated to handle custom entity ID format
+- Changed all MongoDB queries from `{"_id": ObjectId(entity_id)}` to `{"entityId": entity_id}`
+- Updated methods: get_embedding(), find_similar_by_entity_id(), store_embedding(), delete_embedding()
+- Repository now properly queries entities using their custom string IDs stored in entityId field
+
+**Migration Complete**: Vector search similar profiles functionality now uses clean repository pattern without legacy compatibility. Ready for testing.
+
+### Step 3: Fix Embedding Field Name ✅
+
+**Problem Fixed**: Repository was using wrong embedding field name
+- Changed from `"embedding"` to `"profileEmbedding"` (actual field in entities collection)
+- Updated vector search pipeline to use correct path in $vectorSearch
+- Updated repository factory to use `ENTITY_VECTOR_SEARCH_INDEX` from environment
+- Updated embedding statistics pipeline for correct field
+
+**Testing Results**: ✅ SUCCESSFUL
+- API returns 2 similar entities with similarity scores (0.79, 0.78)
+- Vector search executes in ~5 seconds using cosine similarity  
+- Response format matches frontend expectations exactly
+- Clean repository pattern confirmed working
+
+## ✅ VECTOR SEARCH MIGRATION FULLY COMPLETE
+
+**Final Status**: Entity detail page "find similar profiles" functionality successfully migrated to clean repository pattern
+- ✅ No legacy API dependencies
+- ✅ Direct repository usage without service layer abstraction  
+- ✅ Clean models matching frontend expectations
+- ✅ Proper vector index and embedding field usage
+- ✅ Fast, working vector similarity search
+
+**Architecture Achieved**: API Route → Repository → MongoDB Vector Search (no legacy compatibility layers)
+

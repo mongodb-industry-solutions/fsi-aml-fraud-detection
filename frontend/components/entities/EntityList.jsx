@@ -238,13 +238,10 @@ export default function EntityList() {
   
   // MongoDB Insights State
   const [autocompleteActive, setAutocompleteActive] = useState(false);
-  const [lastApiCall, setLastApiCall] = useState(null);
-  const [searchResponseTime, setSearchResponseTime] = useState(null);
   const autocompleteTimeoutRef = useRef(null);
 
   // Load entities using unified search API for all cases (replaces dual API approach)
   const loadEntities = async (page = 1, searchQuery = '', filters = {}) => {
-    const startTime = performance.now();
     try {
       setLoading(true);
       setError(null);
@@ -289,47 +286,11 @@ export default function EntityList() {
       setHasNext(resultData.has_next || false);
       setHasPrevious(resultData.has_previous || false);
 
-      // Fetch real backend analytics instead of frontend timing
-      try {
-        const analyticsResponse = await fetch('http://localhost:8001/entities/search/analytics');
-        if (analyticsResponse.ok) {
-          const analyticsData = await analyticsResponse.json();
-          const backendMetrics = analyticsData.data?.backend_performance;
-          
-          if (backendMetrics) {
-            setSearchResponseTime(Math.round(backendMetrics.average_response_time_ms || 0));
-            setLastApiCall({
-              timestamp: new Date(),
-              query: searchQuery,
-              filters: filters,
-              responseTime: Math.round(backendMetrics.average_response_time_ms || 0),
-              resultCount: results.length,
-              timingSource: 'atlas_search_backend'
-            });
-          }
-        }
-      } catch (analyticsError) {
-        console.warn('Failed to fetch backend analytics:', analyticsError);
-        // Fallback to frontend timing if backend analytics fail
-        const endTime = performance.now();
-        const responseTime = Math.round(endTime - startTime);
-        setSearchResponseTime(responseTime);
-        setLastApiCall({
-          timestamp: new Date(),
-          query: searchQuery,
-          filters: filters,
-          responseTime: responseTime,
-          resultCount: results.length,
-          timingSource: 'frontend_fallback'
-        });
-      }
-
     } catch (error) {
       const errorMessage = handleError(error);
       setError(errorMessage);
       setEntities([]);
       setTotalCount(0);
-      setSearchResponseTime(null);
     } finally {
       setLoading(false);
     }
@@ -424,20 +385,20 @@ export default function EntityList() {
       </Card>
 
       {/* Advanced Faceted Filters */}
-      <AdvancedFacetedFilters
-        onFiltersChange={handleFiltersChange}
-        initialFilters={filters}
-        loading={loading}
-      />
+      <div style={{ marginBottom: spacing[4] }}>
+        <AdvancedFacetedFilters
+          onFiltersChange={handleFiltersChange}
+          initialFilters={filters}
+          loading={loading}
+        />
+      </div>
 
       {/* MongoDB Atlas Search Insights Panel */}
       <MongoDBInsightsPanel
         searchQuery={searchQuery}
         activeFilters={filters}
         facetCounts={facets}
-        lastApiCall={lastApiCall}
         autocompleteActive={autocompleteActive}
-        searchResponseTime={searchResponseTime}
       />
       
       <div style={{ marginBottom: spacing[4] }}></div>

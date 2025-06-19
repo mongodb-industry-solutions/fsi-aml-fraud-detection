@@ -23,9 +23,7 @@ export default function MongoDBInsightsPanel({
   searchQuery,
   activeFilters,
   facetCounts,
-  lastApiCall,
-  autocompleteActive = false,
-  searchResponseTime = null
+  autocompleteActive = false
 }) {
   const [expandedSections, setExpandedSections] = useState({
     autocomplete: false,
@@ -201,26 +199,6 @@ export default function MongoDBInsightsPanel({
             </Body>
           </div>
 
-          {searchResponseTime && (
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: spacing[1],
-              padding: `${spacing[1]}px ${spacing[2]}px`,
-              backgroundColor: palette.yellow.light2,
-              borderRadius: '16px',
-              border: `1px solid ${palette.yellow.base}`
-            }}>
-              <Icon glyph="Clock" size={14} fill={palette.yellow.dark2} />
-              <Body style={{ 
-                fontSize: '12px', 
-                fontWeight: '600',
-                color: palette.yellow.dark2 
-              }}>
-                {searchResponseTime}ms
-              </Body>
-            </div>
-          )}
         </div>
 
         {/* Autocomplete Insights */}

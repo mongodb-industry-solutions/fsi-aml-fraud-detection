@@ -172,13 +172,6 @@ export default function EnhancedSearchBar({
         value={query}
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
-        rightGlyph={
-          loading ? (
-            <Icon glyph="Refresh" size={16} fill={palette.gray.base} />
-          ) : (
-            <Icon glyph="MagnifyingGlass" size={16} fill={palette.gray.base} />
-          )
-        }
         style={{ width: '100%' }}
       />
 

@@ -12,40 +12,29 @@ from pydantic import BaseModel, Field
 
 
 class RelationshipType(str, Enum):
-    """Enumeration of relationship types"""
+    """Network relationship types based on the relationships collection schema"""
     
-    # Family relationships
-    FAMILY_MEMBER = "family_member"
-    SPOUSE = "spouse"
-    PARENT = "parent"
-    CHILD = "child"
-    SIBLING = "sibling"
+    # Entity resolution relationships
+    CONFIRMED_SAME_ENTITY = "confirmed_same_entity"
+    POTENTIAL_DUPLICATE = "potential_duplicate"
     
-    # Business relationships
-    BUSINESS_PARTNER = "business_partner"
-    EMPLOYER = "employer"
-    EMPLOYEE = "employee"
-    DIRECTOR = "director"
-    SHAREHOLDER = "shareholder"
+    # Corporate structure relationships
+    DIRECTOR_OF = "director_of"
+    UBO_OF = "ubo_of"
+    PARENT_OF_SUBSIDIARY = "parent_of_subsidiary"
+    SHAREHOLDER_OF = "shareholder_of"
     
-    # Financial relationships
-    BENEFICIAL_OWNER = "beneficial_owner"
-    ACCOUNT_HOLDER = "account_holder"
-    SIGNATORY = "signatory"
-    GUARANTOR = "guarantor"
+    # Household and personal relationships
+    HOUSEHOLD_MEMBER = "household_member"
     
-    # Address relationships
-    SHARED_ADDRESS = "shared_address"
-    PREVIOUS_ADDRESS = "previous_address"
+    # High-risk network relationships
+    BUSINESS_ASSOCIATE_SUSPECTED = "business_associate_suspected"
+    POTENTIAL_BENEFICIAL_OWNER_OF = "potential_beneficial_owner_of"
+    TRANSACTIONAL_COUNTERPARTY_HIGH_RISK = "transactional_counterparty_high_risk"
     
-    # Contact relationships
-    SHARED_CONTACT = "shared_contact"
-    AUTHORIZED_REPRESENTATIVE = "authorized_representative"
-    
-    # Generic relationships
-    ASSOCIATED_WITH = "associated_with"
-    RELATED_TO = "related_to"
-    UNKNOWN = "unknown"
+    # Public/social relationships
+    PROFESSIONAL_COLLEAGUE_PUBLIC = "professional_colleague_public"
+    SOCIAL_MEDIA_CONNECTION_PUBLIC = "social_media_connection_public"
 
 
 class RelationshipDirection(str, Enum):
@@ -67,21 +56,11 @@ class RelationshipStatus(str, Enum):
 
 
 class RelationshipEvidence(BaseModel):
-    """Evidence supporting a relationship"""
+    """Evidence supporting a relationship based on network plan schema"""
     
-    evidence_type: str
-    evidence_value: Any
-    confidence: float = Field(ge=0.0, le=1.0)
-    source: str
-    
-    # Temporal information
-    discovered_date: datetime = Field(default_factory=datetime.utcnow)
-    evidence_date: Optional[datetime] = None
-    
-    # Verification
-    verified: bool = False
-    verified_by: Optional[str] = None
-    verification_date: Optional[datetime] = None
+    type: str  # "attribute_match", "company_registry_simulated", etc.
+    description: str
+    source: str  # Source of the evidence
     
     class Config:
         json_encoders = {
@@ -90,11 +69,10 @@ class RelationshipEvidence(BaseModel):
 
 
 class EntityReference(BaseModel):
-    """Reference to an entity in a relationship"""
+    """Reference to an entity in a network relationship"""
     
-    entity_id: str
-    entity_type: Optional[str] = None
-    name: Optional[str] = None
+    entityId: str
+    entityType: str  # "individual" or "organization"
     
     class Config:
         json_encoders = {
@@ -102,42 +80,30 @@ class EntityReference(BaseModel):
         }
 
 
-class Relationship(BaseModel):
-    """Core relationship model"""
+class NetworkRelationship(BaseModel):
+    """Network relationship model matching the relationships collection schema"""
     
-    relationship_id: str
-    source_entity: EntityReference
-    target_entity: EntityReference
-    relationship_type: RelationshipType
+    relationshipId: str  # "REL" + random characters
+    source: EntityReference
+    target: EntityReference
+    type: RelationshipType
     
-    # Relationship attributes
+    # Relationship properties
     direction: RelationshipDirection = RelationshipDirection.BIDIRECTIONAL
-    strength: float = Field(ge=0.0, le=1.0, default=0.5)
-    confidence: float = Field(ge=0.0, le=1.0, default=0.5)
+    strength: float = Field(ge=0.0, le=1.0)
+    confidence: float = Field(ge=0.0, le=1.0)
     
-    # Status and lifecycle
-    status: RelationshipStatus = RelationshipStatus.ACTIVE
-    created_date: datetime = Field(default_factory=datetime.utcnow)
-    updated_date: datetime = Field(default_factory=datetime.utcnow)
-    
-    # Evidence and verification
-    evidence: List[RelationshipEvidence] = Field(default_factory=list)
-    evidence_count: int = 0
+    # Status flags
+    active: bool = True
     verified: bool = False
     
-    # Metadata
-    description: Optional[str] = None
-    notes: Optional[str] = None
-    tags: List[str] = Field(default_factory=list)
+    # Evidence and data lineage
+    evidence: List[RelationshipEvidence] = Field(default_factory=list)
+    datasource: str
     
-    # Risk and compliance
-    risk_impact: Optional[float] = None
-    compliance_flags: List[str] = Field(default_factory=list)
-    
-    # Data lineage
-    data_source: Optional[str] = None
-    created_by: Optional[str] = None
-    updated_by: Optional[str] = None
+    # Temporal validity (optional)
+    validFrom: Optional[datetime] = None
+    validTo: Optional[datetime] = None
     
     class Config:
         json_encoders = {
@@ -145,16 +111,17 @@ class Relationship(BaseModel):
         }
 
 
-class RelationshipSummary(BaseModel):
-    """Summary view of a relationship"""
+class NetworkRelationshipSummary(BaseModel):
+    """Summary view of a network relationship"""
     
-    relationship_id: str
-    relationship_type: RelationshipType
-    source_entity_id: str
-    target_entity_id: str
+    relationshipId: str
+    type: RelationshipType
+    source: EntityReference
+    target: EntityReference
     strength: float
     confidence: float
-    status: RelationshipStatus
+    active: bool
+    verified: bool
     evidence_count: int
     
     class Config:
@@ -163,11 +130,11 @@ class RelationshipSummary(BaseModel):
         }
 
 
-class RelationshipNetwork(BaseModel):
-    """Network of relationships for an entity"""
+class EntityNetwork(BaseModel):
+    """Network graph for an entity using $graphLookup results"""
     
     center_entity_id: str
-    relationships: List[Relationship]
+    relationships: List[NetworkRelationship]
     total_relationships: int
     relationship_types: List[RelationshipType]
     
@@ -175,6 +142,7 @@ class RelationshipNetwork(BaseModel):
     average_strength: float = 0.0
     average_confidence: float = 0.0
     verified_count: int = 0
+    max_depth_reached: int = 1
     
     class Config:
         json_encoders = {

@@ -1,1037 +1,535 @@
 """
-Network Analysis Service - Refactored to use repository pattern
+Network Analysis Service - Comprehensive graph analysis and relationship insights
 
-Clean service focused on business logic for network analysis and graph visualization,
-using NetworkRepository for all data access and graph operations.
+Provides advanced network analysis capabilities using $graphLookup operations,
+relationship pattern detection, and risk assessment through network topology.
 """
 
 import logging
-from typing import List, Dict, Any, Optional, Set
+from typing import Dict, List, Optional, Any, Set, Tuple
 from datetime import datetime
+import asyncio
 
-from repositories.interfaces.network_repository import NetworkRepositoryInterface, NetworkQueryParams, NetworkDataResponse
-from models.api.requests import NetworkRequest, EntityNetworkRequest
-from models.api.responses import StandardResponse, NetworkResponse
-from models.core.network import NetworkNode, NetworkEdge, RelationshipType
+from repositories.impl.network_relationship_repository import NetworkRelationshipRepository
+from repositories.interfaces.entity_repository import EntityRepositoryInterface
+from models.core.relationship import (
+    RelationshipType, NetworkRelationship, EntityNetwork, 
+    EntityReference, NetworkRelationshipSummary
+)
 
 logger = logging.getLogger(__name__)
 
 
 class NetworkAnalysisService:
     """
-    Network Analysis service using repository pattern
+    Advanced network analysis service for relationship graphs
     
-    Focuses on business logic for network analysis, graph building, and visualization
-    while delegating all data access to NetworkRepository.
+    Provides comprehensive graph analysis including:
+    - Multi-hop entity relationship discovery
+    - Network risk assessment
+    - Pattern detection and clustering
+    - Shortest path analysis
+    - Network topology insights
     """
     
-    def __init__(self, network_repo: NetworkRepositoryInterface):
+    def __init__(self, 
+                 network_repo: NetworkRelationshipRepository,
+                 entity_repo: EntityRepositoryInterface):
         """
-        Initialize Network Analysis service
+        Initialize network analysis service
         
         Args:
-            network_repo: NetworkRepository for graph data access
+            network_repo: Network relationship repository
+            entity_repo: Entity repository for entity details
         """
         self.network_repo = network_repo
+        self.entity_repo = entity_repo
         
-        # Business logic configuration
-        self.default_max_depth = 2
-        self.default_max_entities = 100
-        self.default_confidence_threshold = 0.5
-        self.visualization_node_limit = 150
-        
-        # Risk color mapping for visualization
-        self.risk_colors = {
-            'critical': '#DC2626',  # Red
-            'high': '#EA580C',      # Orange
-            'medium': '#F59E0B',    # Amber  
-            'low': '#16A34A',       # Green
-            'unknown': '#6B7280'    # Gray
+        # Analysis configuration
+        self.max_network_depth = 4
+        self.min_confidence_threshold = 0.3
+        self.risk_weight_factors = {
+            "transactional_counterparty_high_risk": 0.9,
+            "business_associate_suspected": 0.7,
+            "potential_beneficial_owner_of": 0.8,
+            "confirmed_same_entity": 0.95,
+            "director_of": 0.6,
+            "shareholder_of": 0.5
         }
         
-        # Relationship type colors for edges
-        self.relationship_colors = {
-            RelationshipType.SAME_ENTITY: '#16A34A',           # Green
-            RelationshipType.POTENTIAL_DUPLICATE: '#F59E0B',   # Amber
-            RelationshipType.BUSINESS_ASSOCIATE: '#3B82F6',    # Blue
-            RelationshipType.FAMILY_MEMBER: '#8B5CF6',         # Purple
-            RelationshipType.SHARED_ADDRESS: '#06B6D4',        # Cyan
-            RelationshipType.SHARED_IDENTIFIER: '#EF4444',     # Red
-            RelationshipType.TRANSACTION_COUNTERPARTY: '#F97316', # Orange
-            RelationshipType.CORPORATE_STRUCTURE: '#64748B',   # Slate
-            RelationshipType.UNKNOWN: '#9CA3AF'                # Gray
-        }
-        
-        logger.info("Network Analysis service initialized with repository pattern")
+        logger.info("Network Analysis Service initialized")
     
-    # ==================== NETWORK BUILDING OPERATIONS ====================
+    # ==================== COMPREHENSIVE NETWORK ANALYSIS ====================
     
-    async def build_entity_network(self, request: EntityNetworkRequest) -> NetworkResponse:
+    async def analyze_entity_network(self, entity_id: str, 
+                                   analysis_depth: int = 3,
+                                   include_risk_assessment: bool = True) -> Dict[str, Any]:
         """
-        Build a network graph for an entity
+        Comprehensive entity network analysis
         
         Args:
-            request: Network building request
+            entity_id: Starting entity ID
+            analysis_depth: Maximum traversal depth
+            include_risk_assessment: Include risk scoring
             
         Returns:
-            NetworkResponse: Network data with nodes and edges
+            Dict: Complete network analysis results
         """
         start_time = datetime.utcnow()
         
         try:
-            logger.info(f"Building network for entity {request.entity_id} with depth {request.max_depth}")
+            logger.info(f"Starting comprehensive network analysis for entity {entity_id}")
             
-            # Prepare network query parameters
-            query_params = NetworkQueryParams(
-                center_entity_id=request.entity_id,
-                max_depth=request.max_depth or self.default_max_depth,
-                relationship_types=request.relationship_types,
-                min_confidence=request.min_confidence or self.default_confidence_threshold,
-                only_verified=request.only_verified or False,
-                include_entity_types=request.include_entity_types,
-                exclude_entity_types=request.exclude_entity_types,
-                max_entities=min(request.max_entities or self.default_max_entities, self.visualization_node_limit),
-                max_relationships=request.max_relationships or 500
-            )
-            
-            # Build network through repository
-            network_data = await self.network_repo.build_entity_network(query_params)
-            
-            # Process and enhance network for visualization
-            enhanced_network = await self._enhance_network_for_visualization(
-                network_data, request.layout_algorithm
-            )
-            
-            # Calculate network statistics
-            network_stats = await self._calculate_network_statistics(enhanced_network)
-            
-            processing_time = (datetime.utcnow() - start_time).total_seconds() * 1000
-            
-            logger.info(f"Built network with {len(enhanced_network.nodes)} nodes and {len(enhanced_network.edges)} edges in {processing_time:.2f}ms")
-            
-            return NetworkResponse(
-                success=True,
-                network_data=enhanced_network,
-                statistics=network_stats,
-                metadata={
-                    "processing_time_ms": processing_time,
-                    "query_parameters": query_params.__dict__,
-                    "visualization_optimized": True
-                }
-            )
-            
-        except Exception as e:
-            logger.error(f"Network building failed for entity {request.entity_id}: {e}")
-            
-            processing_time = (datetime.utcnow() - start_time).total_seconds() * 1000
-            return NetworkResponse(
-                success=False,
-                network_data=None,
-                error_message=f"Failed to build network: {str(e)}",
-                metadata={"processing_time_ms": processing_time}
-            )
-    
-    async def get_entity_connections(self, entity_id: str,
-                                   max_depth: Optional[int] = None,
-                                   relationship_types: Optional[List[RelationshipType]] = None,
-                                   min_confidence: Optional[float] = None) -> Dict[str, Any]:
-        """
-        Get direct connections for an entity
-        
-        Args:
-            entity_id: Entity ID to get connections for
-            max_depth: Maximum relationship depth
-            relationship_types: Filter by relationship types
-            min_confidence: Minimum confidence threshold
-            
-        Returns:
-            Dict: Entity connections data
-        """
-        try:
-            logger.info(f"Getting connections for entity {entity_id}")
-            
-            # Get connections through repository
-            connections = await self.network_repo.get_entity_connections(
+            # Build the entity network
+            entity_network = await self.network_repo.build_entity_network(
                 entity_id=entity_id,
-                max_depth=max_depth or 1,
-                relationship_types=relationship_types,
-                min_confidence=min_confidence
+                max_depth=analysis_depth,
+                min_confidence=self.min_confidence_threshold
             )
             
-            # Process connections for analysis
-            connection_analysis = await self._analyze_entity_connections(connections, entity_id)
+            # Perform parallel analysis tasks
+            analysis_tasks = [
+                self._analyze_network_topology(entity_network),
+                self._detect_relationship_patterns(entity_network),
+                self._calculate_centrality_metrics(entity_id, entity_network),
+                self._identify_high_risk_connections(entity_network)
+            ]
             
-            return {
-                "success": True,
+            if include_risk_assessment:
+                analysis_tasks.append(self._assess_network_risk(entity_network))
+            
+            # Execute all analysis tasks in parallel
+            results = await asyncio.gather(*analysis_tasks, return_exceptions=True)
+            
+            # Combine results
+            topology_analysis = results[0] if len(results) > 0 and not isinstance(results[0], Exception) else {}
+            pattern_analysis = results[1] if len(results) > 1 and not isinstance(results[1], Exception) else {}
+            centrality_analysis = results[2] if len(results) > 2 and not isinstance(results[2], Exception) else {}
+            risk_connections = results[3] if len(results) > 3 and not isinstance(results[3], Exception) else {}
+            risk_assessment = results[4] if len(results) > 4 and not isinstance(results[4], Exception) else {}
+            
+            processing_time = (datetime.utcnow() - start_time).total_seconds() * 1000
+            
+            comprehensive_analysis = {
                 "entity_id": entity_id,
-                "total_connections": len(connections),
-                "connections": connections,
-                "analysis": connection_analysis
+                "analysis_timestamp": datetime.utcnow().isoformat(),
+                "processing_time_ms": processing_time,
+                
+                # Core network data
+                "network": {
+                    "total_relationships": entity_network.total_relationships,
+                    "relationship_types": [rt.value for rt in entity_network.relationship_types],
+                    "average_strength": entity_network.average_strength,
+                    "average_confidence": entity_network.average_confidence,
+                    "verified_count": entity_network.verified_count,
+                    "max_depth_reached": entity_network.max_depth_reached
+                },
+                
+                # Analysis results
+                "topology": topology_analysis,
+                "patterns": pattern_analysis,
+                "centrality": centrality_analysis,
+                "risk_connections": risk_connections,
+                "risk_assessment": risk_assessment,
+                
+                # Recommendations
+                "recommendations": await self._generate_analysis_recommendations(
+                    entity_network, topology_analysis, pattern_analysis, risk_assessment
+                )
             }
+            
+            logger.info(f"Completed network analysis for {entity_id} in {processing_time:.2f}ms")
+            return comprehensive_analysis
             
         except Exception as e:
-            logger.error(f"Failed to get entity connections for {entity_id}: {e}")
+            logger.error(f"Network analysis failed for entity {entity_id}: {e}")
             return {
-                "success": False,
                 "entity_id": entity_id,
-                "error": str(e)
+                "error": str(e),
+                "analysis_timestamp": datetime.utcnow().isoformat()
             }
     
-    async def find_relationship_path(self, source_entity_id: str, target_entity_id: str,
-                                   max_depth: Optional[int] = None,
-                                   relationship_types: Optional[List[RelationshipType]] = None) -> Dict[str, Any]:
+    async def find_connection_paths(self, source_entity_id: str, 
+                                  target_entity_id: str,
+                                  max_depth: int = 6) -> Dict[str, Any]:
         """
-        Find path between two entities through relationships
+        Find and analyze connection paths between two entities
         
         Args:
             source_entity_id: Starting entity ID
             target_entity_id: Target entity ID
             max_depth: Maximum path length
-            relationship_types: Allowed relationship types
             
         Returns:
-            Dict: Relationship path data
+            Dict: Connection path analysis
         """
         try:
-            logger.info(f"Finding path from {source_entity_id} to {target_entity_id}")
+            logger.info(f"Finding connection paths from {source_entity_id} to {target_entity_id}")
             
-            # Find path through repository
-            path = await self.network_repo.find_relationship_path(
-                source_entity_id=source_entity_id,
-                target_entity_id=target_entity_id,
-                max_depth=max_depth or 6,
-                relationship_types=relationship_types
+            # Find shortest path
+            shortest_path = await self.network_repo.find_shortest_path(
+                source_entity_id, target_entity_id, max_depth
             )
             
-            if not path:
-                return {
-                    "success": True,
-                    "path_found": False,
-                    "source_entity_id": source_entity_id,
-                    "target_entity_id": target_entity_id,
-                    "message": "No relationship path found"
+            # Analyze path characteristics
+            path_analysis = {
+                "source_entity_id": source_entity_id,
+                "target_entity_id": target_entity_id,
+                "path_found": shortest_path is not None,
+                "path_length": len(shortest_path) if shortest_path else 0,
+                "path_details": [],
+                "risk_score": 0.0,
+                "connection_strength": 0.0
+            }
+            
+            if shortest_path:
+                # Analyze each relationship in the path
+                total_strength = 0.0
+                total_risk = 0.0
+                
+                for i, relationship in enumerate(shortest_path):
+                    rel_strength = relationship.get("strength", 0.0)
+                    rel_confidence = relationship.get("confidence", 0.0)
+                    rel_type = relationship.get("type", "unknown")
+                    
+                    # Calculate risk weight for this relationship type
+                    risk_weight = self.risk_weight_factors.get(rel_type, 0.3)
+                    
+                    total_strength += rel_strength
+                    total_risk += risk_weight
+                    
+                    path_details = {
+                        "step": i + 1,
+                        "relationship_type": rel_type,
+                        "strength": rel_strength,
+                        "confidence": rel_confidence,
+                        "risk_weight": risk_weight,
+                        "source_entity": relationship.get("source", {}),
+                        "target_entity": relationship.get("target", {}),
+                        "verified": relationship.get("verified", False)
+                    }
+                    
+                    path_analysis["path_details"].append(path_details)
+                
+                # Calculate aggregate metrics
+                path_analysis["connection_strength"] = total_strength / len(shortest_path)
+                path_analysis["risk_score"] = total_risk / len(shortest_path)
+                path_analysis["path_confidence"] = min(rel.get("confidence", 0.0) for rel in shortest_path)
+            
+            return path_analysis
+            
+        except Exception as e:
+            logger.error(f"Failed to find connection paths: {e}")
+            return {
+                "source_entity_id": source_entity_id,
+                "target_entity_id": target_entity_id,
+                "error": str(e)
+            }
+    
+    async def detect_network_clusters(self, min_cluster_size: int = 3) -> Dict[str, Any]:
+        """
+        Detect clusters of highly connected entities
+        
+        Args:
+            min_cluster_size: Minimum entities in a cluster
+            
+        Returns:
+            Dict: Cluster analysis results
+        """
+        try:
+            logger.info(f"Detecting network clusters with minimum size {min_cluster_size}")
+            
+            clusters = await self.network_repo.detect_relationship_clusters(min_cluster_size)
+            
+            # Analyze each cluster
+            cluster_analysis = []
+            
+            for i, cluster_entities in enumerate(clusters):
+                cluster_info = {
+                    "cluster_id": f"cluster_{i+1}",
+                    "entity_count": len(cluster_entities),
+                    "entities": cluster_entities,
+                    "cluster_metrics": await self._analyze_cluster_metrics(cluster_entities),
+                    "risk_indicators": await self._identify_cluster_risks(cluster_entities)
                 }
-            
-            # Analyze path strength and confidence
-            path_analysis = await self._analyze_relationship_path(path)
+                
+                cluster_analysis.append(cluster_info)
             
             return {
-                "success": True,
-                "path_found": True,
-                "source_entity_id": source_entity_id,
-                "target_entity_id": target_entity_id,
-                "path": path,
-                "analysis": path_analysis
+                "total_clusters": len(clusters),
+                "cluster_analysis": cluster_analysis,
+                "analysis_timestamp": datetime.utcnow().isoformat()
             }
             
         except Exception as e:
-            logger.error(f"Path finding failed from {source_entity_id} to {target_entity_id}: {e}")
-            return {
-                "success": False,
-                "source_entity_id": source_entity_id,
-                "target_entity_id": target_entity_id,
-                "error": str(e)
-            }
+            logger.error(f"Failed to detect network clusters: {e}")
+            return {"error": str(e)}
     
-    # ==================== NETWORK ANALYSIS OPERATIONS ====================
+    # ==================== RISK ASSESSMENT AND PATTERN DETECTION ====================
     
-    async def analyze_network_centrality(self, entity_ids: List[str]) -> Dict[str, Any]:
+    async def assess_entity_risk_through_network(self, entity_id: str) -> Dict[str, Any]:
         """
-        Calculate centrality metrics for entities in a network
+        Assess entity risk based on network topology and connections
         
         Args:
-            entity_ids: List of entity IDs to analyze
+            entity_id: Entity ID to assess
             
         Returns:
-            Dict: Centrality analysis results
+            Dict: Risk assessment results
         """
         try:
-            logger.info(f"Analyzing centrality for {len(entity_ids)} entities")
+            logger.info(f"Assessing network-based risk for entity {entity_id}")
             
-            # Calculate centrality metrics through repository
-            centrality_metrics = await self.network_repo.calculate_centrality_metrics(entity_ids)
-            
-            # Identify key entities based on centrality
-            key_entities = await self._identify_key_entities(centrality_metrics)
-            
-            # Generate insights from centrality analysis
-            insights = await self._generate_centrality_insights(centrality_metrics)
-            
-            return {
-                "success": True,
-                "total_entities": len(entity_ids),
-                "centrality_metrics": centrality_metrics,
-                "key_entities": key_entities,
-                "insights": insights
-            }
-            
-        except Exception as e:
-            logger.error(f"Centrality analysis failed: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-    
-    async def detect_network_communities(self, entity_ids: List[str],
-                                       min_community_size: Optional[int] = None,
-                                       resolution: Optional[float] = None) -> Dict[str, Any]:
-        """
-        Detect communities within entity network
-        
-        Args:
-            entity_ids: List of entity IDs to analyze
-            min_community_size: Minimum entities per community
-            resolution: Community detection resolution parameter
-            
-        Returns:
-            Dict: Community detection results
-        """
-        try:
-            logger.info(f"Detecting communities in network of {len(entity_ids)} entities")
-            
-            # Detect communities through repository
-            communities = await self.network_repo.detect_communities(
-                entity_ids=entity_ids,
-                min_community_size=min_community_size or 3,
-                resolution=resolution or 1.0
-            )
-            
-            # Analyze communities for insights
-            community_analysis = await self._analyze_communities(communities)
-            
-            return {
-                "success": True,
-                "total_entities": len(entity_ids),
-                "total_communities": len(communities),
-                "communities": communities,
-                "analysis": community_analysis
-            }
-            
-        except Exception as e:
-            logger.error(f"Community detection failed: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-    
-    async def calculate_network_risk_score(self, entity_id: str,
-                                         analysis_depth: Optional[int] = None) -> Dict[str, Any]:
-        """
-        Calculate network-based risk score for an entity
-        
-        Args:
-            entity_id: Entity to analyze
-            analysis_depth: Depth of network analysis
-            
-        Returns:
-            Dict: Network risk analysis results
-        """
-        try:
-            logger.info(f"Calculating network risk for entity {entity_id}")
-            
-            # Calculate network risk through repository
-            risk_analysis = await self.network_repo.calculate_network_risk_score(
+            # Get entity network
+            entity_network = await self.network_repo.build_entity_network(
                 entity_id=entity_id,
-                analysis_depth=analysis_depth or 2
+                max_depth=3
             )
             
-            # Enhance risk analysis with business logic
-            enhanced_analysis = await self._enhance_risk_analysis(risk_analysis, entity_id)
+            # Calculate various risk factors
+            risk_factors = {
+                "high_risk_connections": 0,
+                "unverified_connections": 0,
+                "suspicious_patterns": 0,
+                "beneficial_ownership_chains": 0,
+                "pep_connections": 0,
+                "sanctioned_connections": 0
+            }
+            
+            connection_risks = []
+            
+            for relationship in entity_network.relationships:
+                rel_type = relationship.get("type", "")
+                confidence = relationship.get("confidence", 0.0)
+                verified = relationship.get("verified", False)
+                
+                # Identify high-risk relationship types
+                if rel_type in ["transactional_counterparty_high_risk", "business_associate_suspected"]:
+                    risk_factors["high_risk_connections"] += 1
+                    connection_risks.append({
+                        "relationship_id": relationship.get("relationshipId"),
+                        "type": rel_type,
+                        "risk_level": "high",
+                        "confidence": confidence
+                    })
+                
+                if not verified and confidence < 0.6:
+                    risk_factors["unverified_connections"] += 1
+                
+                if rel_type in ["potential_beneficial_owner_of", "ubo_of"]:
+                    risk_factors["beneficial_ownership_chains"] += 1
+            
+            # Calculate overall risk score
+            total_connections = entity_network.total_relationships
+            risk_score = 0.0
+            
+            if total_connections > 0:
+                high_risk_ratio = risk_factors["high_risk_connections"] / total_connections
+                unverified_ratio = risk_factors["unverified_connections"] / total_connections
+                
+                risk_score = (
+                    high_risk_ratio * 0.5 +
+                    unverified_ratio * 0.2 +
+                    (risk_factors["beneficial_ownership_chains"] / max(total_connections, 1)) * 0.3
+                )
+            
+            risk_level = "low"
+            if risk_score > 0.7:
+                risk_level = "critical"
+            elif risk_score > 0.5:
+                risk_level = "high"
+            elif risk_score > 0.3:
+                risk_level = "medium"
             
             return {
-                "success": True,
                 "entity_id": entity_id,
-                "risk_analysis": enhanced_analysis
+                "risk_score": risk_score,
+                "risk_level": risk_level,
+                "risk_factors": risk_factors,
+                "connection_risks": connection_risks,
+                "total_connections": total_connections,
+                "analysis_timestamp": datetime.utcnow().isoformat(),
+                "recommendations": self._generate_risk_recommendations(risk_score, risk_factors)
             }
             
         except Exception as e:
-            logger.error(f"Network risk calculation failed for {entity_id}: {e}")
-            return {
-                "success": False,
-                "entity_id": entity_id,
-                "error": str(e)
-            }
-    
-    # ==================== PATTERN DETECTION ====================
-    
-    async def detect_suspicious_patterns(self, entity_ids: List[str],
-                                       pattern_types: Optional[List[str]] = None) -> Dict[str, Any]:
-        """
-        Detect suspicious network patterns
-        
-        Args:
-            entity_ids: Entities to analyze for patterns
-            pattern_types: Types of patterns to detect
-            
-        Returns:
-            Dict: Detected patterns
-        """
-        try:
-            logger.info(f"Detecting suspicious patterns in {len(entity_ids)} entities")
-            
-            # Detect patterns through repository
-            patterns = await self.network_repo.find_suspicious_patterns(
-                entity_ids=entity_ids,
-                pattern_types=pattern_types or ["circular_relationships", "hub_entities", "isolated_clusters"]
-            )
-            
-            # Analyze patterns for risk assessment
-            pattern_analysis = await self._analyze_suspicious_patterns(patterns)
-            
-            return {
-                "success": True,
-                "total_entities": len(entity_ids),
-                "patterns_detected": patterns,
-                "analysis": pattern_analysis
-            }
-            
-        except Exception as e:
-            logger.error(f"Pattern detection failed: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-    
-    async def detect_hub_entities(self, min_connections: Optional[int] = None,
-                                connection_types: Optional[List[RelationshipType]] = None) -> Dict[str, Any]:
-        """
-        Detect hub entities with many connections
-        
-        Args:
-            min_connections: Minimum connections to be considered a hub
-            connection_types: Types of connections to count
-            
-        Returns:
-            Dict: Hub entities data
-        """
-        try:
-            logger.info("Detecting hub entities in network")
-            
-            # Detect hub entities through repository
-            hub_entities = await self.network_repo.detect_hub_entities(
-                min_connections=min_connections or 10,
-                connection_types=connection_types
-            )
-            
-            # Analyze hub entities for insights
-            hub_analysis = await self._analyze_hub_entities(hub_entities)
-            
-            return {
-                "success": True,
-                "total_hubs": len(hub_entities),
-                "hub_entities": hub_entities,
-                "analysis": hub_analysis
-            }
-            
-        except Exception as e:
-            logger.error(f"Hub detection failed: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-    
-    # ==================== VISUALIZATION SUPPORT ====================
-    
-    async def prepare_network_for_visualization(self, query_params: NetworkQueryParams,
-                                              layout_algorithm: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Prepare network data optimized for visualization
-        
-        Args:
-            query_params: Network query parameters
-            layout_algorithm: Preferred layout algorithm
-            
-        Returns:
-            Dict: Visualization-ready network data
-        """
-        try:
-            logger.info(f"Preparing network visualization for entity {query_params.center_entity_id}")
-            
-            # Get visualization-optimized network data through repository
-            viz_data = await self.network_repo.prepare_network_for_visualization(
-                params=query_params,
-                layout_algorithm=layout_algorithm or "force"
-            )
-            
-            # Add visualization styling and metadata
-            enhanced_viz_data = await self._enhance_visualization_data(viz_data)
-            
-            return {
-                "success": True,
-                "visualization_data": enhanced_viz_data
-            }
-            
-        except Exception as e:
-            logger.error(f"Visualization preparation failed: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            logger.error(f"Risk assessment failed for entity {entity_id}: {e}")
+            return {"entity_id": entity_id, "error": str(e)}
     
     # ==================== HELPER METHODS ====================
     
-    async def _enhance_network_for_visualization(self, network_data: NetworkDataResponse,
-                                               layout_algorithm: Optional[str] = None) -> NetworkDataResponse:
-        """
-        Enhance network data with visualization styling and positioning
-        
-        Args:
-            network_data: Raw network data
-            layout_algorithm: Layout algorithm for positioning
-            
-        Returns:
-            NetworkDataResponse: Enhanced network data
-        """
-        try:
-            # Calculate node positions if not already set
-            if not any(hasattr(node, 'x') and hasattr(node, 'y') for node in network_data.nodes):
-                positions = await self.network_repo.calculate_node_positions(
-                    nodes=network_data.nodes,
-                    edges=network_data.edges,
-                    algorithm=layout_algorithm or "force"
-                )
-                
-                # Apply positions to nodes
-                for node in network_data.nodes:
-                    node_id = getattr(node, 'id', None)
-                    if node_id in positions:
-                        x, y = positions[node_id]
-                        setattr(node, 'x', x)
-                        setattr(node, 'y', y)
-            
-            # Apply visual styling to nodes
-            for node in network_data.nodes:
-                await self._apply_node_styling(node)
-            
-            # Apply visual styling to edges
-            for edge in network_data.edges:
-                await self._apply_edge_styling(edge)
-            
-            return network_data
-            
-        except Exception as e:
-            logger.warning(f"Visualization enhancement failed: {e}")
-            return network_data
-    
-    async def _apply_node_styling(self, node: NetworkNode) -> None:
-        """
-        Apply visual styling to a network node
-        
-        Args:
-            node: Network node to style
-        """
-        try:
-            # Get risk level for color
-            risk_level = getattr(node, 'risk_level', 'unknown')
-            node_color = self.risk_colors.get(risk_level, self.risk_colors['unknown'])
-            
-            # Calculate node size based on risk or connection count
-            risk_score = getattr(node, 'risk_score', 0.0)
-            base_size = 20
-            size_multiplier = 1 + (risk_score * 2)  # Scale 1-3x based on risk
-            node_size = base_size * size_multiplier
-            
-            # Apply styling attributes
-            setattr(node, 'color', node_color)
-            setattr(node, 'size', min(node_size, 60))  # Cap maximum size
-            setattr(node, 'strokeColor', '#ffffff')
-            setattr(node, 'strokeWidth', 2)
-            
-        except Exception as e:
-            logger.warning(f"Node styling failed: {e}")
-    
-    async def _apply_edge_styling(self, edge: NetworkEdge) -> None:
-        """
-        Apply visual styling to a network edge
-        
-        Args:
-            edge: Network edge to style
-        """
-        try:
-            # Get relationship type for color
-            relationship_type = getattr(edge, 'relationship_type', RelationshipType.UNKNOWN)
-            edge_color = self.relationship_colors.get(relationship_type, self.relationship_colors[RelationshipType.UNKNOWN])
-            
-            # Calculate edge width based on confidence
-            confidence_score = getattr(edge, 'confidence_score', 0.5)
-            edge_width = 1 + (confidence_score * 4)  # Width 1-5 based on confidence
-            
-            # Set dash pattern for unverified relationships
-            verified = getattr(edge, 'verified', False)
-            dash_pattern = "0" if verified else "5 5"
-            
-            # Apply styling attributes
-            setattr(edge, 'color', edge_color)
-            setattr(edge, 'width', edge_width)
-            setattr(edge, 'dashPattern', dash_pattern)
-            
-        except Exception as e:
-            logger.warning(f"Edge styling failed: {e}")
-    
-    async def _calculate_network_statistics(self, network_data: NetworkDataResponse) -> Dict[str, Any]:
-        """
-        Calculate comprehensive network statistics
-        
-        Args:
-            network_data: Network data
-            
-        Returns:
-            Dict: Network statistics
-        """
-        try:
-            total_nodes = len(network_data.nodes)
-            total_edges = len(network_data.edges)
-            
-            # Calculate node statistics
-            node_stats = {
-                "total_nodes": total_nodes,
-                "node_types": {},
-                "risk_distribution": {}
-            }
-            
-            for node in network_data.nodes:
-                # Count by type
-                node_type = getattr(node, 'entity_type', 'unknown')
-                node_stats["node_types"][node_type] = node_stats["node_types"].get(node_type, 0) + 1
-                
-                # Count by risk level
-                risk_level = getattr(node, 'risk_level', 'unknown')
-                node_stats["risk_distribution"][risk_level] = node_stats["risk_distribution"].get(risk_level, 0) + 1
-            
-            # Calculate edge statistics
-            edge_stats = {
-                "total_edges": total_edges,
-                "relationship_types": {},
-                "verification_status": {"verified": 0, "unverified": 0}
-            }
-            
-            for edge in network_data.edges:
-                # Count by relationship type
-                rel_type = getattr(edge, 'relationship_type', 'unknown')
-                edge_stats["relationship_types"][str(rel_type)] = edge_stats["relationship_types"].get(str(rel_type), 0) + 1
-                
-                # Count verification status
-                verified = getattr(edge, 'verified', False)
-                if verified:
-                    edge_stats["verification_status"]["verified"] += 1
-                else:
-                    edge_stats["verification_status"]["unverified"] += 1
-            
-            # Calculate network density
-            max_possible_edges = total_nodes * (total_nodes - 1) / 2 if total_nodes > 1 else 0
-            density = total_edges / max_possible_edges if max_possible_edges > 0 else 0
-            
-            return {
-                "node_statistics": node_stats,
-                "edge_statistics": edge_stats,
-                "network_metrics": {
-                    "density": round(density, 4),
-                    "max_depth_reached": getattr(network_data, 'max_depth_reached', 0),
-                    "connectivity_ratio": round(total_edges / total_nodes if total_nodes > 0 else 0, 2)
-                }
-            }
-            
-        except Exception as e:
-            logger.warning(f"Network statistics calculation failed: {e}")
-            return {"error": str(e)}
-    
-    async def _analyze_entity_connections(self, connections: List[Dict[str, Any]], entity_id: str) -> Dict[str, Any]:
-        """
-        Analyze entity connections for insights
-        
-        Args:
-            connections: List of entity connections
-            entity_id: Central entity ID
-            
-        Returns:
-            Dict: Connection analysis
-        """
-        analysis = {
-            "connection_strength_distribution": {},
-            "relationship_type_distribution": {},
-            "verification_ratio": 0.0,
-            "strongest_connections": [],
-            "risk_indicators": []
+    async def _analyze_network_topology(self, network: EntityNetwork) -> Dict[str, Any]:
+        """Analyze network topology characteristics"""
+        topology = {
+            "density": 0.0,
+            "clustering_coefficient": 0.0,
+            "average_path_length": 0.0,
+            "connected_components": 1,
+            "diameter": 0
         }
         
-        try:
-            if not connections:
-                return analysis
+        if network.total_relationships > 0:
+            unique_entities = set()
+            for rel in network.relationships:
+                unique_entities.add(rel["source"]["entityId"])
+                unique_entities.add(rel["target"]["entityId"])
             
-            verified_count = 0
-            strength_scores = []
+            num_entities = len(unique_entities)
+            max_possible_edges = num_entities * (num_entities - 1) / 2
             
-            for conn in connections:
-                # Analyze strength
-                strength = conn.get("confidence_score", 0.0)
-                strength_scores.append(strength)
-                
-                # Count verification
-                if conn.get("verified", False):
-                    verified_count += 1
-                
-                # Count relationship types
-                rel_type = conn.get("relationship_type", "unknown")
-                analysis["relationship_type_distribution"][rel_type] = analysis["relationship_type_distribution"].get(rel_type, 0) + 1
-            
-            # Calculate verification ratio
-            analysis["verification_ratio"] = verified_count / len(connections)
-            
-            # Find strongest connections
-            sorted_connections = sorted(connections, key=lambda x: x.get("confidence_score", 0.0), reverse=True)
-            analysis["strongest_connections"] = sorted_connections[:5]
-            
-            # Identify risk indicators
-            if analysis["verification_ratio"] < 0.3:
-                analysis["risk_indicators"].append("Low verification ratio")
-            
-            if len(connections) > 50:
-                analysis["risk_indicators"].append("High connectivity entity")
-            
-            return analysis
-            
-        except Exception as e:
-            logger.warning(f"Connection analysis failed: {e}")
-            return analysis
-    
-    async def _analyze_relationship_path(self, path: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        Analyze relationship path for strength and confidence
+            if max_possible_edges > 0:
+                topology["density"] = network.total_relationships / max_possible_edges
         
-        Args:
-            path: Relationship path
+        return topology
+    
+    async def _detect_relationship_patterns(self, network: EntityNetwork) -> Dict[str, Any]:
+        """Detect common relationship patterns"""
+        patterns = {
+            "corporate_hierarchies": 0,
+            "beneficial_ownership_chains": 0,
+            "household_clusters": 0,
+            "duplicate_entity_groups": 0,
+            "high_risk_networks": 0
+        }
+        
+        for rel in network.relationships:
+            rel_type = rel.get("type", "")
             
-        Returns:
-            Dict: Path analysis
-        """
-        try:
-            if not path:
-                return {"error": "Empty path"}
+            if rel_type in ["director_of", "shareholder_of", "parent_of_subsidiary"]:
+                patterns["corporate_hierarchies"] += 1
+            elif rel_type in ["ubo_of", "potential_beneficial_owner_of"]:
+                patterns["beneficial_ownership_chains"] += 1
+            elif rel_type == "household_member":
+                patterns["household_clusters"] += 1
+            elif rel_type in ["confirmed_same_entity", "potential_duplicate"]:
+                patterns["duplicate_entity_groups"] += 1
+            elif rel_type in ["transactional_counterparty_high_risk", "business_associate_suspected"]:
+                patterns["high_risk_networks"] += 1
+        
+        return patterns
+    
+    async def _calculate_centrality_metrics(self, entity_id: str, network: EntityNetwork) -> Dict[str, Any]:
+        """Calculate centrality metrics for the entity"""
+        degree_centrality = 0
+        betweenness_centrality = 0.0
+        
+        # Simple degree centrality calculation
+        for rel in network.relationships:
+            if rel["source"]["entityId"] == entity_id or rel["target"]["entityId"] == entity_id:
+                degree_centrality += 1
+        
+        return {
+            "degree_centrality": degree_centrality,
+            "betweenness_centrality": betweenness_centrality,
+            "normalized_degree": degree_centrality / max(network.total_relationships, 1)
+        }
+    
+    async def _identify_high_risk_connections(self, network: EntityNetwork) -> List[Dict[str, Any]]:
+        """Identify high-risk connections in the network"""
+        high_risk_connections = []
+        
+        for rel in network.relationships:
+            risk_weight = self.risk_weight_factors.get(rel.get("type", ""), 0.0)
             
-            path_length = len(path)
-            confidence_scores = [rel.get("confidence_score", 0.0) for rel in path]
+            if risk_weight > 0.6:  # High-risk threshold
+                high_risk_connections.append({
+                    "relationship_id": rel.get("relationshipId"),
+                    "type": rel.get("type"),
+                    "risk_weight": risk_weight,
+                    "confidence": rel.get("confidence", 0.0),
+                    "verified": rel.get("verified", False),
+                    "source_entity": rel.get("source", {}),
+                    "target_entity": rel.get("target", {})
+                })
+        
+        return high_risk_connections
+    
+    async def _assess_network_risk(self, network: EntityNetwork) -> Dict[str, Any]:
+        """Assess overall network risk"""
+        total_risk_weight = 0.0
+        high_risk_count = 0
+        
+        for rel in network.relationships:
+            risk_weight = self.risk_weight_factors.get(rel.get("type", ""), 0.3)
+            total_risk_weight += risk_weight
             
-            # Calculate overall path confidence (weakest link)
-            min_confidence = min(confidence_scores) if confidence_scores else 0.0
-            avg_confidence = sum(confidence_scores) / len(confidence_scores) if confidence_scores else 0.0
+            if risk_weight > 0.6:
+                high_risk_count += 1
+        
+        average_risk = total_risk_weight / max(network.total_relationships, 1)
+        
+        return {
+            "average_risk_weight": average_risk,
+            "high_risk_relationship_count": high_risk_count,
+            "risk_distribution": self._calculate_risk_distribution(network),
+            "overall_risk_level": "high" if average_risk > 0.6 else "medium" if average_risk > 0.4 else "low"
+        }
+    
+    def _calculate_risk_distribution(self, network: EntityNetwork) -> Dict[str, int]:
+        """Calculate distribution of risk levels"""
+        distribution = {"low": 0, "medium": 0, "high": 0}
+        
+        for rel in network.relationships:
+            risk_weight = self.risk_weight_factors.get(rel.get("type", ""), 0.3)
             
-            # Count verified relationships
-            verified_count = sum(1 for rel in path if rel.get("verified", False))
-            verification_ratio = verified_count / path_length
-            
-            # Determine path reliability
-            if min_confidence >= 0.8 and verification_ratio >= 0.8:
-                reliability = "high"
-            elif min_confidence >= 0.6 and verification_ratio >= 0.6:
-                reliability = "medium"
+            if risk_weight > 0.6:
+                distribution["high"] += 1
+            elif risk_weight > 0.4:
+                distribution["medium"] += 1
             else:
-                reliability = "low"
-            
-            return {
-                "path_length": path_length,
-                "min_confidence": min_confidence,
-                "avg_confidence": avg_confidence,
-                "verification_ratio": verification_ratio,
-                "reliability": reliability,
-                "relationship_types": [rel.get("relationship_type", "unknown") for rel in path]
-            }
-            
-        except Exception as e:
-            logger.warning(f"Path analysis failed: {e}")
-            return {"error": str(e)}
+                distribution["low"] += 1
+        
+        return distribution
     
-    async def _identify_key_entities(self, centrality_metrics: Dict[str, Dict[str, float]]) -> List[Dict[str, Any]]:
-        """
-        Identify key entities based on centrality metrics
+    async def _generate_analysis_recommendations(self, network: EntityNetwork, 
+                                               topology: Dict[str, Any],
+                                               patterns: Dict[str, Any],
+                                               risk_assessment: Dict[str, Any]) -> List[str]:
+        """Generate actionable recommendations based on analysis"""
+        recommendations = []
         
-        Args:
-            centrality_metrics: Centrality metrics by entity
-            
-        Returns:
-            List: Key entities with their metrics
-        """
-        try:
-            key_entities = []
-            
-            for entity_id, metrics in centrality_metrics.items():
-                # Calculate composite importance score
-                degree_centrality = metrics.get("degree_centrality", 0.0)
-                betweenness_centrality = metrics.get("betweenness_centrality", 0.0)
-                closeness_centrality = metrics.get("closeness_centrality", 0.0)
-                
-                importance_score = (degree_centrality * 0.4 + 
-                                  betweenness_centrality * 0.4 + 
-                                  closeness_centrality * 0.2)
-                
-                if importance_score > 0.5:  # Threshold for key entities
-                    key_entities.append({
-                        "entity_id": entity_id,
-                        "importance_score": importance_score,
-                        "metrics": metrics,
-                        "key_reason": self._determine_key_reason(metrics)
-                    })
-            
-            # Sort by importance score
-            key_entities.sort(key=lambda x: x["importance_score"], reverse=True)
-            
-            return key_entities[:10]  # Top 10 key entities
-            
-        except Exception as e:
-            logger.warning(f"Key entity identification failed: {e}")
-            return []
+        if network.verified_count / max(network.total_relationships, 1) < 0.5:
+            recommendations.append("Verify more relationships to improve network reliability")
+        
+        if risk_assessment.get("high_risk_relationship_count", 0) > 0:
+            recommendations.append("Review high-risk relationships for compliance")
+        
+        if patterns.get("beneficial_ownership_chains", 0) > 2:
+            recommendations.append("Investigate complex beneficial ownership structures")
+        
+        if topology.get("density", 0) > 0.8:
+            recommendations.append("High network density may indicate shell company structures")
+        
+        return recommendations
     
-    def _determine_key_reason(self, metrics: Dict[str, float]) -> str:
-        """
-        Determine why an entity is considered key
+    def _generate_risk_recommendations(self, risk_score: float, risk_factors: Dict[str, Any]) -> List[str]:
+        """Generate risk-specific recommendations"""
+        recommendations = []
         
-        Args:
-            metrics: Centrality metrics
-            
-        Returns:
-            str: Reason for being key
-        """
-        degree = metrics.get("degree_centrality", 0.0)
-        betweenness = metrics.get("betweenness_centrality", 0.0)
-        closeness = metrics.get("closeness_centrality", 0.0)
+        if risk_score > 0.7:
+            recommendations.append("Immediate compliance review required")
         
-        if degree > 0.7:
-            return "High connectivity hub"
-        elif betweenness > 0.7:
-            return "Critical network bridge"
-        elif closeness > 0.7:
-            return "Central network position"
-        else:
-            return "Overall network importance"
+        if risk_factors.get("high_risk_connections", 0) > 0:
+            recommendations.append("Investigate high-risk relationship connections")
+        
+        if risk_factors.get("beneficial_ownership_chains", 0) > 1:
+            recommendations.append("Map complete beneficial ownership structure")
+        
+        return recommendations
     
-    async def _generate_centrality_insights(self, centrality_metrics: Dict[str, Dict[str, float]]) -> List[str]:
-        """
-        Generate insights from centrality analysis
-        
-        Args:
-            centrality_metrics: Centrality metrics
-            
-        Returns:
-            List[str]: Generated insights
-        """
-        insights = []
-        
-        try:
-            if not centrality_metrics:
-                return ["No centrality data available"]
-            
-            # Find highest degree centrality
-            max_degree = max(metrics.get("degree_centrality", 0.0) for metrics in centrality_metrics.values())
-            if max_degree > 0.8:
-                insights.append("Network contains highly connected hub entities")
-            
-            # Find highest betweenness centrality
-            max_betweenness = max(metrics.get("betweenness_centrality", 0.0) for metrics in centrality_metrics.values())
-            if max_betweenness > 0.7:
-                insights.append("Network has critical bridge entities controlling information flow")
-            
-            # Analyze overall connectivity
-            avg_degree = sum(metrics.get("degree_centrality", 0.0) for metrics in centrality_metrics.values()) / len(centrality_metrics)
-            if avg_degree > 0.6:
-                insights.append("Network shows high overall connectivity")
-            elif avg_degree < 0.2:
-                insights.append("Network is sparsely connected")
-            
-            return insights
-            
-        except Exception as e:
-            logger.warning(f"Insight generation failed: {e}")
-            return ["Unable to generate insights"]
+    async def _analyze_cluster_metrics(self, cluster_entities: List[str]) -> Dict[str, Any]:
+        """Analyze metrics for a cluster of entities"""
+        return {
+            "entity_count": len(cluster_entities),
+            "avg_connectivity": 0.0,  # Simplified
+            "cluster_density": 0.0     # Simplified
+        }
     
-    async def _analyze_communities(self, communities: List[List[str]]) -> Dict[str, Any]:
-        """
-        Analyze detected communities
+    async def _identify_cluster_risks(self, cluster_entities: List[str]) -> List[str]:
+        """Identify risk indicators for a cluster"""
+        risk_indicators = []
         
-        Args:
-            communities: Detected communities
-            
-        Returns:
-            Dict: Community analysis
-        """
-        try:
-            if not communities:
-                return {"message": "No communities detected"}
-            
-            # Calculate community size distribution
-            sizes = [len(community) for community in communities]
-            
-            analysis = {
-                "total_communities": len(communities),
-                "average_community_size": sum(sizes) / len(sizes),
-                "largest_community_size": max(sizes),
-                "smallest_community_size": min(sizes),
-                "size_distribution": {
-                    "small (2-5 entities)": sum(1 for size in sizes if 2 <= size <= 5),
-                    "medium (6-15 entities)": sum(1 for size in sizes if 6 <= size <= 15),
-                    "large (16+ entities)": sum(1 for size in sizes if size >= 16)
-                }
-            }
-            
-            # Generate insights
-            insights = []
-            if len(communities) > 10:
-                insights.append("Network is highly fragmented with many small communities")
-            if max(sizes) > 20:
-                insights.append("Network contains large cohesive groups")
-            
-            analysis["insights"] = insights
-            
-            return analysis
-            
-        except Exception as e:
-            logger.warning(f"Community analysis failed: {e}")
-            return {"error": str(e)}
-    
-    async def _enhance_risk_analysis(self, risk_analysis: Dict[str, Any], entity_id: str) -> Dict[str, Any]:
-        """
-        Enhance risk analysis with business logic
+        if len(cluster_entities) > 10:
+            risk_indicators.append("Large cluster may indicate shell company network")
         
-        Args:
-            risk_analysis: Raw risk analysis from repository
-            entity_id: Entity ID
-            
-        Returns:
-            Dict: Enhanced risk analysis
-        """
-        try:
-            enhanced = risk_analysis.copy()
-            
-            # Add risk level categorization
-            risk_score = risk_analysis.get("network_risk_score", 0.0)
-            if risk_score >= 0.8:
-                enhanced["risk_level"] = "critical"
-                enhanced["recommended_actions"] = ["Immediate investigation required", "Enhanced monitoring"]
-            elif risk_score >= 0.6:
-                enhanced["risk_level"] = "high"
-                enhanced["recommended_actions"] = ["Detailed review recommended", "Increased monitoring"]
-            elif risk_score >= 0.4:
-                enhanced["risk_level"] = "medium"
-                enhanced["recommended_actions"] = ["Periodic review", "Standard monitoring"]
-            else:
-                enhanced["risk_level"] = "low"
-                enhanced["recommended_actions"] = ["Standard procedures"]
-            
-            # Add contextual information
-            enhanced["analysis_timestamp"] = datetime.utcnow().isoformat()
-            enhanced["entity_id"] = entity_id
-            
-            return enhanced
-            
-        except Exception as e:
-            logger.warning(f"Risk analysis enhancement failed: {e}")
-            return risk_analysis
-    
-    async def _analyze_suspicious_patterns(self, patterns: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Any]:
-        """
-        Analyze detected suspicious patterns
-        
-        Args:
-            patterns: Detected patterns by type
-            
-        Returns:
-            Dict: Pattern analysis
-        """
-        try:
-            analysis = {
-                "total_patterns": sum(len(pattern_list) for pattern_list in patterns.values()),
-                "pattern_summary": {},
-                "risk_indicators": [],
-                "recommended_actions": []
-            }
-            
-            for pattern_type, pattern_list in patterns.items():
-                if pattern_list:
-                    analysis["pattern_summary"][pattern_type] = len(pattern_list)
-                    
-                    # Add specific risk indicators based on pattern type
-                    if pattern_type == "circular_relationships" and len(pattern_list) > 0:
-                        analysis["risk_indicators"].append("Circular relationship patterns detected")
-                        analysis["recommended_actions"].append("Investigate circular relationship chains")
-                    
-                    if pattern_type == "hub_entities" and len(pattern_list) > 5:
-                        analysis["risk_indicators"].append("Multiple hub entities identified")
-                        analysis["recommended_actions"].append("Review hub entity activities")
-            
-            return analysis
-            
-        except Exception as e:
-            logger.warning(f"Pattern analysis failed: {e}")
-            return {"error": str(e)}
-    
-    async def _analyze_hub_entities(self, hub_entities: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        Analyze hub entities for insights
-        
-        Args:
-            hub_entities: List of hub entities
-            
-        Returns:
-            Dict: Hub analysis
-        """
-        try:
-            if not hub_entities:
-                return {"message": "No hub entities detected"}
-            
-            # Calculate connection statistics
-            connection_counts = [hub.get("connection_count", 0) for hub in hub_entities]
-            
-            analysis = {
-                "total_hubs": len(hub_entities),
-                "average_connections": sum(connection_counts) / len(connection_counts),
-                "max_connections": max(connection_counts),
-                "min_connections": min(connection_counts),
-                "insights": []
-            }
-            
-            # Generate insights
-            if max(connection_counts) > 50:
-                analysis["insights"].append("Network contains super-hubs with extensive connections")
-            
-            if len(hub_entities) > 10:
-                analysis["insights"].append("Network has multiple hub entities indicating complex structure")
-            
-            return analysis
-            
-        except Exception as e:
-            logger.warning(f"Hub analysis failed: {e}")
-            return {"error": str(e)}
-    
-    async def _enhance_visualization_data(self, viz_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Enhance visualization data with additional styling and metadata
-        
-        Args:
-            viz_data: Raw visualization data
-            
-        Returns:
-            Dict: Enhanced visualization data
-        """
-        try:
-            enhanced = viz_data.copy()
-            
-            # Add visualization metadata
-            enhanced["visualization_config"] = {
-                "recommended_zoom": 1.0,
-                "center_focus": True,
-                "animation_duration": 750,
-                "physics_enabled": True,
-                "clustering_enabled": len(viz_data.get("nodes", [])) > 100
-            }
-            
-            # Add legend information
-            enhanced["legend"] = {
-                "node_colors": self.risk_colors,
-                "edge_colors": {str(k): v for k, v in self.relationship_colors.items()},
-                "size_meaning": "Node size represents risk level",
-                "edge_meaning": "Edge thickness represents confidence level"
-            }
-            
-            return enhanced
-            
-        except Exception as e:
-            logger.warning(f"Visualization enhancement failed: {e}")
-            return viz_data
+        return risk_indicators

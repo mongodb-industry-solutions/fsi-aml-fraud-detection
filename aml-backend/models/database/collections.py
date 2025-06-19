@@ -182,69 +182,6 @@ class ResolutionHistoryCollection(CollectionConfig):
     })
 
 
-# ==================== RELATIONSHIP COLLECTION ====================
-
-class RelationshipCollection(CollectionConfig):
-    """Configuration for entity_relationships collection"""
-    
-    collection_name: str = "entity_relationships"
-    
-    indexes: List[Dict[str, Any]] = Field(default_factory=lambda: [
-        # Core relationship indexes
-        {"key": [("source_entity_id", 1)], "name": "source_entity_id_1"},
-        {"key": [("target_entity_id", 1)], "name": "target_entity_id_1"},
-        {"key": [("relationship_type", 1)], "name": "relationship_type_1"},
-        {"key": [("strength", 1)], "name": "strength_1"},
-        {"key": [("confidence_score", -1)], "name": "confidence_score_-1"},
-        {"key": [("verified", 1)], "name": "verified_1"},
-        {"key": [("created_date", -1)], "name": "created_date_-1"},
-        
-        # Compound indexes for graph traversal
-        {
-            "key": [("source_entity_id", 1), ("relationship_type", 1)],
-            "name": "source_relationship_type_compound"
-        },
-        {
-            "key": [("target_entity_id", 1), ("relationship_type", 1)],
-            "name": "target_relationship_type_compound"
-        },
-        {
-            "key": [("source_entity_id", 1), ("confidence_score", -1)],
-            "name": "source_confidence_compound"
-        },
-        {
-            "key": [("target_entity_id", 1), ("confidence_score", -1)],
-            "name": "target_confidence_compound"
-        },
-        
-        # Bidirectional relationship index
-        {
-            "key": [("source_entity_id", 1), ("target_entity_id", 1)],
-            "name": "source_target_compound",
-            "unique": True
-        },
-        
-        # Verification tracking
-        {
-            "key": [("verified", 1), ("strength", 1), ("relationship_type", 1)],
-            "name": "verified_strength_type_compound"
-        },
-        
-        # Risk analysis indexes
-        {
-            "key": [("relationship_type", 1), ("confidence_score", -1)],
-            "name": "type_confidence_compound"
-        }
-    ])
-    
-    # Text search for relationship descriptions
-    text_search_fields: Dict[str, int] = Field(default_factory=lambda: {
-        "description": 10,
-        "evidence": 5,
-        "data_source": 3
-    })
-
-
 # ==================== AUDIT LOG COLLECTION ====================
 
 class AuditLogCollection(CollectionConfig):
@@ -302,6 +239,138 @@ class AuditLogCollection(CollectionConfig):
     })
 
 
+# ==================== NETWORK RELATIONSHIPS COLLECTION ====================
+
+class NetworkRelationshipsCollection(CollectionConfig):
+    """Configuration for relationships collection (dedicated network graph edges)"""
+    
+    collection_name: str = "relationships"
+    
+    indexes: List[Dict[str, Any]] = Field(default_factory=lambda: [
+        # Core relationship indexes for graph operations
+        {"key": [("relationshipId", 1)], "name": "relationshipId_1", "unique": True},
+        {"key": [("source.entityId", 1)], "name": "source_entityId_1"},
+        {"key": [("target.entityId", 1)], "name": "target_entityId_1"},
+        {"key": [("type", 1)], "name": "type_1"},
+        {"key": [("direction", 1)], "name": "direction_1"},
+        {"key": [("strength", 1)], "name": "strength_1"},
+        {"key": [("confidence", -1)], "name": "confidence_-1"},
+        {"key": [("active", 1)], "name": "active_1"},
+        {"key": [("verified", 1)], "name": "verified_1"},
+        
+        # $graphLookup optimized indexes
+        {
+            "key": [("source.entityId", 1), ("type", 1), ("active", 1)],
+            "name": "graph_source_type_active_compound"
+        },
+        {
+            "key": [("target.entityId", 1), ("type", 1), ("active", 1)],
+            "name": "graph_target_type_active_compound"
+        },
+        
+        # Bidirectional relationship index for efficient lookups
+        {
+            "key": [("source.entityId", 1), ("target.entityId", 1), ("type", 1)],
+            "name": "source_target_type_compound"
+        },
+        
+        # Network analysis indexes
+        {
+            "key": [("type", 1), ("strength", 1), ("confidence", -1)],
+            "name": "type_strength_confidence_compound"
+        },
+        {
+            "key": [("datasource", 1), ("confidence", -1)],
+            "name": "datasource_confidence_compound"
+        },
+        
+        # Temporal analysis indexes
+        {"key": [("validFrom", 1)], "name": "validFrom_1", "sparse": True},
+        {"key": [("validTo", 1)], "name": "validTo_1", "sparse": True},
+        
+        # Evidence and verification tracking
+        {
+            "key": [("verified", 1), ("evidence.attribute_match", 1)],
+            "name": "verified_evidence_compound"
+        }
+    ])
+    
+    # Text search for relationship evidence and descriptions
+    text_search_fields: Dict[str, int] = Field(default_factory=lambda: {
+        "evidence.description": 10,
+        "evidence.source": 5,
+        "datasource": 3,
+        "type": 8
+    })
+    
+    # JSON Schema validation for network relationships
+    validation_schema: Dict[str, Any] = Field(default_factory=lambda: {
+        "bsonType": "object",
+        "required": ["relationshipId", "source", "target", "type", "direction", "strength", "confidence"],
+        "properties": {
+            "relationshipId": {
+                "bsonType": "string",
+                "pattern": "^REL[A-Z0-9]+$"
+            },
+            "source": {
+                "bsonType": "object",
+                "required": ["entityId", "entityType"],
+                "properties": {
+                    "entityId": {"bsonType": "string"},
+                    "entityType": {"enum": ["individual", "organization"]}
+                }
+            },
+            "target": {
+                "bsonType": "object", 
+                "required": ["entityId", "entityType"],
+                "properties": {
+                    "entityId": {"bsonType": "string"},
+                    "entityType": {"enum": ["individual", "organization"]}
+                }
+            },
+            "type": {
+                "enum": [
+                    "confirmed_same_entity", "potential_duplicate", "director_of", 
+                    "ubo_of", "parent_of_subsidiary", "household_member",
+                    "business_associate_suspected", "potential_beneficial_owner_of",
+                    "transactional_counterparty_high_risk", "professional_colleague_public",
+                    "social_media_connection_public", "shareholder_of"
+                ]
+            },
+            "direction": {
+                "enum": ["bidirectional", "directed"]
+            },
+            "strength": {
+                "bsonType": "double",
+                "minimum": 0,
+                "maximum": 1
+            },
+            "confidence": {
+                "bsonType": "double", 
+                "minimum": 0,
+                "maximum": 1
+            },
+            "active": {
+                "bsonType": "bool"
+            },
+            "verified": {
+                "bsonType": "bool"
+            },
+            "evidence": {
+                "bsonType": "array",
+                "items": {
+                    "bsonType": "object",
+                    "properties": {
+                        "type": {"bsonType": "string"},
+                        "description": {"bsonType": "string"},
+                        "source": {"bsonType": "string"}
+                    }
+                }
+            }
+        }
+    })
+
+
 # ==================== ADDITIONAL COLLECTIONS ====================
 
 class MergeHistoryCollection(CollectionConfig):
@@ -351,7 +420,7 @@ def get_all_collection_configs() -> List[CollectionConfig]:
     return [
         EntityCollection(),
         ResolutionHistoryCollection(),
-        RelationshipCollection(),
+        NetworkRelationshipsCollection(),
         AuditLogCollection(),
         MergeHistoryCollection(),
         VectorSearchMetadataCollection()

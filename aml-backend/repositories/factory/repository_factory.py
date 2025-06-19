@@ -11,7 +11,7 @@ import os
 
 from reference.mongodb_core_lib import MongoDBRepository
 from repositories.impl.entity_repository import EntityRepository
-from repositories.impl.relationship_repository import RelationshipRepository
+from repositories.impl.network_relationship_repository import NetworkRelationshipRepository
 from repositories.impl.atlas_search_repository import AtlasSearchRepository
 from repositories.impl.vector_search_repository import VectorSearchRepository
 from repositories.impl.network_repository import NetworkRepository
@@ -74,19 +74,18 @@ class RepositoryFactory:
         
         return self._repositories["entity"]
     
-    def get_relationship_repository(self) -> RelationshipRepository:
+    def get_relationship_repository(self) -> NetworkRelationshipRepository:
         """
-        Get or create RelationshipRepository instance
+        Get or create NetworkRelationshipRepository instance
         
         Returns:
-            RelationshipRepository: Configured relationship repository
+            NetworkRelationshipRepository: Configured network relationship repository
         """
         if "relationship" not in self._repositories:
-            self._repositories["relationship"] = RelationshipRepository(
-                mongodb_repo=self.mongodb_repo,
-                collection_name="entity_relationships"
+            self._repositories["relationship"] = NetworkRelationshipRepository(
+                mongodb_repo=self.mongodb_repo
             )
-            logger.debug("Created RelationshipRepository instance")
+            logger.debug("Created NetworkRelationshipRepository instance")
         
         return self._repositories["relationship"]
     
@@ -203,7 +202,7 @@ class RepositoryFactory:
             health_status["timestamp"] = datetime.utcnow().isoformat()
             
             # Test MongoDB connection
-            collections = ["entities", "entity_relationships"]
+            collections = ["entities", "relationships"]
             for collection_name in collections:
                 collection = self.mongodb_repo.collection(collection_name)
                 # Simple ping test
@@ -260,9 +259,8 @@ class RepositoryFactory:
                 collection_name=config.get("collection_name", "entities")
             )
         elif repo_type == "relationship":
-            return RelationshipRepository(
-                mongodb_repo=self.mongodb_repo,
-                collection_name=config.get("collection_name", "entity_relationships")
+            return NetworkRelationshipRepository(
+                mongodb_repo=self.mongodb_repo
             )
         elif repo_type == "atlas_search":
             return AtlasSearchRepository(
@@ -435,12 +433,12 @@ def get_atlas_search_repository() -> AtlasSearchRepository:
     return factory.get_atlas_search_repository()
 
 
-def get_relationship_repository() -> RelationshipRepository:
+def get_relationship_repository() -> NetworkRelationshipRepository:
     """
-    FastAPI dependency function to get RelationshipRepository instance
+    FastAPI dependency function to get NetworkRelationshipRepository instance
     
     Returns:
-        RelationshipRepository: Configured relationship repository
+        NetworkRelationshipRepository: Configured network relationship repository
     """
     factory = get_global_repository_factory()
     return factory.get_relationship_repository()

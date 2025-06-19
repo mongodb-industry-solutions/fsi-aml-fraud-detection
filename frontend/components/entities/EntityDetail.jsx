@@ -1187,7 +1187,6 @@ function NetworkAnalysisTab({ entity }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [networkStats, setNetworkStats] = useState(null);
-  const [performanceMetrics, setPerformanceMetrics] = useState(null);
   const router = useRouter();
 
   // Available relationship types for filtering
@@ -1211,7 +1210,6 @@ function NetworkAnalysisTab({ entity }) {
     
     setIsLoading(true);
     setError(null);
-    const startTime = performance.now();
     
     try {
       const data = await amlAPI.getEntityNetwork(
@@ -1222,12 +1220,6 @@ function NetworkAnalysisTab({ entity }) {
         100, // max nodes
         relationshipTypeFilter === 'all' ? null : relationshipTypeFilter
       );
-      
-      const endTime = performance.now();
-      setPerformanceMetrics({
-        loadTime: Math.round(endTime - startTime),
-        timestamp: new Date().toISOString()
-      });
       
       setNetworkData(data);
       
@@ -1248,26 +1240,55 @@ function NetworkAnalysisTab({ entity }) {
   const calculateNetworkStatistics = (data) => {
     const { nodes, edges } = data;
     
-    // Basic metrics
+    // Basic network metrics
     const totalNodes = nodes.length;
     const totalEdges = edges.length;
     const density = totalNodes > 1 ? (totalEdges / ((totalNodes * (totalNodes - 1)) / 2)) : 0;
     
-    // Risk distribution
+    // Enhanced centrality analytics
+    const centralityNodes = nodes.filter(node => node.centrality > 0);
+    const averageCentrality = centralityNodes.length > 0 
+      ? centralityNodes.reduce((sum, node) => sum + (node.centrality || 0), 0) / centralityNodes.length 
+      : 0;
+    
+    const betweennessNodes = nodes.filter(node => node.betweenness > 0);
+    const averageBetweenness = betweennessNodes.length > 0
+      ? betweennessNodes.reduce((sum, node) => sum + (node.betweenness || 0), 0) / betweennessNodes.length
+      : 0;
+    
+    // Hub analysis (high centrality entities)
+    const hubNodes = nodes.filter(node => (node.centrality || 0) > 0.7)
+      .sort((a, b) => (b.centrality || 0) - (a.centrality || 0));
+    
+    // Bridge analysis (high betweenness centrality)
+    const bridgeNodes = nodes.filter(node => (node.betweenness || 0) > 0.5)
+      .sort((a, b) => (b.betweenness || 0) - (a.betweenness || 0));
+    
+    // Network prominence analysis
+    const prominentNodes = nodes.map(node => ({
+      ...node,
+      prominenceScore: (node.centrality * 0.4) + (node.betweenness * 0.3) + ((node.riskScore/100) * 0.3)
+    })).sort((a, b) => b.prominenceScore - a.prominenceScore).slice(0, 5);
+    
+    // Risk distribution with centrality context
     const riskDistribution = nodes.reduce((acc, node) => {
       const level = node.riskLevel?.toLowerCase() || 'unknown';
       acc[level] = (acc[level] || 0) + 1;
       return acc;
     }, {});
     
-    // Relationship type distribution
+    // Relationship type distribution with confidence analysis
     const relationshipDistribution = edges.reduce((acc, edge) => {
       const type = edge.relationshipType || edge.label || 'unknown';
       acc[type] = (acc[type] || 0) + 1;
       return acc;
     }, {});
     
-    // Hub entities (high connectivity)
+    // Bidirectional relationship analysis
+    const bidirectionalEdges = edges.filter(edge => edge.bidirectional);
+    const bidirectionalRatio = edges.length > 0 ? (bidirectionalEdges.length / edges.length) : 0;
+    
+    // Network connectivity patterns
     const nodeConnections = nodes.map(node => {
       const connections = edges.filter(edge => 
         edge.source === node.id || edge.target === node.id
@@ -1277,10 +1298,32 @@ function NetworkAnalysisTab({ entity }) {
     
     const hubEntities = nodeConnections.slice(0, 5);
     
+    // Graph complexity metrics
+    const maxConnections = nodeConnections.length > 0 ? nodeConnections[0].connections : 0;
+    const avgConnections = nodeConnections.length > 0 
+      ? nodeConnections.reduce((sum, node) => sum + node.connections, 0) / nodeConnections.length 
+      : 0;
+    
     return {
+      // Basic metrics
       totalNodes,
       totalEdges,
       density: density.toFixed(3),
+      
+      // Enhanced centrality analytics
+      averageCentrality: averageCentrality.toFixed(3),
+      averageBetweenness: averageBetweenness.toFixed(3),
+      hubNodes,
+      bridgeNodes,
+      prominentNodes,
+      
+      // Network structure analytics
+      bidirectionalCount: bidirectionalEdges.length,
+      bidirectionalRatio: bidirectionalRatio.toFixed(3),
+      maxConnections,
+      avgConnections: avgConnections.toFixed(1),
+      
+      // Legacy metrics
       riskDistribution,
       relationshipDistribution,
       hubEntities,
@@ -1514,9 +1557,10 @@ function NetworkAnalysisTab({ entity }) {
             borderRadius: '8px',
             border: `1px solid ${palette.gray.light2}`
           }}>
+            {/* Enhanced Network Metrics Grid */}
             <div style={{ 
               display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', 
+              gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', 
               gap: spacing[3],
               marginBottom: spacing[3]
             }}>
@@ -1544,14 +1588,71 @@ function NetworkAnalysisTab({ entity }) {
                 </div>
                 <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>Avg Risk Score</Body>
               </div>
-              {performanceMetrics && (
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: palette.gray.base }}>
-                    {performanceMetrics.loadTime}ms
-                  </div>
-                  <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>Load Time</Body>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#2E86C1' }}>
+                  {(parseFloat(networkStats.averageCentrality) * 100).toFixed(1)}%
                 </div>
-              )}
+                <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>Avg Centrality</Body>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#8E44AD' }}>
+                  {networkStats.hubNodes.length}
+                </div>
+                <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>Hub Nodes</Body>
+              </div>
+            </div>
+
+            {/* MongoDB Graph Analytics Section */}
+            <div style={{ 
+              marginBottom: spacing[3],
+              padding: spacing[2],
+              backgroundColor: '#f8f9fa',
+              borderRadius: '6px',
+              border: '1px solid #e9ecef'
+            }}>
+              <Label style={{ 
+                marginBottom: spacing[2], 
+                fontSize: '13px', 
+                fontWeight: '700',
+                color: '#2C3E50',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                📊 MongoDB Graph Analysis Insights
+              </Label>
+              
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', 
+                gap: spacing[2],
+                marginBottom: spacing[2]
+              }}>
+                <div style={{ textAlign: 'center', padding: '8px' }}>
+                  <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#2E86C1' }}>
+                    {(parseFloat(networkStats.averageBetweenness) * 100).toFixed(1)}%
+                  </div>
+                  <Body style={{ fontSize: '11px', color: palette.gray.dark1 }}>Avg Bridge Score</Body>
+                </div>
+                <div style={{ textAlign: 'center', padding: '8px' }}>
+                  <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#8E44AD' }}>
+                    {networkStats.bridgeNodes.length}
+                  </div>
+                  <Body style={{ fontSize: '11px', color: palette.gray.dark1 }}>Bridge Entities</Body>
+                </div>
+                <div style={{ textAlign: 'center', padding: '8px' }}>
+                  <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#E74C3C' }}>
+                    {networkStats.bidirectionalCount}
+                  </div>
+                  <Body style={{ fontSize: '11px', color: palette.gray.dark1 }}>Bidirectional</Body>
+                </div>
+                <div style={{ textAlign: 'center', padding: '8px' }}>
+                  <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#F39C12' }}>
+                    {networkStats.maxConnections}
+                  </div>
+                  <Body style={{ fontSize: '11px', color: palette.gray.dark1 }}>Max Connections</Body>
+                </div>
+              </div>
             </div>
             
             {/* Risk Distribution */}
@@ -1579,21 +1680,76 @@ function NetworkAnalysisTab({ entity }) {
               </div>
             )}
             
-            {/* Top Hub Entities */}
-            {networkStats.hubEntities.length > 0 && (
-              <div>
-                <Label style={{ marginBottom: spacing[1] }}>Top Connected Entities</Label>
+            {/* Network Prominence Analysis */}
+            {networkStats.prominentNodes && networkStats.prominentNodes.length > 0 && (
+              <div style={{ marginBottom: spacing[2] }}>
+                <Label style={{ marginBottom: spacing[1], fontSize: '13px', fontWeight: '600' }}>
+                  🎯 Most Prominent Entities (Centrality + Risk Combined)
+                </Label>
                 <div style={{ display: 'flex', gap: spacing[1], flexWrap: 'wrap' }}>
-                  {networkStats.hubEntities.slice(0, 3).map((hub, index) => (
-                    <span key={hub.id} style={{
-                      padding: '2px 6px',
-                      borderRadius: '8px',
+                  {networkStats.prominentNodes.slice(0, 5).map((node, index) => (
+                    <span key={node.id} style={{
+                      padding: '4px 8px',
+                      borderRadius: '12px',
                       fontSize: '10px',
-                      fontWeight: '500',
-                      backgroundColor: palette.blue.light2,
-                      color: palette.blue.dark2
+                      fontWeight: '600',
+                      backgroundColor: index === 0 ? '#FFD700' : // Gold for top entity
+                                     index === 1 ? '#C0C0C0' : // Silver for second  
+                                     index === 2 ? '#CD7F32' : // Bronze for third
+                                     palette.blue.light2,
+                      color: index <= 2 ? '#333' : palette.blue.dark2,
+                      border: index <= 2 ? '1px solid #333' : 'none'
                     }}>
-                      {hub.label || hub.id} ({hub.connections})
+                      {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '⭐'} 
+                      {node.label || node.id} ({(node.prominenceScore * 100).toFixed(0)})
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Hub Entities Analysis */}
+            {networkStats.hubNodes && networkStats.hubNodes.length > 0 && (
+              <div style={{ marginBottom: spacing[2] }}>
+                <Label style={{ marginBottom: spacing[1], fontSize: '13px', fontWeight: '600' }}>
+                  🌟 High Centrality Hub Entities (&gt;70% centrality)
+                </Label>
+                <div style={{ display: 'flex', gap: spacing[1], flexWrap: 'wrap' }}>
+                  {networkStats.hubNodes.slice(0, 4).map((hub) => (
+                    <span key={hub.id} style={{
+                      padding: '3px 8px',
+                      borderRadius: '10px',
+                      fontSize: '10px',
+                      fontWeight: '600',
+                      backgroundColor: '#2E86C1',
+                      color: 'white',
+                      border: '2px solid #1B4F72'
+                    }}>
+                      ★ {hub.label || hub.id} ({(hub.centrality * 100).toFixed(0)}%)
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Bridge Entities Analysis */}
+            {networkStats.bridgeNodes && networkStats.bridgeNodes.length > 0 && (
+              <div style={{ marginBottom: spacing[2] }}>
+                <Label style={{ marginBottom: spacing[1], fontSize: '13px', fontWeight: '600' }}>
+                  🌉 Key Bridge Entities (&gt;50% betweenness)
+                </Label>
+                <div style={{ display: 'flex', gap: spacing[1], flexWrap: 'wrap' }}>
+                  {networkStats.bridgeNodes.slice(0, 4).map((bridge) => (
+                    <span key={bridge.id} style={{
+                      padding: '3px 8px',
+                      borderRadius: '10px',
+                      fontSize: '10px',
+                      fontWeight: '600',
+                      backgroundColor: '#8E44AD',
+                      color: 'white',
+                      border: '2px solid #5B2C6F'
+                    }}>
+                      ◆ {bridge.label || bridge.id} ({(bridge.betweenness * 100).toFixed(0)}%)
                     </span>
                   ))}
                 </div>

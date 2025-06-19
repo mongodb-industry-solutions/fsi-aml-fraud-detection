@@ -48,50 +48,71 @@ const NetworkGraphComponent = ({
     }
   }, []);
 
-  // Enhanced node size calculation based on multiple factors
+  // Enhanced node size calculation with prominent centrality factor
   const calculateNodeSize = useCallback((node) => {
-    const { riskScore = 0, label = '', centrality = 0, connections = 0, entityType = '' } = node;
+    const { riskScore = 0, label = '', centrality = 0, betweenness = 0, connections = 0, entityType = '' } = node;
     
     // Base size calculation
     const textLength = label.length;
-    const baseSize = Math.max(30, Math.min(50, textLength * 2.2));
+    const baseSize = Math.max(35, Math.min(55, textLength * 2.5));
     
-    // Risk-based size adjustment (0-20 additional pixels)
-    const riskAdjustment = (riskScore / 100) * 20;
+    // Centrality-based adjustment (MAJOR FACTOR - 0-25 additional pixels)
+    const centralityAdjustment = (centrality || 0) * 25;
     
-    // Centrality-based adjustment (0-15 additional pixels)
-    const centralityAdjustment = (centrality || 0) * 15;
+    // Betweenness centrality bonus (bridge nodes get extra prominence)
+    const betweennessBonus = (betweenness || 0) * 15;
+    
+    // Risk-based size adjustment (0-15 additional pixels)
+    const riskAdjustment = (riskScore / 100) * 15;
     
     // Connection-based adjustment (high connectivity = larger nodes)
-    const connectionAdjustment = Math.min(10, (connections || 0) * 2);
+    const connectionAdjustment = Math.min(12, (connections || 0) * 2);
     
     // Entity type adjustment
-    const typeAdjustment = entityType === 'organization' ? 5 : 0;
+    const typeAdjustment = entityType === 'organization' ? 8 : 0;
     
-    const finalSize = baseSize + riskAdjustment + centralityAdjustment + connectionAdjustment + typeAdjustment;
-    return Math.max(25, Math.min(80, finalSize));
+    const finalSize = baseSize + centralityAdjustment + betweennessBonus + riskAdjustment + connectionAdjustment + typeAdjustment;
+    return Math.max(30, Math.min(100, finalSize)); // Increased max size for high centrality nodes
   }, []);
 
-  // Get enhanced visual styling for nodes based on risk assessment
+  // Get enhanced visual styling for nodes with centrality prominence
   const getNodeStyling = useCallback((node) => {
-    const { riskLevel, riskScore = 0, entityType, verified = true } = node;
+    const { riskLevel, riskScore = 0, entityType, verified = true, centrality = 0, betweenness = 0 } = node;
     const riskColor = getRiskColor(riskLevel, riskScore);
     
-    // Special styling for high-risk entities
+    // Centrality-based prominence levels
+    const isHighCentrality = centrality > 0.7;
+    const isMediumCentrality = centrality > 0.4;
+    const isKeyBridge = betweenness > 0.5; // Bridge nodes are critical in networks
+    
+    // Risk-based prominence levels  
     const isHighRisk = riskLevel?.toLowerCase() === 'high' || riskScore > 70;
     const isCriticalRisk = riskLevel?.toLowerCase() === 'critical' || riskScore > 90;
     
+    // Combined prominence: high centrality + high risk = maximum prominence
+    const isMaxProminence = (isHighCentrality && isHighRisk) || isCriticalRisk;
+    const isHighProminence = isHighCentrality || isKeyBridge || isHighRisk;
+    
     return {
       fill: riskColor,
-      stroke: isCriticalRisk ? '#8B0000' : 
+      stroke: isMaxProminence ? '#8B0000' : // Dark red for maximum prominence
+              isHighCentrality ? '#2E86C1' : // Blue for high centrality
+              isKeyBridge ? '#8E44AD' : // Purple for bridge nodes
+              isCriticalRisk ? '#8B0000' : 
               isHighRisk ? '#C62D42' : 
               verified ? '#5C6C7C' : '#F39C12',
-      strokeWidth: isCriticalRisk ? 4 : 
+      strokeWidth: isMaxProminence ? 5 : // Thickest border for max prominence
+                   isHighCentrality ? 4 : // Thick border for high centrality
+                   isKeyBridge ? 4 : // Thick border for bridge nodes
+                   isCriticalRisk ? 4 : 
                    isHighRisk ? 3 : 
                    2,
       opacity: verified ? 0.95 : 0.75,
-      // Add glow effect for high-risk entities
-      filter: isCriticalRisk ? 'drop-shadow(0 0 8px #8B0000)' : 
+      // Enhanced glow effects for centrality and risk
+      filter: isMaxProminence ? 'drop-shadow(0 0 12px #8B0000)' : // Maximum glow
+              isHighCentrality ? 'drop-shadow(0 0 10px #2E86C1)' : // Blue glow for centrality
+              isKeyBridge ? 'drop-shadow(0 0 8px #8E44AD)' : // Purple glow for bridges
+              isCriticalRisk ? 'drop-shadow(0 0 8px #8B0000)' : 
               isHighRisk ? 'drop-shadow(0 0 6px #C62D42)' : 'none'
     };
   }, [getRiskColor]);
@@ -213,38 +234,53 @@ const NetworkGraphComponent = ({
           // Enhanced data for analytics
           riskCategory: node.riskScore > 90 ? 'critical' :
                        node.riskScore > 70 ? 'high' :
-                       node.riskScore > 40 ? 'medium' : 'low'
+                       node.riskScore > 40 ? 'medium' : 'low',
+          // Centrality-based categorization
+          centralityCategory: node.centrality > 0.7 ? 'high' :
+                             node.centrality > 0.4 ? 'medium' : 'low',
+          betweennessCategory: node.betweenness > 0.5 ? 'bridge' :
+                              node.betweenness > 0.2 ? 'connector' : 'terminal',
+          // Combined prominence score for sorting/filtering
+          prominenceScore: (node.centrality * 0.4) + (node.betweenness * 0.3) + ((node.riskScore/100) * 0.3),
+          // Centrality tooltip information
+          centralityTooltip: `Centrality: ${(node.centrality * 100).toFixed(1)}% | Betweenness: ${(node.betweenness * 100).toFixed(1)}%`
         },
         // Enhanced node styling using new functions
         fill: nodeStyling.fill,
         size: nodeSize,
-        // Node appearance configuration
+        // Node appearance configuration with centrality indicators
         icon: getEntityIcon(node.entityType),
-        // Dynamic text styling based on node size and risk
-        labelFontSize: Math.max(9, Math.min(16, nodeSize * 0.2)),
-        labelColor: '#FFFFFF', // White text for better contrast
-        labelFontWeight: node.riskScore > 70 ? 'bold' : '600',
-        // Enhanced visual styling with risk-based borders
+        // Dynamic text styling based on centrality and risk prominence
+        labelFontSize: Math.max(10, Math.min(18, nodeSize * 0.25)), // Larger fonts for prominent nodes
+        labelColor: node.centrality > 0.7 ? '#FFD700' : // Gold text for high centrality
+                   node.betweenness > 0.5 ? '#E6E6FA' : // Light purple for bridge nodes
+                   node.riskScore > 70 ? '#FFB6C1' : // Light red for high risk
+                   '#FFFFFF', // Default white
+        labelFontWeight: (node.centrality > 0.7 || node.riskScore > 70) ? 'bold' : 
+                        (node.centrality > 0.4 || node.riskScore > 40) ? '700' : '600',
+        // Enhanced visual styling with centrality-based borders
         stroke: isCenterNode ? '#1C1E21' : nodeStyling.stroke,
-        strokeWidth: isCenterNode ? Math.max(4, nodeStyling.strokeWidth + 1) : nodeStyling.strokeWidth,
+        strokeWidth: isCenterNode ? Math.max(5, nodeStyling.strokeWidth + 1) : nodeStyling.strokeWidth,
         opacity: nodeStyling.opacity,
-        // Add visual effects for high-risk entities
+        // Add visual effects for centrality and risk
         filter: nodeStyling.filter,
-        // Enhanced hover effects
-        labelPosition: nodeSize > 50 ? 'center' : 'bottom'
+        // Enhanced positioning for prominent nodes
+        labelPosition: nodeSize > 60 ? 'center' : 'bottom',
+        // Add centrality badge overlay for high centrality nodes
+        subLabel: node.centrality > 0.7 ? `★${(node.centrality * 100).toFixed(0)}%` : 
+                 node.betweenness > 0.5 ? `◆${(node.betweenness * 100).toFixed(0)}%` : ''
       };
     });
 
-    // Transform edges for Reagraph with enhanced styling
-    const reagraphEdges = networkData.edges.map(edge => {
+    // Transform edges for Reagraph with bidirectional support
+    const reagraphEdges = [];
+    
+    networkData.edges.forEach(edge => {
       // Get enhanced edge styling
       const edgeStyling = getEdgeStyling(edge);
       
-      return {
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
-        label: edge.label,
+      // Create base edge configuration
+      const baseEdgeConfig = {
         data: {
           ...edge,
           // Enhanced data for analytics
@@ -253,22 +289,60 @@ const NetworkGraphComponent = ({
           riskCategory: edge.riskWeight > 0.7 ? 'high' :
                        edge.riskWeight > 0.4 ? 'medium' : 'low'
         },
-        // Enhanced edge styling using new functions
+        // Enhanced edge styling
         fill: edgeStyling.fill,
         size: edgeStyling.size,
         opacity: edgeStyling.opacity,
         dashed: edgeStyling.dashed,
         filter: edgeStyling.filter,
-        // Arrow configuration for bidirectional relationships
-        arrow: edge.bidirectional ? 'both' : 'target',
-        arrowSize: Math.max(4, edgeStyling.size * 0.8),
-        // Dynamic labeling for important relationships
+        arrowSize: Math.max(6, edgeStyling.size * 1.2),
+        
+        // Enhanced visual indicators
         labelVisible: edge.confidence > 0.8 || edge.riskWeight > 0.7,
         labelFontSize: Math.max(8, Math.min(12, edgeStyling.size + 4)),
         labelColor: '#2C3E50',
         labelBackgroundColor: 'rgba(255,255,255,0.8)',
         labelPadding: 2
       };
+
+      if (edge.bidirectional) {
+        // Create TWO separate edges for bidirectional relationships
+        // Edge 1: source -> target
+        reagraphEdges.push({
+          ...baseEdgeConfig,
+          id: `${edge.id}-forward`,
+          source: edge.source,
+          target: edge.target,
+          label: `${edge.relationshipType || ''}`,
+          size: edgeStyling.size + 1, // Slightly thicker
+          labelColor: '#E74C3C', // Red for bidirectional
+          edgeInterpolation: 'curved', // Add slight curve to distinguish the two edges
+          curvature: 0.2
+        });
+        
+        // Edge 2: target -> source  
+        reagraphEdges.push({
+          ...baseEdgeConfig,
+          id: `${edge.id}-backward`,
+          source: edge.target,
+          target: edge.source,
+          label: `⟷`, // Bidirectional symbol on reverse edge
+          size: edgeStyling.size + 1,
+          labelColor: '#E74C3C',
+          labelVisible: true, // Always show bidirectional symbol
+          edgeInterpolation: 'curved',
+          curvature: -0.2 // Opposite curve direction
+        });
+      } else {
+        // Standard single directional edge
+        reagraphEdges.push({
+          ...baseEdgeConfig,
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+          label: edge.label || ''
+        });
+      }
     });
 
     console.log('Transformed nodes:', reagraphNodes.length, reagraphNodes);
@@ -358,69 +432,6 @@ const NetworkGraphComponent = ({
         zoomable={true}
       />
       
-      {/* Control Panel */}
-      <div style={{
-        position: 'absolute',
-        top: '10px',
-        right: '10px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '8px',
-        zIndex: 10
-      }}>
-        <button
-          style={{
-            padding: '8px 12px',
-            fontSize: '12px',
-            backgroundColor: 'white',
-            border: '1px solid #E8EDEB',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-          onClick={handleResetView}
-        >
-          🎯 Reset View
-        </button>
-        {centerNodeId && (
-          <button
-            style={{
-              padding: '8px 12px',
-              fontSize: '12px',
-              backgroundColor: 'white',
-              border: '1px solid #E8EDEB',
-              borderRadius: '4px',
-              cursor: 'pointer'
-            }}
-            onClick={handleFocusCenter}
-          >
-            🔍 Focus Center
-          </button>
-        )}
-      </div>
-
-      {/* Network Info Panel */}
-      {networkData && (
-        <div style={{
-          position: 'absolute',
-          top: '10px',
-          left: '10px',
-          backgroundColor: 'rgba(255, 255, 255, 0.95)',
-          padding: '12px',
-          borderRadius: '6px',
-          border: '1px solid #E8EDEB',
-          fontSize: '12px',
-          color: '#5C6C7C',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-          zIndex: 10
-        }}>
-          <div><strong>Nodes:</strong> {networkData.totalNodes}</div>
-          <div><strong>Edges:</strong> {networkData.totalEdges}</div>
-          <div><strong>Max Depth:</strong> {networkData.maxDepthReached}</div>
-          {networkData.searchMetadata?.executionTimeMs && (
-            <div><strong>Time:</strong> {networkData.searchMetadata.executionTimeMs}ms</div>
-          )}
-        </div>
-      )}
 
       {/* Enhanced Legend */}
       <div style={{
@@ -438,8 +449,48 @@ const NetworkGraphComponent = ({
         maxWidth: '250px',
         minWidth: '220px'
       }}>
-        <H3 style={{ fontSize: '13px', marginBottom: '10px', color: '#2C3E50' }}>Risk & Relationship Legend</H3>
+        <H3 style={{ fontSize: '13px', marginBottom: '10px', color: '#2C3E50' }}>Network Analytics Legend</H3>
         
+        {/* Centrality Indicators */}
+        <div style={{ marginBottom: '12px' }}>
+          <div style={{ fontSize: '10px', fontWeight: '600', marginBottom: '6px', color: '#34495E' }}>
+            Centrality & Network Position
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ 
+                width: '16px', 
+                height: '16px', 
+                borderRadius: '50%', 
+                backgroundColor: '#2E86C1',
+                border: '4px solid #2E86C1',
+                filter: 'drop-shadow(0 0 6px #2E86C1)'
+              }}></div>
+              <span style={{ fontSize: '9px' }}>High Centrality ★ (hub nodes)</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ 
+                width: '14px', 
+                height: '14px', 
+                borderRadius: '50%', 
+                backgroundColor: '#8E44AD',
+                border: '4px solid #8E44AD',
+                filter: 'drop-shadow(0 0 4px #8E44AD)'
+              }}></div>
+              <span style={{ fontSize: '9px' }}>Bridge Nodes ◆ (connectors)</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ 
+                width: '12px', 
+                height: '12px', 
+                borderRadius: '50%', 
+                backgroundColor: '#5C6C7C'
+              }}></div>
+              <span style={{ fontSize: '9px' }}>Regular Nodes</span>
+            </div>
+          </div>
+        </div>
+
         {/* Risk Levels */}
         <div style={{ marginBottom: '12px' }}>
           <div style={{ fontSize: '10px', fontWeight: '600', marginBottom: '6px', color: '#34495E' }}>
@@ -529,14 +580,17 @@ const NetworkGraphComponent = ({
           </div>
         </div>
 
-        {/* Visual Guide */}
+        {/* Enhanced Visual Guide */}
         <div style={{ fontSize: '9px', color: '#7F8C8D', lineHeight: '1.4' }}>
           <div style={{ marginBottom: '4px' }}>
-            💡 <strong>Size</strong>: Risk score + network centrality<br/>
-            🔗 <strong>Thickness</strong>: Relationship confidence<br/>
-            ⚡ <strong>Glow</strong>: Critical risk entities
+            📊 <strong>Size</strong>: Centrality + betweenness + risk score<br/>
+            🎯 <strong>Borders</strong>: Blue=high centrality, Purple=bridges<br/>
+            ⭐ <strong>Labels</strong>: ★=centrality %, ◆=betweenness %<br/>
+            🔗 <strong>Edges</strong>: Thickness=confidence, ⟷=bidirectional<br/>
+            ⚡ <strong>Glow</strong>: Network prominence + risk level
           </div>
           <div style={{ fontSize: '8px', color: '#95A5A6' }}>
+            High centrality nodes = network hubs • Bridge nodes = key connectors<br/>
             Click nodes to navigate • Drag to pan • Scroll to zoom
           </div>
         </div>

@@ -120,12 +120,18 @@ class NetworkRepository(NetworkRepositoryInterface):
                 if isinstance(entity_name, dict):
                     entity_name = entity_name.get("full", entity_name.get("display", "Unknown"))
                 
-                # Map risk level
-                risk_level_str = entity.get("riskAssessment", {}).get("overall", {}).get("level", "low")
+                # Map risk level and score
+                risk_assessment = entity.get("riskAssessment", {}).get("overall", {})
+                risk_level_str = risk_assessment.get("level", "low")
+                risk_score_raw = risk_assessment.get("score", 0)
+                
                 try:
                     risk_level = NetworkRiskLevel(risk_level_str.lower())
                 except ValueError:
                     risk_level = NetworkRiskLevel.LOW
+                
+                # Convert risk score to 0-1 scale (assuming backend scores are 0-100)
+                risk_score = min(1.0, max(0.0, float(risk_score_raw) / 100.0))
                 
                 # Count connections for this entity
                 connection_count = sum(1 for edge in edges 
@@ -136,6 +142,7 @@ class NetworkRepository(NetworkRepositoryInterface):
                     entity_name=str(entity_name),
                     entity_type=entity.get("entityType", "unknown"),
                     risk_level=risk_level,
+                    risk_score=risk_score,  # Include actual risk score
                     is_center=(entity_id == params.center_entity_id),
                     connection_count=connection_count,
                     size=max(10, min(50, connection_count * 5))  # Scale node size

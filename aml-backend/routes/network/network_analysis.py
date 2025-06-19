@@ -120,15 +120,17 @@ async def get_entity_network(
         # Convert to frontend-compatible format
         def convert_node(node):
             enhancements = node_enhancements.get(node.entity_id, {})
-            base_risk_score = getattr(node, 'risk_score', 0)
-            enhanced_risk_score = enhancements.get("networkRiskScore", base_risk_score)
+            # Use actual risk score from node, with network enhancement as bonus
+            base_risk_score = getattr(node, 'risk_score', 0.0)
+            network_risk_bonus = enhancements.get("networkRiskScore", 0.0) * 0.1  # 10% bonus from network analysis
+            combined_risk_score = min(1.0, base_risk_score + network_risk_bonus)
             
             return {
                 "id": node.entity_id,
                 "label": node.entity_name,
                 "type": node.entity_type,
                 "riskLevel": node.risk_level.value if hasattr(node.risk_level, 'value') else str(node.risk_level),
-                "riskScore": enhanced_risk_score * 100,  # Convert to 0-100 scale for frontend
+                "riskScore": combined_risk_score * 100,  # Convert to 0-100 scale for frontend
                 "centrality": enhancements.get("centrality", 0),
                 "betweenness": enhancements.get("betweenness", 0),
                 "isCenter": getattr(node, 'is_center', False),
@@ -189,8 +191,7 @@ async def get_entity_network(
                 "centerEntityId": network_data.center_entity_id,
                 "totalEntities": network_data.total_entities,
                 "totalRelationships": network_data.total_relationships,
-                "maxDepthReached": network_data.max_depth_reached,
-                "queryTimeMs": network_data.query_time_ms
+                "maxDepthReached": network_data.max_depth_reached
             }
         }
         

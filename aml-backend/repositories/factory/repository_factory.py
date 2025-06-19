@@ -134,8 +134,8 @@ class RepositoryFactory:
         if "network" not in self._repositories:
             self._repositories["network"] = NetworkRepository(
                 mongodb_repo=self.mongodb_repo,
-                entity_collection="entities",
-                relationship_collection="entity_relationships"
+                entity_collection=os.getenv("ENTITIES_COLLECTION", "entities"),
+                relationship_collection=os.getenv("RELATIONSHIPS_COLLECTION", "relationships")
             )
             logger.debug("Created NetworkRepository instance")
         
@@ -279,8 +279,8 @@ class RepositoryFactory:
         elif repo_type == "network":
             return NetworkRepository(
                 mongodb_repo=self.mongodb_repo,
-                entity_collection=config.get("entity_collection", "entities"),
-                relationship_collection=config.get("relationship_collection", "entity_relationships")
+                entity_collection=config.get("entity_collection", os.getenv("ENTITIES_COLLECTION", "entities")),
+                relationship_collection=config.get("relationship_collection", os.getenv("RELATIONSHIPS_COLLECTION", "relationships"))
             )
         else:
             raise ValueError(f"Unknown repository type: {repo_type}")

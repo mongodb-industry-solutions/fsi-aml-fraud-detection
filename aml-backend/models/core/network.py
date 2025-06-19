@@ -14,37 +14,40 @@ from pydantic import BaseModel, Field, validator
 # ==================== ENUMS ====================
 
 class RelationshipType(str, Enum):
-    """Types of relationships between entities"""
+    """Types of relationships between entities based on relationships collection data"""
     
-    # Corporate relationships
-    SUBSIDIARY = "subsidiary"
-    PARENT_COMPANY = "parent_company"
-    JOINT_VENTURE = "joint_venture"
-    PARTNERSHIP = "partnership"
-    SUPPLIER = "supplier"
-    CUSTOMER = "customer"
+    # Entity Resolution Links (High Priority for AML/KYC)
+    SAME_ENTITY = "confirmed_same_entity"  # Alias for backward compatibility
+    CONFIRMED_SAME_ENTITY = "confirmed_same_entity"
+    POTENTIAL_DUPLICATE = "potential_duplicate"
     
-    # Individual relationships  
-    FAMILY_MEMBER = "family_member"
+    # Corporate Structure Links
+    DIRECTOR_OF = "director_of"
+    UBO_OF = "ubo_of"  # Ultimate Beneficial Owner
+    PARENT_OF_SUBSIDIARY = "parent_of_subsidiary"
+    SHAREHOLDER_OF = "shareholder_of"
+    
+    # Household Links
+    HOUSEHOLD_MEMBER = "household_member"
+    
+    # High-Risk Network Links (Critical for AML monitoring)
+    BUSINESS_ASSOCIATE_SUSPECTED = "business_associate_suspected"
+    POTENTIAL_BENEFICIAL_OWNER_OF = "potential_beneficial_owner_of"
+    TRANSACTIONAL_COUNTERPARTY_HIGH_RISK = "transactional_counterparty_high_risk"
+    
+    # Generic & Historical Links
+    PROFESSIONAL_COLLEAGUE_PUBLIC = "professional_colleague_public"
+    SOCIAL_MEDIA_CONNECTION_PUBLIC = "social_media_connection_public"
+    
+    # Legacy/Backward Compatibility Types (needed by NetworkAnalysisService)
     BUSINESS_ASSOCIATE = "business_associate"
-    EMPLOYEE = "employee"
-    DIRECTOR = "director"
-    SHAREHOLDER = "shareholder"
-    BENEFICIAL_OWNER = "beneficial_owner"
+    FAMILY_MEMBER = "family_member"
+    SHARED_ADDRESS = "shared_address"
+    SHARED_IDENTIFIER = "shared_identifier"
+    TRANSACTION_COUNTERPARTY = "transaction_counterparty"
+    CORPORATE_STRUCTURE = "corporate_structure"
     
-    # Address/location relationships
-    SAME_ADDRESS = "same_address"
-    RELATED_ADDRESS = "related_address"
-    
-    # Financial relationships
-    SHARED_ACCOUNT = "shared_account"
-    TRANSACTION_COUNTERPART = "transaction_counterpart"
-    GUARANTOR = "guarantor"
-    
-    # Other
-    LEGAL_REPRESENTATIVE = "legal_representative"
-    POWER_OF_ATTORNEY = "power_of_attorney"
-    SUSPECTED_LINK = "suspected_link"
+    # Fallback
     UNKNOWN = "unknown"
 
 
@@ -115,12 +118,17 @@ class EntityRelationship(BaseModel):
     
     @property
     def risk_indicator(self) -> bool:
-        """Check if this relationship type indicates potential risk"""
+        """Check if this relationship type indicates potential AML/KYC risk"""
         risk_types = {
-            RelationshipType.SUSPECTED_LINK,
+            # High-risk relationship types for AML compliance
+            RelationshipType.BUSINESS_ASSOCIATE_SUSPECTED,
+            RelationshipType.POTENTIAL_BENEFICIAL_OWNER_OF,
+            RelationshipType.TRANSACTIONAL_COUNTERPARTY_HIGH_RISK,
+            RelationshipType.POTENTIAL_DUPLICATE,
+            RelationshipType.SAME_ENTITY,
+            RelationshipType.UBO_OF,
             RelationshipType.BENEFICIAL_OWNER,
-            RelationshipType.POWER_OF_ATTORNEY,
-            RelationshipType.LEGAL_REPRESENTATIVE
+            RelationshipType.SHARED_IDENTIFIER
         }
         return self.relationship_type in risk_types
     
@@ -175,6 +183,7 @@ class NetworkEdge(BaseModel):
     # Edge metadata
     verified: bool = False
     evidence_count: int = 0
+    direction: Optional[str] = "directed"  # "directed", "bidirectional", "undirected"
 
 
 class EntityNetwork(BaseModel):
@@ -416,6 +425,70 @@ class NetworkVisualizationConfig(BaseModel):
     # Filtering
     min_confidence_display: float = Field(0.3, ge=0, le=1)
     max_entities_display: int = Field(50, ge=10, le=200)
+
+
+# ==================== RELATIONSHIP UTILITIES ====================
+
+def get_relationship_risk_weight(rel_type: RelationshipType) -> float:
+    """Get risk weight for different relationship types based on AML significance"""
+    risk_weights = {
+        # Entity Resolution (Highest risk - potential identity fraud)
+        RelationshipType.CONFIRMED_SAME_ENTITY: 1.0,
+        RelationshipType.POTENTIAL_DUPLICATE: 0.9,
+        
+        # Corporate Structure (High risk - beneficial ownership concealment)
+        RelationshipType.UBO_OF: 0.8,
+        RelationshipType.DIRECTOR_OF: 0.7,
+        RelationshipType.PARENT_OF_SUBSIDIARY: 0.7,
+        RelationshipType.SHAREHOLDER_OF: 0.6,
+        
+        # High-Risk Network (High risk - suspicious associations)
+        RelationshipType.POTENTIAL_BENEFICIAL_OWNER_OF: 0.8,
+        RelationshipType.TRANSACTIONAL_COUNTERPARTY_HIGH_RISK: 0.9,
+        RelationshipType.BUSINESS_ASSOCIATE_SUSPECTED: 0.6,
+        
+        # Household (Medium risk - related party transactions)
+        RelationshipType.HOUSEHOLD_MEMBER: 0.5,
+        
+        # Generic/Historical (Lower risk - public information)
+        RelationshipType.PROFESSIONAL_COLLEAGUE_PUBLIC: 0.3,
+        RelationshipType.SOCIAL_MEDIA_CONNECTION_PUBLIC: 0.2,
+        
+        # Fallback
+        RelationshipType.UNKNOWN: 0.4,
+    }
+    return risk_weights.get(rel_type, 0.4)
+
+
+def get_relationship_color_category(rel_type: RelationshipType) -> str:
+    """Get color category for relationship visualization"""
+    color_categories = {
+        # Entity Resolution - Green spectrum (identity verification)
+        RelationshipType.CONFIRMED_SAME_ENTITY: "identity_confirmed",
+        RelationshipType.POTENTIAL_DUPLICATE: "identity_suspected",
+        
+        # Corporate Structure - Blue spectrum (ownership structure)
+        RelationshipType.DIRECTOR_OF: "corporate_control",
+        RelationshipType.UBO_OF: "corporate_control", 
+        RelationshipType.PARENT_OF_SUBSIDIARY: "corporate_hierarchy",
+        RelationshipType.SHAREHOLDER_OF: "corporate_ownership",
+        
+        # High-Risk Network - Red spectrum (high-risk associations)
+        RelationshipType.POTENTIAL_BENEFICIAL_OWNER_OF: "high_risk",
+        RelationshipType.TRANSACTIONAL_COUNTERPARTY_HIGH_RISK: "high_risk",
+        RelationshipType.BUSINESS_ASSOCIATE_SUSPECTED: "medium_risk",
+        
+        # Household - Purple (family/residential)
+        RelationshipType.HOUSEHOLD_MEMBER: "household",
+        
+        # Generic/Historical - Gray spectrum (low priority)
+        RelationshipType.PROFESSIONAL_COLLEAGUE_PUBLIC: "public_record",
+        RelationshipType.SOCIAL_MEDIA_CONNECTION_PUBLIC: "public_record",
+        
+        # Fallback
+        RelationshipType.UNKNOWN: "unknown",
+    }
+    return color_categories.get(rel_type, "unknown")
 
 
 # ==================== ALIASES FOR COMPATIBILITY ====================

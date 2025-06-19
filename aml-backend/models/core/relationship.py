@@ -12,37 +12,59 @@ from pydantic import BaseModel, Field
 
 
 class RelationshipType(str, Enum):
-    """Enumeration of relationship types"""
+    """Enumeration of relationship types aligned with synthetic data model"""
     
-    # Family relationships
+    # Entity Resolution Types (High Risk - Identity)
+    SAME_ENTITY = "confirmed_same_entity"
+    CONFIRMED_SAME_ENTITY = "confirmed_same_entity"
+    POTENTIAL_DUPLICATE = "potential_duplicate"
+    
+    # Corporate Structure Types (Medium-High Risk - Ownership/Control)
+    DIRECTOR_OF = "director_of"
+    UBO_OF = "ubo_of"
+    PARENT_OF_SUBSIDIARY = "parent_of_subsidiary"
+    CORPORATE_STRUCTURE = "corporate_structure"
+    
+    # Household & Personal Types (Low-Medium Risk)
+    HOUSEHOLD_MEMBER = "household_member"
     FAMILY_MEMBER = "family_member"
-    SPOUSE = "spouse"
-    PARENT = "parent"
-    CHILD = "child"
-    SIBLING = "sibling"
     
-    # Business relationships
+    # High-Risk Network Types (High Risk - Suspicious Associations)
+    BUSINESS_ASSOCIATE_SUSPECTED = "business_associate_suspected"
+    POTENTIAL_BENEFICIAL_OWNER_OF = "potential_beneficial_owner_of"
+    TRANSACTIONAL_COUNTERPARTY_HIGH_RISK = "transactional_counterparty_high_risk"
+    
+    # Public/Generic Types (Low Risk - Verified Public Information)
+    PROFESSIONAL_COLLEAGUE_PUBLIC = "professional_colleague_public"
+    SOCIAL_MEDIA_CONNECTION_PUBLIC = "social_media_connection_public"
+    
+    # Legacy/Backward Compatibility Types
+    BUSINESS_ASSOCIATE = "business_associate"
+    SHARED_ADDRESS = "shared_address"
+    SHARED_IDENTIFIER = "shared_identifier"
+    TRANSACTION_COUNTERPARTY = "transaction_counterparty"
+    
+    # Additional Business Relationships
     BUSINESS_PARTNER = "business_partner"
     EMPLOYER = "employer"
     EMPLOYEE = "employee"
     DIRECTOR = "director"
     SHAREHOLDER = "shareholder"
     
-    # Financial relationships
+    # Additional Financial Relationships
     BENEFICIAL_OWNER = "beneficial_owner"
     ACCOUNT_HOLDER = "account_holder"
     SIGNATORY = "signatory"
     GUARANTOR = "guarantor"
     
-    # Address relationships
-    SHARED_ADDRESS = "shared_address"
+    # Additional Address Relationships
     PREVIOUS_ADDRESS = "previous_address"
     
-    # Contact relationships
+    # Additional Contact Relationships
     SHARED_CONTACT = "shared_contact"
     AUTHORIZED_REPRESENTATIVE = "authorized_representative"
     
-    # Generic relationships
+    # Generic Relationships
     ASSOCIATED_WITH = "associated_with"
     RELATED_TO = "related_to"
     UNKNOWN = "unknown"

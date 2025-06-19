@@ -1181,15 +1181,37 @@ function NetworkAnalysisTab({ entity }) {
   const [maxDepth, setMaxDepth] = useState(2);
   const [minStrength, setMinStrength] = useState(0.5);
   const [includeInactive, setIncludeInactive] = useState(false);
+  const [relationshipTypeFilter, setRelationshipTypeFilter] = useState('all');
+  const [showRiskPropagation, setShowRiskPropagation] = useState(false);
+  const [riskPropagationData, setRiskPropagationData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [networkStats, setNetworkStats] = useState(null);
+  const [performanceMetrics, setPerformanceMetrics] = useState(null);
   const router = useRouter();
+
+  // Available relationship types for filtering
+  const relationshipTypes = [
+    { value: 'all', label: 'All Relationships' },
+    { value: 'confirmed_same_entity', label: 'Confirmed Same Entity' },
+    { value: 'potential_duplicate', label: 'Potential Duplicate' },
+    { value: 'director_of', label: 'Director Of' },
+    { value: 'ubo_of', label: 'UBO Of' },
+    { value: 'parent_of_subsidiary', label: 'Parent/Subsidiary' },
+    { value: 'household_member', label: 'Household Member' },
+    { value: 'business_associate_suspected', label: 'Business Associate (Suspected)' },
+    { value: 'potential_beneficial_owner_of', label: 'Potential Beneficial Owner' },
+    { value: 'transactional_counterparty_high_risk', label: 'High-Risk Counterparty' },
+    { value: 'professional_colleague_public', label: 'Professional Colleague' },
+    { value: 'social_media_connection_public', label: 'Social Media Connection' }
+  ];
 
   const fetchNetworkData = async () => {
     if (!entity?.entityId) return;
     
     setIsLoading(true);
     setError(null);
+    const startTime = performance.now();
     
     try {
       const data = await amlAPI.getEntityNetwork(
@@ -1197,10 +1219,24 @@ function NetworkAnalysisTab({ entity }) {
         maxDepth, 
         minStrength, 
         includeInactive,
-        100 // max nodes
+        100, // max nodes
+        relationshipTypeFilter === 'all' ? null : relationshipTypeFilter
       );
       
+      const endTime = performance.now();
+      setPerformanceMetrics({
+        loadTime: Math.round(endTime - startTime),
+        timestamp: new Date().toISOString()
+      });
+      
       setNetworkData(data);
+      
+      // Calculate enhanced network statistics
+      if (data && data.nodes && data.edges) {
+        const stats = calculateNetworkStatistics(data);
+        setNetworkStats(stats);
+      }
+      
     } catch (error) {
       console.error('Failed to fetch network:', error);
       setError(error.message || 'Failed to load network data');
@@ -1209,9 +1245,108 @@ function NetworkAnalysisTab({ entity }) {
     }
   };
 
+  const calculateNetworkStatistics = (data) => {
+    const { nodes, edges } = data;
+    
+    // Basic metrics
+    const totalNodes = nodes.length;
+    const totalEdges = edges.length;
+    const density = totalNodes > 1 ? (totalEdges / ((totalNodes * (totalNodes - 1)) / 2)) : 0;
+    
+    // Risk distribution
+    const riskDistribution = nodes.reduce((acc, node) => {
+      const level = node.riskLevel?.toLowerCase() || 'unknown';
+      acc[level] = (acc[level] || 0) + 1;
+      return acc;
+    }, {});
+    
+    // Relationship type distribution
+    const relationshipDistribution = edges.reduce((acc, edge) => {
+      const type = edge.relationshipType || edge.label || 'unknown';
+      acc[type] = (acc[type] || 0) + 1;
+      return acc;
+    }, {});
+    
+    // Hub entities (high connectivity)
+    const nodeConnections = nodes.map(node => {
+      const connections = edges.filter(edge => 
+        edge.source === node.id || edge.target === node.id
+      ).length;
+      return { ...node, connections };
+    }).sort((a, b) => b.connections - a.connections);
+    
+    const hubEntities = nodeConnections.slice(0, 5);
+    
+    return {
+      totalNodes,
+      totalEdges,
+      density: density.toFixed(3),
+      riskDistribution,
+      relationshipDistribution,
+      hubEntities,
+      averageRiskScore: nodes.reduce((sum, node) => sum + (node.riskScore || 0), 0) / totalNodes
+    };
+  };
+
+  // Enhanced risk propagation analysis
+  const fetchRiskPropagationData = async () => {
+    if (!entity?.entityId || !showRiskPropagation) return;
+    
+    try {
+      const riskData = await amlAPI.getRiskPropagationAnalysis(entity.entityId, maxDepth, 0.6);
+      setRiskPropagationData(riskData);
+    } catch (error) {
+      console.error('Failed to fetch risk propagation data:', error);
+    }
+  };
+
+  // Fetch risk propagation when enabled
+  useEffect(() => {
+    if (showRiskPropagation) {
+      fetchRiskPropagationData();
+    } else {
+      setRiskPropagationData(null);
+    }
+  }, [entity?.entityId, showRiskPropagation, maxDepth]);
+
+  // Advanced network investigation for AML workflows
+  const handleAdvancedInvestigation = async () => {
+    if (!entity?.entityId) return;
+    
+    setIsLoading(true);
+    try {
+      const investigationReport = await amlAPI.getNetworkInvestigationReport(
+        entity.entityId, 
+        'comprehensive'
+      );
+      
+      // Process investigation results
+      console.log('Advanced Investigation Report:', investigationReport);
+      
+      // Update network data with investigation results
+      if (investigationReport.networkData) {
+        setNetworkData(investigationReport.networkData);
+        
+        if (investigationReport.networkData.nodes && investigationReport.networkData.edges) {
+          const stats = calculateNetworkStatistics(investigationReport.networkData);
+          setNetworkStats(stats);
+        }
+      }
+      
+      // Store investigation results for potential export
+      setRiskPropagationData(investigationReport.riskAnalysis);
+      
+    } catch (error) {
+      console.error('Advanced investigation failed:', error);
+      setError(error.message || 'Advanced investigation failed');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchNetworkData();
-  }, [entity?.entityId, maxDepth, minStrength, includeInactive]);
+  }, [entity?.entityId, maxDepth, minStrength, includeInactive, relationshipTypeFilter]);
 
   const handleNodeClick = (nodeData) => {
     if (nodeData.id !== entity?.entityId) {
@@ -1227,23 +1362,23 @@ function NetworkAnalysisTab({ entity }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[4] }}>
-      {/* Network Controls */}
+      {/* Enhanced Network Controls */}
       <Card style={{ padding: spacing[4] }}>
         <H3 style={{ marginBottom: spacing[3] }}>
           <Icon glyph="Relationship" style={{ marginRight: spacing[2] }} />
-          Network Configuration
+          Advanced Network Configuration
         </H3>
         
         <div style={{ 
           display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', 
           gap: spacing[3],
           marginBottom: spacing[3]
         }}>
           {/* Max Depth Control */}
           <div>
             <Label htmlFor="maxDepth" style={{ marginBottom: spacing[1] }}>
-              Maximum Depth
+              Network Depth
             </Label>
             <select
               id="maxDepth"
@@ -1257,24 +1392,49 @@ function NetworkAnalysisTab({ entity }) {
                 fontSize: '14px'
               }}
             >
-              <option value={1}>Direct connections (1)</option>
+              <option value={1}>Direct connections (1 hop)</option>
               <option value={2}>2 degrees of separation</option>
               <option value={3}>3 degrees of separation</option>
               <option value={4}>4 degrees of separation</option>
             </select>
           </div>
 
+          {/* Relationship Type Filter */}
+          <div>
+            <Label htmlFor="relationshipType" style={{ marginBottom: spacing[1] }}>
+              Relationship Type Filter
+            </Label>
+            <select
+              id="relationshipType"
+              value={relationshipTypeFilter}
+              onChange={(e) => setRelationshipTypeFilter(e.target.value)}
+              style={{
+                width: '100%',
+                padding: spacing[2],
+                border: `1px solid ${palette.gray.light2}`,
+                borderRadius: '4px',
+                fontSize: '14px'
+              }}
+            >
+              {relationshipTypes.map(type => (
+                <option key={type.value} value={type.value}>
+                  {type.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Min Strength Control */}
           <div>
             <Label htmlFor="minStrength" style={{ marginBottom: spacing[1] }}>
-              Minimum Strength: {(minStrength * 100).toFixed(0)}%
+              Min Confidence: {(minStrength * 100).toFixed(0)}%
             </Label>
             <input
               id="minStrength"
               type="range"
               min="0"
               max="1"
-              step="0.1"
+              step="0.05"
               value={minStrength}
               onChange={(e) => setMinStrength(parseFloat(e.target.value))}
               style={{
@@ -1282,47 +1442,162 @@ function NetworkAnalysisTab({ entity }) {
                 marginTop: spacing[1]
               }}
             />
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              fontSize: '11px', 
+              color: palette.gray.dark1,
+              marginTop: '2px'
+            }}>
+              <span>0%</span>
+              <span>50%</span>
+              <span>100%</span>
+            </div>
           </div>
 
-          {/* Include Inactive */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2] }}>
-            <input
-              id="includeInactive"
-              type="checkbox"
-              checked={includeInactive}
-              onChange={(e) => setIncludeInactive(e.target.checked)}
-            />
-            <Label htmlFor="includeInactive">Include inactive relationships</Label>
+          {/* Advanced Options */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[2] }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2] }}>
+              <input
+                id="includeInactive"
+                type="checkbox"
+                checked={includeInactive}
+                onChange={(e) => setIncludeInactive(e.target.checked)}
+              />
+              <Label htmlFor="includeInactive" style={{ fontSize: '13px' }}>
+                Include inactive relationships
+              </Label>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2] }}>
+              <input
+                id="showRiskPropagation"
+                type="checkbox"
+                checked={showRiskPropagation}
+                onChange={(e) => setShowRiskPropagation(e.target.checked)}
+              />
+              <Label htmlFor="showRiskPropagation" style={{ fontSize: '13px' }}>
+                Show risk propagation paths
+              </Label>
+            </div>
           </div>
 
-          {/* Refresh Button */}
-          <div style={{ display: 'flex', alignItems: 'end' }}>
+          {/* Action Buttons */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[2] }}>
             <Button
-              variant="default"
+              variant="primary"
               onClick={fetchNetworkData}
               disabled={isLoading}
               leftGlyph={<Icon glyph="Refresh" />}
+              size="small"
             >
               {isLoading ? 'Loading...' : 'Update Network'}
+            </Button>
+            <Button
+              variant="default"
+              size="small"
+              leftGlyph={<Icon glyph="Charts" />}
+              disabled={!networkData || isLoading}
+              onClick={handleAdvancedInvestigation}
+              title="Run comprehensive AML investigation with advanced analytics"
+            >
+              Advanced Investigation
             </Button>
           </div>
         </div>
 
-        {/* Network Stats */}
-        {networkData && (
+        {/* Enhanced Network Statistics */}
+        {networkStats && (
           <div style={{ 
-            display: 'flex', 
-            gap: spacing[4], 
+            marginTop: spacing[3],
             padding: spacing[3],
             background: palette.gray.light3,
-            borderRadius: '6px',
-            fontSize: '14px'
+            borderRadius: '8px',
+            border: `1px solid ${palette.gray.light2}`
           }}>
-            <div><strong>Nodes:</strong> {networkData.totalNodes}</div>
-            <div><strong>Edges:</strong> {networkData.totalEdges}</div>
-            <div><strong>Max Depth Reached:</strong> {networkData.maxDepthReached}</div>
-            {networkData.searchMetadata?.executionTimeMs && (
-              <div><strong>Load Time:</strong> {networkData.searchMetadata.executionTimeMs}ms</div>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', 
+              gap: spacing[3],
+              marginBottom: spacing[3]
+            }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: palette.blue.base }}>
+                  {networkStats.totalNodes}
+                </div>
+                <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>Entities</Body>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: palette.green.base }}>
+                  {networkStats.totalEdges}
+                </div>
+                <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>Relationships</Body>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: palette.purple.base }}>
+                  {networkStats.density}
+                </div>
+                <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>Network Density</Body>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: palette.yellow.base }}>
+                  {networkStats.averageRiskScore.toFixed(1)}
+                </div>
+                <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>Avg Risk Score</Body>
+              </div>
+              {performanceMetrics && (
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '24px', fontWeight: 'bold', color: palette.gray.base }}>
+                    {performanceMetrics.loadTime}ms
+                  </div>
+                  <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>Load Time</Body>
+                </div>
+              )}
+            </div>
+            
+            {/* Risk Distribution */}
+            {Object.keys(networkStats.riskDistribution).length > 0 && (
+              <div style={{ marginBottom: spacing[2] }}>
+                <Label style={{ marginBottom: spacing[1] }}>Risk Level Distribution</Label>
+                <div style={{ display: 'flex', gap: spacing[2], flexWrap: 'wrap' }}>
+                  {Object.entries(networkStats.riskDistribution).map(([level, count]) => (
+                    <span key={level} style={{
+                      padding: '3px 8px',
+                      borderRadius: '12px',
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      backgroundColor: level === 'high' ? palette.red.light2 :
+                                     level === 'medium' ? palette.yellow.light2 :
+                                     level === 'low' ? palette.green.light2 : palette.gray.light2,
+                      color: level === 'high' ? palette.red.dark2 :
+                             level === 'medium' ? palette.yellow.dark2 :
+                             level === 'low' ? palette.green.dark2 : palette.gray.dark2
+                    }}>
+                      {level.toUpperCase()}: {count}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Top Hub Entities */}
+            {networkStats.hubEntities.length > 0 && (
+              <div>
+                <Label style={{ marginBottom: spacing[1] }}>Top Connected Entities</Label>
+                <div style={{ display: 'flex', gap: spacing[1], flexWrap: 'wrap' }}>
+                  {networkStats.hubEntities.slice(0, 3).map((hub, index) => (
+                    <span key={hub.id} style={{
+                      padding: '2px 6px',
+                      borderRadius: '8px',
+                      fontSize: '10px',
+                      fontWeight: '500',
+                      backgroundColor: palette.blue.light2,
+                      color: palette.blue.dark2
+                    }}>
+                      {hub.label || hub.id} ({hub.connections})
+                    </span>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         )}
@@ -1402,9 +1677,6 @@ function NetworkAnalysisTab({ entity }) {
           </div>
         </Card>
       )}
-      
-      {/* Similar Profiles Section */}
-      <SimilarProfilesSection entity={entity} />
     </div>
   );
 }
@@ -1508,24 +1780,6 @@ function ActivityAnalysisTab({ entity }) {
             </div>
           </div>
         )}
-        
-        <div style={{ 
-          padding: spacing[4], 
-          background: palette.gray.light3, 
-          borderRadius: '8px',
-          textAlign: 'center' 
-        }}>
-          <Icon glyph="Charts" size={64} fill={palette.gray.light1} />
-          <H3 style={{ marginTop: spacing[2] }}>Advanced Activity Analytics</H3>
-          <Body style={{ color: palette.gray.dark1, marginBottom: spacing[3] }}>
-            Transaction timelines, activity heatmaps, behavioral pattern analysis, 
-            and predictive risk modeling will be available here.
-          </Body>
-          <Button variant="default" disabled>
-            <Icon glyph="BarChart" style={{ marginRight: spacing[1] }} />
-            Coming Soon
-          </Button>
-        </div>
       </Card>
     </div>
   );

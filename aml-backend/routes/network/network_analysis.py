@@ -12,7 +12,7 @@ import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from models.network import NetworkDataResponse, NetworkQueryParams
+from repositories.interfaces.network_repository import NetworkQueryParams, NetworkDataResponse
 from models.api.responses import ErrorResponse
 from services.dependencies import get_network_analysis_service
 from services.network.network_analysis_service import NetworkAnalysisService
@@ -29,7 +29,7 @@ router = APIRouter(
 )
 
 
-@router.get("/{entity_id}", response_model=NetworkDataResponse)
+@router.get("/{entity_id}")
 async def get_entity_network(
     entity_id: str,
     max_depth: int = Query(default=2, ge=1, le=4, description="Maximum traversal depth"),
@@ -74,20 +74,127 @@ async def get_entity_network(
         
         # Create network query parameters
         query_params = NetworkQueryParams(
-            entity_id=entity_id,
+            center_entity_id=entity_id,
             max_depth=max_depth,
-            min_strength=min_strength,
-            include_inactive=include_inactive,
-            max_nodes=max_nodes,
-            include_risk_analysis=include_risk_analysis
+            min_confidence=min_strength,
+            only_active=not include_inactive,  # Invert logic: include_inactive=True means only_active=False
+            max_entities=max_nodes
         )
         
-        # Build the entity network through enhanced service
-        network_data = await network_analysis_service.build_entity_network(query_params)
+        # Build the entity network through repository
+        network_data = await network_analysis_service.network_repo.build_entity_network(query_params)
         
-        logger.info(f"Enhanced network built successfully: {network_data.totalNodes} nodes, {network_data.totalEdges} edges")
+        logger.info(f"Enhanced network built successfully: {network_data.total_entities} nodes, {network_data.total_relationships} edges")
         
-        return network_data
+        # Enhance with advanced analysis if requested
+        enhanced_nodes = network_data.nodes
+        node_enhancements = {}
+        
+        if include_risk_analysis:
+            try:
+                # Get all entity IDs from the network
+                entity_ids = [node.entity_id for node in network_data.nodes]
+                
+                # Get centrality analysis for visual enhancement
+                centrality_results = await network_analysis_service.analyze_network_centrality(entity_ids)
+                if centrality_results.get("success") and centrality_results.get("centrality_metrics"):
+                    for entity_id, metrics in centrality_results["centrality_metrics"].items():
+                        if entity_id not in node_enhancements:
+                            node_enhancements[entity_id] = {}
+                        node_enhancements[entity_id]["centrality"] = metrics.get("normalized_degree_centrality", 0)
+                        node_enhancements[entity_id]["betweenness"] = metrics.get("betweenness_centrality", 0)
+                
+                # Get risk analysis for the center entity
+                risk_analysis = await network_analysis_service.calculate_network_risk_score(
+                    entity_id=entity_id, analysis_depth=2
+                )
+                if risk_analysis.get("success"):
+                    center_id = entity_id
+                    if center_id not in node_enhancements:
+                        node_enhancements[center_id] = {}
+                    node_enhancements[center_id]["networkRiskScore"] = risk_analysis.get("network_risk_score", 0)
+                    
+            except Exception as e:
+                logger.warning(f"Failed to enhance network with advanced analysis: {e}")
+        
+        # Convert to frontend-compatible format
+        def convert_node(node):
+            enhancements = node_enhancements.get(node.entity_id, {})
+            base_risk_score = getattr(node, 'risk_score', 0)
+            enhanced_risk_score = enhancements.get("networkRiskScore", base_risk_score)
+            
+            return {
+                "id": node.entity_id,
+                "label": node.entity_name,
+                "type": node.entity_type,
+                "riskLevel": node.risk_level.value if hasattr(node.risk_level, 'value') else str(node.risk_level),
+                "riskScore": enhanced_risk_score * 100,  # Convert to 0-100 scale for frontend
+                "centrality": enhancements.get("centrality", 0),
+                "betweenness": enhancements.get("betweenness", 0),
+                "isCenter": getattr(node, 'is_center', False),
+                "connectionCount": getattr(node, 'connection_count', 0),
+                "connections": getattr(node, 'connection_count', 0),  # Alias for frontend
+                "size": getattr(node, 'size', 20),
+                "verified": True,
+                "active": True,
+                "entityType": node.entity_type  # Alias for frontend
+            }
+        
+        # Use a counter to ensure absolutely unique edge IDs
+        edge_counter = 0
+        
+        def convert_edge(edge):
+            nonlocal edge_counter
+            edge_counter += 1
+            
+            # Create unique edge ID with counter to ensure absolute uniqueness
+            relationship_type_str = edge.relationship_type.value if hasattr(edge.relationship_type, 'value') else str(edge.relationship_type)
+            edge_id = f"{edge.source_id}-{edge.target_id}-{relationship_type_str}-{edge_counter}"
+            
+            # Calculate risk weight based on relationship type
+            risk_weight = 0.5  # Default
+            
+            # High-risk relationship types
+            if relationship_type_str in ['confirmed_same_entity', 'business_associate_suspected', 'potential_beneficial_owner_of', 'transactional_counterparty_high_risk']:
+                risk_weight = 0.9
+            # Medium-risk relationship types  
+            elif relationship_type_str in ['director_of', 'ubo_of', 'parent_of_subsidiary', 'potential_duplicate']:
+                risk_weight = 0.7
+            # Low-risk relationship types
+            elif relationship_type_str in ['household_member', 'professional_colleague_public', 'social_media_connection_public']:
+                risk_weight = 0.3
+            
+            # Determine if the edge is bidirectional
+            is_bidirectional = getattr(edge, 'direction', 'directed') == 'bidirectional'
+            
+            return {
+                "id": edge_id,
+                "source": edge.source_id,
+                "target": edge.target_id,
+                "relationshipType": relationship_type_str,
+                "confidence": edge.confidence,
+                "weight": edge.weight,
+                "verified": edge.verified,
+                "active": True,
+                "riskWeight": risk_weight,
+                "bidirectional": is_bidirectional,
+                "direction": getattr(edge, 'direction', 'directed')
+            }
+        
+        # Transform data for frontend
+        response_data = {
+            "nodes": [convert_node(node) for node in network_data.nodes],
+            "edges": [convert_edge(edge) for edge in network_data.edges],
+            "metadata": {
+                "centerEntityId": network_data.center_entity_id,
+                "totalEntities": network_data.total_entities,
+                "totalRelationships": network_data.total_relationships,
+                "maxDepthReached": network_data.max_depth_reached,
+                "queryTimeMs": network_data.query_time_ms
+            }
+        }
+        
+        return response_data
         
     except ValueError as e:
         # Handle specific entity not found error
@@ -135,10 +242,8 @@ async def get_network_centrality_analysis(
         logger.info(f"Performing centrality analysis for entity {entity_id}, type: {centrality_type}")
         
         # Get centrality analysis through enhanced service
-        centrality_results = await network_analysis_service.analyze_entity_centrality(
-            entity_id=entity_id,
-            centrality_type=centrality_type,
-            network_scope=network_scope
+        centrality_results = await network_analysis_service.analyze_network_centrality(
+            entity_ids=[entity_id]  # Service expects a list of entity IDs
         )
         
         logger.info(f"Centrality analysis completed for entity {entity_id}")
@@ -190,10 +295,9 @@ async def get_risk_propagation_analysis(
         logger.info(f"Analyzing risk propagation for entity {entity_id}, depth: {propagation_depth}")
         
         # Get risk propagation analysis through enhanced service
-        risk_analysis = await network_analysis_service.analyze_risk_propagation(
+        risk_analysis = await network_analysis_service.calculate_network_risk_score(
             entity_id=entity_id,
-            propagation_depth=propagation_depth,
-            risk_threshold=risk_threshold
+            analysis_depth=propagation_depth
         )
         
         logger.info(f"Risk propagation analysis completed for entity {entity_id}")
@@ -246,8 +350,7 @@ async def get_network_community_detection(
         
         # Get community detection through enhanced service
         community_results = await network_analysis_service.detect_network_communities(
-            entity_id=entity_id,
-            algorithm=community_algorithm,
+            entity_ids=[entity_id],  # Service expects a list of entity IDs
             min_community_size=min_community_size
         )
         
@@ -301,9 +404,8 @@ async def detect_suspicious_network_patterns(
         
         # Get suspicious pattern detection through enhanced service
         pattern_results = await network_analysis_service.detect_suspicious_patterns(
-            entity_id=entity_id,
-            pattern_types=pattern_types.split(",") if pattern_types else None,
-            sensitivity=sensitivity
+            entity_ids=[entity_id],  # Service expects a list of entity IDs
+            pattern_types=pattern_types.split(",") if pattern_types else None
         )
         
         logger.info(f"Suspicious pattern detection completed for entity {entity_id}")

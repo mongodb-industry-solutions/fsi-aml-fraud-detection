@@ -52,8 +52,7 @@ class RelationshipDirection(str, Enum):
     """Direction of the relationship"""
     
     BIDIRECTIONAL = "bidirectional"
-    UNIDIRECTIONAL = "unidirectional"
-    REVERSE = "reverse"
+    DIRECTED = "directed"
 
 
 class RelationshipStatus(str, Enum):
@@ -92,8 +91,8 @@ class RelationshipEvidence(BaseModel):
 class EntityReference(BaseModel):
     """Reference to an entity in a relationship"""
     
-    entity_id: str
-    entity_type: Optional[str] = None
+    entityId: str
+    entityType: str
     name: Optional[str] = None
     
     class Config:
@@ -105,10 +104,10 @@ class EntityReference(BaseModel):
 class Relationship(BaseModel):
     """Core relationship model"""
     
-    relationship_id: str
-    source_entity: EntityReference
-    target_entity: EntityReference
-    relationship_type: RelationshipType
+    relationshipId: str
+    source: EntityReference
+    target: EntityReference
+    type: str
     
     # Relationship attributes
     direction: RelationshipDirection = RelationshipDirection.BIDIRECTIONAL
@@ -116,26 +115,23 @@ class Relationship(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0, default=0.5)
     
     # Status and lifecycle
-    status: RelationshipStatus = RelationshipStatus.ACTIVE
+    active: bool = True
+    verified: bool = False
     created_date: datetime = Field(default_factory=datetime.utcnow)
     updated_date: datetime = Field(default_factory=datetime.utcnow)
     
     # Evidence and verification
     evidence: List[RelationshipEvidence] = Field(default_factory=list)
-    evidence_count: int = 0
-    verified: bool = False
     
-    # Metadata
+    # Data lineage
+    datasource: Optional[str] = None
+    
+    # Additional metadata
     description: Optional[str] = None
     notes: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
-    
-    # Risk and compliance
     risk_impact: Optional[float] = None
     compliance_flags: List[str] = Field(default_factory=list)
-    
-    # Data lineage
-    data_source: Optional[str] = None
     created_by: Optional[str] = None
     updated_by: Optional[str] = None
     
@@ -148,14 +144,15 @@ class Relationship(BaseModel):
 class RelationshipSummary(BaseModel):
     """Summary view of a relationship"""
     
-    relationship_id: str
-    relationship_type: RelationshipType
-    source_entity_id: str
-    target_entity_id: str
+    relationshipId: str
+    type: str
+    source: EntityReference
+    target: EntityReference
     strength: float
     confidence: float
-    status: RelationshipStatus
-    evidence_count: int
+    active: bool
+    verified: bool
+    evidence_count: int = 0
     
     class Config:
         json_encoders = {

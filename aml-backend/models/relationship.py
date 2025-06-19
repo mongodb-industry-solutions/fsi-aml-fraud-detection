@@ -7,7 +7,12 @@ relationship evidence, confidence scoring, and lifecycle management.
 
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Literal
+from enum import Enum
 from pydantic import BaseModel, Field
+
+
+# Import RelationshipType from core for consistency
+from .core.relationship import RelationshipType, RelationshipDirection, RelationshipStatus
 
 
 class RelationshipEvidence(BaseModel):
@@ -33,26 +38,42 @@ class RelationshipEvidence(BaseModel):
         }
 
 
+class EntityReferenceSimple(BaseModel):
+    """Simple reference to an entity in a relationship"""
+    
+    entityId: str
+    entityType: str
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
 class Relationship(BaseModel):
     """Relationship between two entities"""
     
-    relationship_id: str
-    source_entity_id: str
-    target_entity_id: str
-    relationship_type: str
+    relationshipId: str
+    source: EntityReferenceSimple
+    target: EntityReferenceSimple
+    type: str
     
-    # Relationship strength and confidence
+    # Relationship attributes
+    direction: Literal["bidirectional", "directed"] = "bidirectional"
     strength: float = Field(ge=0.0, le=1.0)
     confidence: float = Field(ge=0.0, le=1.0)
     
-    # Evidence and verification
-    evidence: List[RelationshipEvidence] = []
-    evidence_count: int = 0
-    
     # Status and lifecycle
-    status: Literal["active", "inactive", "under_review", "disputed"] = "active"
+    active: bool = True
+    verified: bool = False
     created_date: datetime = Field(default_factory=datetime.utcnow)
     updated_date: datetime = Field(default_factory=datetime.utcnow)
+    
+    # Evidence and verification
+    evidence: List[RelationshipEvidence] = []
+    
+    # Data lineage
+    datasource: Optional[str] = None
     
     # Analysis metadata
     risk_impact: Optional[float] = None
@@ -67,24 +88,28 @@ class Relationship(BaseModel):
 class RelationshipRequest(BaseModel):
     """Request for creating or updating relationships"""
     
-    source_entity_id: str
-    target_entity_id: str
-    relationship_type: str
+    source: EntityReferenceSimple
+    target: EntityReferenceSimple
+    type: str
+    
+    # Relationship attributes
+    direction: Optional[Literal["bidirectional", "directed"]] = "bidirectional"
+    strength: Optional[float] = None
+    confidence: Optional[float] = None
     
     # Initial evidence
     evidence: Optional[List[RelationshipEvidence]] = None
     
-    # Relationship attributes
-    strength: Optional[float] = None
-    confidence: Optional[float] = None
+    # Data lineage
+    datasource: Optional[str] = None
     notes: Optional[str] = None
     
     class Config:
         json_schema_extra = {
             "example": {
-                "source_entity_id": "ENT123456",
-                "target_entity_id": "ENT789012",
-                "relationship_type": "family_member",
+                "source": {"entityId": "ENT123456", "entityType": "individual"},
+                "target": {"entityId": "ENT789012", "entityType": "individual"},
+                "type": "family_member",
                 "evidence": [
                     {
                         "evidence_type": "shared_address",
@@ -100,10 +125,10 @@ class RelationshipRequest(BaseModel):
 class RelationshipAnalysis(BaseModel):
     """Analysis results for a relationship"""
     
-    relationship_id: str
+    relationshipId: str
     analysis_type: str
     analysis_results: Dict[str, Any]
-    confidence_score: float
+    confidence: float
     
     # Risk assessment
     risk_indicators: List[str] = []
@@ -127,14 +152,17 @@ class RelationshipSearchRequest(BaseModel):
     """Request for searching relationships"""
     
     # Entity filtering
-    entity_id: Optional[str] = None
-    entity_ids: Optional[List[str]] = None
+    entityId: Optional[str] = None
+    entityIds: Optional[List[str]] = None
     
     # Relationship filtering
-    relationship_types: Optional[List[str]] = None
+    types: Optional[List[str]] = None
     min_strength: Optional[float] = None
     min_confidence: Optional[float] = None
-    status: Optional[str] = None
+    active: Optional[bool] = None
+    verified: Optional[bool] = None
+    direction: Optional[Literal["bidirectional", "directed"]] = None
+    datasource: Optional[str] = None
     
     # Pagination
     limit: int = Field(default=20, ge=1, le=100)
@@ -147,9 +175,10 @@ class RelationshipSearchRequest(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "entity_id": "ENT123456",
-                "relationship_types": ["family_member", "business_partner"],
+                "entityId": "ENT123456",
+                "types": ["family_member", "business_partner"],
                 "min_confidence": 0.7,
+                "active": True,
                 "limit": 20
             }
         }
@@ -188,9 +217,12 @@ class BulkRelationshipOperation(BaseModel):
                 "operation": "create",
                 "relationships": [
                     {
-                        "source_entity_id": "ENT123456",
-                        "target_entity_id": "ENT789012",
-                        "relationship_type": "family_member"
+                        "source": {"entityId": "ENT123456", "entityType": "individual"},
+                        "target": {"entityId": "ENT789012", "entityType": "individual"},
+                        "type": "family_member",
+                        "direction": "bidirectional",
+                        "strength": 0.8,
+                        "confidence": 0.9
                     }
                 ]
             }
@@ -221,14 +253,16 @@ class BulkRelationshipResponse(BaseModel):
 class CreateRelationshipRequest(BaseModel):
     """Request for creating a new relationship"""
     
-    source_entity_id: str
-    target_entity_id: str
-    relationship_type: str
+    source: EntityReferenceSimple
+    target: EntityReferenceSimple
+    type: str
     
     # Optional attributes
+    direction: Optional[Literal["bidirectional", "directed"]] = "bidirectional"
     strength: Optional[float] = None
     confidence: Optional[float] = None
     evidence: Optional[List[RelationshipEvidence]] = None
+    datasource: Optional[str] = None
     
     class Config:
         json_encoders = {
@@ -240,11 +274,14 @@ class UpdateRelationshipRequest(BaseModel):
     """Request for updating an existing relationship"""
     
     # Updatable fields
-    relationship_type: Optional[str] = None
+    type: Optional[str] = None
+    direction: Optional[Literal["bidirectional", "directed"]] = None
     strength: Optional[float] = None
     confidence: Optional[float] = None
-    status: Optional[str] = None
+    active: Optional[bool] = None
+    verified: Optional[bool] = None
     evidence: Optional[List[RelationshipEvidence]] = None
+    datasource: Optional[str] = None
     
     class Config:
         json_encoders = {
@@ -256,14 +293,17 @@ class RelationshipQueryParams(BaseModel):
     """Query parameters for relationship operations"""
     
     # Entity filtering
-    entity_id: Optional[str] = None
-    entity_ids: Optional[List[str]] = None
+    entityId: Optional[str] = None
+    entityIds: Optional[List[str]] = None
     
     # Relationship filtering
-    relationship_types: Optional[List[str]] = None
+    types: Optional[List[str]] = None
     min_strength: Optional[float] = None
     min_confidence: Optional[float] = None
-    status: Optional[str] = None
+    active: Optional[bool] = None
+    verified: Optional[bool] = None
+    direction: Optional[Literal["bidirectional", "directed"]] = None
+    datasource: Optional[str] = None
     
     # Pagination
     limit: int = Field(default=20, ge=1, le=100)
@@ -294,10 +334,13 @@ class RelationshipStats(BaseModel):
     
     total_relationships: int
     relationships_by_type: Dict[str, int]
-    relationships_by_status: Dict[str, int]
+    relationships_by_direction: Dict[str, int]
+    active_relationships: int
+    inactive_relationships: int
     average_strength: float
     average_confidence: float
     verified_count: int
+    relationships_by_datasource: Dict[str, int]
     
     class Config:
         json_encoders = {
@@ -310,7 +353,7 @@ class RelationshipOperationResponse(BaseModel):
     
     success: bool
     operation: str
-    relationship_id: Optional[str] = None
+    relationshipId: Optional[str] = None
     message: Optional[str] = None
     data: Optional[Dict[str, Any]] = None
     

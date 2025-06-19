@@ -185,55 +185,68 @@ class ResolutionHistoryCollection(CollectionConfig):
 # ==================== RELATIONSHIP COLLECTION ====================
 
 class RelationshipCollection(CollectionConfig):
-    """Configuration for entity_relationships collection"""
+    """Configuration for relationships collection"""
     
-    collection_name: str = "entity_relationships"
+    collection_name: str = "relationships"
     
     indexes: List[Dict[str, Any]] = Field(default_factory=lambda: [
         # Core relationship indexes
-        {"key": [("source_entity_id", 1)], "name": "source_entity_id_1"},
-        {"key": [("target_entity_id", 1)], "name": "target_entity_id_1"},
-        {"key": [("relationship_type", 1)], "name": "relationship_type_1"},
+        {"key": [("relationshipId", 1)], "name": "relationshipId_1", "unique": True},
+        {"key": [("source.entityId", 1)], "name": "source_entityId_1"},
+        {"key": [("target.entityId", 1)], "name": "target_entityId_1"},
+        {"key": [("type", 1)], "name": "type_1"},
         {"key": [("strength", 1)], "name": "strength_1"},
-        {"key": [("confidence_score", -1)], "name": "confidence_score_-1"},
+        {"key": [("confidence", -1)], "name": "confidence_-1"},
         {"key": [("verified", 1)], "name": "verified_1"},
+        {"key": [("active", 1)], "name": "active_1"},
+        {"key": [("direction", 1)], "name": "direction_1"},
         {"key": [("created_date", -1)], "name": "created_date_-1"},
         
         # Compound indexes for graph traversal
         {
-            "key": [("source_entity_id", 1), ("relationship_type", 1)],
-            "name": "source_relationship_type_compound"
+            "key": [("source.entityId", 1), ("type", 1)],
+            "name": "source_type_compound"
         },
         {
-            "key": [("target_entity_id", 1), ("relationship_type", 1)],
-            "name": "target_relationship_type_compound"
+            "key": [("target.entityId", 1), ("type", 1)],
+            "name": "target_type_compound"
         },
         {
-            "key": [("source_entity_id", 1), ("confidence_score", -1)],
+            "key": [("source.entityId", 1), ("confidence", -1)],
             "name": "source_confidence_compound"
         },
         {
-            "key": [("target_entity_id", 1), ("confidence_score", -1)],
+            "key": [("target.entityId", 1), ("confidence", -1)],
             "name": "target_confidence_compound"
         },
         
         # Bidirectional relationship index
         {
-            "key": [("source_entity_id", 1), ("target_entity_id", 1)],
+            "key": [("source.entityId", 1), ("target.entityId", 1)],
             "name": "source_target_compound",
             "unique": True
         },
         
-        # Verification tracking
+        # Verification and status tracking
         {
-            "key": [("verified", 1), ("strength", 1), ("relationship_type", 1)],
+            "key": [("verified", 1), ("strength", 1), ("type", 1)],
             "name": "verified_strength_type_compound"
+        },
+        {
+            "key": [("active", 1), ("strength", -1)],
+            "name": "active_strength_compound"
         },
         
         # Risk analysis indexes
         {
-            "key": [("relationship_type", 1), ("confidence_score", -1)],
+            "key": [("type", 1), ("confidence", -1)],
             "name": "type_confidence_compound"
+        },
+        
+        # Data source tracking
+        {
+            "key": [("datasource", 1), ("created_date", -1)],
+            "name": "datasource_created_compound"
         }
     ])
     
@@ -241,7 +254,76 @@ class RelationshipCollection(CollectionConfig):
     text_search_fields: Dict[str, int] = Field(default_factory=lambda: {
         "description": 10,
         "evidence": 5,
-        "data_source": 3
+        "datasource": 3,
+        "notes": 2
+    })
+    
+    # JSON Schema validation
+    validation_schema: Dict[str, Any] = Field(default_factory=lambda: {
+        "bsonType": "object",
+        "required": ["relationshipId", "source", "target", "type", "direction", "strength", "confidence", "active", "verified"],
+        "properties": {
+            "relationshipId": {
+                "bsonType": "string",
+                "minLength": 1,
+                "maxLength": 100
+            },
+            "source": {
+                "bsonType": "object",
+                "required": ["entityId", "entityType"],
+                "properties": {
+                    "entityId": {"bsonType": "string"},
+                    "entityType": {"bsonType": "string"}
+                }
+            },
+            "target": {
+                "bsonType": "object", 
+                "required": ["entityId", "entityType"],
+                "properties": {
+                    "entityId": {"bsonType": "string"},
+                    "entityType": {"bsonType": "string"}
+                }
+            },
+            "type": {
+                "bsonType": "string",
+                "minLength": 1,
+                "maxLength": 100
+            },
+            "direction": {
+                "enum": ["bidirectional", "directed"]
+            },
+            "strength": {
+                "bsonType": "double",
+                "minimum": 0,
+                "maximum": 1
+            },
+            "confidence": {
+                "bsonType": "double",
+                "minimum": 0,
+                "maximum": 1
+            },
+            "active": {
+                "bsonType": "bool"
+            },
+            "verified": {
+                "bsonType": "bool"
+            },
+            "evidence": {
+                "bsonType": "array",
+                "items": {
+                    "bsonType": "object"
+                }
+            },
+            "datasource": {
+                "bsonType": "string"
+            },
+            "created_date": {
+                "bsonType": "date"
+            },
+            "updated_date": {
+                "bsonType": "date"
+            }
+        }
     })
 
 

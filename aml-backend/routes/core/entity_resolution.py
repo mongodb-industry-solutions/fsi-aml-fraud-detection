@@ -11,12 +11,12 @@ import logging
 from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from models.entity_resolution import (
-    NewOnboardingInput,
-    FindMatchesResponse,
+from models.core.resolution import (
+    ResolutionInput as NewOnboardingInput,
     ResolutionDecisionInput,
-    ResolutionResponse
+    ResolutionResult as ResolutionResponse
 )
+from models.api.responses import StandardResponse as FindMatchesResponse
 from models.api.responses import ErrorResponse
 from services.dependencies import (
     get_entity_resolution_service,

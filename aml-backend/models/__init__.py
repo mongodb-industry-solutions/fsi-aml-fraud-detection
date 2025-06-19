@@ -91,29 +91,7 @@ from .database.collections import (
 )
 
 # ==================== BACKWARD COMPATIBILITY ====================
-
-# Import legacy compatibility layer for existing code
-from .legacy_compatibility import (
-    # Legacy entity aliases
-    EntityBasic,
-    EntityEnhanced,
-    EntityBasicEnhanced,
-    OverallRisk,
-    Name,
-    Address,
-    
-    # Legacy resolution aliases  
-    NewOnboardingInput,
-    FindMatchesResponse,
-    
-    # Legacy relationship aliases
-    Relationship,
-    
-    # Migration utilities
-    get_migration_suggestions,
-    check_for_legacy_usage,
-    IMPORT_MAPPING
-)
+# Legacy compatibility layer removed - use direct imports from models.core, models.api, models.database
 
 # ==================== MAIN EXPORTS ====================
 
@@ -195,21 +173,7 @@ __all__ = [
     "get_vector_search_configs",
     
     # ===== LEGACY COMPATIBILITY =====
-    # Legacy model aliases (deprecated)
-    "EntityBasic",
-    "EntityEnhanced",
-    "EntityBasicEnhanced", 
-    "OverallRisk",
-    "Name",
-    "Address",
-    "NewOnboardingInput",
-    "FindMatchesResponse",
-    "Relationship",
-    
-    # Migration utilities
-    "get_migration_suggestions",
-    "check_for_legacy_usage",
-    "IMPORT_MAPPING"
+    # Legacy compatibility layer removed
 ]
 
 # ==================== CONVENIENCE IMPORTS ====================
@@ -301,19 +265,16 @@ def validate_all_models():
 def get_migration_status():
     """Get current migration status and recommendations"""
     return {
-        "phase": "Phase 1: Model Consolidation", 
+        "phase": "Migration Complete", 
         "status": "Complete",
         "new_models_available": True,
-        "legacy_compatibility": True,
+        "legacy_compatibility": False,
         "next_phase": "Phase 2: Repository Pattern Implementation",
         "recommendations": [
-            "Update imports to use new consolidated models",
-            "Test functionality with new model structure",
-            "Begin updating services to use new models",
-            "Plan repository pattern implementation"
-        ],
-        "legacy_usage_check": "Use check_for_legacy_usage() to scan files",
-        "migration_guide": "See get_migration_suggestions() for detailed guidance"
+            "All imports updated to use new consolidated models",
+            "Legacy compatibility layer removed",
+            "Model structure fully consolidated"
+        ]
     }
 
 
@@ -323,12 +284,4 @@ __version__ = "2.0.0"
 __author__ = "AML Migration Team"
 __description__ = "Consolidated entity resolution models with clean architecture"
 
-# Issue startup message about new model structure
-import warnings
-warnings.warn(
-    "New consolidated model structure is now available! "
-    "Update your imports to use the new models from models.core, models.api, and models.database. "
-    "Use get_migration_status() for guidance.",
-    UserWarning,
-    stacklevel=1
-)
+# Model structure fully migrated to new consolidated architecture

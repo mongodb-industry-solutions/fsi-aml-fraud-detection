@@ -416,3 +416,9 @@ class NetworkVisualizationConfig(BaseModel):
     # Filtering
     min_confidence_display: float = Field(0.3, ge=0, le=1)
     max_entities_display: int = Field(50, ge=10, le=200)
+
+
+# ==================== ALIASES FOR COMPATIBILITY ====================
+
+# Alias for common imports
+Relationship = EntityRelationship

@@ -28,7 +28,7 @@ class RelationshipRepository(RelationshipRepositoryInterface):
     efficient querying, and relationship analytics using MongoDB's graph capabilities.
     """
     
-    def __init__(self, mongodb_repo: MongoDBRepository, collection_name: str = "entity_relationships"):
+    def __init__(self, mongodb_repo: MongoDBRepository, collection_name: str = "relationships"):
         """
         Initialize relationship repository
         
@@ -59,8 +59,16 @@ class RelationshipRepository(RelationshipRepositoryInterface):
             
             # Validate confidence score based on strength
             strength = relationship_data.get("strength", RelationshipStrength.POSSIBLE)
-            confidence = relationship_data.get("confidence_score", 0.5)
-            relationship_data["confidence_score"] = self._adjust_confidence_for_strength(confidence, strength)
+            confidence = relationship_data.get("confidence", 0.5)
+            relationship_data["confidence"] = self._adjust_confidence_for_strength(confidence, strength)
+            
+            # Set default values for required fields
+            if "active" not in relationship_data:
+                relationship_data["active"] = True
+            if "verified" not in relationship_data:
+                relationship_data["verified"] = False
+            if "direction" not in relationship_data:
+                relationship_data["direction"] = "bidirectional"
             
             # Insert relationship
             result = await self.collection.insert_one(relationship_data)
@@ -91,9 +99,9 @@ class RelationshipRepository(RelationshipRepositoryInterface):
             update_data["updated_date"] = datetime.utcnow()
             
             # Adjust confidence if strength is being updated
-            if "strength" in update_data and "confidence_score" in update_data:
-                update_data["confidence_score"] = self._adjust_confidence_for_strength(
-                    update_data["confidence_score"], update_data["strength"]
+            if "strength" in update_data and "confidence" in update_data:
+                update_data["confidence"] = self._adjust_confidence_for_strength(
+                    update_data["confidence"], update_data["strength"]
                 )
             
             result = await self.collection.update_one(

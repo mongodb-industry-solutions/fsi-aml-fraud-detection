@@ -23,7 +23,7 @@ import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 import { amlAPI, useAMLAPIError, amlUtils } from '@/lib/aml-api';
 import SimilarProfilesSection from './SimilarProfilesSection';
-import NetworkGraphComponent from './NetworkGraphComponent';
+import CytoscapeNetworkComponent from './CytoscapeNetworkComponent';
 import styles from './EntityDetail.module.css';
 
 // Tab constants
@@ -1548,7 +1548,7 @@ function NetworkAnalysisTab({ entity }) {
           </div>
         </div>
 
-        {/* Enhanced Network Statistics */}
+        {/* Consolidated Network Statistics */}
         {networkStats && (
           <div style={{ 
             marginTop: spacing[3],
@@ -1557,128 +1557,58 @@ function NetworkAnalysisTab({ entity }) {
             borderRadius: '8px',
             border: `1px solid ${palette.gray.light2}`
           }}>
-            {/* Enhanced Network Metrics Grid */}
+            <Label style={{ 
+              marginBottom: spacing[3], 
+              fontSize: '14px', 
+              fontWeight: '700',
+              color: '#2C3E50'
+            }}>
+              Network Statistics
+            </Label>
+            
+            {/* Consolidated Network Metrics Grid */}
             <div style={{ 
               display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', 
-              gap: spacing[3],
-              marginBottom: spacing[3]
+              gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', 
+              gap: spacing[2]
             }}>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: palette.blue.base }}>
+              <div style={{ textAlign: 'center', padding: '12px' }}>
+                <div style={{ fontSize: '20px', fontWeight: 'bold', color: palette.blue.base }}>
                   {networkStats.totalNodes}
                 </div>
-                <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>Entities</Body>
+                <Body style={{ fontSize: '11px', color: palette.gray.dark1 }}>Entities</Body>
               </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: palette.green.base }}>
+              <div style={{ textAlign: 'center', padding: '12px' }}>
+                <div style={{ fontSize: '20px', fontWeight: 'bold', color: palette.green.base }}>
                   {networkStats.totalEdges}
                 </div>
-                <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>Relationships</Body>
+                <Body style={{ fontSize: '11px', color: palette.gray.dark1 }}>Relationships</Body>
               </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: palette.purple.base }}>
-                  {networkStats.density}
-                </div>
-                <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>Network Density</Body>
-              </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: palette.yellow.base }}>
-                  {networkStats.averageRiskScore.toFixed(1)}
-                </div>
-                <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>Avg Risk Score</Body>
-              </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#2E86C1' }}>
+              <div style={{ textAlign: 'center', padding: '12px' }}>
+                <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#2E86C1' }}>
                   {(parseFloat(networkStats.averageCentrality) * 100).toFixed(1)}%
                 </div>
-                <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>Avg Centrality</Body>
+                <Body style={{ fontSize: '11px', color: palette.gray.dark1 }}>Avg Centrality</Body>
               </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#8E44AD' }}>
+              <div style={{ textAlign: 'center', padding: '12px' }}>
+                <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#8E44AD' }}>
                   {networkStats.hubNodes.length}
                 </div>
-                <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>Hub Nodes</Body>
+                <Body style={{ fontSize: '11px', color: palette.gray.dark1 }}>Hubs</Body>
+              </div>
+              <div style={{ textAlign: 'center', padding: '12px' }}>
+                <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#8E44AD' }}>
+                  {(parseFloat(networkStats.averageBetweenness) * 100).toFixed(1)}%
+                </div>
+                <Body style={{ fontSize: '11px', color: palette.gray.dark1 }}>Bridge Score</Body>
+              </div>
+              <div style={{ textAlign: 'center', padding: '12px' }}>
+                <div style={{ fontSize: '20px', fontWeight: 'bold', color: palette.yellow.base }}>
+                  {networkStats.averageRiskScore.toFixed(1)}
+                </div>
+                <Body style={{ fontSize: '11px', color: palette.gray.dark1 }}>Avg Risk</Body>
               </div>
             </div>
-
-            {/* MongoDB Graph Analytics Section */}
-            <div style={{ 
-              marginBottom: spacing[3],
-              padding: spacing[2],
-              backgroundColor: '#f8f9fa',
-              borderRadius: '6px',
-              border: '1px solid #e9ecef'
-            }}>
-              <Label style={{ 
-                marginBottom: spacing[2], 
-                fontSize: '13px', 
-                fontWeight: '700',
-                color: '#2C3E50',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}>
-                📊 MongoDB Graph Analysis Insights
-              </Label>
-              
-              <div style={{ 
-                display: 'grid', 
-                gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', 
-                gap: spacing[2],
-                marginBottom: spacing[2]
-              }}>
-                <div style={{ textAlign: 'center', padding: '8px' }}>
-                  <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#2E86C1' }}>
-                    {(parseFloat(networkStats.averageBetweenness) * 100).toFixed(1)}%
-                  </div>
-                  <Body style={{ fontSize: '11px', color: palette.gray.dark1 }}>Avg Bridge Score</Body>
-                </div>
-                <div style={{ textAlign: 'center', padding: '8px' }}>
-                  <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#8E44AD' }}>
-                    {networkStats.bridgeNodes.length}
-                  </div>
-                  <Body style={{ fontSize: '11px', color: palette.gray.dark1 }}>Bridge Entities</Body>
-                </div>
-                <div style={{ textAlign: 'center', padding: '8px' }}>
-                  <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#E74C3C' }}>
-                    {networkStats.bidirectionalCount}
-                  </div>
-                  <Body style={{ fontSize: '11px', color: palette.gray.dark1 }}>Bidirectional</Body>
-                </div>
-                <div style={{ textAlign: 'center', padding: '8px' }}>
-                  <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#F39C12' }}>
-                    {networkStats.maxConnections}
-                  </div>
-                  <Body style={{ fontSize: '11px', color: palette.gray.dark1 }}>Max Connections</Body>
-                </div>
-              </div>
-            </div>
-            
-            {/* Risk Distribution */}
-            {Object.keys(networkStats.riskDistribution).length > 0 && (
-              <div style={{ marginBottom: spacing[2] }}>
-                <Label style={{ marginBottom: spacing[1] }}>Risk Level Distribution</Label>
-                <div style={{ display: 'flex', gap: spacing[2], flexWrap: 'wrap' }}>
-                  {Object.entries(networkStats.riskDistribution).map(([level, count]) => (
-                    <span key={level} style={{
-                      padding: '3px 8px',
-                      borderRadius: '12px',
-                      fontSize: '11px',
-                      fontWeight: '600',
-                      backgroundColor: level === 'high' ? palette.red.light2 :
-                                     level === 'medium' ? palette.yellow.light2 :
-                                     level === 'low' ? palette.green.light2 : palette.gray.light2,
-                      color: level === 'high' ? palette.red.dark2 :
-                             level === 'medium' ? palette.yellow.dark2 :
-                             level === 'low' ? palette.green.dark2 : palette.gray.dark2
-                    }}>
-                      {level.toUpperCase()}: {count}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
             
             {/* Network Prominence Analysis */}
             {networkStats.prominentNodes && networkStats.prominentNodes.length > 0 && (
@@ -1774,7 +1704,7 @@ function NetworkAnalysisTab({ entity }) {
 
         {isLoading ? (
           <div style={{ 
-            height: '600px', 
+            height: '800px', 
             display: 'flex', 
             alignItems: 'center', 
             justifyContent: 'center',
@@ -1785,12 +1715,14 @@ function NetworkAnalysisTab({ entity }) {
             <Body>Loading network data...</Body>
           </div>
         ) : (
-          <NetworkGraphComponent
+          <CytoscapeNetworkComponent
             networkData={networkData}
             onNodeClick={handleNodeClick}
             onEdgeClick={handleEdgeClick}
             centerNodeId={entity?.entityId}
-            style={{ height: '600px' }}
+            layout="forceDirected"
+            showControls={true}
+            showLegend={true}
           />
         )}
 

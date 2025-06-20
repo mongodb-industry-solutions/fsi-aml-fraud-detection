@@ -42,11 +42,16 @@
     "@leafygreen-ui/typography": "^18.0.0",
     "@mongodb-js/charts-embed-dom": "^3.3.1",
     "axios": "^1.8.3",
+    "cytoscape": "^3.32.0",
+    "cytoscape-context-menus": "^4.2.1",
+    "cytoscape-dagre": "^2.5.0",
+    "cytoscape-fcose": "^2.2.0",
+    "cytoscape-panzoom": "^2.5.3",
     "geist": "^1.3.1",
     "mongodb": "^6.10.0",
     "next": "^15.2.3",
     "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "reagraph": "^4.24.1"
+    "react-cytoscapejs": "^2.0.0",
+    "react-dom": "18.2.0"
   }
 }

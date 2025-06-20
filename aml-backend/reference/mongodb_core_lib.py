@@ -236,6 +236,11 @@ class AggregationBuilder:
         self.pipeline.append({AggregationStage.ADD_FIELDS.value: fields})
         return self
         
+    def replace_root(self, new_root: str) -> 'AggregationBuilder':
+        """Add a $replaceRoot stage"""
+        self.pipeline.append({AggregationStage.REPLACE_ROOT.value: {"newRoot": new_root}})
+        return self
+        
     def sample(self, size: int) -> 'AggregationBuilder':
         """Add a $sample stage for random sampling"""
         self.pipeline.append({AggregationStage.SAMPLE.value: {"size": size}})

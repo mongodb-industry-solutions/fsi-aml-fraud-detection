@@ -1,6 +1,7 @@
 "use client";
 
 import Link from 'next/link';
+import Image from 'next/image';
 import Card from '@leafygreen-ui/card';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
@@ -37,7 +38,14 @@ export default function ClientLayout({ children }) {
             padding: `${spacing[3]}px ${spacing[3]}px`,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <Image
+              src="/threatsight logo.png"
+              alt="ThreatSight360 Logo"
+              width={40}
+              height={40}
+              style={{ objectFit: 'contain' }}
+            />
             <div>
               <H1
                 style={{

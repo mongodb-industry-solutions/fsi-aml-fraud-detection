@@ -24,6 +24,7 @@ import { spacing } from '@leafygreen-ui/tokens';
 import { amlAPI, useAMLAPIError, amlUtils } from '@/lib/aml-api';
 import SimilarProfilesSection from './SimilarProfilesSection';
 import CytoscapeNetworkComponent from './CytoscapeNetworkComponent';
+import AdvancedInvestigationPanel from './AdvancedInvestigationPanel';
 import styles from './EntityDetail.module.css';
 
 // Tab constants
@@ -1180,30 +1181,12 @@ function NetworkAnalysisTab({ entity }) {
   const [networkData, setNetworkData] = useState(null);
   const [maxDepth, setMaxDepth] = useState(2);
   const [minStrength, setMinStrength] = useState(0.5);
-  const [includeInactive, setIncludeInactive] = useState(false);
-  const [relationshipTypeFilter, setRelationshipTypeFilter] = useState('all');
-  const [showRiskPropagation, setShowRiskPropagation] = useState(false);
-  const [riskPropagationData, setRiskPropagationData] = useState(null);
+  const [advancedInvestigationResults, setAdvancedInvestigationResults] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [networkStats, setNetworkStats] = useState(null);
   const router = useRouter();
 
-  // Available relationship types for filtering
-  const relationshipTypes = [
-    { value: 'all', label: 'All Relationships' },
-    { value: 'confirmed_same_entity', label: 'Confirmed Same Entity' },
-    { value: 'potential_duplicate', label: 'Potential Duplicate' },
-    { value: 'director_of', label: 'Director Of' },
-    { value: 'ubo_of', label: 'UBO Of' },
-    { value: 'parent_of_subsidiary', label: 'Parent/Subsidiary' },
-    { value: 'household_member', label: 'Household Member' },
-    { value: 'business_associate_suspected', label: 'Business Associate (Suspected)' },
-    { value: 'potential_beneficial_owner_of', label: 'Potential Beneficial Owner' },
-    { value: 'transactional_counterparty_high_risk', label: 'High-Risk Counterparty' },
-    { value: 'professional_colleague_public', label: 'Professional Colleague' },
-    { value: 'social_media_connection_public', label: 'Social Media Connection' }
-  ];
 
   const fetchNetworkData = async () => {
     if (!entity?.entityId) return;
@@ -1216,9 +1199,9 @@ function NetworkAnalysisTab({ entity }) {
         entity.entityId, 
         maxDepth, 
         minStrength, 
-        includeInactive,
+        false, // includeInactive
         100, // max nodes
-        relationshipTypeFilter === 'all' ? null : relationshipTypeFilter
+        null // relationshipTypeFilter
       );
       
       setNetworkData(data);
@@ -1331,26 +1314,6 @@ function NetworkAnalysisTab({ entity }) {
     };
   };
 
-  // Enhanced risk propagation analysis
-  const fetchRiskPropagationData = async () => {
-    if (!entity?.entityId || !showRiskPropagation) return;
-    
-    try {
-      const riskData = await amlAPI.getRiskPropagationAnalysis(entity.entityId, maxDepth, 0.6);
-      setRiskPropagationData(riskData);
-    } catch (error) {
-      console.error('Failed to fetch risk propagation data:', error);
-    }
-  };
-
-  // Fetch risk propagation when enabled
-  useEffect(() => {
-    if (showRiskPropagation) {
-      fetchRiskPropagationData();
-    } else {
-      setRiskPropagationData(null);
-    }
-  }, [entity?.entityId, showRiskPropagation, maxDepth]);
 
   // Advanced network investigation for AML workflows
   const handleAdvancedInvestigation = async () => {
@@ -1376,8 +1339,8 @@ function NetworkAnalysisTab({ entity }) {
         }
       }
       
-      // Store investigation results for potential export
-      setRiskPropagationData(investigationReport.riskAnalysis);
+      // Store comprehensive investigation results
+      setAdvancedInvestigationResults(investigationReport);
       
     } catch (error) {
       console.error('Advanced investigation failed:', error);
@@ -1389,7 +1352,7 @@ function NetworkAnalysisTab({ entity }) {
 
   useEffect(() => {
     fetchNetworkData();
-  }, [entity?.entityId, maxDepth, minStrength, includeInactive, relationshipTypeFilter]);
+  }, [entity?.entityId, maxDepth, minStrength]);
 
   const handleNodeClick = (nodeData) => {
     if (nodeData.id !== entity?.entityId) {
@@ -1442,30 +1405,6 @@ function NetworkAnalysisTab({ entity }) {
             </select>
           </div>
 
-          {/* Relationship Type Filter */}
-          <div>
-            <Label htmlFor="relationshipType" style={{ marginBottom: spacing[1] }}>
-              Relationship Type Filter
-            </Label>
-            <select
-              id="relationshipType"
-              value={relationshipTypeFilter}
-              onChange={(e) => setRelationshipTypeFilter(e.target.value)}
-              style={{
-                width: '100%',
-                padding: spacing[2],
-                border: `1px solid ${palette.gray.light2}`,
-                borderRadius: '4px',
-                fontSize: '14px'
-              }}
-            >
-              {relationshipTypes.map(type => (
-                <option key={type.value} value={type.value}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
-          </div>
 
           {/* Min Strength Control */}
           <div>
@@ -1498,31 +1437,6 @@ function NetworkAnalysisTab({ entity }) {
             </div>
           </div>
 
-          {/* Advanced Options */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[2] }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2] }}>
-              <input
-                id="includeInactive"
-                type="checkbox"
-                checked={includeInactive}
-                onChange={(e) => setIncludeInactive(e.target.checked)}
-              />
-              <Label htmlFor="includeInactive" style={{ fontSize: '13px' }}>
-                Include inactive relationships
-              </Label>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2] }}>
-              <input
-                id="showRiskPropagation"
-                type="checkbox"
-                checked={showRiskPropagation}
-                onChange={(e) => setShowRiskPropagation(e.target.checked)}
-              />
-              <Label htmlFor="showRiskPropagation" style={{ fontSize: '13px' }}>
-                Show risk propagation paths
-              </Label>
-            </div>
-          </div>
 
           {/* Action Buttons */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[2] }}>
@@ -1736,6 +1650,15 @@ function NetworkAnalysisTab({ entity }) {
           </div>
         )}
       </Card>
+      
+      
+      {/* Advanced Investigation Results Panel - Show when available */}
+      {advancedInvestigationResults && (
+        <AdvancedInvestigationPanel 
+          results={advancedInvestigationResults}
+          centerEntityId={entity?.entityId}
+        />
+      )}
       
       {/* Connected Entities via Resolution */}
       {entity.resolution?.linkedEntities && entity.resolution.linkedEntities.length > 0 && (

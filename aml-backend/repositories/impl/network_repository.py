@@ -853,9 +853,9 @@ class NetworkRepository(NetworkRepositoryInterface):
                     risk_contribution = confidence * (0.8 if conn_risk_level == "high" else 1.0)
                     total_risk_contribution += risk_contribution
             
-            # Calculate network risk adjustment
-            connection_risk_factor = min(total_risk_contribution / len(connections), 0.5)
-            network_risk_score = min(base_risk + connection_risk_factor, 1.0)
+            # Calculate network risk adjustment - work in 0-100 scale throughout
+            connection_risk_factor = min(total_risk_contribution / len(connections), 0.5) * 100  # Convert to 0-100 scale
+            network_risk_score = min(base_risk + connection_risk_factor, 100.0)  # Cap at 100%
             
             return {
                 "entity_id": entity_id,
@@ -865,9 +865,9 @@ class NetworkRepository(NetworkRepositoryInterface):
                 "high_risk_connections": high_risk_connections,
                 "total_connections": len(connections),
                 "analysis_depth": analysis_depth,
-                "risk_level": "critical" if network_risk_score >= 0.8 else 
-                            "high" if network_risk_score >= 0.6 else
-                            "medium" if network_risk_score >= 0.4 else "low"
+                "risk_level": "critical" if network_risk_score >= 80 else 
+                            "high" if network_risk_score >= 60 else
+                            "medium" if network_risk_score >= 40 else "low"
             }
             
         except Exception as e:

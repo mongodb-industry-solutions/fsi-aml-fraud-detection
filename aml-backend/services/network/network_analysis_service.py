@@ -900,15 +900,15 @@ class NetworkAnalysisService:
         try:
             enhanced = risk_analysis.copy()
             
-            # Add risk level categorization
+            # Add risk level categorization - updated for 0-100 scale
             risk_score = risk_analysis.get("network_risk_score", 0.0)
-            if risk_score >= 0.8:
+            if risk_score >= 80:
                 enhanced["risk_level"] = "critical"
                 enhanced["recommended_actions"] = ["Immediate investigation required", "Enhanced monitoring"]
-            elif risk_score >= 0.6:
+            elif risk_score >= 60:
                 enhanced["risk_level"] = "high"
                 enhanced["recommended_actions"] = ["Detailed review recommended", "Increased monitoring"]
-            elif risk_score >= 0.4:
+            elif risk_score >= 40:
                 enhanced["risk_level"] = "medium"
                 enhanced["recommended_actions"] = ["Periodic review", "Standard monitoring"]
             else:

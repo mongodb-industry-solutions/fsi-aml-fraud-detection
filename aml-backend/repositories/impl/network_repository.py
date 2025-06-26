@@ -162,7 +162,7 @@ class NetworkRepository(NetworkRepositoryInterface):
                     # Calculate simple centrality based on connected_entities count
                     "connection_count": {"$size": {"$ifNull": ["$connected_entities", []]}},
                     # Extract risk score (0-1) and convert to 0-100 for display
-                    "risk_score_pct": {"$multiply": [{"$ifNull": ["$riskAssessment.overall.score", 0]}, 100]}
+                    "risk_score_pct": {"$multiply": [{"$ifNull": ["$riskAssessment.overall.score", 0]}, 1]}
                 }},
                 {"$facet": {
                     # Basic Statistics using ACTUAL fields

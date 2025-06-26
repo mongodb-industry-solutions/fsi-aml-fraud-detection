@@ -10,6 +10,8 @@
 import React, { useMemo, useEffect, useRef, useState, useCallback } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
 import { Body, H3 } from '@leafygreen-ui/typography';
+import Modal from '@leafygreen-ui/modal';
+import Icon from '@leafygreen-ui/icon';
 import cytoscape from 'cytoscape';
 
 // Cytoscape configuration imports
@@ -38,6 +40,7 @@ const CytoscapeNetworkComponent = ({
   const [currentLayout, setCurrentLayout] = useState(layout);
   const [isLayoutRunning, setIsLayoutRunning] = useState(false);
   const [extensionsLoaded, setExtensionsLoaded] = useState(false);
+  const [showFullscreenModal, setShowFullscreenModal] = useState(false);
 
   // Transform backend data to Cytoscape format
   const elements = useMemo(() => {
@@ -60,13 +63,15 @@ const CytoscapeNetworkComponent = ({
     maxWidth: '100%',
     minHeight: '800px',
     maxHeight: '800px',
-    border: '1px solid #E8EDEB',
-    borderRadius: '8px',
-    backgroundColor: '#fafafa',
+    border: '1px solid #E5E7EB',
+    borderRadius: '12px',
+    backgroundColor: '#F9FAFB',
+    background: 'linear-gradient(to bottom, #FFFFFF, #F9FAFB)',
     position: 'relative',
     overflow: 'hidden', // Prevent content from expanding beyond container
     contain: 'strict', // CSS containment to prevent layout interference
     isolation: 'isolate', // Create new stacking context
+    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
     ...style
   }), [style]);
 
@@ -309,18 +314,19 @@ const CytoscapeNetworkComponent = ({
       {showControls && (
         <div style={{
           position: 'absolute',
-          top: '10px',
-          right: '10px',
-          backgroundColor: 'rgba(255, 255, 255, 0.95)',
-          padding: '12px',
-          borderRadius: '8px',
-          border: '1px solid #E8EDEB',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          top: '16px',
+          right: '16px',
+          backgroundColor: 'rgba(255, 255, 255, 0.98)',
+          padding: '16px',
+          borderRadius: '12px',
+          border: '1px solid #E5E7EB',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+          backdropFilter: 'blur(10px)',
           zIndex: 10,
           display: 'flex',
           flexDirection: 'column',
-          gap: '8px',
-          minWidth: '160px'
+          gap: '10px',
+          minWidth: '180px'
         }}>
           <H3 style={{ fontSize: '12px', margin: '0 0 8px 0', color: '#2C3E50' }}>
             Layout {isLayoutRunning && '⟲'}
@@ -331,10 +337,16 @@ const CytoscapeNetworkComponent = ({
             value={currentLayout} 
             onChange={(e) => handleLayoutChange(e.target.value)}
             style={{
-              padding: '4px 8px',
-              borderRadius: '4px',
-              border: '1px solid #E8EDEB',
-              fontSize: '11px'
+              padding: '6px 10px',
+              borderRadius: '6px',
+              border: '1px solid #E5E7EB',
+              backgroundColor: '#FFFFFF',
+              fontSize: '12px',
+              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+              color: '#374151',
+              cursor: 'pointer',
+              transition: 'border-color 0.2s',
+              outline: 'none'
             }}
           >
             <option value="forceDirected">Force-Directed</option>
@@ -347,102 +359,463 @@ const CytoscapeNetworkComponent = ({
           </select>
 
           {/* Control buttons */}
-          <div style={{ display: 'flex', gap: '4px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ display: 'flex', gap: '4px' }}>
+              <button
+                onClick={handleZoomToFit}
+                style={{
+                  padding: '6px 10px',
+                  fontSize: '11px',
+                  border: '1px solid #E5E7EB',
+                  borderRadius: '6px',
+                  backgroundColor: '#FFFFFF',
+                  color: '#374151',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  flex: 1
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = '#F3F4F6'}
+                onMouseOut={(e) => e.target.style.backgroundColor = '#FFFFFF'}
+              >
+                Fit
+              </button>
+              <button
+                onClick={handleResetView}
+                style={{
+                  padding: '6px 10px',
+                  fontSize: '11px',
+                  border: '1px solid #E5E7EB',
+                  borderRadius: '6px',
+                  backgroundColor: '#FFFFFF',
+                  color: '#374151',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  flex: 1
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = '#F3F4F6'}
+                onMouseOut={(e) => e.target.style.backgroundColor = '#FFFFFF'}
+              >
+                Reset
+              </button>
+            </div>
             <button
-              onClick={handleZoomToFit}
+              onClick={() => setShowFullscreenModal(true)}
               style={{
-                padding: '4px 8px',
-                fontSize: '10px',
-                border: '1px solid #E8EDEB',
-                borderRadius: '4px',
-                backgroundColor: '#FFFFFF',
+                padding: '8px 12px',
+                fontSize: '11px',
+                border: '1px solid #3B82F6',
+                borderRadius: '6px',
+                backgroundColor: '#3B82F6',
+                color: '#FFFFFF',
                 cursor: 'pointer',
-                flex: 1
+                transition: 'all 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                fontWeight: '500'
               }}
+              onMouseOver={(e) => e.target.style.backgroundColor = '#2563EB'}
+              onMouseOut={(e) => e.target.style.backgroundColor = '#3B82F6'}
             >
-              Fit
-            </button>
-            <button
-              onClick={handleResetView}
-              style={{
-                padding: '4px 8px',
-                fontSize: '10px',
-                border: '1px solid #E8EDEB',
-                borderRadius: '4px',
-                backgroundColor: '#FFFFFF',
-                cursor: 'pointer',
-                flex: 1
-              }}
-            >
-              Reset
+              <Icon glyph="FullScreen" size={14} fill="#FFFFFF" />
+              Fullscreen
             </button>
           </div>
         </div>
       )}
 
 
-      {/* Simplified Legend */}
+      {/* Enhanced Legend */}
       {showLegend && (
         <div style={{
           position: 'absolute',
           bottom: '10px',
           left: '10px',
-          backgroundColor: 'rgba(255, 255, 255, 0.97)',
-          padding: '12px',
-          borderRadius: '8px',
+          backgroundColor: 'rgba(255, 255, 255, 0.98)',
+          padding: '16px',
+          borderRadius: '12px',
           border: '1px solid #E8EDEB',
           fontSize: '11px',
-          color: '#5C6C7C',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          color: '#2C3E50',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
           zIndex: 10,
-          maxWidth: '220px'
+          maxWidth: '260px',
+          backdropFilter: 'blur(10px)'
         }}>
-          <H3 style={{ fontSize: '12px', marginBottom: '8px', color: '#2C3E50' }}>Legend</H3>
+          <H3 style={{ fontSize: '13px', marginBottom: '12px', color: '#1F2937', fontWeight: '600' }}>Network Legend</H3>
           
-          {/* Risk levels */}
-          <div style={{ marginBottom: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {/* Risk Levels Section */}
+          <div style={{ marginBottom: '12px' }}>
+            <div style={{ fontSize: '10px', color: '#6B7280', marginBottom: '6px', fontWeight: '500' }}>RISK LEVELS</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ 
+                  width: '14px', 
+                  height: '14px', 
+                  borderRadius: '50%', 
+                  backgroundColor: '#8B0000',
+                  boxShadow: '0 0 4px #8B0000'
+                }}></div>
+                <span style={{ fontSize: '11px' }}>Critical Risk (80+)</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <div style={{ 
                   width: '12px', 
                   height: '12px', 
                   borderRadius: '50%', 
-                  backgroundColor: '#C62D42'
+                  backgroundColor: '#C62D42',
+                  boxShadow: '0 0 3px #C62D42'
                 }}></div>
-                <span style={{ fontSize: '10px' }}>High Risk</span>
+                <span style={{ fontSize: '11px' }}>High Risk (60-79)</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <div style={{ 
-                  width: '10px', 
-                  height: '10px', 
+                  width: '11px', 
+                  height: '11px', 
                   borderRadius: '50%', 
                   backgroundColor: '#F39C12'
                 }}></div>
-                <span style={{ fontSize: '10px' }}>Medium</span>
+                <span style={{ fontSize: '11px' }}>Medium Risk (40-59)</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <div style={{ 
                   width: '10px', 
                   height: '10px', 
                   borderRadius: '50%', 
                   backgroundColor: '#2ECC71'
                 }}></div>
-                <span style={{ fontSize: '10px' }}>Low</span>
+                <span style={{ fontSize: '11px' }}>Low Risk (0-39)</span>
               </div>
             </div>
           </div>
           
-          {/* Simplified visual guide */}
-          <div style={{ fontSize: '10px', color: '#5C6C7C', lineHeight: '1.3' }}>
-            <div>★ = High Centrality Hub</div>
-            <div>◆ = Bridge Connector</div>
-            <div>⟷ = Bidirectional</div>
-            <div style={{ marginTop: '4px', fontSize: '9px', color: '#7F8C8D' }}>
-              Size = Importance • Border = Network Role
+          {/* Node Types Section */}
+          <div style={{ marginBottom: '12px' }}>
+            <div style={{ fontSize: '10px', color: '#6B7280', marginBottom: '6px', fontWeight: '500' }}>NODE TYPES</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ 
+                  width: '14px', 
+                  height: '10px', 
+                  borderRadius: '50%', 
+                  backgroundColor: '#94A3B8',
+                  border: '2px solid #FFD700'
+                }}></div>
+                <span style={{ fontSize: '11px' }}>Central Entity (You)</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ 
+                  width: '14px', 
+                  height: '14px', 
+                  borderRadius: '50%', 
+                  backgroundColor: '#94A3B8'
+                }}></div>
+                <span style={{ fontSize: '11px' }}>Individual</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ 
+                  width: '14px', 
+                  height: '14px', 
+                  backgroundColor: '#94A3B8'
+                }}></div>
+                <span style={{ fontSize: '11px' }}>Organization</span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Network Roles Section */}
+          <div style={{ marginBottom: '12px' }}>
+            <div style={{ fontSize: '10px', color: '#6B7280', marginBottom: '6px', fontWeight: '500' }}>NETWORK ROLES</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ 
+                  width: '14px', 
+                  height: '14px', 
+                  borderRadius: '50%', 
+                  backgroundColor: '#94A3B8',
+                  border: '3px solid #2E86C1'
+                }}></div>
+                <span style={{ fontSize: '11px' }}>Hub (Many connections)</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ 
+                  width: '14px', 
+                  height: '14px', 
+                  transform: 'rotate(45deg)',
+                  backgroundColor: '#94A3B8',
+                  border: '3px solid #8E44AD'
+                }}></div>
+                <span style={{ fontSize: '11px' }}>Bridge (Key connector)</span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Edge Types */}
+          <div>
+            <div style={{ fontSize: '10px', color: '#6B7280', marginBottom: '6px', fontWeight: '500' }}>RELATIONSHIPS</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '20px', height: '2px', backgroundColor: '#3498DB' }}></div>
+                <span>Corporate</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '20px', height: '2px', backgroundColor: '#A93226' }}></div>
+                <span>High Risk</span>
+              </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* Fullscreen Modal */}
+      <Modal
+        open={showFullscreenModal}
+        setOpen={setShowFullscreenModal}
+        size="large"
+      >
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          marginBottom: '16px' 
+        }}>
+          <H3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Icon glyph="Charts" style={{ color: '#3B82F6' }} />
+            Network Graph - Fullscreen View
+          </H3>
+          <Body style={{ color: '#6B7280', fontSize: '12px' }}>
+            {networkData?.nodes?.length || 0} nodes • {networkData?.edges?.length || 0} edges
+          </Body>
+        </div>
+        
+        <div style={{
+          width: '100%',
+          height: '80vh',
+          border: '1px solid #E5E7EB',
+          borderRadius: '12px',
+          backgroundColor: '#F9FAFB',
+          background: 'linear-gradient(to bottom, #FFFFFF, #F9FAFB)',
+          position: 'relative',
+          overflow: 'hidden',
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)'
+        }}>
+          <CytoscapeComponent
+            elements={elements}
+            style={{ width: '100%', height: '100%' }}
+            stylesheet={cytoscapeStyles}
+            layout={{ name: 'preset' }}
+            cy={(cytoscapeInstance) => {
+              if (cytoscapeInstance && showFullscreenModal) {
+                initializeCytoscape(cytoscapeInstance);
+              }
+            }}
+            boxSelectionEnabled={true}
+            userPanningEnabled={true}
+            userZoomingEnabled={true}
+            autoungrabify={false}
+            autounselectify={false}
+          />
+          
+          {/* Enhanced Legend for Fullscreen */}
+          <div style={{
+            position: 'absolute',
+            bottom: '16px',
+            left: '16px',
+            backgroundColor: 'rgba(255, 255, 255, 0.98)',
+            padding: '20px',
+            borderRadius: '12px',
+            border: '1px solid #E5E7EB',
+            fontSize: '12px',
+            color: '#1F2937',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            zIndex: 10,
+            maxWidth: '300px',
+            backdropFilter: 'blur(10px)'
+          }}>
+            <H3 style={{ fontSize: '14px', marginBottom: '12px', color: '#1F2937', fontWeight: '600' }}>
+              Network Legend
+            </H3>
+            
+            {/* Risk Levels */}
+            <div style={{ marginBottom: '12px' }}>
+              <div style={{ fontSize: '11px', color: '#6B7280', marginBottom: '8px', fontWeight: '500' }}>
+                RISK LEVELS
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ 
+                    width: '16px', 
+                    height: '16px', 
+                    borderRadius: '50%', 
+                    backgroundColor: '#991B1B',
+                    boxShadow: '0 0 6px #991B1B'
+                  }}></div>
+                  <span style={{ fontSize: '11px' }}>Critical (80+)</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ 
+                    width: '14px', 
+                    height: '14px', 
+                    borderRadius: '50%', 
+                    backgroundColor: '#DC2626',
+                    boxShadow: '0 0 4px #DC2626'
+                  }}></div>
+                  <span style={{ fontSize: '11px' }}>High (60-79)</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ 
+                    width: '12px', 
+                    height: '12px', 
+                    borderRadius: '50%', 
+                    backgroundColor: '#F59E0B'
+                  }}></div>
+                  <span style={{ fontSize: '11px' }}>Medium (40-59)</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ 
+                    width: '11px', 
+                    height: '11px', 
+                    borderRadius: '50%', 
+                    backgroundColor: '#10B981'
+                  }}></div>
+                  <span style={{ fontSize: '11px' }}>Low (0-39)</span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Network Roles */}
+            <div style={{ marginBottom: '12px' }}>
+              <div style={{ fontSize: '11px', color: '#6B7280', marginBottom: '8px', fontWeight: '500' }}>
+                SPECIAL ROLES
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ 
+                    width: '16px', 
+                    height: '16px', 
+                    borderRadius: '50%', 
+                    backgroundColor: '#94A3B8',
+                    border: '3px solid #F59E0B'
+                  }}></div>
+                  <span style={{ fontSize: '11px' }}>Center Entity</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ 
+                    width: '16px', 
+                    height: '16px', 
+                    borderRadius: '50%', 
+                    backgroundColor: '#94A3B8',
+                    border: '3px solid #3B82F6'
+                  }}></div>
+                  <span style={{ fontSize: '11px' }}>Hub (Many connections)</span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Quick Tips */}
+            <div style={{ fontSize: '10px', color: '#6B7280', lineHeight: '1.4' }}>
+              <div><strong>Tips:</strong></div>
+              <div>• Mouse wheel to zoom</div>
+              <div>• Drag to pan view</div>
+              <div>• Click nodes to navigate</div>
+              <div>• Edge thickness = confidence</div>
+            </div>
+          </div>
+          
+          {/* Layout Controls for Fullscreen */}
+          <div style={{
+            position: 'absolute',
+            top: '16px',
+            right: '16px',
+            backgroundColor: 'rgba(255, 255, 255, 0.98)',
+            padding: '16px',
+            borderRadius: '12px',
+            border: '1px solid #E5E7EB',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+            backdropFilter: 'blur(10px)',
+            zIndex: 10,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+            minWidth: '180px'
+          }}>
+            <H3 style={{ fontSize: '13px', margin: '0 0 8px 0', color: '#1F2937' }}>
+              Layout Controls
+            </H3>
+            
+            <select 
+              value={currentLayout} 
+              onChange={(e) => handleLayoutChange(e.target.value)}
+              style={{
+                padding: '6px 10px',
+                borderRadius: '6px',
+                border: '1px solid #E5E7EB',
+                backgroundColor: '#FFFFFF',
+                fontSize: '12px',
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                color: '#374151',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="forceDirected">Force-Directed</option>
+              <option value="hierarchical">Hierarchical</option>
+              <option value="circular">Circular</option>
+              <option value="concentric">Concentric</option>
+              <option value="grid">Grid</option>
+              <option value="riskFocused">Risk-Focused</option>
+              <option value="centralityFocused">Centrality-Focused</option>
+            </select>
+            
+            <div style={{ display: 'flex', gap: '4px' }}>
+              <button
+                onClick={handleZoomToFit}
+                style={{
+                  padding: '6px 10px',
+                  fontSize: '11px',
+                  border: '1px solid #E5E7EB',
+                  borderRadius: '6px',
+                  backgroundColor: '#FFFFFF',
+                  color: '#374151',
+                  cursor: 'pointer',
+                  flex: 1
+                }}
+              >
+                Fit
+              </button>
+              <button
+                onClick={handleResetView}
+                style={{
+                  padding: '6px 10px',
+                  fontSize: '11px',
+                  border: '1px solid #E5E7EB',
+                  borderRadius: '6px',
+                  backgroundColor: '#FFFFFF',
+                  color: '#374151',
+                  cursor: 'pointer',
+                  flex: 1
+                }}
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <div style={{ 
+          marginTop: '16px', 
+          padding: '12px', 
+          backgroundColor: '#F3F4F6', 
+          borderRadius: '8px',
+          border: '1px solid #E5E7EB'
+        }}>
+          <Body style={{ fontSize: '12px', color: '#4B5563' }}>
+            <Icon glyph="InfoWithCircle" style={{ marginRight: '6px' }} />
+            <strong>Fullscreen View:</strong> Enhanced visibility for detailed network analysis. 
+            All controls and interactions are available in this view.
+          </Body>
+        </div>
+      </Modal>
     </div>
   );
 };

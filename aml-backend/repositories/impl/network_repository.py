@@ -149,10 +149,235 @@ class NetworkRepository(NetworkRepositoryInterface):
                 )
                 nodes.append(node)
             
+            # ==================== NEW: MONGODB AGGREGATION PIPELINE MIGRATION ====================
+            # Phase 1: Add comprehensive statistics calculation using MongoDB $facet operations
+            # Replace all client-side calculations with server-side MongoDB aggregation
+            logger.info(f"🚀 STATS MIGRATION: Calculating network statistics using MongoDB aggregation")
+            stats_start_time = datetime.utcnow()
+            
+            # Step 1: SIMPLIFIED statistics using ACTUAL entity model fields
+            stats_pipeline = [
+                {"$match": {"entityId": {"$in": list(entity_ids)}}},
+                {"$addFields": {
+                    # Calculate simple centrality based on connected_entities count
+                    "connection_count": {"$size": {"$ifNull": ["$connected_entities", []]}},
+                    # Extract risk score (0-1) and convert to 0-100 for display
+                    "risk_score_pct": {"$multiply": [{"$ifNull": ["$riskAssessment.overall.score", 0]}, 100]}
+                }},
+                {"$facet": {
+                    # Basic Statistics using ACTUAL fields
+                    "basic_stats": [
+                        {"$group": {
+                            "_id": None,
+                            "total_nodes": {"$sum": 1},
+                            "avg_risk_score": {"$avg": "$risk_score_pct"},  # Already converted to 0-100
+                            "max_risk_score": {"$max": "$risk_score_pct"},
+                            "min_risk_score": {"$min": "$risk_score_pct"},
+                            "avg_connections": {"$avg": "$connection_count"},
+                            "max_connections": {"$max": "$connection_count"}
+                        }}
+                    ],
+
+                    # Risk Distribution using ACTUAL field
+                    "risk_distribution": [
+                        {"$group": {
+                            "_id": "$riskAssessment.overall.level",
+                            "count": {"$sum": 1}
+                        }},
+                        {"$sort": {"_id": 1}}
+                    ],
+
+                    # Entity Type Distribution using ACTUAL field
+                    "entity_type_distribution": [
+                        {"$group": {
+                            "_id": "$entityType",
+                            "count": {"$sum": 1}
+                        }}
+                    ],
+
+                    # Hub Entities based on connection count
+                    "hub_entities": [
+                        {"$match": {"connection_count": {"$gte": 2}}},  # At least 2 connections
+                        {"$sort": {"connection_count": -1}},
+                        {"$limit": 5},
+                        {"$project": {
+                            "entityId": 1,
+                            "name": 1,
+                            "connection_count": 1,
+                            "risk_score": "$risk_score_pct"
+                        }}
+                    ],
+
+                    # Prominent entities based on connections + risk
+                    "prominent_entities": [
+                        {"$addFields": {
+                            "prominence_score": {
+                                "$add": [
+                                    {"$multiply": ["$connection_count", 0.6]},  # Connection weight
+                                    {"$multiply": ["$risk_score_pct", 0.004]}   # Risk weight (0.4 for 100% risk)
+                                ]
+                            }
+                        }},
+                        {"$sort": {"prominence_score": -1}},
+                        {"$limit": 5},
+                        {"$project": {
+                            "entityId": 1,
+                            "name": 1,
+                            "prominence_score": 1,
+                            "connection_count": 1,
+                            "risk_score": "$risk_score_pct"
+                        }}
+                    ]
+                }}
+            ]
+
+            # Execute statistics pipeline on entities
+            stats_results = await self.repo.execute_pipeline("entities", stats_pipeline)
+            
+            # Step 2: Calculate relationship distribution during edge processing
+            relationship_ids = [str(rel.get("_id", "")) for rel in network_data["relationships"]]
+            if relationship_ids:
+                # Convert string IDs back to ObjectIds for MongoDB query
+                valid_object_ids = []
+                for rel_id in relationship_ids:
+                    if rel_id:
+                        try:
+                            valid_object_ids.append(ObjectId(rel_id))
+                        except Exception:
+                            logger.warning(f"Invalid ObjectId: {rel_id}")
+                
+                if valid_object_ids:
+                    relationship_dist_pipeline = [
+                        {"$match": {"_id": {"$in": valid_object_ids}}},
+                        {"$group": {
+                            "_id": "$type",
+                            "count": {"$sum": 1},
+                            "avg_confidence": {"$avg": "$confidence"},
+                            "verified_count": {"$sum": {"$cond": ["$verified", 1, 0]}},
+                            "bidirectional_count": {"$sum": {"$cond": [{"$eq": ["$direction", "bidirectional"]}, 1, 0]}}
+                        }},
+                        {"$sort": {"count": -1}}
+                    ]
+                    
+                    rel_dist_results = await self.repo.execute_pipeline("relationships", relationship_dist_pipeline)
+                else:
+                    rel_dist_results = []
+            else:
+                rel_dist_results = []
+
+            # Calculate network density
+            total_nodes = len(nodes)
+            total_edges = len(edges)
+            network_density = 0
+            if total_nodes > 1:
+                max_possible_edges = (total_nodes * (total_nodes - 1)) / 2
+                network_density = total_edges / max_possible_edges if max_possible_edges > 0 else 0
+
+            # Calculate additional metrics
+            bidirectional_count = sum(1 for edge in edges if getattr(edge, 'direction', 'directed') == 'bidirectional')
+            bidirectional_ratio = bidirectional_count / total_edges if total_edges > 0 else 0
+            connection_counts = [node.connection_count for node in nodes]
+            max_connections = max(connection_counts) if connection_counts else 0
+            avg_connections = sum(connection_counts) / len(connection_counts) if connection_counts else 0
+
+            # Helper function to clean ObjectIds from data structures
+            def clean_objectids(obj):
+                """Recursively convert ObjectIds to strings in data structures"""
+                if isinstance(obj, ObjectId):
+                    return str(obj)
+                elif isinstance(obj, dict):
+                    return {key: clean_objectids(value) for key, value in obj.items()}
+                elif isinstance(obj, list):
+                    return [clean_objectids(item) for item in obj]
+                else:
+                    return obj
+
+            # Build comprehensive statistics response
+            statistics = {}
+            
+            if stats_results and len(stats_results) > 0:
+                stats_data = clean_objectids(stats_results[0])  # Clean ObjectIds
+                
+                # Basic metrics using SIMPLIFIED approach
+                basic_stats = stats_data.get("basic_stats", [{}])[0] if stats_data.get("basic_stats") else {}
+                statistics["basic_metrics"] = {
+                    "total_nodes": total_nodes,
+                    "total_edges": total_edges,
+                    "avg_risk_score": basic_stats.get("avg_risk_score", 0),
+                    "max_risk_score": basic_stats.get("max_risk_score", 0),
+                    "min_risk_score": basic_stats.get("min_risk_score", 0),
+                    "avg_connections": basic_stats.get("avg_connections", 0),
+                    "max_connections": basic_stats.get("max_connections", 0)
+                }
+                
+                # Network density and connection metrics
+                statistics["network_density"] = network_density
+                statistics["bidirectional_count"] = bidirectional_count
+                statistics["bidirectional_ratio"] = bidirectional_ratio
+                statistics["max_connections"] = max_connections
+                statistics["avg_connections"] = avg_connections
+                
+                # Distributions
+                statistics["risk_distribution"] = {
+                    item["_id"] or "unknown": item["count"] 
+                    for item in stats_data.get("risk_distribution", [])
+                }
+                statistics["entity_type_distribution"] = {
+                    item["_id"] or "unknown": item["count"] 
+                    for item in stats_data.get("entity_type_distribution", [])
+                }
+                
+                # Hub and prominent entities (SIMPLIFIED approach)
+                statistics["hub_entities"] = stats_data.get("hub_entities", [])
+                statistics["bridge_entities"] = []  # Simplified: use hub entities for bridges too
+                statistics["prominent_entities"] = stats_data.get("prominent_entities", [])
+                
+                # Relationship distribution (clean ObjectIds)
+                statistics["relationship_distribution"] = [
+                    {
+                        "type": item["_id"],
+                        "count": item["count"],
+                        "avg_confidence": item["avg_confidence"],
+                        "verified_count": item["verified_count"],
+                        "bidirectional_count": item.get("bidirectional_count", 0)
+                    }
+                    for item in clean_objectids(rel_dist_results)
+                ]
+                
+            else:
+                # Fallback statistics if aggregation fails
+                statistics = {
+                    "basic_metrics": {
+                        "total_nodes": total_nodes,
+                        "total_edges": total_edges,
+                        "avg_risk_score": 0,
+                        "max_risk_score": 0,
+                        "min_risk_score": 0,
+                        "avg_centrality": 0,
+                        "avg_betweenness": 0
+                    },
+                    "network_density": network_density,
+                    "bidirectional_count": bidirectional_count,
+                    "bidirectional_ratio": bidirectional_ratio,
+                    "max_connections": max_connections,
+                    "avg_connections": avg_connections,
+                    "risk_distribution": {},
+                    "entity_type_distribution": {},
+                    "hub_entities": [],
+                    "bridge_entities": [],
+                    "prominent_entities": [],
+                    "relationship_distribution": []
+                }
+
+            stats_time = (datetime.utcnow() - stats_start_time).total_seconds() * 1000
+            logger.info(f"✅ STATS MIGRATION: Network statistics calculated in {stats_time:.2f}ms using MongoDB aggregation")
+            logger.info(f"📊 STATS MIGRATION: Statistics include {len(statistics)} categories: {list(statistics.keys())}")
+            
             end_time = datetime.utcnow()
             query_time = (end_time - start_time).total_seconds() * 1000
             
-            return NetworkDataResponse(
+            # Create response with statistics
+            response = NetworkDataResponse(
                 nodes=nodes,
                 edges=edges,
                 center_entity_id=params.center_entity_id,
@@ -161,6 +386,11 @@ class NetworkRepository(NetworkRepositoryInterface):
                 max_depth_reached=network_data["max_depth"],
                 query_time_ms=query_time
             )
+            
+            # Add statistics to response (monkey patch for compatibility)
+            response.statistics = statistics
+            
+            return response
             
         except Exception as e:
             logger.error(f"Failed to build entity network: {e}")

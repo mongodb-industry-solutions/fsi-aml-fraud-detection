@@ -150,8 +150,7 @@ function SimilarProfilesSection({ entity }) {
             borderRadius: '6px',
             marginBottom: spacing[3]
           }}>
-            <Overline style={{ color: palette.gray.dark2 }}>
-              Search completed in {searchMetadata.search_time_ms}ms • 
+            <Overline style={{ color: palette.gray.dark2 }}> 
               {similarEntities.length} results • 
               {searchMetadata.similarity_metric || 'cosine'} similarity
             </Overline>

@@ -38,14 +38,31 @@ export default function ClientLayout({ children }) {
             padding: `${spacing[3]}px ${spacing[3]}px`,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <Image
-              src="/threatsight logo.png"
-              alt="ThreatSight360 Logo"
-              width={40}
-              height={40}
-              style={{ objectFit: 'contain' }}
-            />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+            <div
+              style={{
+                width: '120px',
+                height: '120px',
+                borderRadius: '50%',
+                background: 'rgba(255, 255, 255, 0.9)',
+                backdropFilter: 'blur(10px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.1)',
+                border: '1px solid rgba(255, 255, 255, 0.3)',
+              }}
+            >
+              <Image
+                src="/threatsight logo.png"
+                alt="ThreatSight360 Logo"
+                width={100}
+                height={100}
+                style={{ 
+                  objectFit: 'contain',
+                }}
+              />
+            </div>
             <div>
               <H1
                 style={{

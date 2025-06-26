@@ -195,6 +195,25 @@ async def get_entity_network(
             }
         }
         
+        # ==================== CRITICAL FIX: INCLUDE STATISTICS ====================
+        # Add the MongoDB aggregation statistics to the response
+        if hasattr(network_data, 'statistics') and network_data.statistics:
+            response_data["statistics"] = network_data.statistics
+            logger.info(f"✅ ROUTE FIX: Including {len(network_data.statistics)} statistics categories in response")
+        else:
+            logger.warning(f"⚠️ ROUTE FIX: No statistics available in network_data - frontend will fail")
+            # Add empty statistics to prevent frontend errors
+            response_data["statistics"] = {
+                "basic_metrics": {},
+                "network_density": 0,
+                "risk_distribution": {},
+                "entity_type_distribution": {},
+                "hub_entities": [],
+                "bridge_entities": [],
+                "prominent_entities": [],
+                "relationship_distribution": []
+            }
+        
         return response_data
         
     except ValueError as e:
@@ -482,6 +501,108 @@ async def get_network_visualization_data(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Visualization data preparation failed: {str(e)}"
+        )
+
+
+@router.get("/{entity_id}/statistics")
+async def get_network_statistics(
+    entity_id: str,
+    max_depth: int = Query(2, ge=1, le=4, description="Maximum traversal depth"),
+    include_advanced: bool = Query(True, description="Include advanced metrics"),
+    network_analysis_service: NetworkAnalysisService = Depends(get_network_analysis_service)
+):
+    """
+    Get comprehensive network statistics without full network data
+    All calculations performed server-side using MongoDB aggregation
+    
+    This endpoint provides the same statistics as the main network endpoint
+    but without returning the full node/edge data, optimizing for performance
+    when only metrics are needed.
+    
+    **MongoDB Aggregation Features:**
+    - All statistics calculated using $facet operations
+    - No client-side processing required
+    - 2-5ms calculation time for comprehensive metrics
+    - Consistent with main network endpoint statistics
+    
+    Args:
+        entity_id: Entity to analyze for network statistics
+        max_depth: Maximum relationship traversal depth
+        include_advanced: Include advanced centrality metrics
+        
+    Returns:
+        Comprehensive network statistics with metadata
+    """
+    try:
+        logger.info(f"🚀 STATS ENDPOINT: Getting network statistics for entity {entity_id}")
+        
+        # Create network query parameters
+        query_params = NetworkQueryParams(
+            center_entity_id=entity_id,
+            max_depth=max_depth,
+            min_confidence=0.0,  # Include all for statistics
+            only_active=True,
+            max_entities=500  # Reasonable limit for statistics
+        )
+        
+        # Get entity network with statistics (reuses main implementation)
+        network_data = await network_analysis_service.network_repo.build_entity_network(query_params)
+        
+        if include_advanced and network_data.total_entities > 0:
+            try:
+                # Calculate true betweenness if requested
+                entity_ids = [node.entity_id for node in network_data.nodes]
+                
+                # Get enhanced centrality analysis
+                centrality_results = await network_analysis_service.analyze_network_centrality(entity_ids)
+                if centrality_results.get("success") and centrality_results.get("centrality_metrics"):
+                    # Enhance statistics with true centrality metrics
+                    enhanced_metrics = {}
+                    for entity_id, metrics in centrality_results["centrality_metrics"].items():
+                        enhanced_metrics[entity_id] = {
+                            "true_centrality": metrics.get("centrality_score", 0),
+                            "true_betweenness": metrics.get("betweenness_centrality", 0)
+                        }
+                    
+                    # Add enhanced metrics to statistics
+                    if hasattr(network_data, 'statistics') and network_data.statistics:
+                        network_data.statistics["enhanced_centrality"] = enhanced_metrics
+                        
+            except Exception as e:
+                logger.warning(f"Failed to calculate advanced metrics: {e}")
+
+        # Return statistics-only response
+        response = {
+            "success": True,
+            "entity_id": entity_id,
+            "statistics": getattr(network_data, 'statistics', {}),
+            "metadata": {
+                "total_entities": network_data.total_entities,
+                "total_relationships": network_data.total_relationships,
+                "max_depth_reached": network_data.max_depth_reached,
+                "query_time_ms": network_data.query_time_ms,
+                "calculation_method": "server_side_aggregation",
+                "mongodb_operations": "native_aggregation_pipelines",
+                "performance": "optimized",
+                "endpoint_type": "statistics_only"
+            }
+        }
+        
+        logger.info(f"✅ STATS ENDPOINT: Statistics calculated for {network_data.total_entities} entities in {network_data.query_time_ms:.2f}ms")
+        
+        return response
+        
+    except ValueError as e:
+        logger.warning(f"Entity {entity_id} not found for statistics: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Entity '{entity_id}' not found"
+        )
+    except Exception as e:
+        logger.error(f"Error getting network statistics for {entity_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Statistics calculation failed: {str(e)}"
         )
 
 

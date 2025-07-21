@@ -18,7 +18,8 @@ from routes import (
     entity_search_router,  # Phase 7 Stage 2
     network_analysis_router,
     search_debug_router,
-    relationships_router
+    relationships_router,
+    enhanced_resolution_router
 )
 
 # Note: Fallback routes removed after successful migration to organized structure
@@ -97,6 +98,14 @@ async def root():
                 "entities": "/entities/",
                 "entity_resolution": "/entities/onboarding/find_matches",
                 "entity_merging": "/entities/resolve"
+            },
+            "enhanced_resolution": {
+                "demo_scenarios": "/api/v1/resolution/demo-scenarios-enhanced",
+                "comprehensive_search": "/api/v1/resolution/comprehensive-search",
+                "analyze_intelligence": "/api/v1/resolution/analyze-intelligence",
+                "network_analysis": "/api/v1/resolution/network-analysis",
+                "classify_entity": "/api/v1/resolution/classify-entity",
+                "deep_investigation": "/api/v1/resolution/deep-investigation"
             },
             "search": {
                 "atlas_search": "/search/atlas/",
@@ -189,6 +198,9 @@ include_router_safely(app, search_debug_router, "Search Debug")
 
 # 4. Core entity resolution routes (before general entity routes)
 include_router_safely(app, core_entity_resolution_router, "Core Entity Resolution")
+
+# 4.5. Enhanced entity resolution routes (new advanced workflows)
+include_router_safely(app, enhanced_resolution_router, "Enhanced Entity Resolution")
 
 # 5. Core entity routes (has catch-all routes, so include after more specific routes)  
 include_router_safely(app, core_entities_router, "Core Entities")

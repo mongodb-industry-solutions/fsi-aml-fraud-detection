@@ -54,6 +54,13 @@ except ImportError as e:
     print(f"Warning: Could not import updated relationships routes: {e}")
     relationships_router = None
 
+# Enhanced entity resolution routes
+try:
+    from .resolution.enhanced_resolution_routes import router as enhanced_resolution_router
+except ImportError as e:
+    print(f"Warning: Could not import enhanced resolution routes: {e}")
+    enhanced_resolution_router = None
+
 __all__ = [
     "core_entities_router",
     "core_entity_resolution_router", 
@@ -63,5 +70,6 @@ __all__ = [
     "entity_search_router",  # Phase 7 Stage 2
     "network_analysis_router",
     "search_debug_router",
-    "relationships_router"
+    "relationships_router",
+    "enhanced_resolution_router"
 ]

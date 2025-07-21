@@ -280,27 +280,26 @@ class VectorSearchRepository(VectorSearchRepositoryInterface):
     async def generate_embedding_from_text(self, text: str) -> List[float]:
         """Generate embedding from text using configured embedding model"""
         try:
+            logger.info(f"Generating embedding for text: {text[:50]}...")
+            
             # Use AI search capabilities from mongodb_core_lib
             if hasattr(self.ai_search, 'generate_embedding'):
+                logger.debug("Using AI search generate_embedding method")
                 return await self.ai_search.generate_embedding(text)
             
             # Fallback: Use bedrock client directly if available
             if hasattr(self.repo, 'bedrock_client') and self.repo.bedrock_client:
-                # This would call AWS Bedrock Titan embeddings
-                # Simplified implementation for now
-                logger.info(f"Generating embedding for text: {text[:50]}...")
+                logger.debug("Using bedrock client directly")
+                import json
                 
-                # Placeholder: In real implementation, this would call:
-                # response = self.repo.bedrock_client.invoke_model(
-                #     modelId='amazon.titan-embed-text-v1',
-                #     body=json.dumps({"inputText": text})
-                # )
-                # return json.loads(response['body'].read())['embedding']
-                
-                # For now, return a dummy embedding of correct size
-                return [0.1] * 1536  # Titan embedding size
+                response = self.repo.bedrock_client.invoke_model(
+                    modelId='amazon.titan-embed-text-v1',
+                    body=json.dumps({"inputText": text})
+                )
+                result = json.loads(response['body'].read())
+                return result['embedding']
             
-            logger.warning("No embedding generation capability available")
+            logger.error("No embedding generation capability available - neither ai_search nor bedrock_client")
             return []
             
         except Exception as e:

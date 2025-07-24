@@ -37,7 +37,7 @@ class VectorSearchService:
         # Business logic configuration
         self.default_limit = 10
         self.similarity_threshold = 0.7
-        self.confidence_threshold = 0.3
+        self.confidence_threshold = 0.1  # Lowered temporarily for debugging
         
         logger.info("Vector Search service initialized with repository pattern")
     
@@ -76,11 +76,11 @@ class VectorSearchService:
             processed_matches = []
             for entity_data in similar_entities:
                 match = await self._process_similarity_match(entity_data, "entity_similarity")
-                if match and match.confidence_score >= self.confidence_threshold:
+                if match and match.confidence >= self.confidence_threshold:
                     processed_matches.append(match)
             
             # Sort by similarity score (highest first)
-            processed_matches.sort(key=lambda x: x.relevance_score, reverse=True)
+            processed_matches.sort(key=lambda x: x.search_score, reverse=True)
             
             # Calculate search metadata
             processing_time = (datetime.utcnow() - start_time).total_seconds() * 1000
@@ -97,7 +97,7 @@ class VectorSearchService:
             
             return SearchResponse(
                 success=True,
-                matches=processed_matches,
+                data=processed_matches,
                 total_matches=len(processed_matches),
                 search_metadata=metadata
             )
@@ -108,7 +108,7 @@ class VectorSearchService:
             processing_time = (datetime.utcnow() - start_time).total_seconds() * 1000
             return SearchResponse(
                 success=False,
-                matches=[],
+                data=[],
                 total_matches=0,
                 error_message=f"Similarity search failed: {str(e)}",
                 search_metadata={"processing_time_ms": processing_time}
@@ -147,11 +147,11 @@ class VectorSearchService:
             processed_matches = []
             for entity_data in similar_entities:
                 match = await self._process_similarity_match(entity_data, "semantic_search")
-                if match and match.confidence_score >= self.confidence_threshold:
+                if match and match.confidence >= self.confidence_threshold:
                     processed_matches.append(match)
             
-            # Sort by relevance score
-            processed_matches.sort(key=lambda x: x.relevance_score, reverse=True)
+            # Sort by search score
+            processed_matches.sort(key=lambda x: x.search_score, reverse=True)
             
             # Calculate search metadata
             processing_time = (datetime.utcnow() - start_time).total_seconds() * 1000
@@ -168,7 +168,7 @@ class VectorSearchService:
             
             return SearchResponse(
                 success=True,
-                matches=processed_matches,
+                data=processed_matches,
                 total_matches=len(processed_matches),
                 search_metadata=metadata
             )
@@ -179,7 +179,7 @@ class VectorSearchService:
             processing_time = (datetime.utcnow() - start_time).total_seconds() * 1000
             return SearchResponse(
                 success=False,
-                matches=[],
+                data=[],
                 total_matches=0,
                 error_message=f"Semantic search failed: {str(e)}",
                 search_metadata={"processing_time_ms": processing_time}
@@ -218,11 +218,11 @@ class VectorSearchService:
             processed_matches = []
             for entity_data in similar_entities:
                 match = await self._process_similarity_match(entity_data, "vector_search")
-                if match and match.confidence_score >= self.confidence_threshold:
+                if match and match.confidence >= self.confidence_threshold:
                     processed_matches.append(match)
             
             # Sort by similarity score
-            processed_matches.sort(key=lambda x: x.relevance_score, reverse=True)
+            processed_matches.sort(key=lambda x: x.search_score, reverse=True)
             
             # Calculate search metadata
             processing_time = (datetime.utcnow() - start_time).total_seconds() * 1000
@@ -238,7 +238,7 @@ class VectorSearchService:
             
             return SearchResponse(
                 success=True,
-                matches=processed_matches,
+                data=processed_matches,
                 total_matches=len(processed_matches),
                 search_metadata=metadata
             )
@@ -249,7 +249,7 @@ class VectorSearchService:
             processing_time = (datetime.utcnow() - start_time).total_seconds() * 1000
             return SearchResponse(
                 success=False,
-                matches=[],
+                data=[],
                 total_matches=0,
                 error_message=f"Vector search failed: {str(e)}",
                 search_metadata={"processing_time_ms": processing_time}
@@ -435,13 +435,11 @@ class VectorSearchService:
             # Calculate confidence based on similarity score and search type
             confidence_score = self._calculate_similarity_confidence(similarity_score, search_type)
             
-            # Create SearchMatch model
+            # Create SearchMatch model (using correct field names)
             return SearchMatch(
                 entity_id=str(entity_id),
-                entity_name=entity_data.get("name", ""),
-                entity_type=entity_data.get("entity_type", "unknown"),
-                confidence_score=confidence_score,
-                relevance_score=similarity_score,
+                search_score=similarity_score,
+                confidence=confidence_score,
                 match_reasons=[f"Vector {search_type}"],
                 entity_data=entity_data
             )

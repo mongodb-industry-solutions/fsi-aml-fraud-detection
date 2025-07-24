@@ -307,39 +307,10 @@ class VectorSearchRepository(VectorSearchRepositoryInterface):
             return []
     
     async def generate_entity_embedding(self, entity_data: Dict[str, Any]) -> List[float]:
-        """Generate embedding from entity data"""
+        """Generate embedding from entity data using frontend form fields"""
         try:
-            # Construct text representation of entity for embedding
-            text_parts = []
-            
-            # Add name and alternate names
-            if "name" in entity_data:
-                text_parts.append(entity_data["name"])
-            
-            if "alternate_names" in entity_data:
-                if isinstance(entity_data["alternate_names"], list):
-                    text_parts.extend(entity_data["alternate_names"])
-                else:
-                    text_parts.append(str(entity_data["alternate_names"]))
-            
-            # Add entity type
-            if "entity_type" in entity_data:
-                text_parts.append(f"Type: {entity_data['entity_type']}")
-            
-            # Add attributes or description
-            if "attributes" in entity_data:
-                attrs = entity_data["attributes"]
-                if isinstance(attrs, dict):
-                    for key, value in attrs.items():
-                        if value and isinstance(value, str):
-                            text_parts.append(f"{key}: {value}")
-            
-            # Add nationality/location info
-            if "nationality" in entity_data:
-                text_parts.append(f"Nationality: {entity_data['nationality']}")
-            
-            # Combine into single text
-            entity_text = " | ".join(text_parts)
+            # Create text representation using key fields from frontend onboarding
+            entity_text = self._create_entity_onboarding_text(entity_data)
             
             if not entity_text.strip():
                 logger.warning("No text content found for entity embedding generation")
@@ -351,6 +322,56 @@ class VectorSearchRepository(VectorSearchRepositoryInterface):
         except Exception as e:
             logger.error(f"Failed to generate entity embedding: {e}")
             return []
+    
+    def _create_entity_onboarding_text(self, entity_data: Dict[str, Any]) -> str:
+        """
+        Create text representation from frontend onboarding form fields:
+        - Entity Type
+        - Full Name
+        - Date of Birth
+        - Address
+        - Primary Identifier
+        
+        Args:
+            entity_data: Entity data from frontend
+            
+        Returns:
+            str: Concatenated text for embedding generation
+        """
+        try:
+            text_parts = []
+            
+            # Entity Type
+            entity_type = entity_data.get("entityType")
+            if entity_type:
+                text_parts.append(f"Entity Type: {entity_type}")
+            
+            # Full Name (could be fullName or name field)
+            full_name = entity_data.get("fullName") or entity_data.get("name")
+            if full_name:
+                text_parts.append(f"Name: {full_name}")
+            
+            # Date of Birth
+            dob = entity_data.get("dateOfBirth")
+            if dob:
+                text_parts.append(f"Date of Birth: {dob}")
+            
+            # Address
+            address = entity_data.get("address")
+            if address:
+                text_parts.append(f"Address: {address}")
+            
+            # Primary Identifier
+            primary_id = entity_data.get("primaryIdentifier")
+            if primary_id:
+                text_parts.append(f"Primary Identifier: {primary_id}")
+            
+            # Join with consistent separator
+            return " | ".join(text_parts)
+            
+        except Exception as e:
+            logger.error(f"Failed to create entity onboarding text: {e}")
+            return ""
     
     # ==================== SIMILARITY ANALYSIS ====================
     

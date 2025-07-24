@@ -181,13 +181,13 @@ class AtlasSearchRepository:
                     }
                 })
             
-            # Add filters (these are always required)
+            # Add filters - for text search index, use text operator not equals
             filters = []
             if entity_type:
                 filters.append({
-                    "equals": {
-                        "path": "entityType",
-                        "value": entity_type
+                    "text": {
+                        "query": entity_type,
+                        "path": "entityType"
                     }
                 })
             

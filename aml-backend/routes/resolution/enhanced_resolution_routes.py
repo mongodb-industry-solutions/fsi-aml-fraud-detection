@@ -12,7 +12,7 @@ import asyncio
 import logging
 
 from models.core.resolution import ResolutionDecision
-from models.api.requests import EntitySearchRequest, UnifiedSearchRequest
+from models.api.requests import EntitySearchRequest, UnifiedSearchRequest, CompleteEntitySearchRequest
 from services.search.unified_search_service import UnifiedSearchService
 from services.search.atlas_search_service import AtlasSearchService
 from services.search.vector_search_service import VectorSearchService
@@ -26,6 +26,7 @@ from services.dependencies import (
     get_atlas_search_service,
     get_vector_search_service
 )
+from repositories.factory.repository_factory import get_vector_search_repository
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +116,7 @@ async def perform_comprehensive_search(
     unified_search_service: UnifiedSearchService = Depends(get_unified_search_service),
     atlas_search_service: AtlasSearchService = Depends(get_atlas_search_service),
     vector_search_service: VectorSearchService = Depends(get_vector_search_service),
+    vector_search_repo = Depends(get_vector_search_repository),
 ) -> Dict[str, Any]:
     """
     Perform parallel Atlas and Vector search with intelligence correlation.
@@ -123,41 +125,49 @@ async def perform_comprehensive_search(
         entity_data = request.get("entity", {})
         search_config = request.get("searchConfig", {})
         
-        # Prepare search queries
-        search_text = f"{entity_data.get('fullName', '')} {entity_data.get('address', '')}".strip()
+        # Create proper request object with all expected fields for Atlas Search
+        search_request = CompleteEntitySearchRequest(
+            entity_name=entity_data.get('fullName', ''),
+            entity_type=entity_data.get('entityType', 'individual'),
+            fuzzy_matching=True,
+            address=entity_data.get('address'),
+            phone=entity_data.get('phone'),
+            email=entity_data.get('email'),
+            limit=search_config.get('maxResults', 20)  # Reduced from 50 to 20
+        )
         
-        # Create a simple request object with the expected fields
-        class SimpleEntitySearchRequest:
-            def __init__(self, entity_name, entity_type, fuzzy_matching=True, address=None, phone=None, email=None, limit=50):
-                self.entity_name = entity_name
-                self.entity_type = entity_type
-                self.fuzzy_matching = fuzzy_matching
-                self.address = address
-                self.phone = phone
-                self.email = email
-                self.limit = limit
+        # Generate embedding from entity onboarding data for vector search
+        logger.info("Generating embedding for entity onboarding data")
+        query_embedding = await vector_search_repo.generate_entity_embedding(entity_data)
         
         # Execute parallel searches
         atlas_task = asyncio.create_task(
-            atlas_search_service.find_entity_matches(
-                SimpleEntitySearchRequest(
-                    entity_name=entity_data.get('fullName', ''),
-                    entity_type=entity_data.get('entityType', 'individual'),
-                    fuzzy_matching=True,
-                    address=entity_data.get('address'),
-                    limit=search_config.get('maxResults', 50)
-                )
-            )
+            atlas_search_service.find_entity_matches(search_request)
         )
         
-        vector_task = asyncio.create_task(
-            vector_search_service.find_similar_entities_by_text(
-                query_text=search_text,
-                limit=search_config.get('maxResults', 50),
-                similarity_threshold=search_config.get('confidenceThreshold', 0.3),
-                filters={"entity_type": entity_data.get('entityType', 'individual')}
+        # Use proper vector search with generated embeddings
+        if query_embedding:
+            logger.info(f"Using vector search with {len(query_embedding)}-dimensional embedding")
+            vector_task = asyncio.create_task(
+                vector_search_repo.find_similar_by_vector(
+                    query_vector=query_embedding,
+                    limit=search_config.get('maxResults', 20),
+                    similarity_threshold=search_config.get('confidenceThreshold', 0.3),
+                    filters={"entityType": entity_data.get('entityType', 'individual')}
+                )
             )
-        )
+        else:
+            logger.warning("Failed to generate embedding, falling back to text search")
+            # Fallback to text search if embedding generation fails
+            search_text = f"{entity_data.get('fullName', '')} {entity_data.get('address', '')}".strip()
+            vector_task = asyncio.create_task(
+                vector_search_service.find_similar_entities_by_text(
+                    query_text=search_text,
+                    limit=search_config.get('maxResults', 20),
+                    similarity_threshold=search_config.get('confidenceThreshold', 0.3),
+                    filters={"entity_type": entity_data.get('entityType', 'individual')}
+                )
+            )
         
         # Wait for both searches to complete
         atlas_results, vector_results = await asyncio.gather(atlas_task, vector_task)
@@ -169,12 +179,29 @@ async def perform_comprehensive_search(
         if atlas_results and hasattr(atlas_results, 'success') and atlas_results.success and atlas_results.data:
             atlas_entities = atlas_results.data
         
-        if vector_results and hasattr(vector_results, 'success') and vector_results.success and vector_results.data:
-            vector_entities = vector_results.data
+        # Handle vector results from repository (list of documents) or service (SearchResponse)
+        if vector_results:
+            if isinstance(vector_results, list):
+                # Direct repository results - list of MongoDB documents with similarity scores
+                vector_entities = vector_results
+            elif hasattr(vector_results, 'success') and vector_results.success and vector_results.data:
+                # Service results - SearchResponse object
+                vector_entities = vector_results.data
         
-        # Find intersection matches
-        atlas_ids = {getattr(e, 'entity_id', None) for e in atlas_entities if hasattr(e, 'entity_id') and e.entity_id}
-        vector_ids = {getattr(e, 'entity_id', None) for e in vector_entities if hasattr(e, 'entity_id') and e.entity_id}
+        # Find intersection matches - handle both SearchMatch objects and raw documents
+        atlas_ids = set()
+        for e in atlas_entities:
+            if hasattr(e, 'entity_id') and e.entity_id:
+                atlas_ids.add(e.entity_id)
+        
+        vector_ids = set()
+        for e in vector_entities:
+            if hasattr(e, 'entity_id') and e.entity_id:
+                # SearchMatch object
+                vector_ids.add(e.entity_id)
+            elif isinstance(e, dict) and e.get("entityId"):
+                # Raw MongoDB document
+                vector_ids.add(e.get("entityId"))
         intersection_ids = atlas_ids & vector_ids
         
         # Combine results with deduplication
@@ -185,42 +212,101 @@ async def perform_comprehensive_search(
             entity_id = getattr(match, 'entity_id', None)
             if entity_id:
                 entity_data = getattr(match, 'entity_data', {})
+                # Extract name - handle both simple string and nested object
+                name = ""
+                if isinstance(entity_data, dict):
+                    # Try nested name.full first (MongoDB structure)
+                    name_obj = entity_data.get("name", {})
+                    if isinstance(name_obj, dict):
+                        name = name_obj.get("full", "") or name_obj.get("display", "")
+                    else:
+                        name = str(name_obj) if name_obj else ""
+                
+                # Extract risk assessment
+                risk_assessment = entity_data.get("riskAssessment", {}) if isinstance(entity_data, dict) else {}
+                overall_risk = risk_assessment.get("overall", {}) if isinstance(risk_assessment, dict) else {}
+                risk_score = overall_risk.get("score", 0) if isinstance(overall_risk, dict) else 0
+                risk_level = overall_risk.get("level", "unknown") if isinstance(overall_risk, dict) else "unknown"
+                
                 combined_map[entity_id] = {
                     "entityId": entity_id,
-                    "name": entity_data.get("name", "") if isinstance(entity_data, dict) else "",
-                    "entityType": entity_data.get("entity_type", "") if isinstance(entity_data, dict) else "",
-                    "matchScore": getattr(match, 'confidence', None) or getattr(match, 'search_score', 0),
+                    "name": name,
+                    "entityType": entity_data.get("entityType", "Unknown") if isinstance(entity_data, dict) else "Unknown",
+                    "matchScore": getattr(match, 'search_score', 0),  # Raw search score
                     "score": getattr(match, 'search_score', 0),
                     "searchMethods": ["atlas"],
                     "isIntersection": entity_id in intersection_ids,
                     "matchReasons": getattr(match, 'match_reasons', []),
-                    "entityData": entity_data
+                    "entityData": entity_data,
+                    "riskScore": risk_score,
+                    "riskLevel": risk_level,
+                    "riskAssessment": {  # Add nested structure for frontend compatibility
+                        "overall": {
+                            "score": risk_score,
+                            "level": risk_level
+                        }
+                    }
                 }
         
-        # Merge Vector results
+        # Merge Vector results - handle both SearchMatch objects and raw documents
         for match in vector_entities:
-            entity_id = getattr(match, 'entity_id', None)
-            if entity_id:
+            # Handle both SearchMatch objects and raw MongoDB documents
+            if hasattr(match, 'entity_id'):
+                # SearchMatch object
+                entity_id = match.entity_id
                 entity_data = getattr(match, 'entity_data', {})
-                score = getattr(match, 'confidence', None) or getattr(match, 'search_score', 0)
+                search_score = getattr(match, 'search_score', 0)
+            elif isinstance(match, dict):
+                # Raw MongoDB document
+                entity_id = match.get("entityId")
+                entity_data = match
+                search_score = match.get("similarity_score", 0)
+            else:
+                continue
+                
+            if entity_id:
                 if entity_id in combined_map:
                     # Merge scores and add vector method
                     combined_map[entity_id]["matchScore"] = (
-                        combined_map[entity_id]["matchScore"] + score
+                        combined_map[entity_id]["matchScore"] + search_score
                     ) / 2
                     combined_map[entity_id]["searchMethods"].append("vector")
-                    combined_map[entity_id]["vectorScore"] = score
+                    combined_map[entity_id]["vectorScore"] = search_score
                 else:
+                    # Extract name - handle both simple string and nested object
+                    name = ""
+                    if isinstance(entity_data, dict):
+                        # Try nested name.full first (MongoDB structure)
+                        name_obj = entity_data.get("name", {})
+                        if isinstance(name_obj, dict):
+                            name = name_obj.get("full", "") or name_obj.get("display", "")
+                        else:
+                            name = str(name_obj) if name_obj else ""
+                    
+                    # Extract risk assessment
+                    risk_assessment = entity_data.get("riskAssessment", {}) if isinstance(entity_data, dict) else {}
+                    overall_risk = risk_assessment.get("overall", {}) if isinstance(risk_assessment, dict) else {}
+                    risk_score = overall_risk.get("score", 0) if isinstance(overall_risk, dict) else 0
+                    risk_level = overall_risk.get("level", "unknown") if isinstance(overall_risk, dict) else "unknown"
+                    
                     combined_map[entity_id] = {
                         "entityId": entity_id,
-                        "name": entity_data.get("name", "") if isinstance(entity_data, dict) else "",
-                        "entityType": entity_data.get("entity_type", "") if isinstance(entity_data, dict) else "",
-                        "matchScore": score,
-                        "score": getattr(match, 'search_score', 0),
+                        "name": name,
+                        "entityType": entity_data.get("entityType", "Unknown") if isinstance(entity_data, dict) else "Unknown",
+                        "matchScore": search_score,  # Raw search score
+                        "score": search_score,
                         "searchMethods": ["vector"],
                         "isIntersection": False,
-                        "matchReasons": getattr(match, 'match_reasons', []),
-                        "entityData": entity_data
+                        "matchReasons": getattr(match, 'match_reasons', []) if hasattr(match, 'match_reasons') else ["Vector similarity"],
+                        "entityData": entity_data,
+                        "riskScore": risk_score,
+                        "riskLevel": risk_level,
+                        "riskAssessment": {  # Add nested structure for frontend compatibility
+                            "overall": {
+                                "score": risk_score,
+                                "level": risk_level
+                            }
+                        }
                     }
         
         # Sort combined results by score
@@ -239,25 +325,84 @@ async def perform_comprehensive_search(
         atlas_results_dict = []
         for match in atlas_entities:
             entity_data = getattr(match, 'entity_data', {})
+            # Extract name - handle both simple string and nested object
+            name = ""
+            if isinstance(entity_data, dict):
+                name_obj = entity_data.get("name", {})
+                if isinstance(name_obj, dict):
+                    name = name_obj.get("full", "") or name_obj.get("display", "")
+                else:
+                    name = str(name_obj) if name_obj else ""
+            
+            # Extract risk assessment
+            risk_assessment = entity_data.get("riskAssessment", {}) if isinstance(entity_data, dict) else {}
+            overall_risk = risk_assessment.get("overall", {}) if isinstance(risk_assessment, dict) else {}
+            risk_score = overall_risk.get("score", 0) if isinstance(overall_risk, dict) else 0
+            risk_level = overall_risk.get("level", "unknown") if isinstance(overall_risk, dict) else "unknown"
+            
             atlas_results_dict.append({
                 "entityId": getattr(match, 'entity_id', ''),
-                "name": entity_data.get("name", "") if isinstance(entity_data, dict) else "",
-                "entityType": entity_data.get("entity_type", "") if isinstance(entity_data, dict) else "",
-                "score": getattr(match, 'confidence', None) or getattr(match, 'search_score', 0),
+                "name": name,
+                "entityType": entity_data.get("entityType", "Unknown") if isinstance(entity_data, dict) else "Unknown",
+                "matchScore": getattr(match, 'search_score', 0),  # Raw search score - correct field name
+                "score": getattr(match, 'search_score', 0),  # Backward compatibility
                 "matchReasons": getattr(match, 'match_reasons', []),
-                "entityData": entity_data
+                "entityData": entity_data,
+                "riskAssessment": {
+                    "overall": {
+                        "score": risk_score,
+                        "level": risk_level
+                    }
+                }
             })
         
         vector_results_dict = []
         for match in vector_entities:
-            entity_data = getattr(match, 'entity_data', {})
+            # Handle both SearchMatch objects and raw MongoDB documents
+            if hasattr(match, 'entity_id'):
+                # SearchMatch object
+                entity_id = match.entity_id
+                entity_data = getattr(match, 'entity_data', {})
+                search_score = getattr(match, 'search_score', 0)
+                match_reasons = getattr(match, 'match_reasons', ["Vector similarity"])
+            elif isinstance(match, dict):
+                # Raw MongoDB document
+                entity_id = match.get("entityId", "")
+                entity_data = match
+                search_score = match.get("similarity_score", 0)
+                match_reasons = ["Vector similarity"]
+            else:
+                continue
+                
+            # Extract name - handle both simple string and nested object
+            name = ""
+            if isinstance(entity_data, dict):
+                name_obj = entity_data.get("name", {})
+                if isinstance(name_obj, dict):
+                    name = name_obj.get("full", "") or name_obj.get("display", "")
+                else:
+                    name = str(name_obj) if name_obj else ""
+            
+            # Extract risk assessment
+            risk_assessment = entity_data.get("riskAssessment", {}) if isinstance(entity_data, dict) else {}
+            overall_risk = risk_assessment.get("overall", {}) if isinstance(risk_assessment, dict) else {}
+            risk_score = overall_risk.get("score", 0) if isinstance(overall_risk, dict) else 0
+            risk_level = overall_risk.get("level", "unknown") if isinstance(overall_risk, dict) else "unknown"
+            
             vector_results_dict.append({
-                "entityId": getattr(match, 'entity_id', ''),
-                "name": entity_data.get("name", "") if isinstance(entity_data, dict) else "",
-                "entityType": entity_data.get("entity_type", "") if isinstance(entity_data, dict) else "",
-                "score": getattr(match, 'confidence', None) or getattr(match, 'search_score', 0),
-                "matchReasons": getattr(match, 'match_reasons', []),
-                "entityData": entity_data
+                "entityId": entity_id,
+                "name": name,
+                "entityType": entity_data.get("entityType", "Unknown") if isinstance(entity_data, dict) else "Unknown",
+                "matchScore": search_score,  # Raw search score - correct field name
+                "score": search_score,  # Backward compatibility
+                "matchReasons": match_reasons,
+                "entityData": entity_data,
+                "riskAssessment": {
+                    "overall": {
+                        "score": risk_score,
+                        "level": risk_level
+                    }
+                }
             })
         
         return {
@@ -266,9 +411,6 @@ async def perform_comprehensive_search(
             "combinedResults": combined_results,
             "topMatches": combined_results[:10],  # Top 10 matches
             "searchMetrics": {
-                "atlasSearchTime": f"{getattr(atlas_results, 'search_time_ms', 0) or 0:.0f}ms",
-                "vectorSearchTime": f"{getattr(vector_results, 'search_time_ms', 0) or 0:.0f}ms",
-                "totalProcessingTime": f"{(getattr(atlas_results, 'search_time_ms', 0) or 0) + (getattr(vector_results, 'search_time_ms', 0) or 0):.0f}ms",
                 "recordsProcessed": total_unique
             },
             "correlationAnalysis": {

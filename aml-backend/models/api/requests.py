@@ -94,7 +94,16 @@ class EntityUpdateRequest(BaseModel):
 class EntitySearchRequest(BaseModel):
     """Request for entity search with filtering"""
     
-    # Text search
+    # Entity matching fields (for entity resolution)
+    entity_name: Optional[str] = None  # Primary search field
+    fuzzy_matching: bool = True        # Enable fuzzy matching
+    
+    # Contact information for matching
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    
+    # Text search (legacy field for compatibility)
     query: Optional[str] = None
     fuzzy: bool = True
     
@@ -119,6 +128,29 @@ class EntitySearchRequest(BaseModel):
     
     # Response options
     include_summary_only: bool = False
+
+
+class CompleteEntitySearchRequest(BaseModel):
+    """Complete entity search request for enhanced resolution workflows"""
+    
+    # Required fields
+    entity_name: str = Field(..., min_length=1, max_length=500)
+    entity_type: Optional[str] = None
+    
+    # Matching options
+    fuzzy_matching: bool = True
+    
+    # Contact information for comprehensive matching
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    
+    # Search configuration
+    limit: int = Field(50, ge=1, le=100)
+    
+    @validator('entity_name')
+    def validate_entity_name(cls, v):
+        return v.strip() if v else v
 
 
 # ==================== RESOLUTION REQUEST MODELS ====================

@@ -276,10 +276,10 @@ class RelationshipsListResponse(StandardResponse):
     relationship_summary: Optional[Dict[str, Any]] = None
 
 
-# ==================== SEARCH RESPONSE MODELS ====================
+# ==================== GENERAL SEARCH RESPONSE MODELS ====================
 
-class SearchResponse(StandardResponse):
-    """Response for search operations"""
+class EntitySearchResponse(StandardResponse):
+    """Response for general entity search operations"""
     
     data: Optional[List[EntitySummary]] = None
     pagination: Optional[PaginationInfo] = None

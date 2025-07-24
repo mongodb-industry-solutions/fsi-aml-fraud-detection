@@ -140,22 +140,9 @@ function ParallelSearchInterface({ searchResults, isLoading = false }) {
               </Cell>
               <Cell>
                 <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
-                  <div style={{
-                    width: '40px',
-                    height: '6px',
-                    backgroundColor: palette.gray.light2,
-                    borderRadius: '3px',
-                    overflow: 'hidden'
-                  }}>
-                    <div style={{
-                      width: `${(entity.matchScore || entity.confidence || 0) * 100}%`,
-                      height: '100%',
-                      backgroundColor: palette.blue.base
-                    }} />
-                  </div>
-                  <Body style={{ fontSize: '12px' }}>
-                    {((entity.matchScore || entity.confidence || 0) * 100).toFixed(1)}%
-                  </Body>
+                  <Badge variant="blue">
+                    {(entity.matchScore || entity.confidence || 0).toFixed(2)}
+                  </Badge>
                 </div>
               </Cell>
               <Cell>

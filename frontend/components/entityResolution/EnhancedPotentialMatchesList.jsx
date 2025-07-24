@@ -145,10 +145,10 @@ const EnhancedPotentialMatchesList = ({
 
   // Calculate match statistics
   const avgMatchScore = matches.length > 0 
-    ? Math.round(matches.reduce((sum, m) => sum + m.searchScore, 0) / matches.length)
-    : 0;
+    ? (matches.reduce((sum, m) => sum + (m.searchScore || 0), 0) / matches.length).toFixed(2)
+    : '0.00';
   
-  const highConfidenceMatches = matches.filter(m => m.searchScore >= 80).length;
+  const highConfidenceMatches = matches.filter(m => (m.searchScore || 0) >= 5.0).length;
   const avgRiskScore = matches.length > 0
     ? Math.round(matches.reduce((sum, m) => sum + (m.riskAssessment_overall_score || 0), 0) / matches.length)
     : 0;
@@ -334,22 +334,9 @@ const EnhancedPotentialMatchesList = ({
                 
                 <Cell>
                   <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
-                    <Badge variant={getMatchScoreBadgeVariant(match.searchScore)}>
-                      {Math.round(match.searchScore)}%
+                    <Badge variant="blue">
+                      {match.searchScore?.toFixed(2) || '0.00'}
                     </Badge>
-                    <div style={{ 
-                      width: '60px', 
-                      height: '4px', 
-                      backgroundColor: palette.gray.light2,
-                      borderRadius: '2px',
-                      overflow: 'hidden'
-                    }}>
-                      <div style={{
-                        width: `${match.searchScore}%`,
-                        height: '100%',
-                        backgroundColor: getMatchScoreColor(match.searchScore)
-                      }} />
-                    </div>
                   </div>
                 </Cell>
                 
@@ -432,7 +419,7 @@ const EnhancedPotentialMatchesList = ({
                 Average Match Score
               </Body>
               <H2 style={{ color: palette.blue.dark1, margin: `${spacing[1]} 0` }}>
-                {avgMatchScore}%
+                {avgMatchScore}
               </H2>
               <Body style={{ color: palette.gray.dark1, fontSize: '14px' }}>
                 Across {totalMatches} matches
@@ -452,7 +439,7 @@ const EnhancedPotentialMatchesList = ({
                 {highConfidenceMatches}
               </H2>
               <Body style={{ color: palette.gray.dark1, fontSize: '14px' }}>
-                Matches ≥80% confidence
+                Matches ≥5.0 score
               </Body>
             </div>
             

@@ -169,7 +169,7 @@ class NetworkEdge(BaseModel):
     
     source_id: str
     target_id: str
-    relationship_type: RelationshipType
+    relationship_type: str  # Changed to str to store original type directly
     
     # Edge properties
     strength: RelationshipStrength

@@ -67,17 +67,21 @@ poetry run uvicorn main:app --reload --port 8000  # Development server
 **Key Components:**
 - `app/`: Next.js App Router pages
   - `entities/`: Entity management UI with network visualization
-  - `entity-resolution/`: AI-powered entity resolution workflows
+  - `entity-resolution/enhanced/`: AI-powered entity resolution workflows (CURRENT VERSION)
   - `transaction-simulator/`: Interactive fraud testing
   - `risk-models/`: Risk model configuration
   
 - `components/`: React components using LeafyGreen UI
-  - `entities/NetworkGraphComponent.jsx`: Reagraph-based network visualization
+  - `entities/CytoscapeNetworkComponent.jsx`: Cytoscape.js-based network visualization
   - `entities/EntityDetail.jsx`: Main entity detail view with tabs
-  - `entityResolution/`: Resolution workflows and matching UI
+  - `entityResolution/enhanced/`: Enhanced resolution workflows and UI components
+    - `ModernOnboardingForm.jsx`: Simplified entity input form (name, address, entity type only)
+    - `ParallelSearchInterface.jsx`: Displays Atlas, Vector, and Hybrid search results with expandable query details
+    - `NetworkVisualizationCard.jsx`: Network analysis and relationship visualization
   
 - `lib/`: API client libraries
   - `aml-api.js`: AML backend integration (port 8001)
+  - `enhanced-entity-resolution-api.js`: Enhanced resolution API client
   - `mongodb.js`: Direct MongoDB connection
 
 **Frontend State Management:**
@@ -111,13 +115,43 @@ poetry run uvicorn main:app --reload --port 8000  # Development server
 
 **Service Layer:**
 - `services/core/`: Entity resolution, matching, confidence scoring
-- `services/search/`: Atlas Search, Vector Search, Unified Search
+- `services/search/`: Atlas Search, Vector Search, Hybrid Search ($rankFusion)
 - `services/network/`: Graph analysis with NetworkAnalysisService
 
 **MongoDB Core Library** (`reference/mongodb_core_lib.py`):
 - Fluent aggregation builder pattern
 - Connection pooling and management
 - Graph operations utilities
+
+## Enhanced Entity Resolution Implementation
+
+### MongoDB $rankFusion Hybrid Search
+
+**HybridSearchService** (`services/search/hybrid_search_service.py`):
+- Native MongoDB $rankFusion implementation combining Atlas and Vector search
+- Replaces manual score combination with MongoDB's proven Reciprocal Rank Fusion algorithm
+- Equal weighting (1:1) for Atlas and Vector search pipelines
+- Provides contribution percentage calculation for UI display
+
+**Key Features:**
+- **Optimized Performance**: Single MongoDB aggregation query instead of multiple separate searches
+- **Score Transparency**: Individual pipeline scores extracted from $rankFusion scoreDetails
+- **Configurable Weights**: Atlas and Vector search weights (currently 1:1)
+- **Contribution Analysis**: Calculates percentage contribution of each search method
+
+### Enhanced Frontend Components
+
+**ParallelSearchInterface.jsx**:
+- Three-tab interface: Atlas Search, Vector Search, Hybrid ($rankFusion)
+- Expandable query details card showing actual MongoDB queries executed
+- Clickable entity names that open modal with EntityDetailWrapper
+- Color-coded contribution percentage pills for hybrid results
+- LeafyGreen Code component for syntax-highlighted query display
+
+**ModernOnboardingForm.jsx** (Simplified):
+- Only essential fields: Entity Type, Full Name, Address
+- Removed: Date of Birth, Primary Identifier, Additional Notes
+- Streamlined validation focusing on searchable fields
 
 ## Critical Field Naming Conventions
 
@@ -152,6 +186,50 @@ poetry run uvicorn main:app --reload --port 8000  # Development server
 }
 ```
 
+## MongoDB Atlas Search Configuration
+
+**Required Indexes:**
+- `entity_text_search_index`: Atlas Search for text matching (name.full, name.aliases, addresses.full, entityType)
+- `entity_vector_search_index`: Vector similarity search for semantic matching
+- `transaction_vector_index`: Fraud pattern vectors
+
+**Atlas Search Index Mapping** (entity_text_search_index):
+```json
+{
+  "mappings": {
+    "dynamic": false,
+    "fields": {
+      "name": {
+        "type": "document",
+        "fields": {
+          "full": { "type": "string" },
+          "aliases": { "type": "string" }
+        }
+      },
+      "addresses": {
+        "type": "document",
+        "fields": {
+          "full": { "type": "string" }
+        }
+      },
+      "entityType": { "type": "string" },
+      "identifiers": {
+        "type": "document",
+        "fields": {
+          "value": { "type": "string" }
+        }
+      }
+    }
+  }
+}
+```
+
+**Atlas Search Features Used:**
+- Compound queries with fuzzy matching
+- Separate name and address queries for optimal matching
+- Entity type filtering
+- Field-specific fuzzy edit distances (name: 1-2 edits, address: 1-2 edits)
+
 ## Network Visualization (Cytoscape.js)
 
 **Frontend Network Components:**
@@ -180,19 +258,6 @@ if (bidirectional) {
 }
 ```
 
-## MongoDB Atlas Requirements
-
-**Required Indexes:**
-- `entity_resolution_search`: Full-text search with faceting
-- `entity_vector_search_index`: Vector similarity search
-- `transaction_vector_index`: Fraud pattern vectors
-
-**Atlas Search Features Used:**
-- Faceted search with dynamic facets
-- Autocomplete for entity names
-- Vector search for semantic similarity
-- Text search with fuzzy matching
-
 ## Environment Variables
 
 ```bash
@@ -207,6 +272,7 @@ AWS_REGION=us-east-1
 
 # Atlas Search Indexes
 ATLAS_SEARCH_INDEX=entity_resolution_search
+ATLAS_TEXT_SEARCH_INDEX=entity_text_search_index
 ENTITY_VECTOR_INDEX=entity_vector_search_index
 TRANSACTION_VECTOR_INDEX=transaction_vector_index
 
@@ -243,10 +309,38 @@ pipeline = (self.repo.aggregation()
     .build())
 ```
 
+### Working with Hybrid Search
+
+**HybridSearchService Usage:**
+```python
+# Initialize service with entity collection
+hybrid_service = HybridSearchService(entity_collection)
+
+# Perform hybrid search
+response = await hybrid_service.hybrid_entity_search(
+    query_text="John Smith",
+    query_embedding=embedding_vector,
+    limit=10,
+    atlas_weight=1,
+    vector_weight=1
+)
+
+# Extract results with contribution percentages
+for result in response.hybridResults:
+    print(f"Entity: {result.entity_id}")
+    print(f"Hybrid Score: {result.hybrid_score:.4f}")
+    print(f"Text Contribution: {result.text_contribution_percent:.1f}%")
+    print(f"Vector Contribution: {result.vector_contribution_percent:.1f}%")
+```
+
 ### Frontend API Integration
 
 **Use the established patterns in lib/:**
 ```javascript
+// Enhanced Entity Resolution API
+import { enhancedEntityResolutionAPI } from '@/lib/enhanced-entity-resolution-api';
+const response = await enhancedEntityResolutionAPI.performParallelSearch(entityData);
+
 // AML API calls
 import { amlAPI } from '@/lib/aml-api';
 const response = await amlAPI.searchEntities(searchParams);
@@ -259,8 +353,9 @@ const { error, clearError } = useAMLAPIError();
 
 - Network graphs limited to 100-500 nodes for performance
 - Use pagination for entity lists (20-50 items per page)
-- Atlas Search queries optimized with proper indexes
+- Atlas Search queries optimized with proper indexes and field-specific paths
 - Vector search limited to top-K results (typically K=10-20)
+- Hybrid search combines both searches in single MongoDB aggregation for optimal performance
 
 ## Testing Patterns
 
@@ -340,6 +435,25 @@ const { error, clearError } = useAMLAPIError();
 
 ## Important Implementation Notes
 
+### Enhanced Entity Resolution Migration
+
+**Current Implementation Status:**
+- **Primary Path**: `/entity-resolution/enhanced` (all navigation points here)
+- **Legacy System**: Completely removed (old `/entity-resolution` deleted)
+- **Navigation**: Both Header.jsx and ClientLayout.jsx point to enhanced version
+
+**MongoDB $rankFusion Integration:**
+- Replaced manual combined results with native MongoDB $rankFusion
+- Single aggregation query combining Atlas and Vector search
+- Score transparency with individual pipeline contributions
+- Eliminated manual score normalization complexity
+
+**Frontend Query Transparency:**
+- Expandable card shows actual MongoDB queries executed
+- Separated name and address queries for optimal matching
+- Real Atlas Search paths: `name.full`, `name.aliases`, `addresses.full`
+- LeafyGreen Code component for syntax-highlighted JSON display
+
 ### Network Analysis Recent Changes
 
 **Migration to Native MongoDB Operations:**
@@ -367,3 +481,6 @@ const { error, clearError } = useAMLAPIError();
 3. **Bidirectional Edge Display**: Always create two separate directed edges for bidirectional relationships
 4. **MongoDB Aggregation**: Always use fluent AggregationBuilder pattern, avoid raw pipeline arrays
 5. **Component Circular Imports**: Pass components as props to avoid webpack module resolution errors
+6. **Atlas Search Paths**: Use correct field paths (`name.full`, `name.aliases`, `addresses.full`) not legacy paths
+7. **Navigation Consistency**: All entity resolution links should point to `/entity-resolution/enhanced`
+8. **Hybrid Search Configuration**: Always use 1:1 weights and `entity_text_search_index` for Atlas Search

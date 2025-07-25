@@ -1192,6 +1192,8 @@ function NetworkAnalysisTab({ entity }) {
   const fetchNetworkData = async () => {
     if (!entity?.entityId) return;
     
+    console.log(`🔍 Fetching network data with maxDepth=${maxDepth}, minStrength=${minStrength} for entity ${entity.entityId}`);
+    
     setIsLoading(true);
     setError(null);
     
@@ -1205,12 +1207,20 @@ function NetworkAnalysisTab({ entity }) {
         null // relationshipTypeFilter
       );
       
+      console.log(`✅ Network data received:`, {
+        nodes: data?.nodes?.length || 0,
+        edges: data?.edges?.length || 0,
+        metadata: data?.metadata,
+        maxDepthUsed: maxDepth,
+        minStrengthUsed: minStrength
+      });
+      
       setNetworkData(data);
       
       // TODO: Add simple network statistics display
       
     } catch (error) {
-      console.error('Failed to fetch network:', error);
+      console.error('❌ Failed to fetch network:', error);
       setError(error.message || 'Failed to load network data');
     } finally {
       setIsLoading(false);
@@ -1290,7 +1300,11 @@ function NetworkAnalysisTab({ entity }) {
             <select
               id="maxDepth"
               value={maxDepth}
-              onChange={(e) => setMaxDepth(parseInt(e.target.value))}
+              onChange={(e) => {
+                const newDepth = parseInt(e.target.value);
+                console.log(`🔧 Network depth changed from ${maxDepth} to ${newDepth}`);
+                setMaxDepth(newDepth);
+              }}
               style={{
                 width: '100%',
                 padding: spacing[2],
@@ -1476,91 +1490,6 @@ function ActivityAnalysisTab({ entity }) {
           and risk assessment evolution over time.
         </Body>
         
-        {/* Risk Assessment History */}
-        {entity.riskAssessment?.history && entity.riskAssessment.history.length > 0 && (
-          <div style={{ marginBottom: spacing[4] }}>
-            <H3 style={{ marginBottom: spacing[2] }}>Risk Assessment History</H3>
-            <Table>
-              <TableHead>
-                <HeaderRow>
-                  <HeaderCell>Date</HeaderCell>
-                  <HeaderCell>Risk Score</HeaderCell>
-                  <HeaderCell>Risk Level</HeaderCell>
-                  <HeaderCell>Change Trigger</HeaderCell>
-                </HeaderRow>
-              </TableHead>
-              <TableBody>
-                {entity.riskAssessment.history.map((record, index) => (
-                  <Row key={index}>
-                    <Cell>
-                      <Body>{amlUtils.formatDate(record.date)}</Body>
-                    </Cell>
-                    <Cell>
-                      <Body weight="medium">{record.score}</Body>
-                    </Cell>
-                    <Cell>
-                      <span style={{
-                        padding: '4px 8px',
-                        borderRadius: '12px',
-                        fontSize: '12px',
-                        fontWeight: 500,
-                        background: record.level === 'high' ? palette.red.light2 : 
-                                   record.level === 'medium' ? palette.yellow.light2 : palette.green.light2,
-                        color: record.level === 'high' ? palette.red.dark2 : 
-                               record.level === 'medium' ? palette.yellow.dark2 : palette.green.dark2
-                      }}>
-                        {record.level}
-                      </span>
-                    </Cell>
-                    <Cell>
-                      <Body>{record.changeTrigger?.replace(/_/g, ' ') || 'N/A'}</Body>
-                    </Cell>
-                  </Row>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-        
-        {/* Risk Components Breakdown */}
-        {entity.riskAssessment?.components && (
-          <div style={{ marginBottom: spacing[4] }}>
-            <H3 style={{ marginBottom: spacing[2] }}>Risk Components Analysis</H3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: spacing[3] }}>
-              {Object.entries(entity.riskAssessment.components).map(([component, data]) => (
-                <Card key={component} style={{ 
-                  padding: spacing[3], 
-                  background: palette.gray.light3,
-                  border: `1px solid ${palette.gray.light1}`
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <Label>{component.charAt(0).toUpperCase() + component.slice(1)}</Label>
-                      <Body weight="medium">Score: {data.score}</Body>
-                      <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>
-                        Weight: {(data.weight * 100).toFixed(0)}%
-                      </Body>
-                    </div>
-                    <div style={{ 
-                      width: '60px', 
-                      height: '60px', 
-                      borderRadius: '50%',
-                      background: `conic-gradient(${data.score >= 70 ? palette.red.base : 
-                                                    data.score >= 40 ? palette.yellow.base : palette.green.base} ${data.score * 3.6}deg, ${palette.gray.light1} 0deg)`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'white',
-                      fontWeight: 'bold'
-                    }}>
-                      {data.score}
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          </div>
-        )}
       </Card>
     </div>
   );

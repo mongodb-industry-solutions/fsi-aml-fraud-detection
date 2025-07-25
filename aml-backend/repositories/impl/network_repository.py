@@ -91,14 +91,17 @@ class NetworkRepository(NetworkRepositoryInterface):
                     elif strength_value >= 0.4:
                         strength_enum = RelationshipStrength.POSSIBLE
                     else:
-                        strength_enum = RelationshipStrength.WEAK
+                        strength_enum = RelationshipStrength.SUSPECTED
                 else:
                     strength_enum = RelationshipStrength.POSSIBLE
+                
+                # Use original relationship type string directly for display
+                relationship_type_str = relationship.get("type", "unknown")
                 
                 edge = NetworkEdge(
                     source_id=source_id,
                     target_id=target_id,
-                    relationship_type=RelationshipType(relationship.get("type", "unknown")),
+                    relationship_type=relationship_type_str,  # Store original type directly
                     weight=relationship.get("strength", 0.5),
                     confidence=relationship.get("confidence", 0.5),
                     verified=relationship.get("verified", False),

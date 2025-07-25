@@ -214,7 +214,7 @@ export default function ClientLayout({ children }) {
                 </li>
                 <li>
                   <Link
-                    href="/entity-resolution"
+                    href="/entity-resolution/enhanced"
                     style={{
                       color: palette.gray.light3,
                       textDecoration: 'none',

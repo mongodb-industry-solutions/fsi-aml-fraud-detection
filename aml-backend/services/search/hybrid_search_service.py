@@ -81,14 +81,21 @@ class HybridSearchService:
                                                     {
                                                         "text": {
                                                             "query": query_text,
-                                                            "path": ["name.full", "name.first", "name.last"],
+                                                            "path": ["name.full"],
                                                             "fuzzy": {"maxEdits": 1}
                                                         }
                                                     },
                                                     {
                                                         "text": {
                                                             "query": query_text,
-                                                            "path": ["primaryAddress.full", "address.street"],
+                                                            "path": ["name.aliases"],
+                                                            "fuzzy": {"maxEdits": 1}
+                                                        }
+                                                    },
+                                                    {
+                                                        "text": {
+                                                            "query": query_text,
+                                                            "path": ["addresses.full"],
                                                             "fuzzy": {"maxEdits": 2}
                                                         }
                                                     }

@@ -22,11 +22,8 @@ import { enhancedEntityResolutionAPI } from '@/lib/enhanced-entity-resolution-ap
 function ModernOnboardingForm({ onSubmit, isLoading = false }) {
   const [formData, setFormData] = useState({
     fullName: '',
-    dateOfBirth: '',
     address: '',
-    primaryIdentifier: '',
-    entityType: 'individual',
-    additionalNotes: ''
+    entityType: 'individual'
   });
   
   const [errors, setErrors] = useState({});
@@ -63,11 +60,6 @@ function ModernOnboardingForm({ onSubmit, isLoading = false }) {
     
     if (!formData.entityType) {
       newErrors.entityType = 'Entity type is required';
-    }
-    
-    // Date of birth validation for individuals
-    if (formData.entityType === 'individual' && !formData.dateOfBirth) {
-      newErrors.dateOfBirth = 'Date of birth is required for individuals';
     }
     
     // Address validation
@@ -114,8 +106,9 @@ function ModernOnboardingForm({ onSubmit, isLoading = false }) {
    */
   const applyDemoScenario = (scenario) => {
     setFormData({
-      ...scenario.entityData,
-      additionalNotes: `Demo: ${scenario.description}`
+      fullName: scenario.entityData.fullName,
+      address: scenario.entityData.address,
+      entityType: scenario.entityData.entityType
     });
     setErrors({});
   };
@@ -126,11 +119,8 @@ function ModernOnboardingForm({ onSubmit, isLoading = false }) {
   const clearForm = () => {
     setFormData({
       fullName: '',
-      dateOfBirth: '',
       address: '',
-      primaryIdentifier: '',
-      entityType: 'individual',
-      additionalNotes: ''
+      entityType: 'individual'
     });
     setErrors({});
   };
@@ -279,7 +269,7 @@ function ModernOnboardingForm({ onSubmit, isLoading = false }) {
             </div>
 
             {/* Full Name */}
-            <div>
+            <div style={{ width: '95%' }}>
               <TextInput
                 label={formData.entityType === 'individual' ? 'Full Name' : 'Organization Name'}
                 value={formData.fullName}
@@ -292,52 +282,14 @@ function ModernOnboardingForm({ onSubmit, isLoading = false }) {
               />
             </div>
 
-            {/* Date of Birth (for individuals) */}
-            {formData.entityType === 'individual' && (
-              <div>
-                <TextInput
-                  label="Date of Birth"
-                  type="date"
-                  value={formData.dateOfBirth}
-                  onChange={(e) => handleChange('dateOfBirth', e.target.value)}
-                  errorMessage={errors.dateOfBirth}
-                />
-              </div>
-            )}
-
             {/* Address */}
-            <div style={{ gridColumn: '1 / -1' }}>
+            <div>
               <TextInput
                 label="Address"
                 value={formData.address}
                 onChange={(e) => handleChange('address', e.target.value)}
                 errorMessage={errors.address}
                 placeholder="e.g., 123 Main Street, City, State, ZIP"
-              />
-            </div>
-
-            {/* Primary Identifier */}
-            <div>
-              <TextInput
-                label="Primary Identifier"
-                value={formData.primaryIdentifier}
-                onChange={(e) => handleChange('primaryIdentifier', e.target.value)}
-                placeholder={formData.entityType === 'individual' ? 
-                  'SSN, Driver License, Passport' : 
-                  'EIN, Registration Number'
-                }
-                description="Optional: Any government-issued identifier"
-              />
-            </div>
-
-            {/* Additional Notes */}
-            <div style={{ gridColumn: '1 / -1' }}>
-              <TextArea
-                label="Additional Notes"
-                value={formData.additionalNotes}
-                onChange={(e) => handleChange('additionalNotes', e.target.value)}
-                placeholder="Any additional context or special considerations..."
-                rows={3}
               />
             </div>
           </div>

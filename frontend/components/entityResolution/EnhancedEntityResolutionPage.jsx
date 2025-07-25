@@ -293,6 +293,7 @@ function EnhancedEntityResolutionPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[4] }}>
             <ParallelSearchInterface
               searchResults={workflowData.searchResults}
+              originalEntityData={workflowData.entityInput}
               isLoading={isLoading}
             />
             <div style={{ display: 'flex', justifyContent: 'center' }}>

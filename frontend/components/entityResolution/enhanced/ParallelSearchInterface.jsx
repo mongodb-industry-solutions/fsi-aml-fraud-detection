@@ -2,8 +2,10 @@
 
 import React, { useState } from 'react';
 import Card from '@leafygreen-ui/card';
+import ExpandableCard from '@leafygreen-ui/expandable-card';
 import Button from '@leafygreen-ui/button';
 import Modal from '@leafygreen-ui/modal';
+import Code from '@leafygreen-ui/code';
 import { H3, Body, Label } from '@leafygreen-ui/typography';
 import { Table, TableBody, TableHead, HeaderRow, HeaderCell, Row, Cell } from '@leafygreen-ui/table';
 import Icon from '@leafygreen-ui/icon';
@@ -19,7 +21,7 @@ import EntityDetailWrapper from '@/components/entities/EntityDetailWrapper';
  * Displays results from both Atlas Search and Vector Search in a modern,
  * side-by-side comparison with correlation analysis and combined intelligence.
  */
-function ParallelSearchInterface({ searchResults, isLoading = false }) {
+function ParallelSearchInterface({ searchResults, originalEntityData, isLoading = false }) {
   const [selectedTab, setSelectedTab] = useState(0); // 0: Atlas, 1: Vector, 2: Hybrid
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedEntityId, setSelectedEntityId] = useState(null);
@@ -336,15 +338,213 @@ function ParallelSearchInterface({ searchResults, isLoading = false }) {
   };
 
 
+  /**
+   * Render search query details in expandable card
+   */
+  const renderSearchQueryDetails = () => {
+    if (!originalEntityData) return null;
+
+    return (
+      <ExpandableCard
+        title="Search Query Details"
+        description="View original entity data and search parameters"
+        style={{ marginBottom: spacing[4] }}
+      >
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: spacing[4] }}>
+          {/* Original Entity Data */}
+          <div>
+            <H3 style={{ fontSize: '16px', marginBottom: spacing[3] }}>Original Entity Data</H3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[2] }}>
+              <div>
+                <Label style={{ fontSize: '12px', color: palette.gray.dark1 }}>Full Name</Label>
+                <Body style={{ fontFamily: 'monospace', fontSize: '13px' }}>
+                  {originalEntityData.fullName || 'Not provided'}
+                </Body>
+              </div>
+              <div>
+                <Label style={{ fontSize: '12px', color: palette.gray.dark1 }}>Entity Type</Label>
+                <Body style={{ fontFamily: 'monospace', fontSize: '13px' }}>
+                  {originalEntityData.entityType || 'Not specified'}
+                </Body>
+              </div>
+              <div>
+                <Label style={{ fontSize: '12px', color: palette.gray.dark1 }}>Address</Label>
+                <Body style={{ fontFamily: 'monospace', fontSize: '13px' }}>
+                  {originalEntityData.address || 'Not provided'}
+                </Body>
+              </div>
+            </div>
+          </div>
+
+          {/* Search Parameters */}
+          <div>
+            <H3 style={{ fontSize: '16px', marginBottom: spacing[3] }}>Search Parameters</H3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[3] }}>
+              {/* Atlas Search Query */}
+              <div>
+                <Label style={{ fontSize: '12px', color: palette.blue.dark1 }}>Atlas Search Query</Label>
+                <div style={{ marginTop: spacing[1] }}>
+                  <Code
+                    language="json"
+                    showLineNumbers={false}
+                    copyable={false}
+                  >
+                    {JSON.stringify({
+                      $search: {
+                        index: "entity_text_search_index",
+                        compound: {
+                          should: [
+                            {
+                              text: {
+                                query: originalEntityData.fullName || '',
+                                path: ["name.full"],
+                                fuzzy: { maxEdits: 2 }
+                              }
+                            },
+                            {
+                              text: {
+                                query: originalEntityData.fullName || '',
+                                path: ["name.aliases"],
+                                fuzzy: { maxEdits: 2 }
+                              }
+                            },
+                            {
+                              text: {
+                                query: originalEntityData.address || '',
+                                path: ["addresses.full"],
+                                fuzzy: { maxEdits: 1 }
+                              }
+                            }
+                          ],
+                          filter: originalEntityData.entityType ? [
+                            {
+                              text: {
+                                query: originalEntityData.entityType,
+                                path: "entityType"
+                              }
+                            }
+                          ] : []
+                        }
+                      }
+                    }, null, 2)}
+                  </Code>
+                </div>
+              </div>
+
+              {/* Vector Search Query */}
+              <div>
+                <Label style={{ fontSize: '12px', color: palette.purple.dark1 }}>Vector Search Query</Label>
+                <div style={{ marginTop: spacing[1] }}>
+                  <Code
+                    language="json"
+                    showLineNumbers={false}
+                    copyable={false}
+                  >
+                    {JSON.stringify({
+                      $vectorSearch: {
+                        index: "entity_vector_search_index",
+                        path: "profileEmbedding",
+                        queryVector: "[Generated embedding vector array]",
+                        numCandidates: 150,
+                        limit: 20
+                      }
+                    }, null, 2)}
+                  </Code>
+                </div>
+              </div>
+
+              {/* Hybrid Search Query */}
+              <div>
+                <Label style={{ fontSize: '12px', color: palette.green.dark1 }}>Hybrid $rankFusion Query</Label>
+                <div style={{ marginTop: spacing[1] }}>
+                  <Code
+                    language="json"
+                    showLineNumbers={false}
+                    copyable={false}
+                  >
+                    {JSON.stringify({
+                      $rankFusion: {
+                        input: {
+                          pipelines: {
+                            atlas: [
+                              {
+                                $search: {
+                                  index: "entity_text_search_index",
+                                  compound: {
+                                    should: [
+                                      {
+                                        text: {
+                                          query: originalEntityData.fullName || '',
+                                          path: ["name.full"],
+                                          fuzzy: { maxEdits: 1 }
+                                        }
+                                      },
+                                      {
+                                        text: {
+                                          query: originalEntityData.fullName || '',
+                                          path: ["name.aliases"],
+                                          fuzzy: { maxEdits: 1 }
+                                        }
+                                      },
+                                      {
+                                        text: {
+                                          query: originalEntityData.address || '',
+                                          path: ["addresses.full"],
+                                          fuzzy: { maxEdits: 2 }
+                                        }
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              { $limit: 20 }
+                            ],
+                            vector: [
+                              {
+                                $vectorSearch: {
+                                  index: "entity_vector_search_index",
+                                  path: "profileEmbedding",
+                                  queryVector: "[Generated embedding vector array]",
+                                  numCandidates: 150,
+                                  limit: 20
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        combination: {
+                          weights: {
+                            atlas: 1,
+                            vector: 1
+                          }
+                        },
+                        scoreDetails: true
+                      }
+                    }, null, 2)}
+                  </Code>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </ExpandableCard>
+    );
+  };
+
   return (
-    <Card style={{ padding: spacing[4] }}>
-      {/* Header */}
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center',
-        marginBottom: spacing[4]
-      }}>
+    <div>
+      {/* Search Query Details Expandable Card */}
+      {renderSearchQueryDetails()}
+
+      {/* Main Results Card */}
+      <Card style={{ padding: spacing[4] }}>
+        {/* Header */}
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          marginBottom: spacing[4]
+        }}>
         <H3 style={{ 
           margin: 0,
           display: 'flex',
@@ -494,7 +694,8 @@ function ParallelSearchInterface({ searchResults, isLoading = false }) {
         )}
       </Modal>
 
-    </Card>
+      </Card>
+    </div>
   );
 }
 

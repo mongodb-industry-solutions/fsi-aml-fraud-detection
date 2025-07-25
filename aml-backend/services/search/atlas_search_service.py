@@ -38,7 +38,6 @@ class AtlasSearchService:
         # Business logic configuration
         self.default_limit = 20
         self.fuzzy_max_edits = 2
-        self.confidence_threshold = 0.1  # Lowered temporarily for debugging
         
         logger.info("Atlas Search service initialized with repository pattern")
     
@@ -77,15 +76,15 @@ class AtlasSearchService:
                 limit=search_request.limit or self.default_limit
             )
             
-            # Process matches and calculate confidence scores
+            # Process matches
             processed_matches = []
             for match_data in raw_matches:
                 match = await self._process_search_match(match_data, search_request)
-                if match and match.confidence >= self.confidence_threshold:
+                if match:
                     processed_matches.append(match)
             
-            # Sort by confidence score (highest first)
-            processed_matches.sort(key=lambda x: x.confidence, reverse=True)
+            # Sort by search score (highest first)
+            processed_matches.sort(key=lambda x: x.search_score, reverse=True)
             
             # Calculate search metadata
             processing_time = (datetime.utcnow() - start_time).total_seconds() * 1000
@@ -94,7 +93,6 @@ class AtlasSearchService:
                 "processing_time_ms": processing_time,
                 "total_raw_matches": len(raw_matches),
                 "filtered_matches": len(processed_matches),
-                "confidence_threshold": self.confidence_threshold,
                 "fuzzy_enabled": search_request.fuzzy_matching
             }
             
@@ -214,11 +212,11 @@ class AtlasSearchService:
             processed_matches = []
             for match_data in raw_matches:
                 match = await self._process_fuzzy_match(match_data, name)
-                if match and match.confidence >= self.confidence_threshold:
+                if match:
                     processed_matches.append(match)
             
-            # Sort by confidence score
-            processed_matches.sort(key=lambda x: x.confidence, reverse=True)
+            # Sort by search score
+            processed_matches.sort(key=lambda x: x.search_score, reverse=True)
             
             processing_time = (datetime.utcnow() - start_time).total_seconds() * 1000
             metadata = {
@@ -306,19 +304,15 @@ class AtlasSearchService:
             logger.debug(f"Processing match_data keys: {list(match_data.keys())}")
             logger.debug(f"search_score value: {match_data.get('search_score')}, score value: {match_data.get('score')}")
             
-            # Calculate confidence score based on multiple factors
-            confidence_score = self._calculate_confidence_score(match_data, search_request)
-            
             # Extract relevance score from Atlas Search (MongoDB adds it as search_score)
             relevance_score = match_data.get("search_score", 0.0) or match_data.get("score", 0.0)
             
-            logger.debug(f"Final relevance_score: {relevance_score}, confidence_score: {confidence_score}")
+            logger.debug(f"Final relevance_score: {relevance_score}")
             
             # Create SearchMatch model (using correct field names)
             return SearchMatch(
                 entity_id=str(entity_id),
                 search_score=relevance_score,
-                confidence=confidence_score,
                 match_reasons=self._identify_match_reasons(match_data, search_request),
                 entity_data=match_data
             )
@@ -344,8 +338,6 @@ class AtlasSearchService:
             if not entity_id:
                 return None
             
-            # Identifier matches should have high confidence
-            confidence_score = 0.95
             relevance_score = match_data.get("search_score", 0.0) or match_data.get("score", 1.0)
             
             # Identify which identifiers matched
@@ -358,7 +350,6 @@ class AtlasSearchService:
             return SearchMatch(
                 entity_id=str(entity_id),
                 search_score=relevance_score,
-                confidence=confidence_score,
                 match_reasons=[f"Exact {id_type} match" for id_type in matched_identifiers],
                 entity_data=match_data
             )
@@ -384,15 +375,11 @@ class AtlasSearchService:
             if not entity_id:
                 return None
             
-            # Calculate fuzzy confidence based on edit distance
-            entity_name = match_data.get("name", "")
-            confidence_score = self._calculate_fuzzy_confidence(search_name, entity_name)
             relevance_score = match_data.get("search_score", 0.0) or match_data.get("score", 0.0)
             
             return SearchMatch(
                 entity_id=str(entity_id),
                 search_score=relevance_score,
-                confidence=confidence_score,
                 match_reasons=["Fuzzy name match"],
                 entity_data=match_data
             )

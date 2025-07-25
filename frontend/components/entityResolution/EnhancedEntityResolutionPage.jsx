@@ -15,7 +15,7 @@ import { spacing } from '@leafygreen-ui/tokens';
 // Enhanced Components
 import ModernOnboardingForm from './enhanced/ModernOnboardingForm';
 import ParallelSearchInterface from './enhanced/ParallelSearchInterface';
-import IntelligenceAnalysisPanel from './enhanced/IntelligenceAnalysisPanel';
+// Intelligence Analysis Panel removed to create more space
 import NetworkVisualizationCard from './enhanced/NetworkVisualizationCard';
 import RiskClassificationDisplay from './enhanced/RiskClassificationDisplay';
 import DeepInvestigationWorkbench from './enhanced/DeepInvestigationWorkbench';
@@ -27,7 +27,7 @@ import { enhancedEntityResolutionAPI } from '@/lib/enhanced-entity-resolution-ap
  * Enhanced Entity Resolution Page
  * 
  * Next-generation entity onboarding with modern UI inspired by entity detail page
- * and comprehensive intelligence analysis capabilities.
+ * with network analysis and risk classification.
  */
 function EnhancedEntityResolutionPage() {
   const router = useRouter();
@@ -37,7 +37,6 @@ function EnhancedEntityResolutionPage() {
   const [workflowData, setWorkflowData] = useState({
     entityInput: null,
     searchResults: null,
-    intelligence: null,
     networkAnalysis: null,
     classification: null,
     investigation: null
@@ -52,10 +51,9 @@ function EnhancedEntityResolutionPage() {
   const WORKFLOW_STEPS = [
     { id: 0, title: 'Entity Input', description: 'Capture entity information' },
     { id: 1, title: 'Parallel Search', description: 'Atlas & Vector search analysis' },
-    { id: 2, title: 'Intelligence', description: 'Combined intelligence analysis' },
-    { id: 3, title: 'Network Analysis', description: 'Graph traversal & risk assessment' },
-    { id: 4, title: 'Classification', description: 'Risk categorization & recommendations' },
-    { id: 5, title: 'Investigation', description: 'Deep analysis & final decisions' }
+    { id: 2, title: 'Network Analysis', description: 'Graph traversal & risk assessment' },
+    { id: 3, title: 'Classification', description: 'Risk categorization & recommendations' },
+    { id: 4, title: 'Investigation', description: 'Deep analysis & final decisions' }
   ];
 
   /**
@@ -72,14 +70,12 @@ function EnhancedEntityResolutionPage() {
         entityInput: entityData
       }));
       
-      // Initiate parallel search and intelligence analysis
+      // Initiate parallel search
       const searchResults = await enhancedEntityResolutionAPI.performParallelSearch(entityData);
-      const intelligence = await enhancedEntityResolutionAPI.analyzeIntelligence(searchResults);
       
       setWorkflowData(prev => ({
         ...prev,
-        searchResults,
-        intelligence
+        searchResults
       }));
       
       setCurrentStep(1);
@@ -110,7 +106,7 @@ function EnhancedEntityResolutionPage() {
         networkAnalysis
       }));
       
-      setCurrentStep(3);
+      setCurrentStep(2);
       
     } catch (error) {
       console.error('Network analysis failed:', error);
@@ -124,14 +120,14 @@ function EnhancedEntityResolutionPage() {
    * Handle entity classification
    */
   const handleClassification = async () => {
-    if (!workflowData.intelligence) return;
+    if (!workflowData.searchResults) return;
     
     setIsLoading(true);
     try {
       const classification = await enhancedEntityResolutionAPI.classifyEntity(
         workflowData.entityInput,
         workflowData.searchResults,
-        workflowData.intelligence,
+        null,  // Intelligence analysis removed
         workflowData.networkAnalysis
       );
       
@@ -140,7 +136,7 @@ function EnhancedEntityResolutionPage() {
         classification
       }));
       
-      setCurrentStep(4);
+      setCurrentStep(3);
       
     } catch (error) {
       console.error('Classification failed:', error);
@@ -165,7 +161,7 @@ function EnhancedEntityResolutionPage() {
         investigation
       }));
       
-      setCurrentStep(5);
+      setCurrentStep(4);
       
     } catch (error) {
       console.error('Deep investigation failed:', error);
@@ -183,7 +179,6 @@ function EnhancedEntityResolutionPage() {
     setWorkflowData({
       entityInput: null,
       searchResults: null,
-      intelligence: null,
       networkAnalysis: null,
       classification: null,
       investigation: null
@@ -212,7 +207,7 @@ function EnhancedEntityResolutionPage() {
               Enhanced Entity Resolution
             </H1>
             <Body style={{ color: palette.gray.dark1, marginTop: spacing[1] }}>
-              Next-generation onboarding with parallel search, network analysis, and intelligent classification
+              Next-generation onboarding with parallel search, network analysis, and risk classification
             </Body>
           </div>
           
@@ -293,23 +288,29 @@ function EnhancedEntityResolutionPage() {
           />
         )}
 
-        {/* Step 1-2: Parallel Search & Intelligence */}
-        {(currentStep === 1 || currentStep === 2) && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: spacing[4] }}>
+        {/* Step 1: Parallel Search */}
+        {currentStep === 1 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[4] }}>
             <ParallelSearchInterface
               searchResults={workflowData.searchResults}
               isLoading={isLoading}
             />
-            <IntelligenceAnalysisPanel
-              intelligence={workflowData.intelligence}
-              onNetworkAnalysis={handleNetworkAnalysis}
-              isLoading={isLoading}
-            />
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <Button
+                variant="primary"
+                size="large"
+                onClick={handleNetworkAnalysis}
+                disabled={isLoading || !workflowData.searchResults}
+                leftGlyph={<Icon glyph="Diagram3" />}
+              >
+                Analyze Network
+              </Button>
+            </div>
           </div>
         )}
 
-        {/* Step 3: Network Analysis */}
-        {currentStep === 3 && workflowData.networkAnalysis && (
+        {/* Step 2: Network Analysis */}
+        {currentStep === 2 && workflowData.networkAnalysis && (
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: spacing[4] }}>
             <NetworkVisualizationCard
               networkData={workflowData.networkAnalysis.networkData}
@@ -334,8 +335,8 @@ function EnhancedEntityResolutionPage() {
           </div>
         )}
 
-        {/* Step 4: Classification */}
-        {currentStep === 4 && workflowData.classification && (
+        {/* Step 3: Classification */}
+        {currentStep === 3 && workflowData.classification && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: spacing[4] }}>
             <RiskClassificationDisplay
               classification={workflowData.classification}
@@ -365,8 +366,8 @@ function EnhancedEntityResolutionPage() {
           </div>
         )}
 
-        {/* Step 5: Deep Investigation */}
-        {currentStep === 5 && workflowData.investigation && (
+        {/* Step 4: Deep Investigation */}
+        {currentStep === 4 && workflowData.investigation && (
           <DeepInvestigationWorkbench
             investigation={workflowData.investigation}
             workflowData={workflowData}

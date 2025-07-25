@@ -18,7 +18,7 @@ import { spacing } from '@leafygreen-ui/tokens';
  * side-by-side comparison with correlation analysis and combined intelligence.
  */
 function ParallelSearchInterface({ searchResults, isLoading = false }) {
-  const [selectedTab, setSelectedTab] = useState(0); // 0: Atlas, 1: Vector, 2: Combined
+  const [selectedTab, setSelectedTab] = useState(0); // 0: Atlas, 1: Vector, 2: Hybrid
   
   if (isLoading) {
     return (
@@ -73,10 +73,10 @@ function ParallelSearchInterface({ searchResults, isLoading = false }) {
   const { 
     atlasResults = [], 
     vectorResults = [], 
-    combinedResults = [],
-    searchMetrics = {},
-    correlationAnalysis = {}
+    hybridResults = [],
+    searchMetrics = {}
   } = searchResults;
+
 
   /**
    * Get risk badge variant based on score
@@ -99,9 +99,9 @@ function ParallelSearchInterface({ searchResults, isLoading = false }) {
   };
 
   /**
-   * Render search results table
+   * Render search results table for individual search types (Atlas/Vector)
    */
-  const renderResultsTable = (results, searchType) => {
+  const renderIndividualResultsTable = (results, searchType) => {
     if (!results || results.length === 0) {
       return (
         <div style={{ 
@@ -119,29 +119,45 @@ function ParallelSearchInterface({ searchResults, isLoading = false }) {
       <Table>
         <TableHead>
           <HeaderRow>
-            <HeaderCell>Entity</HeaderCell>
-            <HeaderCell>Match Score</HeaderCell>
-            <HeaderCell>Risk Level</HeaderCell>
-            <HeaderCell>Type</HeaderCell>
+            <HeaderCell style={{ width: '40%' }}>Entity</HeaderCell>
+            <HeaderCell style={{ width: '20%' }}>Match Score</HeaderCell>
+            <HeaderCell style={{ width: '20%' }}>Risk Level</HeaderCell>
+            <HeaderCell style={{ width: '20%' }}>Type</HeaderCell>
           </HeaderRow>
         </TableHead>
         <TableBody>
+          {/* Spacer row */}
+          <Row style={{ height: `${spacing[1]}px` }}>
+            <Cell colSpan={4} style={{ padding: 0, border: 'none' }}></Cell>
+          </Row>
           {results.slice(0, 10).map((entity, index) => (
             <Row key={entity.entityId || index}>
               <Cell>
-                <div>
-                  <Body weight="medium" style={{ fontSize: '13px' }}>
+                <div style={{ 
+                  padding: `${index === 0 ? spacing[3] : spacing[2]} ${spacing[1]} ${spacing[1]} ${spacing[1]}`, 
+                  minWidth: '200px' 
+                }}>
+                  <Body weight="medium" style={{ 
+                    fontSize: '13px', 
+                    lineHeight: '1.4',
+                    wordBreak: 'break-word',
+                    marginBottom: spacing[1]
+                  }}>
                     {formatEntityName(entity)}
                   </Body>
-                  <Body style={{ fontSize: '11px', color: palette.gray.dark1 }}>
-                    ID: {entity.entityId}
+                  <Body style={{ 
+                    fontSize: '11px', 
+                    color: palette.gray.dark1,
+                    fontFamily: 'monospace'
+                  }}>
+                    ID: {entity.entityId || entity.entity_id || 'No ID'}
                   </Body>
                 </div>
               </Cell>
               <Cell>
                 <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
                   <Badge variant="blue">
-                    {(entity.matchScore || entity.confidence || 0).toFixed(2)}
+                    {(entity.searchScore || entity.matchScore || 0).toFixed(2)}
                   </Badge>
                 </div>
               </Cell>
@@ -163,6 +179,134 @@ function ParallelSearchInterface({ searchResults, isLoading = false }) {
       </Table>
     );
   };
+
+  /**
+   * Render hybrid results table with MongoDB $rankFusion scores
+   */
+  const renderHybridResultsTable = (results) => {
+    if (!results || results.length === 0) {
+      return (
+        <div style={{ 
+          textAlign: 'center', 
+          padding: spacing[4],
+          color: palette.gray.base
+        }}>
+          <Icon glyph="Warning" style={{ marginBottom: spacing[2] }} />
+          <Body>No hybrid results found</Body>
+        </div>
+      );
+    }
+
+    return (
+      <Table>
+        <TableHead>
+          <HeaderRow>
+            <HeaderCell style={{ width: '30%' }}>Entity</HeaderCell>
+            <HeaderCell style={{ width: '15%' }}>Hybrid Score</HeaderCell>
+            <HeaderCell style={{ width: '34%' }}>Search Contribution</HeaderCell>
+            <HeaderCell style={{ width: '21%' }}>Risk Level</HeaderCell>
+          </HeaderRow>
+        </TableHead>
+        <TableBody>
+          {/* Spacer row */}
+          <Row style={{ height: `${spacing[1]}px` }}>
+            <Cell colSpan={4} style={{ padding: 0, border: 'none' }}></Cell>
+          </Row>
+          {results.slice(0, 10).map((entity, index) => (
+            <Row key={entity.entityId || index}>
+              <Cell>
+                <div style={{ 
+                  padding: `${index === 0 ? spacing[3] : spacing[2]} ${spacing[1]} ${spacing[1]} ${spacing[1]}`, 
+                  minWidth: '200px' 
+                }}>
+                  <Body weight="medium" style={{ 
+                    fontSize: '13px', 
+                    lineHeight: '1.4',
+                    wordBreak: 'break-word',
+                    marginBottom: spacing[1]
+                  }}>
+                    {formatEntityName(entity)}
+                  </Body>
+                  <Body style={{ 
+                    fontSize: '11px', 
+                    color: palette.gray.dark1,
+                    fontFamily: 'monospace'
+                  }}>
+                    ID: {entity.entityId || 'No ID'}
+                  </Body>
+                </div>
+              </Cell>
+              <Cell>
+                <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+                  <Badge variant="blue">
+                    {(entity.hybridScore || 0).toFixed(4)}
+                  </Badge>
+                </div>
+              </Cell>
+              <Cell>
+                <div style={{ 
+                  display: 'flex', 
+                  flexDirection: 'column',
+                  gap: '2px',
+                  width: '100%',
+                  padding: `${spacing[1]}px ${spacing[2]}px`
+                }}>
+                  {/* Labels above the pill */}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    fontSize: '10px',
+                    color: palette.gray.dark1
+                  }}>
+                    <span style={{ color: '#00593F', fontWeight: '500' }}>
+                      Text: {(entity.text_contribution_percent || 0).toFixed(1)}%
+                    </span>
+                    <span style={{ color: '#016BF8', fontWeight: '500' }}>
+                      Vector: {(entity.vector_contribution_percent || 0).toFixed(1)}%
+                    </span>
+                  </div>
+                  
+                  {/* Progress bar pill using flexbox */}
+                  <div style={{ 
+                    display: 'flex',
+                    width: '100%',
+                    height: '20px',
+                    borderRadius: '10px',
+                    overflow: 'hidden',
+                    backgroundColor: palette.gray.light2
+                  }}>
+                    {/* Text contribution (green) */}
+                    <div style={{
+                      height: '100%',
+                      backgroundColor: '#00593F',
+                      flexBasis: `${entity.text_contribution_percent || 0}%`,
+                      transition: 'flex-basis 0.3s ease'
+                    }} />
+                    
+                    {/* Vector contribution (blue) */}
+                    <div style={{
+                      height: '100%',
+                      backgroundColor: '#016BF8',
+                      flexBasis: `${entity.vector_contribution_percent || 0}%`,
+                      transition: 'flex-basis 0.3s ease'
+                    }} />
+                  </div>
+                </div>
+              </Cell>
+              <Cell>
+                <Badge 
+                  variant={getRiskBadgeVariant(entity.riskAssessment?.overall?.score || 0)}
+                >
+                  {entity.riskAssessment?.overall?.level || 'Unknown'}
+                </Badge>
+              </Cell>
+            </Row>
+          ))}
+        </TableBody>
+      </Table>
+    );
+  };
+
 
   return (
     <Card style={{ padding: spacing[4] }}>
@@ -194,8 +338,8 @@ function ParallelSearchInterface({ searchResults, isLoading = false }) {
             <Body style={{ color: palette.gray.dark1 }}>Vector</Body>
           </div>
           <div style={{ textAlign: 'center' }}>
-            <Body weight="medium">{combinedResults.length}</Body>
-            <Body style={{ color: palette.gray.dark1 }}>Combined</Body>
+            <Body weight="medium">{hybridResults.length}</Body>
+            <Body style={{ color: palette.gray.dark1 }}>Hybrid</Body>
           </div>
         </div>
       </div>
@@ -209,7 +353,7 @@ function ParallelSearchInterface({ searchResults, isLoading = false }) {
         {[
           { id: 0, label: 'Atlas Search', icon: 'MagnifyingGlass', color: palette.blue.base },
           { id: 1, label: 'Vector Search', icon: 'Diagram3', color: palette.purple.base },
-          { id: 2, label: 'Combined Results', icon: 'Connect', color: palette.green.base }
+          { id: 2, label: 'Hybrid ($rankFusion)', icon: 'Connect', color: palette.green.base }
         ].map((tab) => (
           <button
             key={tab.id}
@@ -251,7 +395,7 @@ function ParallelSearchInterface({ searchResults, isLoading = false }) {
                 Fuzzy matching based on name, address, and identifiers
               </Body>
             </div>
-            {renderResultsTable(atlasResults, 'Atlas')}
+            {renderIndividualResultsTable(atlasResults, 'Atlas')}
           </div>
         )}
 
@@ -269,11 +413,11 @@ function ParallelSearchInterface({ searchResults, isLoading = false }) {
                 Semantic similarity using AI embeddings
               </Body>
             </div>
-            {renderResultsTable(vectorResults, 'Vector')}
+            {renderIndividualResultsTable(vectorResults, 'Vector')}
           </div>
         )}
 
-        {/* Combined Results */}
+        {/* Hybrid Search Results */}
         {selectedTab === 2 && (
           <div>
             <div style={{ 
@@ -282,95 +426,35 @@ function ParallelSearchInterface({ searchResults, isLoading = false }) {
               alignItems: 'center',
               marginBottom: spacing[3]
             }}>
-              <H3 style={{ margin: 0, fontSize: '16px' }}>Combined Intelligence</H3>
+              <H3 style={{ margin: 0, fontSize: '16px' }}>MongoDB $rankFusion Hybrid Search</H3>
               <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>
-                Correlation-weighted results from both methods
+                Optimized fusion of Atlas and Vector search using native MongoDB algorithms
               </Body>
             </div>
             
-            {/* Correlation Metrics */}
-            {correlationAnalysis && Object.keys(correlationAnalysis).length > 0 && (
+            {/* Hybrid Search Info Panel */}
+            {hybridResults.length > 0 && (
               <Card style={{ 
                 padding: spacing[3], 
                 marginBottom: spacing[3],
-                backgroundColor: palette.blue.light3
+                backgroundColor: palette.green.light3
               }}>
                 <H3 style={{ fontSize: '14px', marginBottom: spacing[2] }}>
-                  Correlation Analysis
+                  🔀 Reciprocal Rank Fusion (RRF)
                 </H3>
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', 
-                  gap: spacing[2]
-                }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <Body weight="medium" style={{ fontSize: '16px' }}>
-                      {correlationAnalysis.intersectionCount || 0}
-                    </Body>
-                    <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>
-                      Intersection
-                    </Body>
-                  </div>
-                  <div style={{ textAlign: 'center' }}>
-                    <Body weight="medium" style={{ fontSize: '16px' }}>
-                      {(correlationAnalysis.correlationPercentage || 0).toFixed(1)}%
-                    </Body>
-                    <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>
-                      Correlation
-                    </Body>
-                  </div>
-                  <div style={{ textAlign: 'center' }}>
-                    <Body weight="medium" style={{ fontSize: '16px' }}>
-                      {(correlationAnalysis.confidenceScore || 0).toFixed(2)}
-                    </Body>
-                    <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>
-                      Confidence
-                    </Body>
-                  </div>
-                </div>
+                <Body style={{ fontSize: '12px' }}>
+                  MongoDB's native $rankFusion combines Atlas Search and Vector Search results using reciprocal rank fusion algorithm. 
+                  The hybrid score represents the optimized ranking from both search methods.
+                </Body>
               </Card>
             )}
             
-            {renderResultsTable(combinedResults, 'Combined')}
+            {renderHybridResultsTable(hybridResults)}
           </div>
         )}
+
       </div>
 
-      {/* Search Performance Metrics */}
-      {searchMetrics && Object.keys(searchMetrics).length > 0 && (
-        <Card style={{ 
-          padding: spacing[3], 
-          marginTop: spacing[3],
-          backgroundColor: palette.gray.light3
-        }}>
-          <H3 style={{ fontSize: '14px', marginBottom: spacing[2] }}>
-            Performance Metrics
-          </H3>
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', 
-            gap: spacing[2],
-            fontSize: '12px'
-          }}>
-            <div>
-              <Label>Atlas Search Time</Label>
-              <Body>{searchMetrics.atlasSearchTime || 'N/A'}</Body>
-            </div>
-            <div>
-              <Label>Vector Search Time</Label>
-              <Body>{searchMetrics.vectorSearchTime || 'N/A'}</Body>
-            </div>
-            <div>
-              <Label>Total Processing Time</Label>
-              <Body>{searchMetrics.totalProcessingTime || 'N/A'}</Body>
-            </div>
-            <div>
-              <Label>Records Processed</Label>
-              <Body>{searchMetrics.recordsProcessed || 'N/A'}</Body>
-            </div>
-          </div>
-        </Card>
-      )}
     </Card>
   );
 }

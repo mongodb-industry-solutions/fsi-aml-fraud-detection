@@ -129,7 +129,37 @@ class SearchMatch(BaseModel):
     entity_data: Dict[str, Any]
     search_score: float
     match_reasons: List[str] = []
-    confidence: Optional[float] = None
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
+class HybridSearchResult(BaseModel):
+    """Result from MongoDB $rankFusion hybrid search"""
+    
+    entity_id: str
+    entity_data: Dict[str, Any]
+    hybrid_score: float
+    atlas_score: float
+    vector_score: float
+    text_contribution_percent: float
+    vector_contribution_percent: float
+    rank_fusion_details: Dict[str, Any] = {}
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
+class HybridSearchResponse(BaseModel):
+    """Response for hybrid search using $rankFusion"""
+    
+    hybridResults: List[HybridSearchResult] = []
+    totalResults: int = 0
+    searchMetrics: Dict[str, Any] = {}
     
     class Config:
         json_encoders = {

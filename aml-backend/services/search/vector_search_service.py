@@ -37,7 +37,6 @@ class VectorSearchService:
         # Business logic configuration
         self.default_limit = 10
         self.similarity_threshold = 0.7
-        self.confidence_threshold = 0.1  # Lowered temporarily for debugging
         
         logger.info("Vector Search service initialized with repository pattern")
     
@@ -76,7 +75,7 @@ class VectorSearchService:
             processed_matches = []
             for entity_data in similar_entities:
                 match = await self._process_similarity_match(entity_data, "entity_similarity")
-                if match and match.confidence >= self.confidence_threshold:
+                if match:
                     processed_matches.append(match)
             
             # Sort by similarity score (highest first)
@@ -147,7 +146,7 @@ class VectorSearchService:
             processed_matches = []
             for entity_data in similar_entities:
                 match = await self._process_similarity_match(entity_data, "semantic_search")
-                if match and match.confidence >= self.confidence_threshold:
+                if match:
                     processed_matches.append(match)
             
             # Sort by search score
@@ -218,7 +217,7 @@ class VectorSearchService:
             processed_matches = []
             for entity_data in similar_entities:
                 match = await self._process_similarity_match(entity_data, "vector_search")
-                if match and match.confidence >= self.confidence_threshold:
+                if match:
                     processed_matches.append(match)
             
             # Sort by similarity score
@@ -430,16 +429,12 @@ class VectorSearchService:
                 return None
             
             # Extract similarity score (from vector search)
-            similarity_score = entity_data.get("score", 0.0)
-            
-            # Calculate confidence based on similarity score and search type
-            confidence_score = self._calculate_similarity_confidence(similarity_score, search_type)
+            similarity_score = entity_data.get("similarity_score", 0.0) or entity_data.get("score", 0.0)
             
             # Create SearchMatch model (using correct field names)
             return SearchMatch(
                 entity_id=str(entity_id),
                 search_score=similarity_score,
-                confidence=confidence_score,
                 match_reasons=[f"Vector {search_type}"],
                 entity_data=entity_data
             )

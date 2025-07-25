@@ -296,7 +296,7 @@ class AtlasSearchService:
         """
         try:
             # Extract entity information
-            entity_id = match_data.get("_id") or match_data.get("entityId")
+            entity_id = match_data.get("entityId") or match_data.get("_id")
             if not entity_id:
                 return None
             
@@ -334,7 +334,7 @@ class AtlasSearchService:
             SearchMatch: Processed identifier match
         """
         try:
-            entity_id = match_data.get("_id") or match_data.get("entityId")
+            entity_id = match_data.get("entityId") or match_data.get("_id")
             if not entity_id:
                 return None
             
@@ -371,7 +371,7 @@ class AtlasSearchService:
             SearchMatch: Processed fuzzy match
         """
         try:
-            entity_id = match_data.get("_id") or match_data.get("entityId")
+            entity_id = match_data.get("entityId") or match_data.get("_id")
             if not entity_id:
                 return None
             

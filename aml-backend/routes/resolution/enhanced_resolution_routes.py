@@ -224,7 +224,22 @@ async def perform_comprehensive_search(
         # Convert SearchMatch objects to dictionaries for response
         atlas_results_dict = []
         for match in atlas_entities:
-            entity_data = getattr(match, 'entity_data', {})
+            # Handle both SearchMatch objects and raw MongoDB documents - same logic as vector search
+            if hasattr(match, 'entity_id'):
+                # SearchMatch object
+                entity_id = match.entity_id
+                entity_data = getattr(match, 'entity_data', {})
+                search_score = getattr(match, 'search_score', 0)
+                match_reasons = getattr(match, 'match_reasons', ["Atlas search"])
+            elif isinstance(match, dict):
+                # Raw MongoDB document
+                entity_id = match.get("entityId", "")
+                entity_data = match
+                search_score = match.get("search_score", 0)
+                match_reasons = ["Atlas search"]
+            else:
+                continue
+                
             # Extract name - handle both simple string and nested object
             name = ""
             if isinstance(entity_data, dict):
@@ -241,12 +256,10 @@ async def perform_comprehensive_search(
             risk_level = overall_risk.get("level", "unknown") if isinstance(overall_risk, dict) else "unknown"
             
             atlas_results_dict.append({
-                "entityId": getattr(match, 'entity_id', ''),
+                "entityId": entity_id,
                 "name": name,
                 "entityType": entity_data.get("entityType", "Unknown") if isinstance(entity_data, dict) else "Unknown",
-                "matchScore": getattr(match, 'search_score', 0),  # Raw search score - correct field name
-                "score": getattr(match, 'search_score', 0),  # Backward compatibility
-                "matchReasons": getattr(match, 'match_reasons', []),
+                "matchScore": search_score,
                 "entityData": entity_data,
                 "riskAssessment": {
                     "overall": {
@@ -293,9 +306,7 @@ async def perform_comprehensive_search(
                 "entityId": entity_id,
                 "name": name,
                 "entityType": entity_data.get("entityType", "Unknown") if isinstance(entity_data, dict) else "Unknown",
-                "matchScore": search_score,  # Raw search score - correct field name
-                "score": search_score,  # Backward compatibility
-                "matchReasons": match_reasons,
+                "matchScore": search_score,
                 "entityData": entity_data,
                 "riskAssessment": {
                     "overall": {

@@ -42,7 +42,7 @@ function Header() {
           <Body>Entity Management</Body>
         </Link>
         
-        <Link href="/entity-resolution" className={styles.navLink}>
+        <Link href="/entity-resolution/enhanced" className={styles.navLink}>
           <Icon glyph="University" fill={palette.gray.light3} /> 
           <Body>Entity Resolution</Body>
         </Link>

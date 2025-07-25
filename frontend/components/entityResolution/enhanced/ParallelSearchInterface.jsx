@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Card from '@leafygreen-ui/card';
 import Button from '@leafygreen-ui/button';
+import Modal from '@leafygreen-ui/modal';
 import { H3, Body, Label } from '@leafygreen-ui/typography';
 import { Table, TableBody, TableHead, HeaderRow, HeaderCell, Row, Cell } from '@leafygreen-ui/table';
 import Icon from '@leafygreen-ui/icon';
@@ -10,6 +11,7 @@ import Badge from '@leafygreen-ui/badge';
 import { Spinner } from '@leafygreen-ui/loading-indicator';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
+import EntityDetailWrapper from '@/components/entities/EntityDetailWrapper';
 
 /**
  * Parallel Search Interface
@@ -19,6 +21,16 @@ import { spacing } from '@leafygreen-ui/tokens';
  */
 function ParallelSearchInterface({ searchResults, isLoading = false }) {
   const [selectedTab, setSelectedTab] = useState(0); // 0: Atlas, 1: Vector, 2: Hybrid
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedEntityId, setSelectedEntityId] = useState(null);
+
+  /**
+   * Handle entity name click to open modal
+   */
+  const handleEntityClick = (entityId) => {
+    setSelectedEntityId(entityId);
+    setModalOpen(true);
+  };
   
   if (isLoading) {
     return (
@@ -99,6 +111,32 @@ function ParallelSearchInterface({ searchResults, isLoading = false }) {
   };
 
   /**
+   * Render clickable entity name that opens modal
+   */
+  const renderClickableEntityName = (entity) => {
+    const entityName = formatEntityName(entity);
+    const entityId = entity.entityId || entity.entity_id;
+    
+    return (
+      <span
+        onClick={() => handleEntityClick(entityId)}
+        style={{
+          color: palette.blue.base,
+          cursor: 'pointer',
+          textDecoration: 'underline',
+          fontSize: '13px',
+          lineHeight: '1.4',
+          wordBreak: 'break-word'
+        }}
+        onMouseEnter={(e) => e.target.style.color = palette.blue.dark1}
+        onMouseLeave={(e) => e.target.style.color = palette.blue.base}
+      >
+        {entityName}
+      </span>
+    );
+  };
+
+  /**
    * Render search results table for individual search types (Atlas/Vector)
    */
   const renderIndividualResultsTable = (results, searchType) => {
@@ -137,13 +175,8 @@ function ParallelSearchInterface({ searchResults, isLoading = false }) {
                   padding: `${index === 0 ? spacing[3] : spacing[2]} ${spacing[1]} ${spacing[1]} ${spacing[1]}`, 
                   minWidth: '200px' 
                 }}>
-                  <Body weight="medium" style={{ 
-                    fontSize: '13px', 
-                    lineHeight: '1.4',
-                    wordBreak: 'break-word',
-                    marginBottom: spacing[1]
-                  }}>
-                    {formatEntityName(entity)}
+                  <Body weight="medium" style={{ marginBottom: spacing[1] }}>
+                    {renderClickableEntityName(entity)}
                   </Body>
                   <Body style={{ 
                     fontSize: '11px', 
@@ -219,13 +252,8 @@ function ParallelSearchInterface({ searchResults, isLoading = false }) {
                   padding: `${index === 0 ? spacing[3] : spacing[2]} ${spacing[1]} ${spacing[1]} ${spacing[1]}`, 
                   minWidth: '200px' 
                 }}>
-                  <Body weight="medium" style={{ 
-                    fontSize: '13px', 
-                    lineHeight: '1.4',
-                    wordBreak: 'break-word',
-                    marginBottom: spacing[1]
-                  }}>
-                    {formatEntityName(entity)}
+                  <Body weight="medium" style={{ marginBottom: spacing[1] }}>
+                    {renderClickableEntityName(entity)}
                   </Body>
                   <Body style={{ 
                     fontSize: '11px', 
@@ -454,6 +482,17 @@ function ParallelSearchInterface({ searchResults, isLoading = false }) {
         )}
 
       </div>
+
+      {/* Entity Detail Modal */}
+      <Modal 
+        open={modalOpen} 
+        setOpen={setModalOpen}
+        size="large"
+      >
+        {selectedEntityId && (
+          <EntityDetailWrapper entityId={selectedEntityId} />
+        )}
+      </Modal>
 
     </Card>
   );

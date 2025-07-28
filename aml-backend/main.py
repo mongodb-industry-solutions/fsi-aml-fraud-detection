@@ -19,7 +19,8 @@ from routes import (
     network_analysis_router,
     search_debug_router,
     relationships_router,
-    enhanced_resolution_router
+    enhanced_resolution_router,
+    transactions_router
 )
 
 # Note: Fallback routes removed after successful migration to organized structure
@@ -117,6 +118,10 @@ async def root():
                 "analysis": "/network/",
                 "entity_network": "/network/{entity_id}"
             },
+            "transactions": {
+                "entity_transactions": "/transactions/{entity_id}/transactions",
+                "transaction_network": "/transactions/{entity_id}/transaction_network"
+            },
             "relationships": "/relationships/",
             "debug": "/debug/",
             "system": {
@@ -192,6 +197,9 @@ include_router_safely(app, entity_search_router, "Entity Search - Phase 7")  # P
 
 # 2. Network analysis routes
 include_router_safely(app, network_analysis_router, "Network Analysis")
+
+# 2.5. Transaction routes
+include_router_safely(app, transactions_router, "Transactions")
 
 # 3. Debug routes
 include_router_safely(app, search_debug_router, "Search Debug")

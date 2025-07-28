@@ -291,7 +291,7 @@ async def get_atlas_search_statistics(
             "most_common_queries": [],
             "search_success_rate": 0.0,
             "index_utilization": {
-                "entity_resolution_search": "active"
+                "entity_search_index_v2": "active"
             },
             "service_architecture": "Repository pattern with AtlasSearchService",
             "repository_benefits": [

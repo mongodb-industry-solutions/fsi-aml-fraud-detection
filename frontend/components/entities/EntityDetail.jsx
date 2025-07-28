@@ -26,6 +26,8 @@ import SimilarProfilesSection from './SimilarProfilesSection';
 import CytoscapeNetworkComponent from './CytoscapeNetworkComponent';
 import AdvancedInvestigationPanel from './AdvancedInvestigationPanel';
 import NetworkStatisticsPanel from './NetworkStatisticsPanel';
+import TransactionActivityTable from './TransactionActivityTable';
+import TransactionNetworkGraph from './TransactionNetworkGraph';
 import styles from './EntityDetail.module.css';
 
 // Tab constants
@@ -1477,9 +1479,26 @@ function NetworkAnalysisTab({ entity }) {
 }
 
 function ActivityAnalysisTab({ entity }) {
+  const handleError = (error) => {
+    console.error('Transaction error:', error);
+  };
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[4] }}>
-      <Card style={{ padding: spacing[4] }}>
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      gap: spacing[4],
+      width: '100%',
+      maxWidth: '100%',
+      overflow: 'hidden', // Prevent horizontal overflow
+      minWidth: 0 // Allow flex shrinking
+    }}>
+      <Card style={{ 
+        padding: spacing[4],
+        width: '100%',
+        maxWidth: '100%',
+        minWidth: 0
+      }}>
         <H3 style={{ marginBottom: spacing[3] }}>
           <Icon glyph="Charts" style={{ marginRight: spacing[2] }} />
           Activity & Risk Analysis
@@ -1489,8 +1508,33 @@ function ActivityAnalysisTab({ entity }) {
           Comprehensive analysis of entity activity patterns, transaction behaviors, 
           and risk assessment evolution over time.
         </Body>
-        
       </Card>
+
+      {/* Transaction Activity Table */}
+      <div style={{ 
+        width: '100%',
+        maxWidth: '100%',
+        overflow: 'hidden',
+        minWidth: 0
+      }}>
+        <TransactionActivityTable 
+          entityId={entity?.entityId} 
+          onError={handleError}
+        />
+      </div>
+
+      {/* Transaction Network Graph */}
+      <div style={{ 
+        width: '100%',
+        maxWidth: '100%',
+        overflow: 'hidden',
+        minWidth: 0
+      }}>
+        <TransactionNetworkGraph 
+          entityId={entity?.entityId} 
+          onError={handleError}
+        />
+      </div>
     </div>
   );
 }

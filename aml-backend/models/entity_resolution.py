@@ -132,7 +132,7 @@ class CompoundQuery(BaseModel):
 
 class SearchQueryBuilder(BaseModel):
     """Helper class for building Atlas Search queries"""
-    index: str = Field(default="entity_resolution_search")
+    index: str = Field(default="entity_search_index_v2")
     compound: CompoundQuery = Field(default_factory=CompoundQuery)
     limit: int = Field(default=10, ge=1, le=100)
     date_match_stage: Optional[Dict[str, Any]] = Field(default=None)

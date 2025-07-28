@@ -268,7 +268,7 @@ class RepositoryFactory:
             return AtlasSearchRepository(
                 mongodb_repo=self.mongodb_repo,
                 collection_name=config.get("collection_name", "entities"),
-                search_index_name=config.get("search_index_name", "entity_resolution_search")
+                search_index_name=config.get("search_index_name", "entity_search_index_v2")
             )
         elif repo_type == "vector_search":
             return VectorSearchRepository(

@@ -14,7 +14,7 @@ The AML/KYC backend leverages MongoDB Atlas Search, AWS Bedrock AI services, and
 ## Key Features
 
 - **🔍 Intelligent Entity Resolution**: AI-powered fuzzy matching and duplicate detection using MongoDB Atlas Search
-- **🌐 Network Analysis**: Relationship mapping and connected component analysis for compliance investigations  
+- **🌐 Network Analysis**: Relationship mapping and connected component analysis for compliance investigations
 - **⚡ Real-time Search**: Multi-strategy search with Atlas Search, Vector Search, and Unified Search
 - **🎯 Risk Assessment**: Comprehensive entity risk scoring and watchlist matching
 - **🔗 Relationship Management**: Entity relationship tracking with audit trails
@@ -26,24 +26,28 @@ The AML/KYC backend leverages MongoDB Atlas Search, AWS Bedrock AI services, and
 The AML backend follows a **clean architecture pattern** with three-layer organization:
 
 ### **Models Layer** (Consolidated Architecture)
+
 - **`models/core/`**: Domain models (Entity, Resolution, Network)
-- **`models/api/`**: Request/Response models for API boundaries  
+- **`models/api/`**: Request/Response models for API boundaries
 - **`models/database/`**: Database collection configurations
 - **`models/legacy_compatibility.py`**: Migration support with deprecation warnings
 
 ### **Repository Layer** (Data Access Abstraction)
+
 - **Interface-driven**: Abstract interfaces in `repositories/interfaces/`
 - **Factory Pattern**: Centralized repository creation in `repositories/factory/`
 - **Dual MongoDB Support**: Both sync (PyMongo) and async (Motor) drivers
 - **Singleton Pattern**: Shared connection pooling
 
 ### **Service Layer** (Business Logic)
+
 - **Core Services**: Entity resolution, matching, confidence scoring
-- **Search Services**: Atlas Search, Vector Search, Unified Search  
+- **Search Services**: Atlas Search, Vector Search, Unified Search
 - **Network Services**: Graph analysis and relationship mapping
 - **Dependencies**: Clean FastAPI dependency injection
 
 ### **Route Organization** (API Layer)
+
 - **Core Routes**: `/routes/core/` - Entity CRUD and resolution workflows
 - **Search Routes**: `/routes/search/` - Multiple search strategies
 - **Network Routes**: `/routes/network/` - Graph analysis
@@ -92,7 +96,7 @@ PORT=8001
 FRONTEND_URL=http://localhost:3000
 
 # Atlas Search Configuration
-ATLAS_SEARCH_INDEX=entity_resolution_search
+ATLAS_SEARCH_INDEX=entity_search_index_v2
 ENTITY_VECTOR_INDEX=entity_vector_search_index
 ```
 
@@ -180,7 +184,7 @@ Create an Atlas Search index named `entity_resolution_search`:
               },
               "city": {
                 "type": "string",
-                "analyzer": "lucene.keyword"  
+                "analyzer": "lucene.keyword"
               }
             }
           },
@@ -248,50 +252,50 @@ The API will be available at [http://localhost:8001](http://localhost:8001)
 
 ### 🏠 System Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/` | GET | Service status and feature overview |
-| `/health` | GET | Health check with database connectivity |
-| `/test` | GET | Simple connectivity test |
-| `/docs` | GET | Interactive API documentation (Swagger) |
+| Endpoint  | Method | Description                             |
+| --------- | ------ | --------------------------------------- |
+| `/`       | GET    | Service status and feature overview     |
+| `/health` | GET    | Health check with database connectivity |
+| `/test`   | GET    | Simple connectivity test                |
+| `/docs`   | GET    | Interactive API documentation (Swagger) |
 
 ### 👥 Core Entity Management
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/entities/` | GET | List entities with pagination and filtering |
-| `/entities/{entity_id}` | GET | Get detailed entity information |
-| `/entities/onboarding/find_matches` | POST | Find potential duplicate entities during onboarding |
-| `/entities/resolve` | POST | Merge entities after resolution |
+| Endpoint                            | Method | Description                                         |
+| ----------------------------------- | ------ | --------------------------------------------------- |
+| `/entities/`                        | GET    | List entities with pagination and filtering         |
+| `/entities/{entity_id}`             | GET    | Get detailed entity information                     |
+| `/entities/onboarding/find_matches` | POST   | Find potential duplicate entities during onboarding |
+| `/entities/resolve`                 | POST   | Merge entities after resolution                     |
 
 ### 🔍 Search Operations
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/entities/search/unified` | GET | Unified multi-strategy entity search |
-| `/entities/search/autocomplete` | GET | Real-time autocomplete suggestions |
-| `/entities/search/facets` | GET | Available facet filters with counts |
-| `/search/atlas/{query}` | GET | Atlas Search with fuzzy matching |
-| `/search/vector/{query}` | GET | Vector similarity search |
-| `/search/unified/{query}` | GET | Combined Atlas and Vector search |
+| Endpoint                        | Method | Description                          |
+| ------------------------------- | ------ | ------------------------------------ |
+| `/entities/search/unified`      | GET    | Unified multi-strategy entity search |
+| `/entities/search/autocomplete` | GET    | Real-time autocomplete suggestions   |
+| `/entities/search/facets`       | GET    | Available facet filters with counts  |
+| `/search/atlas/{query}`         | GET    | Atlas Search with fuzzy matching     |
+| `/search/vector/{query}`        | GET    | Vector similarity search             |
+| `/search/unified/{query}`       | GET    | Combined Atlas and Vector search     |
 
-### 🌐 Network Analysis  
+### 🌐 Network Analysis
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/network/{entity_id}` | GET | Entity relationship network |
-| `/network/{entity_id}/connected` | GET | Connected component analysis |
-| `/network/{entity_id}/shortest_path/{target_id}` | GET | Shortest path between entities |
+| Endpoint                                         | Method | Description                    |
+| ------------------------------------------------ | ------ | ------------------------------ |
+| `/network/{entity_id}`                           | GET    | Entity relationship network    |
+| `/network/{entity_id}/connected`                 | GET    | Connected component analysis   |
+| `/network/{entity_id}/shortest_path/{target_id}` | GET    | Shortest path between entities |
 
 ### 🔗 Relationship Management
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/relationships/` | GET | List entity relationships |
-| `/relationships/` | POST | Create new relationship |
-| `/relationships/{relationship_id}` | GET | Get relationship details |
-| `/relationships/{relationship_id}` | PUT | Update relationship |
-| `/relationships/{relationship_id}` | DELETE | Delete relationship |
+| Endpoint                           | Method | Description               |
+| ---------------------------------- | ------ | ------------------------- |
+| `/relationships/`                  | GET    | List entity relationships |
+| `/relationships/`                  | POST   | Create new relationship   |
+| `/relationships/{relationship_id}` | GET    | Get relationship details  |
+| `/relationships/{relationship_id}` | PUT    | Update relationship       |
+| `/relationships/{relationship_id}` | DELETE | Delete relationship       |
 
 ## Data Models
 
@@ -575,15 +579,21 @@ Ensure the following indexes are created for optimal performance:
 
 ```javascript
 // Entity indexes
-db.entities.createIndex({ "entityId": 1 })
-db.entities.createIndex({ "name.full": "text" })
-db.entities.createIndex({ "entityType": 1, "riskAssessment.overall.level": 1 })
-db.entities.createIndex({ "identifiers.value": 1, "identifiers.type": 1 })
+db.entities.createIndex({ entityId: 1 });
+db.entities.createIndex({ 'name.full': 'text' });
+db.entities.createIndex({
+  entityType: 1,
+  'riskAssessment.overall.level': 1,
+});
+db.entities.createIndex({
+  'identifiers.value': 1,
+  'identifiers.type': 1,
+});
 
-// Relationship indexes  
-db.entity_relationships.createIndex({ "source_entity_id": 1 })
-db.entity_relationships.createIndex({ "target_entity_id": 1 })
-db.entity_relationships.createIndex({ "relationship_type": 1 })
+// Relationship indexes
+db.entity_relationships.createIndex({ source_entity_id: 1 });
+db.entity_relationships.createIndex({ target_entity_id: 1 });
+db.entity_relationships.createIndex({ relationship_type: 1 });
 ```
 
 ### Configuration Tuning
@@ -599,16 +609,19 @@ CONNECTION_POOL_SIZE=50              # MongoDB connection pool size
 ## Security Considerations
 
 ### Input Validation
+
 - All inputs validated using Pydantic models
 - SQL injection prevention through parameterized queries
 - XSS protection with output encoding
 
 ### Authentication & Authorization
+
 - CORS configuration for frontend integration
 - Environment-based configuration for sensitive data
 - AWS IAM roles for Bedrock access
 
 ### Data Protection
+
 - Sensitive PII handling with field-level encryption options
 - Audit trails for all entity modifications
 - Compliance with data retention policies
@@ -660,22 +673,26 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
 ### Common Issues
 
 **MongoDB Connection Failed**
+
 ```bash
 # Check connection string and network access
 poetry run python -c "from dependencies import get_mongodb_access; print('Connected:', get_mongodb_access().admin.command('ping'))"
 ```
 
 **Atlas Search Not Working**
+
 - Verify search indexes are created and built
 - Check index names match configuration
 - Ensure documents are properly indexed
 
 **AWS Bedrock Access Denied**
+
 - Verify AWS credentials and permissions
 - Check Bedrock service availability in your region
 - Ensure IAM policies include Bedrock access
 
 **Import Errors**
+
 ```bash
 # Reinstall dependencies
 poetry install --no-cache

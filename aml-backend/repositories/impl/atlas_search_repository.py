@@ -57,7 +57,7 @@ class AtlasSearchRepository:
     
     def __init__(self, mongodb_repo: MongoDBRepository, 
                  collection_name: str = "entities",
-                 search_index_name: str = "entity_resolution_search"):
+                 search_index_name: str = "entity_search_index_v2"):
         """
         Initialize Atlas Search repository
         

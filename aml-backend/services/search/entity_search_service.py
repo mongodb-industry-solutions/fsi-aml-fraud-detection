@@ -48,7 +48,7 @@ class EntitySearchService:
         """
         self.atlas_search = atlas_search_repo
         self.entity_repo = entity_repo
-        self.index_name = os.getenv('ATLAS_SEARCH_INDEX', 'entity_resolution_search')
+        self.index_name = os.getenv('ATLAS_SEARCH_INDEX', 'entity_search_index_v2')
         
         # Facet configuration matching corrected Atlas Search index (only stringFacet and numberFacet fields)
         self.facet_config = {

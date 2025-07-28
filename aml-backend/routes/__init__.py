@@ -61,6 +61,13 @@ except ImportError as e:
     print(f"Warning: Could not import enhanced resolution routes: {e}")
     enhanced_resolution_router = None
 
+# Transaction routes
+try:
+    from .transactions import router as transactions_router
+except ImportError as e:
+    print(f"Warning: Could not import transaction routes: {e}")
+    transactions_router = None
+
 __all__ = [
     "core_entities_router",
     "core_entity_resolution_router", 
@@ -71,5 +78,6 @@ __all__ = [
     "network_analysis_router",
     "search_debug_router",
     "relationships_router",
-    "enhanced_resolution_router"
+    "enhanced_resolution_router",
+    "transactions_router"
 ]

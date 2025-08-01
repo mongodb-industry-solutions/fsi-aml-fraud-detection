@@ -1626,7 +1626,7 @@ export default function EntityDetail({ entityId }) {
       </div>
 
       {/* Main Content */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: spacing[4] }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 4fr', gap: spacing[4] }}>
         {/* Left Panel - Entity Info and Risk Score */}
         <div>
           <div style={{ marginBottom: spacing[4] }}>

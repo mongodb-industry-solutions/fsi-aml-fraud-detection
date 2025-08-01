@@ -28,7 +28,7 @@ export const transactionNetworkStyles = [
       'z-index': 10,
       'cursor': 'pointer',
       'overlay-padding': '6px',
-      'transition-property': 'border-width, width, height, background-color',
+      'transition-property': 'border-width, background-color',
       'transition-duration': '0.25s',
       'transition-timing-function': 'ease-out'
     }
@@ -44,14 +44,20 @@ export const transactionNetworkStyles = [
       'border-width': 4,
       'border-color': '#5B21B6',
       'width': function(ele) {
+        if (ele._cachedWidth !== undefined) return ele._cachedWidth;
         const volume = ele.data('totalVolume') || 0;
         const count = ele.data('transactionCount') || 0;
-        return Math.max(50, Math.min(90, 50 + Math.log(volume + 1) * 3 + count * 2));
+        const width = Math.max(50, Math.min(90, 50 + Math.log(volume + 1) * 3 + count * 2));
+        ele._cachedWidth = width;
+        return width;
       },
       'height': function(ele) {
+        if (ele._cachedHeight !== undefined) return ele._cachedHeight;
         const volume = ele.data('totalVolume') || 0;
         const count = ele.data('transactionCount') || 0;
-        return Math.max(50, Math.min(90, 50 + Math.log(volume + 1) * 3 + count * 2));
+        const height = Math.max(50, Math.min(90, 50 + Math.log(volume + 1) * 3 + count * 2));
+        ele._cachedHeight = height;
+        return height;
       },
       'font-size': '13px',
       'z-index': 25
@@ -66,14 +72,20 @@ export const transactionNetworkStyles = [
       'border-width': 3,
       'border-color': '#0284C7',
       'width': function(ele) {
+        if (ele._cachedWidth !== undefined) return ele._cachedWidth;
         const volume = ele.data('totalVolume') || 0;
         const count = ele.data('transactionCount') || 0;
-        return Math.max(35, Math.min(70, 35 + Math.log(volume + 1) * 2 + count * 1.5));
+        const width = Math.max(35, Math.min(70, 35 + Math.log(volume + 1) * 2 + count * 1.5));
+        ele._cachedWidth = width;
+        return width;
       },
       'height': function(ele) {
+        if (ele._cachedHeight !== undefined) return ele._cachedHeight;
         const volume = ele.data('totalVolume') || 0;
         const count = ele.data('transactionCount') || 0;
-        return Math.max(35, Math.min(70, 35 + Math.log(volume + 1) * 2 + count * 1.5));
+        const height = Math.max(35, Math.min(70, 35 + Math.log(volume + 1) * 2 + count * 1.5));
+        ele._cachedHeight = height;
+        return height;
       },
       'font-size': '12px',
       'z-index': 20
@@ -88,14 +100,20 @@ export const transactionNetworkStyles = [
       'border-width': 2,
       'border-color': '#059669',
       'width': function(ele) {
+        if (ele._cachedWidth !== undefined) return ele._cachedWidth;
         const volume = ele.data('totalVolume') || 0;
         const count = ele.data('transactionCount') || 0;
-        return Math.max(25, Math.min(50, 25 + Math.log(volume + 1) * 1 + count));
+        const width = Math.max(25, Math.min(50, 25 + Math.log(volume + 1) * 1 + count));
+        ele._cachedWidth = width;
+        return width;
       },
       'height': function(ele) {
+        if (ele._cachedHeight !== undefined) return ele._cachedHeight;
         const volume = ele.data('totalVolume') || 0;
         const count = ele.data('transactionCount') || 0;
-        return Math.max(25, Math.min(50, 25 + Math.log(volume + 1) * 1 + count));
+        const height = Math.max(25, Math.min(50, 25 + Math.log(volume + 1) * 1 + count));
+        ele._cachedHeight = height;
+        return height;
       },
       'font-size': '11px',
       'z-index': 15
@@ -181,11 +199,14 @@ export const transactionNetworkStyles = [
         return ele.data('color') || '#6B7280';
       },
       'width': function(ele) {
+        if (ele._cachedWidth !== undefined) return ele._cachedWidth;
         const count = ele.data('transactionCount') || 1;
         const amount = ele.data('totalAmount') || 0;
         const baseWidth = Math.max(2, Math.min(12, Math.log(count + 1) * 2));
         const amountBonus = Math.min(4, Math.log(amount + 1) / 5);
-        return baseWidth + amountBonus;
+        const width = baseWidth + amountBonus;
+        ele._cachedWidth = width;
+        return width;
       },
       'arrow-scale': 1.2,
       'opacity': 0.8,
@@ -209,7 +230,7 @@ export const transactionNetworkStyles = [
       'color': '#4B5563',
       'cursor': 'pointer',
       'overlay-padding': '3px',
-      'transition-property': 'width, opacity, line-color',
+      'transition-property': 'opacity, line-color',
       'transition-duration': '0.25s'
     }
   },
@@ -257,11 +278,14 @@ export const transactionNetworkStyles = [
       'overlay-color': '#B91C1C',
       'overlay-opacity': 0.2,
       'width': function(ele) {
+        if (ele._cachedWidth !== undefined) return ele._cachedWidth;
         const count = ele.data('transactionCount') || 1;
         const amount = ele.data('totalAmount') || 0;
         const baseWidth = Math.max(4, Math.min(16, Math.log(count + 1) * 3)); // Thicker for high risk
         const amountBonus = Math.min(6, Math.log(amount + 1) / 4);
-        return baseWidth + amountBonus;
+        const width = baseWidth + amountBonus;
+        ele._cachedWidth = width;
+        return width;
       }
     }
   },
@@ -277,11 +301,14 @@ export const transactionNetworkStyles = [
       'overlay-color': '#DC2626',
       'overlay-opacity': 0.15,
       'width': function(ele) {
+        if (ele._cachedWidth !== undefined) return ele._cachedWidth;
         const count = ele.data('transactionCount') || 1;
         const amount = ele.data('totalAmount') || 0;
         const baseWidth = Math.max(3, Math.min(14, Math.log(count + 1) * 2.5));
         const amountBonus = Math.min(5, Math.log(amount + 1) / 5);
-        return baseWidth + amountBonus;
+        const width = baseWidth + amountBonus;
+        ele._cachedWidth = width;
+        return width;
       }
     }
   },
@@ -323,8 +350,11 @@ export const transactionNetworkStyles = [
     selector: 'edge.multiple-transactions',
     style: {
       'width': function(ele) {
+        if (ele._cachedWidth !== undefined) return ele._cachedWidth;
         const count = ele.data('transactionCount') || 1;
-        return Math.max(3, Math.min(15, count * 0.8 + 2));
+        const width = Math.max(3, Math.min(15, count * 0.8 + 2));
+        ele._cachedWidth = width;
+        return width;
       },
       'opacity': function(ele) {
         const count = ele.data('transactionCount') || 1;

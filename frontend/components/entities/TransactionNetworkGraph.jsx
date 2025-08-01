@@ -12,6 +12,14 @@ import { amlAPI } from '@/lib/aml-api';
 import { transactionNetworkStyles } from './cytoscape/transactionNetworkStyles';
 import { transformTransactionNetworkToCytoscape } from './cytoscape/transactionDataTransformation';
 
+// Import Cytoscape extensions
+import dagre from 'cytoscape-dagre';
+import fcose from 'cytoscape-fcose';
+
+// Register extensions
+cytoscape.use(dagre);
+cytoscape.use(fcose);
+
 const TransactionNetworkGraph = ({ entityId, onError }) => {
   const containerRef = useRef(null);
   const cyRef = useRef(null);
@@ -21,9 +29,7 @@ const TransactionNetworkGraph = ({ entityId, onError }) => {
   const [maxDepth, setMaxDepth] = useState(1);
   const [currentLayout, setCurrentLayout] = useState('cose');
   const [showFullscreenModal, setShowFullscreenModal] = useState(false);
-  const [extensionsLoaded, setExtensionsLoaded] = useState(false);
   const [fullscreenLayout, setFullscreenLayout] = useState('cose');
-  const fullscreenCyRef = useRef(null);
 
   const fetchNetworkData = async () => {
     try {
@@ -55,7 +61,7 @@ const TransactionNetworkGraph = ({ entityId, onError }) => {
       idealEdgeLength: 100,
       gravity: 0.1
     },
-    hierarchical: {
+    dagre: {
       name: 'dagre',
       animate: true,
       animationDuration: 1000,
@@ -63,7 +69,7 @@ const TransactionNetworkGraph = ({ entityId, onError }) => {
       nodeSep: 50,
       rankSep: 75
     },
-    circular: {
+    circle: {
       name: 'circle',
       animate: true,
       animationDuration: 1000,
@@ -99,36 +105,35 @@ const TransactionNetworkGraph = ({ entityId, onError }) => {
     return elements;
   }, [networkData, entityId]);
 
-  // Initialize main Cytoscape instance
-  const initializeMainCytoscape = useCallback(async (container) => {
-    if (!container || cytoscapeElements.length === 0) return;
+  // Initialize Cytoscape when container and data are ready
+  useEffect(() => {
+    if (!containerRef.current || !cytoscapeElements.length) return;
 
-    // Load extensions dynamically
-    let fcose, dagre;
-    try {
-      fcose = (await import('cytoscape-fcose')).default;
-      dagre = (await import('cytoscape-dagre')).default;
-      cytoscape.use(fcose);
-      cytoscape.use(dagre);
-      setExtensionsLoaded(true);
-    } catch (error) {
-      console.warn('Failed to load Cytoscape extensions:', error);
-    }
-
-    // Destroy existing instance
+    // Destroy existing instance to prevent memory leaks
     if (cyRef.current) {
       cyRef.current.destroy();
     }
 
-    // Create new Cytoscape instance with transaction-specific styling
+    // Create cytoscape instance with strict container constraints  
     cyRef.current = cytoscape({
-      container: container,
+      container: containerRef.current,
       elements: cytoscapeElements,
       style: transactionNetworkStyles,
-      layout: layoutConfigs[currentLayout] || layoutConfigs.cose,
+      layout: { 
+        name: 'preset', // Use preset layout to prevent any auto-sizing
+        animate: false,
+        fit: false,
+        positions: {} // Empty positions - nodes will be at origin
+      },
       wheelSensitivity: 0.2,
       minZoom: 0.3,
-      maxZoom: 3
+      maxZoom: 3,
+      boxSelectionEnabled: false,
+      autoungrabify: false,
+      autounselectify: false,
+      autolock: false,
+      autoResizeContainer: false, // CRITICAL: Don't auto-resize container
+      pixelRatio: 1 // Fixed pixel ratio
     });
 
     // Add event listeners
@@ -146,55 +151,31 @@ const TransactionNetworkGraph = ({ entityId, onError }) => {
       }
     });
 
-    // Auto-fit to container with padding
-    cyRef.current.fit(cyRef.current.elements(), 30);
-  }, [cytoscapeElements, currentLayout]);
-
-  // Initialize fullscreen Cytoscape instance separately
-  const initializeFullscreenCytoscape = useCallback(async (container) => {
-    if (!container || cytoscapeElements.length === 0) return;
-
-    // Destroy existing fullscreen instance
-    if (fullscreenCyRef.current) {
-      fullscreenCyRef.current.destroy();
-    }
-
-    // Create separate Cytoscape instance for fullscreen
-    fullscreenCyRef.current = cytoscape({
-      container: container,
-      elements: cytoscapeElements,
-      style: transactionNetworkStyles,
-      layout: layoutConfigs[fullscreenLayout] || layoutConfigs.cose,
-      wheelSensitivity: 0.2,
-      minZoom: 0.3,
-      maxZoom: 3
-    });
-
-    // Add event listeners for fullscreen instance
-    fullscreenCyRef.current.on('tap', 'node', (event) => {
-      const node = event.target;
-      setSelectedNode({
-        id: node.id(),
-        ...node.data()
-      });
-    });
-
-    fullscreenCyRef.current.on('tap', (event) => {
-      if (event.target === fullscreenCyRef.current) {
-        setSelectedNode(null);
+    // Apply proper layout after container is stable
+    setTimeout(() => {
+      if (cyRef.current) {
+        const layout = cyRef.current.layout({
+          name: 'cose',
+          animate: false,
+          fit: false,
+          nodeRepulsion: 8000,
+          idealEdgeLength: 100
+        });
+        layout.run();
+        
+        // Center without fitting
+        cyRef.current.center();
+        cyRef.current.zoom(1);
       }
-    });
+    }, 100); // Small delay to ensure container is stable
 
-    // Auto-fit to container with padding
-    fullscreenCyRef.current.fit(fullscreenCyRef.current.elements(), 30);
-  }, [cytoscapeElements, fullscreenLayout]);
-
-  // Initialize main Cytoscape
-  useEffect(() => {
-    if (containerRef.current) {
-      initializeMainCytoscape(containerRef.current);
-    }
-  }, [initializeMainCytoscape]);
+    return () => {
+      if (cyRef.current) {
+        cyRef.current.destroy();
+        cyRef.current = null;
+      }
+    };
+  }, [cytoscapeElements, containerRef.current]);
 
   // Handle main layout changes with expansion prevention
   const handleLayoutChange = useCallback((layoutName) => {
@@ -203,34 +184,40 @@ const TransactionNetworkGraph = ({ entityId, onError }) => {
       return;
     }
     
+    // Check if cytoscape instance is still valid
+    try {
+      if (!cyRef.current.elements || cyRef.current.destroyed()) {
+        console.warn('Cytoscape instance is destroyed, cannot change layout');
+        return;
+      }
+    } catch (e) {
+      console.warn('Cytoscape instance is invalid, cannot change layout');
+      return;
+    }
+    
     setCurrentLayout(layoutName);
     
     try {
       const layoutConfig = {
         ...layoutConfigs[layoutName],
-        fit: false, // Prevent auto-fit to prevent expansion
+        fit: false,
         animate: true,
-        animationDuration: 800,
-        // Add constraints to prevent expansion
-        boundingBox: {
-          x1: 0,
-          y1: 0,
-          x2: cyRef.current.container().offsetWidth,
-          y2: cyRef.current.container().offsetHeight
-        }
+        animationDuration: 800
       };
       
       const layout = cyRef.current.layout(layoutConfig);
       layout.on('layoutstop', () => {
-        // Fit to container bounds without expanding
-        cyRef.current.fit(cyRef.current.elements(), 30);
+        // Double-check cytoscape is still valid before fitting
+        if (cyRef.current && !cyRef.current.destroyed()) {
+          cyRef.current.fit(cyRef.current.elements(), 30);
+        }
       });
       layout.run();
       
     } catch (error) {
       console.error('Main layout switch failed:', error);
     }
-  }, []);
+  }, [layoutConfigs]);
 
   // Handle fullscreen layout changes separately
   const handleFullscreenLayoutChange = useCallback((layoutName) => {
@@ -270,22 +257,31 @@ const TransactionNetworkGraph = ({ entityId, onError }) => {
   // Handle zoom to fit for main view
   const handleZoomToFit = useCallback(() => {
     if (!cyRef.current) return;
-    cyRef.current.fit(cyRef.current.elements(), 50);
+    cyRef.current.fit(cyRef.current.elements(), 30);
+  }, []);
+  
+  // Handle zoom in
+  const handleZoomIn = useCallback(() => {
+    if (!cyRef.current) return;
+    const zoom = cyRef.current.zoom();
+    cyRef.current.zoom(Math.min(zoom * 1.25, 3));
+  }, []);
+  
+  // Handle zoom out
+  const handleZoomOut = useCallback(() => {
+    if (!cyRef.current) return;
+    const zoom = cyRef.current.zoom();
+    cyRef.current.zoom(Math.max(zoom * 0.8, 0.3));
   }, []);
 
-  // Handle zoom to fit for fullscreen view
+  // Fullscreen cytoscape reference
+  const fullscreenCyRef = useRef(null);
+
+  // Handle fullscreen zoom to fit
   const handleFullscreenZoomToFit = useCallback(() => {
     if (!fullscreenCyRef.current) return;
-    fullscreenCyRef.current.fit(fullscreenCyRef.current.elements(), 50);
+    fullscreenCyRef.current.fit(fullscreenCyRef.current.elements(), 30);
   }, []);
-
-  // Cleanup fullscreen instance when modal closes
-  useEffect(() => {
-    if (!showFullscreenModal && fullscreenCyRef.current) {
-      fullscreenCyRef.current.destroy();
-      fullscreenCyRef.current = null;
-    }
-  }, [showFullscreenModal]);
 
   const formatAmount = (amount, currency = 'USD') => {
     return new Intl.NumberFormat('en-US', {
@@ -309,6 +305,8 @@ const TransactionNetworkGraph = ({ entityId, onError }) => {
     overflow: 'hidden',
     display: 'flex',
     flexDirection: 'column',
+    contain: 'strict', // CSS containment to prevent layout interference
+    isolation: 'isolate', // Create new stacking context
     boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)'
   }), []);
 
@@ -356,23 +354,28 @@ const TransactionNetworkGraph = ({ entityId, onError }) => {
           borderBottom: '1px solid #E5E7EB',
           flexWrap: 'wrap'
         }}>
-          <Badge variant="blue">
-            📊 {networkData.center_entity_transaction_count || networkData.total_transactions} Direct Transactions
+          <Badge variant="green">
+            🏢 {networkData.nodes?.length || 0} Entities
           </Badge>
           <Badge variant="gray">
-            🔗 {networkData.total_transactions} Network Total
+            🔗 {networkData.total_transactions} Total Connections
           </Badge>
           <Badge variant="purple">
             💰 {formatAmount(networkData.center_entity_volume || networkData.total_volume)}
           </Badge>
-          <Badge variant="green">
-            🏢 {networkData.nodes?.length || 0} Entities
-          </Badge>
+          
         </div>
       )}
 
       {/* Network Container */}
-      <div style={{ position: 'relative', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+      <div style={{ 
+        position: 'relative', 
+        flex: 1, 
+        minHeight: 0, 
+        overflow: 'hidden',
+        width: '100%',  // Explicit width
+        maxWidth: '100%' // Prevent expansion
+      }}>
         {loading && (
           <div style={{
             position: 'absolute',
@@ -391,9 +394,11 @@ const TransactionNetworkGraph = ({ entityId, onError }) => {
             width: '100%', 
             height: '100%',
             backgroundColor: '#FAFAFA',
-            position: 'relative',
-            minWidth: 0, // Allow shrinking in flex container
-            maxWidth: '100%' // Prevent expansion
+            maxWidth: '100%',   // Maximum size to prevent expansion
+            overflow: 'hidden', // Hide any overflow
+            position: 'relative', // Contain positioning
+            contain: 'layout style paint', // Additional containment for cytoscape container
+            isolation: 'isolate' // Isolate stacking context
           }} 
         />
         
@@ -427,14 +432,43 @@ const TransactionNetworkGraph = ({ entityId, onError }) => {
               cursor: 'pointer'
             }}
           >
-            <option value="cose">Force-Directed</option>
-            <option value="hierarchical">Hierarchical</option>
-            <option value="circular">Circular</option>
+            <option value="dagre">Hierarchical</option>
+            <option value="circle">Circular</option>
             <option value="concentric">Concentric</option>
             <option value="grid">Grid</option>
           </select>
           
           <div style={{ display: 'flex', gap: '4px' }}>
+            <button
+              onClick={handleZoomIn}
+              style={{
+                padding: '4px 8px',
+                fontSize: '11px',
+                border: '1px solid #E5E7EB',
+                borderRadius: '4px',
+                backgroundColor: '#FFFFFF',
+                color: '#374151',
+                cursor: 'pointer',
+                flex: 1
+              }}
+            >
+              +
+            </button>
+            <button
+              onClick={handleZoomOut}
+              style={{
+                padding: '4px 8px',
+                fontSize: '11px',
+                border: '1px solid #E5E7EB',
+                borderRadius: '4px',
+                backgroundColor: '#FFFFFF',
+                color: '#374151',
+                cursor: 'pointer',
+                flex: 1
+              }}
+            >
+              -
+            </button>
             <button
               onClick={handleZoomToFit}
               style={{
@@ -542,20 +576,47 @@ const TransactionNetworkGraph = ({ entityId, onError }) => {
           backgroundColor: '#F9FAFB',
           position: 'relative',
           overflow: 'hidden',
+          contain: 'strict',
+          isolation: 'isolate',
           boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)'
         }}>
           <div 
+            ref={(el) => {
+              if (el && showFullscreenModal && cytoscapeElements.length > 0) {
+                if (fullscreenCyRef.current) {
+                  fullscreenCyRef.current.destroy();
+                }
+                fullscreenCyRef.current = cytoscape({
+                  container: el,
+                  elements: cytoscapeElements,
+                  style: transactionNetworkStyles,
+                  layout: { name: 'cose', animate: false },
+                  wheelSensitivity: 0.2,
+                  minZoom: 0.1,
+                  maxZoom: 5,
+                  autoResizeContainer: false
+                });
+                
+                // Apply layout after initialization
+                setTimeout(() => {
+                  if (fullscreenCyRef.current) {
+                    const layout = fullscreenCyRef.current.layout({
+                      name: fullscreenLayout,
+                      animate: true,
+                      animationDuration: 800
+                    });
+                    layout.run();
+                    fullscreenCyRef.current.fit(fullscreenCyRef.current.elements(), 30);
+                  }
+                }, 100);
+              }
+            }}
             style={{ 
               width: '100%', 
               height: '100%',
               backgroundColor: '#FAFAFA',
-              minWidth: 0, // Allow shrinking
-              maxWidth: '100%' // Prevent expansion
-            }} 
-            ref={(el) => {
-              if (el && showFullscreenModal && cytoscapeElements.length > 0) {
-                initializeFullscreenCytoscape(el);
-              }
+              contain: 'layout style paint',
+              isolation: 'isolate'
             }}
           />
           
@@ -593,9 +654,8 @@ const TransactionNetworkGraph = ({ entityId, onError }) => {
                 cursor: 'pointer'
               }}
             >
-              <option value="cose">Force-Directed</option>
-              <option value="hierarchical">Hierarchical</option>
-              <option value="circular">Circular</option>
+              <option value="dagre">Hierarchical</option>
+              <option value="circle">Circular</option>
               <option value="concentric">Concentric</option>
               <option value="grid">Grid</option>
             </select>

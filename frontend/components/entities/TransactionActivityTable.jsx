@@ -124,8 +124,7 @@ const TransactionActivityTable = ({ entityId, onError }) => {
       <div style={{ 
         display: 'flex', 
         flexDirection: 'column', 
-        gap: '2px',
-        minWidth: '100px'
+        gap: '2px'
       }}>
         {tags.slice(0, 2).map((tag, index) => (
           <Badge 
@@ -211,18 +210,16 @@ const TransactionActivityTable = ({ entityId, onError }) => {
             <Table style={{ 
               width: '100%',
               maxWidth: '100%',
-              tableLayout: 'fixed' // Prevent table from expanding beyond container
+              tableLayout: 'fixed' // Use fixed layout for consistent sizing
             }}>
               <TableHead>
                 <TableRow>
-                  <TableCell style={{ minWidth: '80px' }}>Direction</TableCell>
-                  <TableCell style={{ minWidth: '150px' }}>Counterparty</TableCell>
-                  <TableCell style={{ minWidth: '120px' }}>Amount</TableCell>
-                  <TableCell style={{ minWidth: '130px' }}>Type</TableCell>
-                  <TableCell style={{ minWidth: '140px' }}>Date</TableCell>
-                  <TableCell style={{ minWidth: '60px' }}>Risk</TableCell>
-                  <TableCell style={{ minWidth: '90px' }}>Status</TableCell>
-                  <TableCell style={{ minWidth: '100px' }}>Tags</TableCell>
+                  <TableCell>Direction</TableCell>
+                  <TableCell>Counterparty</TableCell>
+                  <TableCell>Amount</TableCell>
+                  <TableCell>Date</TableCell>
+                  <TableCell>Risk</TableCell>
+                  <TableCell>Status</TableCell>
                 </TableRow>
               </TableHead>
             <TableBody>
@@ -233,7 +230,7 @@ const TransactionActivityTable = ({ entityId, onError }) => {
                   </TableCell>
                   
                   <TableCell>
-                    <div style={{ minWidth: '150px' }}>
+                    <div>
                       <Body weight="medium" style={{ marginBottom: '2px' }}>
                         {transaction.counterparty_name}
                       </Body>
@@ -244,7 +241,7 @@ const TransactionActivityTable = ({ entityId, onError }) => {
                   </TableCell>
                   
                   <TableCell>
-                    <div style={{ minWidth: '120px' }}>
+                    <div>
                       <Body weight="medium" style={{ marginBottom: '2px' }}>
                         {formatAmount(transaction.amount, transaction.currency)}
                       </Body>
@@ -255,18 +252,7 @@ const TransactionActivityTable = ({ entityId, onError }) => {
                   </TableCell>
                   
                   <TableCell>
-                    <div style={{ minWidth: '130px' }}>
-                      {getTransactionTypeBadge(transaction.transaction_type)}
-                      <div style={{ marginTop: '4px' }}>
-                        <Subtitle style={{ fontSize: '11px', color: '#666' }}>
-                          {transaction.channel}
-                        </Subtitle>
-                      </div>
-                    </div>
-                  </TableCell>
-                  
-                  <TableCell>
-                    <div style={{ minWidth: '140px' }}>
+                    <div>
                       <Body style={{ fontSize: '13px' }}>
                         {formatDate(transaction.timestamp)}
                       </Body>
@@ -279,10 +265,6 @@ const TransactionActivityTable = ({ entityId, onError }) => {
                   
                   <TableCell>
                     {getStatusBadge(transaction.status)}
-                  </TableCell>
-                  
-                  <TableCell>
-                    {formatTags(transaction.tags)}
                   </TableCell>
                 </TableRow>
               ))}

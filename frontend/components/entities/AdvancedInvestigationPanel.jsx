@@ -190,6 +190,113 @@ const AdvancedInvestigationPanel = ({ results, centerEntityId, RiskPropagationCo
     );
   };
 
+  // Network Statistics Panel
+  const NetworkStatisticsPanel = ({ statistics }) => {
+    if (!statistics) {
+      return (
+        <div style={{ padding: spacing[3], textAlign: 'center' }}>
+          <Icon glyph="InformationWithCircle" size={32} fill={palette.gray.light1} />
+          <Body style={{ color: palette.gray.dark1, marginTop: spacing[2] }}>
+            Network statistics not available
+          </Body>
+        </div>
+      );
+    }
+
+    return (
+      <div style={{ padding: spacing[3] }}>
+        <H3 style={{ fontSize: '16px' }}>Network Statistics</H3>
+        <Body style={{ color: palette.gray.dark1, marginBottom: spacing[3] }}>
+          Comprehensive MongoDB aggregation analysis of network structure
+        </Body>
+
+        {/* Basic Metrics */}
+        {statistics.basic_metrics && (
+          <div style={{ marginBottom: spacing[4] }}>
+            <H3 style={{ fontSize: '14px', marginBottom: spacing[2] }}>Network Overview</H3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: spacing[2] }}>
+              <div style={{ padding: spacing[2], backgroundColor: palette.blue.light3, borderRadius: '6px', textAlign: 'center' }}>
+                <Body style={{ fontWeight: 'bold' }}>{statistics.basic_metrics.total_entities || 0}</Body>
+                <Body style={{ fontSize: '12px', color: palette.blue.dark2 }}>Entities</Body>
+              </div>
+              <div style={{ padding: spacing[2], backgroundColor: palette.green.light3, borderRadius: '6px', textAlign: 'center' }}>
+                <Body style={{ fontWeight: 'bold' }}>{statistics.basic_metrics.total_relationships || 0}</Body>
+                <Body style={{ fontSize: '12px', color: palette.green.dark2 }}>Relationships</Body>
+              </div>
+              <div style={{ padding: spacing[2], backgroundColor: palette.purple.light3, borderRadius: '6px', textAlign: 'center' }}>
+                <Body style={{ fontWeight: 'bold' }}>{(statistics.network_density * 100).toFixed(1)}%</Body>
+                <Body style={{ fontSize: '12px', color: palette.purple.dark2 }}>Density</Body>
+              </div>
+              <div style={{ padding: spacing[2], backgroundColor: palette.yellow.light3, borderRadius: '6px', textAlign: 'center' }}>
+                <Body style={{ fontWeight: 'bold' }}>{statistics.avg_connections?.toFixed(1) || 0}</Body>
+                <Body style={{ fontSize: '12px', color: palette.yellow.dark2 }}>Avg Connections</Body>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Entity Type Distribution */}
+        {statistics.entity_type_distribution && (
+          <div style={{ marginBottom: spacing[4] }}>
+            <H3 style={{ fontSize: '14px', marginBottom: spacing[2] }}>Entity Types</H3>
+            <div style={{ display: 'flex', gap: spacing[2], flexWrap: 'wrap' }}>
+              {Object.entries(statistics.entity_type_distribution).map(([type, count]) => (
+                <Badge key={type} variant="lightgray" style={{ fontSize: '11px' }}>
+                  {type.replace('_', ' ')}: {count}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Risk Distribution */}
+        {statistics.risk_distribution && (
+          <div style={{ marginBottom: spacing[4] }}>
+            <H3 style={{ fontSize: '14px', marginBottom: spacing[2] }}>Risk Distribution</H3>
+            <div style={{ display: 'flex', gap: spacing[2], flexWrap: 'wrap' }}>
+              {Object.entries(statistics.risk_distribution).map(([level, count]) => {
+                const variant = level === 'high' ? 'red' : level === 'medium' ? 'yellow' : 'green';
+                return (
+                  <Badge key={level} variant={variant} style={{ fontSize: '11px' }}>
+                    {level}: {count}
+                  </Badge>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Hub Entities */}
+        {statistics.hub_entities && statistics.hub_entities.length > 0 && (
+          <div style={{ marginBottom: spacing[4] }}>
+            <H3 style={{ fontSize: '14px', marginBottom: spacing[2] }}>Hub Entities</H3>
+            <div style={{ display: 'flex', gap: spacing[2], flexWrap: 'wrap' }}>
+              {statistics.hub_entities.slice(0, 8).map((hub, index) => (
+                <Badge key={index} variant="blue" style={{ fontSize: '11px' }}>
+                  🔗 {hub.entity_id || hub}: {hub.connection_count || '?'} connections
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Bridge Entities */}
+        {statistics.bridge_entities && statistics.bridge_entities.length > 0 && (
+          <div>
+            <H3 style={{ fontSize: '14px', marginBottom: spacing[2] }}>Bridge Entities</H3>
+            <div style={{ display: 'flex', gap: spacing[2], flexWrap: 'wrap' }}>
+              {statistics.bridge_entities.slice(0, 8).map((bridge, index) => (
+                <Badge key={index} variant="purple" style={{ fontSize: '11px' }}>
+                  ◆ {bridge.entity_id || bridge}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Investigation Summary Panel
   const InvestigationSummaryPanel = () => (
     <div style={{ padding: spacing[3] }}>
@@ -221,28 +328,13 @@ const AdvancedInvestigationPanel = ({ results, centerEntityId, RiskPropagationCo
 
         <div style={{ 
           padding: spacing[3], 
-          backgroundColor: palette.red.light3, 
-          borderRadius: '6px',
-          textAlign: 'center'
-        }}>
-          <Icon glyph="Warning" size={24} fill={palette.red.base} />
-          <Body style={{ fontWeight: 'bold', marginTop: spacing[1] }}>
-            Risk Analysis
-          </Body>
-          <Body style={{ fontSize: '12px', color: palette.red.dark2 }}>
-            {riskAnalysis?.success ? 'Completed' : 'Not Available'}
-          </Body>
-        </div>
-
-        <div style={{ 
-          padding: spacing[3], 
           backgroundColor: palette.green.light3, 
           borderRadius: '6px',
           textAlign: 'center'
         }}>
           <Icon glyph="Charts" size={24} fill={palette.green.base} />
           <Body style={{ fontWeight: 'bold', marginTop: spacing[1] }}>
-            Centrality
+            Centrality Analysis
           </Body>
           <Body style={{ fontSize: '12px', color: palette.green.dark2 }}>
             {centralityAnalysis?.success ? 'Completed' : 'Not Available'}
@@ -251,16 +343,16 @@ const AdvancedInvestigationPanel = ({ results, centerEntityId, RiskPropagationCo
 
         <div style={{ 
           padding: spacing[3], 
-          backgroundColor: palette.purple.light3, 
+          backgroundColor: palette.yellow.light3, 
           borderRadius: '6px',
           textAlign: 'center'
         }}>
-          <Icon glyph="Shield" size={24} fill={palette.purple.base} />
+          <Icon glyph="BarChart" size={24} fill={palette.yellow.base} />
           <Body style={{ fontWeight: 'bold', marginTop: spacing[1] }}>
-            Pattern Detection
+            Network Statistics
           </Body>
-          <Body style={{ fontSize: '12px', color: palette.purple.dark2 }}>
-            {suspiciousPatterns?.success ? 'Completed' : 'Not Available'}
+          <Body style={{ fontSize: '12px', color: palette.yellow.dark2 }}>
+            {networkData?.statistics ? 'Available' : 'Not Available'}
           </Body>
         </div>
       </div>
@@ -309,6 +401,10 @@ const AdvancedInvestigationPanel = ({ results, centerEntityId, RiskPropagationCo
       <Tabs selected={activeTab} setSelected={setActiveTab}>
         <Tab name="Summary">
           <InvestigationSummaryPanel />
+        </Tab>
+        
+        <Tab name="Network Statistics">
+          <NetworkStatisticsPanel statistics={networkData?.statistics} />
         </Tab>
         
         <Tab name="Risk Analysis">

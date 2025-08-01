@@ -387,11 +387,9 @@ class NetworkRepository(NetworkRepositoryInterface):
                 total_entities=len(nodes),
                 total_relationships=len(edges),
                 max_depth_reached=network_data["max_depth"],
-                query_time_ms=query_time
+                query_time_ms=query_time,
+                statistics=statistics  # Include statistics directly
             )
-            
-            # Add statistics to response (monkey patch for compatibility)
-            response.statistics = statistics
             
             return response
             
@@ -401,7 +399,8 @@ class NetworkRepository(NetworkRepositoryInterface):
             traceback.print_exc()
             return NetworkDataResponse(
                 nodes=[], edges=[], center_entity_id=params.center_entity_id,
-                total_entities=0, total_relationships=0, max_depth_reached=0, query_time_ms=0
+                total_entities=0, total_relationships=0, max_depth_reached=0, query_time_ms=0,
+                statistics={}  # Empty statistics for error case
             )
     
     async def get_entity_connections(self, entity_id: str,

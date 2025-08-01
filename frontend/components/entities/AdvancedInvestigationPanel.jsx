@@ -36,7 +36,7 @@ const AdvancedInvestigationPanel = ({ results, centerEntityId, RiskPropagationCo
     investigationId
   } = results;
 
-  // Centrality Analysis Panel
+  // Enhanced Centrality Analysis Panel
   const CentralityAnalysisPanel = ({ data }) => {
     if (!data || !data.success) {
       return (
@@ -49,19 +49,142 @@ const AdvancedInvestigationPanel = ({ results, centerEntityId, RiskPropagationCo
       );
     }
 
-    const { centrality_metrics = {}, bridge_entities = [] } = data;
+    const { centrality_metrics = {}, key_entities = [], insights = [] } = data;
 
     return (
       <div style={{ padding: spacing[3] }}>
+        {/* Analysis Summary */}
         <div style={{ marginBottom: spacing[4] }}>
-          <H3 style={{ fontSize: '16px' }}>Network Centrality Metrics</H3>
+          <H3 style={{ fontSize: '16px' }}>Network Centrality Analysis</H3>
           <Body style={{ color: palette.gray.dark1, marginBottom: spacing[3] }}>
-            Analysis of entity importance within the network using MongoDB aggregation pipelines
+            Advanced MongoDB centrality analysis measuring entity importance and connectivity patterns
           </Body>
+          
+          <div style={{ 
+            padding: spacing[3],
+            backgroundColor: palette.blue.light3,
+            borderRadius: '8px',
+            border: `1px solid ${palette.blue.light2}`,
+            marginBottom: spacing[3]
+          }}>
+            <Body style={{ fontWeight: 'bold', color: palette.blue.dark2, marginBottom: spacing[2] }}>
+              📊 Analysis Summary
+            </Body>
+            <Body style={{ fontSize: '13px', color: palette.blue.dark1 }}>
+              Analyzed {data.total_entities} entities with {key_entities.length} key entities identified
+            </Body>
+          </div>
+        </div>
 
-          {Object.keys(centrality_metrics).length > 0 ? (
+        {/* Key Insights */}
+        {insights.length > 0 && (
+          <div style={{ marginBottom: spacing[4] }}>
+            <H3 style={{ fontSize: '14px', marginBottom: spacing[2] }}>Key Insights</H3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[2] }}>
-              {Object.entries(centrality_metrics).slice(0, 8).map(([entityId, metrics]) => (
+              {insights.map((insight, index) => (
+                <div key={index} style={{
+                  padding: spacing[2],
+                  backgroundColor: palette.green.light3,
+                  borderRadius: '6px',
+                  border: `1px solid ${palette.green.light2}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: spacing[2]
+                }}>
+                  <Icon glyph="Lightbulb" size={16} fill={palette.green.base} />
+                  <Body style={{ fontSize: '13px', color: palette.green.dark2 }}>
+                    {insight}
+                  </Body>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Key Entities Analysis */}
+        {key_entities.length > 0 && (
+          <div style={{ marginBottom: spacing[4] }}>
+            <H3 style={{ fontSize: '14px', marginBottom: spacing[2] }}>Key Entities by Importance</H3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[2] }}>
+              {key_entities.map((entity, index) => (
+                <div key={index} style={{
+                  padding: spacing[3],
+                  backgroundColor: entity.entity_id === centerEntityId ? palette.blue.light3 : palette.gray.light3,
+                  borderRadius: '8px',
+                  border: entity.entity_id === centerEntityId ? `2px solid ${palette.blue.base}` : '1px solid #E5E7EB'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing[2] }}>
+                    <div>
+                      <Body style={{ 
+                        fontWeight: 'bold', 
+                        fontSize: '14px',
+                        color: entity.entity_id === centerEntityId ? palette.blue.dark2 : 'inherit'
+                      }}>
+                        {entity.entity_id === centerEntityId ? '🎯 ' : `#${index + 1} `}{entity.entity_id}
+                      </Body>
+                      <Body style={{ fontSize: '12px', color: palette.gray.dark1, marginTop: spacing[1] }}>
+                        {entity.key_reason}
+                      </Body>
+                    </div>
+                    <Badge variant={entity.entity_id === centerEntityId ? 'blue' : 'gray'} style={{ fontSize: '11px' }}>
+                      Score: {entity.importance_score?.toFixed(2)}
+                    </Badge>
+                  </div>
+                  
+                  {/* Detailed Metrics Grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: spacing[2] }}>
+                    <div style={{ textAlign: 'center', padding: spacing[1] }}>
+                      <Body style={{ fontSize: '12px', fontWeight: 'bold' }}>
+                        {entity.metrics.degree_centrality}
+                      </Body>
+                      <Body style={{ fontSize: '10px', color: palette.gray.dark1 }}>Degree</Body>
+                    </div>
+                    <div style={{ textAlign: 'center', padding: spacing[1] }}>
+                      <Body style={{ fontSize: '12px', fontWeight: 'bold' }}>
+                        {entity.metrics.betweenness_centrality?.toFixed(1)}
+                      </Body>
+                      <Body style={{ fontSize: '10px', color: palette.gray.dark1 }}>Betweenness</Body>
+                    </div>
+                    <div style={{ textAlign: 'center', padding: spacing[1] }}>
+                      <Body style={{ fontSize: '12px', fontWeight: 'bold' }}>
+                        {entity.metrics.closeness_centrality?.toFixed(2)}
+                      </Body>
+                      <Body style={{ fontSize: '10px', color: palette.gray.dark1 }}>Closeness</Body>
+                    </div>
+                    <div style={{ textAlign: 'center', padding: spacing[1] }}>
+                      <Body style={{ fontSize: '12px', fontWeight: 'bold' }}>
+                        {entity.metrics.eigenvector_centrality?.toFixed(2)}
+                      </Body>
+                      <Body style={{ fontSize: '10px', color: palette.gray.dark1 }}>Eigenvector</Body>
+                    </div>
+                  </div>
+                  
+                  {/* Additional Metrics */}
+                  <div style={{ marginTop: spacing[2], paddingTop: spacing[2], borderTop: `1px solid ${palette.gray.light2}` }}>
+                    <div style={{ display: 'flex', gap: spacing[2], flexWrap: 'wrap' }}>
+                      <Badge variant="lightgray" style={{ fontSize: '10px' }}>
+                        Weighted: {entity.metrics.weighted_centrality?.toFixed(2)}
+                      </Badge>
+                      <Badge variant="yellow" style={{ fontSize: '10px' }}>
+                        Risk Weighted: {entity.metrics.risk_weighted_centrality?.toFixed(2)}
+                      </Badge>
+                      <Badge variant="green" style={{ fontSize: '10px' }}>
+                        High Conf: {entity.metrics.high_confidence_connections}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* All Entities Detailed View */}
+        {Object.keys(centrality_metrics).length > 0 && (
+          <div>
+            <H3 style={{ fontSize: '14px', marginBottom: spacing[2] }}>All Entities Centrality Metrics</H3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[2] }}>
+              {Object.entries(centrality_metrics).map(([entityId, metrics]) => (
                 <div key={entityId} style={{
                   padding: spacing[2],
                   backgroundColor: entityId === centerEntityId ? palette.blue.light3 : palette.gray.light3,
@@ -72,41 +195,27 @@ const AdvancedInvestigationPanel = ({ results, centerEntityId, RiskPropagationCo
                     <Body style={{ 
                       fontFamily: 'monospace', 
                       fontWeight: entityId === centerEntityId ? 'bold' : 'normal',
-                      color: entityId === centerEntityId ? palette.blue.dark2 : 'inherit'
+                      color: entityId === centerEntityId ? palette.blue.dark2 : 'inherit',
+                      fontSize: '13px'
                     }}>
                       {entityId === centerEntityId ? '🎯 ' : ''}{entityId}
                     </Body>
-                    <div style={{ display: 'flex', gap: spacing[2], alignItems: 'center' }}>
-                      <Badge variant="lightgray" style={{ fontSize: '10px' }}>
-                        Degree: {((metrics.degree_centrality || 0) * 100).toFixed(0)}%
+                    <div style={{ display: 'flex', gap: spacing[1], alignItems: 'center', flexWrap: 'wrap' }}>
+                      <Badge variant="gray" style={{ fontSize: '9px' }}>
+                        D: {metrics.degree_centrality}
                       </Badge>
-                      <Badge variant="blue" style={{ fontSize: '10px' }}>
-                        Between: {((metrics.betweenness_centrality || 0) * 100).toFixed(0)}%
+                      <Badge variant="blue" style={{ fontSize: '9px' }}>
+                        B: {metrics.betweenness_centrality?.toFixed(1)}
                       </Badge>
-                      <Badge variant="green" style={{ fontSize: '10px' }}>
-                        Close: {((metrics.closeness_centrality || 0) * 100).toFixed(0)}%
+                      <Badge variant="green" style={{ fontSize: '9px' }}>
+                        C: {metrics.closeness_centrality?.toFixed(2)}
+                      </Badge>
+                      <Badge variant="purple" style={{ fontSize: '9px' }}>
+                        E: {metrics.eigenvector_centrality?.toFixed(2)}
                       </Badge>
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <Body style={{ color: palette.gray.dark1 }}>No centrality metrics available</Body>
-          )}
-        </div>
-
-        {bridge_entities.length > 0 && (
-          <div>
-            <H3 style={{ fontSize: '16px' }}>Bridge Entities</H3>
-            <Body style={{ color: palette.gray.dark1, marginBottom: spacing[2] }}>
-              Entities that connect different parts of the network
-            </Body>
-            <div style={{ display: 'flex', gap: spacing[1], flexWrap: 'wrap' }}>
-              {bridge_entities.slice(0, 10).map((bridge, index) => (
-                <Badge key={index} variant="purple" style={{ fontSize: '11px' }}>
-                  ◆ {bridge.entity_id || bridge}
-                </Badge>
               ))}
             </div>
           </div>
@@ -211,26 +320,121 @@ const AdvancedInvestigationPanel = ({ results, centerEntityId, RiskPropagationCo
         </Body>
 
         {/* Basic Metrics */}
+        <div style={{ marginBottom: spacing[4] }}>
+          <H3 style={{ fontSize: '14px', marginBottom: spacing[2] }}>Network Overview</H3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: spacing[2] }}>
+            <div style={{ padding: spacing[2], backgroundColor: palette.blue.light3, borderRadius: '6px', textAlign: 'center' }}>
+              <Body style={{ fontWeight: 'bold' }}>{statistics.basic_metrics?.total_nodes || 0}</Body>
+              <Body style={{ fontSize: '12px', color: palette.blue.dark2 }}>Entities</Body>
+            </div>
+            <div style={{ padding: spacing[2], backgroundColor: palette.green.light3, borderRadius: '6px', textAlign: 'center' }}>
+              <Body style={{ fontWeight: 'bold' }}>{statistics.basic_metrics?.total_edges || 0}</Body>
+              <Body style={{ fontSize: '12px', color: palette.green.dark2 }}>Relationships</Body>
+            </div>
+            <div style={{ padding: spacing[2], backgroundColor: palette.purple.light3, borderRadius: '6px', textAlign: 'center' }}>
+              <Body style={{ fontWeight: 'bold' }}>{(statistics.network_density * 100).toFixed(1)}%</Body>
+              <Body style={{ fontSize: '12px', color: palette.purple.dark2 }}>Density</Body>
+            </div>
+            <div style={{ padding: spacing[2], backgroundColor: palette.yellow.light3, borderRadius: '6px', textAlign: 'center' }}>
+              <Body style={{ fontWeight: 'bold' }}>{statistics.avg_connections?.toFixed(1) || 0}</Body>
+              <Body style={{ fontSize: '12px', color: palette.yellow.dark2 }}>Avg Connections</Body>
+            </div>
+          </div>
+        </div>
+
+        {/* Risk Score Metrics */}
         {statistics.basic_metrics && (
           <div style={{ marginBottom: spacing[4] }}>
-            <H3 style={{ fontSize: '14px', marginBottom: spacing[2] }}>Network Overview</H3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: spacing[2] }}>
-              <div style={{ padding: spacing[2], backgroundColor: palette.blue.light3, borderRadius: '6px', textAlign: 'center' }}>
-                <Body style={{ fontWeight: 'bold' }}>{statistics.basic_metrics.total_entities || 0}</Body>
-                <Body style={{ fontSize: '12px', color: palette.blue.dark2 }}>Entities</Body>
+            <H3 style={{ fontSize: '14px', marginBottom: spacing[2] }}>Risk Score Analysis</H3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: spacing[2] }}>
+              <div style={{ padding: spacing[2], backgroundColor: palette.gray.light3, borderRadius: '6px', textAlign: 'center' }}>
+                <Body style={{ fontWeight: 'bold' }}>{statistics.basic_metrics.avg_risk_score?.toFixed(1) || 0}</Body>
+                <Body style={{ fontSize: '12px', color: palette.gray.dark2 }}>Avg Risk</Body>
+              </div>
+              <div style={{ padding: spacing[2], backgroundColor: palette.red.light3, borderRadius: '6px', textAlign: 'center' }}>
+                <Body style={{ fontWeight: 'bold' }}>{statistics.basic_metrics.max_risk_score || 0}</Body>
+                <Body style={{ fontSize: '12px', color: palette.red.dark2 }}>Max Risk</Body>
               </div>
               <div style={{ padding: spacing[2], backgroundColor: palette.green.light3, borderRadius: '6px', textAlign: 'center' }}>
-                <Body style={{ fontWeight: 'bold' }}>{statistics.basic_metrics.total_relationships || 0}</Body>
-                <Body style={{ fontSize: '12px', color: palette.green.dark2 }}>Relationships</Body>
+                <Body style={{ fontWeight: 'bold' }}>{statistics.basic_metrics.min_risk_score || 0}</Body>
+                <Body style={{ fontSize: '12px', color: palette.green.dark2 }}>Min Risk</Body>
               </div>
-              <div style={{ padding: spacing[2], backgroundColor: palette.purple.light3, borderRadius: '6px', textAlign: 'center' }}>
-                <Body style={{ fontWeight: 'bold' }}>{(statistics.network_density * 100).toFixed(1)}%</Body>
-                <Body style={{ fontSize: '12px', color: palette.purple.dark2 }}>Density</Body>
-              </div>
-              <div style={{ padding: spacing[2], backgroundColor: palette.yellow.light3, borderRadius: '6px', textAlign: 'center' }}>
-                <Body style={{ fontWeight: 'bold' }}>{statistics.avg_connections?.toFixed(1) || 0}</Body>
-                <Body style={{ fontSize: '12px', color: palette.yellow.dark2 }}>Avg Connections</Body>
-              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Relationship Distribution */}
+        {statistics.relationship_distribution && statistics.relationship_distribution.length > 0 && (
+          <div style={{ marginBottom: spacing[4] }}>
+            <H3 style={{ fontSize: '14px', marginBottom: spacing[2] }}>Relationship Types Analysis</H3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[2] }}>
+              {statistics.relationship_distribution.slice(0, 6).map((rel, index) => (
+                <div key={index} style={{
+                  padding: spacing[2],
+                  backgroundColor: palette.gray.light3,
+                  borderRadius: '6px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <div>
+                    <Body style={{ fontWeight: 'bold', fontSize: '13px' }}>
+                      {rel.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                    </Body>
+                    <Body style={{ fontSize: '11px', color: palette.gray.dark1 }}>
+                      {rel.verified_count}/{rel.count} verified • {rel.bidirectional_count} bidirectional
+                    </Body>
+                  </div>
+                  <div style={{ display: 'flex', gap: spacing[1], alignItems: 'center' }}>
+                    <Badge variant="gray" style={{ fontSize: '10px' }}>
+                      {rel.count} total
+                    </Badge>
+                    <Badge variant="blue" style={{ fontSize: '10px' }}>
+                      {(rel.avg_confidence * 100).toFixed(0)}% conf
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Prominent Entities */}
+        {statistics.prominent_entities && statistics.prominent_entities.length > 0 && (
+          <div style={{ marginBottom: spacing[4] }}>
+            <H3 style={{ fontSize: '14px', marginBottom: spacing[2] }}>Most Prominent Entities</H3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[2] }}>
+              {statistics.prominent_entities.slice(0, 5).map((entity, index) => (
+                <div key={index} style={{
+                  padding: spacing[2],
+                  backgroundColor: entity.entityId === centerEntityId ? palette.blue.light3 : palette.gray.light3,
+                  borderRadius: '6px',
+                  border: entity.entityId === centerEntityId ? `1px solid ${palette.blue.base}` : 'none'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <Body style={{ 
+                        fontWeight: 'bold', 
+                        fontSize: '13px',
+                        color: entity.entityId === centerEntityId ? palette.blue.dark2 : 'inherit'
+                      }}>
+                        {entity.entityId === centerEntityId ? '🎯 ' : ''}{entity.name?.full || entity.entityId}
+                      </Body>
+                      <Body style={{ fontSize: '11px', color: palette.gray.dark1 }}>
+                        {entity.entityId}
+                      </Body>
+                    </div>
+                    <div style={{ display: 'flex', gap: spacing[1], alignItems: 'center' }}>
+                      <Body style={{ fontSize: '11px', fontWeight: 'bold' }}>
+                        Risk: {entity.risk_score}
+                      </Body>
+                      <Body style={{ fontSize: '11px' }}>
+                        Score: {(entity.prominence_score * 100).toFixed(1)}
+                      </Body>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -407,28 +611,8 @@ const AdvancedInvestigationPanel = ({ results, centerEntityId, RiskPropagationCo
           <NetworkStatisticsPanel statistics={networkData?.statistics} />
         </Tab>
         
-        <Tab name="Risk Analysis">
-          {RiskPropagationComponent ? (
-            <RiskPropagationComponent 
-              data={riskAnalysis} 
-              centerEntityId={centerEntityId} 
-            />
-          ) : (
-            <div style={{ padding: spacing[3], textAlign: 'center' }}>
-              <Icon glyph="InformationWithCircle" size={32} fill={palette.gray.light1} />
-              <Body style={{ color: palette.gray.dark1, marginTop: spacing[2] }}>
-                Risk analysis component not available
-              </Body>
-            </div>
-          )}
-        </Tab>
-        
         <Tab name="Centrality Analysis">
           <CentralityAnalysisPanel data={centralityAnalysis} />
-        </Tab>
-        
-        <Tab name="Pattern Detection">
-          <SuspiciousPatternPanel data={suspiciousPatterns} />
         </Tab>
       </Tabs>
 

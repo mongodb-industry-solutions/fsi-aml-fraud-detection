@@ -764,6 +764,325 @@ async def classify_entity(
         logger.error(f"Entity classification failed: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/hybrid-network-risk-analysis")
+async def analyze_hybrid_search_network_risk(
+    request: Dict[str, Any],
+    network_service: NetworkAnalysisService = Depends(get_network_analysis_service)
+) -> Dict[str, Any]:
+    """
+    Analyze network risks for the top-ranked entity from hybrid search results
+    
+    This endpoint implements the enhanced network risk analysis workflow that:
+    1. Targets the FIRST entity from hybrid search results (highest ranked match)
+    2. Performs comprehensive relationship + transaction network analysis
+    3. Detects suspicious patterns and problematic links
+    4. Returns actionable risk assessment with recommendations
+    
+    Key Enhancement: Instead of analyzing the input entity, this analyzes the
+    most relevant search match to provide meaningful risk intelligence.
+    """
+    try:
+        logger.info("🔍 Starting hybrid network risk analysis for top search result")
+        
+        # Extract request data
+        hybrid_results = request.get("hybrid_results", [])
+        analysis_config = request.get("analysis_config", {})
+        
+        if not hybrid_results:
+            raise HTTPException(status_code=400, detail="No hybrid search results provided")
+        
+        # Step 1: Extract first (top-ranked) entity from hybrid results
+        top_entity = hybrid_results[0]
+        target_entity_id = extract_entity_id(top_entity)
+        
+        if not target_entity_id:
+            raise HTTPException(status_code=400, detail="Unable to extract entity ID from top search result")
+        
+        logger.info(f"🎯 Analyzing network risks for top hybrid result: {target_entity_id}")
+        
+        # Step 2: Comprehensive relationship network analysis
+        max_depth = analysis_config.get("max_relationship_depth", 3)
+        risk_threshold = analysis_config.get("risk_threshold", 0.6)
+        
+        relationship_risk_analysis = await network_service.calculate_network_risk_score(
+            entity_id=target_entity_id,
+            analysis_depth=max_depth
+        )
+        
+        # Step 3: Enhanced centrality and hub analysis
+        centrality_analysis = await network_service.analyze_network_centrality([target_entity_id])
+        
+        # Step 4: Suspicious pattern detection
+        suspicious_patterns = await network_service.detect_suspicious_patterns(
+            entity_ids=[target_entity_id],
+            pattern_types=["circular_relationships", "hub_entities", "isolated_clusters"]
+        )
+        
+        # Step 5: Calculate comprehensive network risk score
+        base_risk = relationship_risk_analysis.get("risk_analysis", {}).get("base_risk_score", 0) if relationship_risk_analysis.get("success") else 0
+        network_risk = relationship_risk_analysis.get("risk_analysis", {}).get("network_risk_score", 0) if relationship_risk_analysis.get("success") else 0
+        
+        # Pattern risk scoring
+        pattern_risk_score = 0
+        if suspicious_patterns.get("success") and suspicious_patterns.get("patterns_detected"):
+            pattern_count = suspicious_patterns.get("total_patterns", 0)
+            if pattern_count > 0:
+                pattern_risk_score = min(pattern_count * 15, 40)  # Max 40 points from patterns
+        
+        # Centrality risk scoring
+        centrality_risk_score = 0
+        if centrality_analysis.get("success") and centrality_analysis.get("key_entities"):
+            key_entity_count = len(centrality_analysis.get("key_entities", []))
+            if key_entity_count > 0:
+                centrality_risk_score = min(key_entity_count * 10, 20)  # Max 20 points from centrality
+        
+        # Comprehensive risk calculation (0-100 scale)
+        comprehensive_risk_score = min(
+            base_risk * 0.3 +  # Base entity risk (30%)
+            network_risk * 0.4 +  # Network connection risk (40%)
+            pattern_risk_score * 0.2 +  # Suspicious patterns (20%)
+            centrality_risk_score * 0.1,  # Centrality influence (10%)
+            100.0
+        )
+        
+        # Step 6: Risk level categorization
+        if comprehensive_risk_score >= 80:
+            risk_level = "critical"
+        elif comprehensive_risk_score >= 60:
+            risk_level = "high"
+        elif comprehensive_risk_score >= 40:
+            risk_level = "medium"
+        else:
+            risk_level = "low"
+        
+        # Step 7: Identify problematic relationships
+        problematic_relationships = []
+        if relationship_risk_analysis.get("success"):
+            high_risk_connections = relationship_risk_analysis.get("risk_analysis", {}).get("high_risk_connections", 0)
+            if high_risk_connections > 0:
+                problematic_relationships.append({
+                    "type": "high_risk_connections",
+                    "count": high_risk_connections,
+                    "description": f"Entity has {high_risk_connections} connections to high-risk entities",
+                    "severity": "high" if high_risk_connections > 3 else "medium"
+                })
+        
+        # Add suspicious pattern relationships
+        if suspicious_patterns.get("success") and suspicious_patterns.get("patterns_detected"):
+            for pattern_type, patterns in suspicious_patterns.get("patterns_detected", {}).items():
+                if patterns:
+                    problematic_relationships.append({
+                        "type": pattern_type,
+                        "count": len(patterns),
+                        "description": f"Detected {len(patterns)} instances of {pattern_type.replace('_', ' ')}",
+                        "severity": "high" if pattern_type == "circular_relationships" else "medium"
+                    })
+        
+        # Step 8: Generate actionable recommendations
+        recommendations = []
+        
+        if risk_level == "critical":
+            recommendations.extend([
+                {
+                    "title": "Immediate Investigation Required",
+                    "description": "Critical risk indicators detected in network analysis",
+                    "priority": "critical",
+                    "action": "Escalate to senior compliance team immediately"
+                },
+                {
+                    "title": "Enhanced Monitoring",
+                    "description": "Implement continuous monitoring of all network connections",
+                    "priority": "high",
+                    "action": "Configure real-time network risk alerts"
+                }
+            ])
+        elif risk_level == "high":
+            recommendations.extend([
+                {
+                    "title": "Enhanced Due Diligence",
+                    "description": "High-risk network connections require detailed investigation",
+                    "priority": "high",
+                    "action": "Conduct enhanced KYC procedures"
+                },
+                {
+                    "title": "Network Relationship Review",
+                    "description": "Analyze all high-risk relationship connections",
+                    "priority": "medium",
+                    "action": "Document and verify all business relationships"
+                }
+            ])
+        elif risk_level == "medium":
+            recommendations.append({
+                "title": "Standard Enhanced Review",
+                "description": "Some network risk indicators detected",
+                "priority": "medium",
+                "action": "Perform additional verification of key relationships"
+            })
+        else:
+            recommendations.append({
+                "title": "Proceed with Standard Process",
+                "description": "No significant network risk indicators detected",
+                "priority": "low",
+                "action": "Continue with standard onboarding procedures"
+            })
+        
+        # Step 9: Fetch actual network data for visualization
+        network_data = None
+        transaction_analysis = {}
+        
+        try:
+            from repositories.interfaces.network_repository import NetworkQueryParams
+            
+            # Build actual network for visualization
+            query_params = NetworkQueryParams(
+                center_entity_id=target_entity_id,
+                max_depth=min(max_depth, 2),  # Limit depth for performance
+                min_confidence=0.4,
+                only_active=True,
+                max_entities=50  # Reasonable limit for visualization
+            )
+            
+            network_response = await network_service.network_repo.build_entity_network(query_params)
+            
+            if network_response and network_response.nodes:
+                # Convert NetworkNode and NetworkEdge objects to dictionaries for JSON serialization
+                nodes = []
+                for node in network_response.nodes:
+                    nodes.append({
+                        "id": node.entity_id,
+                        "label": node.entity_name,
+                        "type": node.entity_type,
+                        "riskLevel": node.risk_level.value if hasattr(node.risk_level, 'value') else str(node.risk_level),
+                        "riskScore": getattr(node, 'risk_score', 0) * 100,  # Convert to 0-100 scale
+                        "isCenter": getattr(node, 'is_center', False),
+                        "connectionCount": getattr(node, 'connection_count', 0),
+                        "entityType": node.entity_type
+                    })
+                
+                edges = []
+                for edge in network_response.edges:
+                    edges.append({
+                        "id": f"{edge.source_id}-{edge.target_id}",
+                        "source": edge.source_id,
+                        "target": edge.target_id,
+                        "relationshipType": edge.relationship_type.value if hasattr(edge.relationship_type, 'value') else str(edge.relationship_type),
+                        "confidence": edge.confidence,
+                        "weight": edge.weight,
+                        "verified": edge.verified
+                    })
+                
+                network_data = {
+                    "nodes": nodes,
+                    "edges": edges,
+                    "metadata": {
+                        "centerEntityId": target_entity_id,
+                        "totalEntities": network_response.total_entities,
+                        "totalRelationships": network_response.total_relationships,
+                        "maxDepthReached": network_response.max_depth_reached
+                    },
+                    "statistics": network_response.statistics or {}  # Include statistics for frontend
+                }
+                
+                logger.info(f"🕸️ Network data fetched for visualization: {len(nodes)} nodes, {len(edges)} edges")
+            
+        except Exception as e:
+            logger.warning(f"Failed to fetch network data for visualization: {e}")
+            # Continue without network data - the risk analysis is still valuable
+        
+        # Step 9b: Add basic transaction analysis (simplified for now)
+        try:
+            # Enhanced transaction analysis using actual transactionsv2 collection
+            from repositories.impl.transaction_repository import TransactionRepository
+            from dependencies import get_database
+            
+            # Get transaction repository to query transactionsv2 collection
+            db = get_database()
+            transactions_collection = db.transactionsv2
+            transaction_repo = TransactionRepository(transactions_collection)
+            
+            # Get transaction activity for the target entity
+            transaction_activity = await transaction_repo.get_entity_transactions(
+                entity_id=target_entity_id,
+                limit=100,  # Analyze up to 100 recent transactions
+                skip=0
+            )
+            
+            # Calculate transaction risk metrics
+            transactions = transaction_activity.transactions if transaction_activity else []
+            total_volume = sum(t.amount for t in transactions)
+            high_risk_count = sum(1 for t in transactions if getattr(t, 'risk_score', 0) >= 70)
+            avg_risk_score = sum(getattr(t, 'risk_score', 0) for t in transactions) / len(transactions) if transactions else 0
+            
+            # Enhanced transaction analysis with real data
+            transaction_analysis = {
+                "transaction_risk_score": int(avg_risk_score),
+                "high_risk_transactions": high_risk_count,
+                "transaction_volume": int(total_volume),
+                "total_transactions": len(transactions),
+                "avg_transaction_amount": int(total_volume / len(transactions)) if transactions else 0,
+                "analysis_note": f"Analyzed {len(transactions)} transactions from transactionsv2 collection"
+            }
+            
+            logger.info(f"📊 Real transaction analysis completed for entity {target_entity_id}: {len(transactions)} transactions, ${total_volume:,.2f} volume, {high_risk_count} high-risk")
+            
+        except Exception as e:
+            logger.warning(f"Failed to analyze transactions from transactionsv2: {e}")
+            # Fallback to basic analysis
+            transaction_analysis = {
+                "transaction_risk_score": 0,
+                "high_risk_transactions": 0,
+                "transaction_volume": 0,
+                "total_transactions": 0,
+                "analysis_note": f"Transaction analysis not available: {str(e)}"
+            }
+
+        # Step 10: Prepare comprehensive response
+        response = {
+            "success": True,
+            "target_entity": {
+                "entity_id": target_entity_id,
+                "entity_name": top_entity.get("name", "Unknown"),
+                "entity_type": top_entity.get("entityType", "unknown"),
+                "hybrid_score": top_entity.get("hybridScore", 0),
+                "rank_in_results": 1  # Always first result
+            },
+            "network_data": network_data,  # Add network data for visualization
+            "comprehensive_risk_analysis": {
+                "overall_risk_score": comprehensive_risk_score,
+                "risk_level": risk_level,
+                "confidence": 0.85,
+                "risk_breakdown": {
+                    "base_entity_risk": base_risk,
+                    "relationship_network_risk": network_risk,
+                    "suspicious_pattern_risk": pattern_risk_score,
+                    "centrality_influence_risk": centrality_risk_score
+                }
+            },
+            "relationship_analysis": relationship_risk_analysis.get("risk_analysis", {}) if relationship_risk_analysis.get("success") else {},
+            "transaction_analysis": transaction_analysis,  # Add transaction analysis
+            "centrality_analysis": centrality_analysis if centrality_analysis.get("success") else {},
+            "suspicious_patterns": suspicious_patterns.get("patterns_detected", {}) if suspicious_patterns.get("success") else {},
+            "problematic_relationships": problematic_relationships,
+            "recommendations": recommendations,
+            "analysis_metadata": {
+                "analysis_timestamp": datetime.now().isoformat(),
+                "target_entity_source": "first_hybrid_search_result",
+                "analysis_depth": max_depth,
+                "risk_threshold_used": risk_threshold,
+                "total_network_entities_analyzed": relationship_risk_analysis.get("risk_analysis", {}).get("total_connections", 0) if relationship_risk_analysis.get("success") else 0
+            }
+        }
+        
+        logger.info(f"✅ Hybrid network risk analysis completed - Risk Level: {risk_level}, Score: {comprehensive_risk_score:.1f}")
+        
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Hybrid network risk analysis failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Network risk analysis failed: {str(e)}")
+
 @router.post("/deep-investigation")
 async def perform_deep_investigation(
     request: Dict[str, Any]

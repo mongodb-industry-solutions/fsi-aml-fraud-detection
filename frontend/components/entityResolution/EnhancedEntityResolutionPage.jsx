@@ -8,6 +8,7 @@ import { H1, H2, H3, Body, BackLink } from '@leafygreen-ui/typography';
 import { Tabs, Tab } from '@leafygreen-ui/tabs';
 import Icon from '@leafygreen-ui/icon';
 import Banner from '@leafygreen-ui/banner';
+import Badge from '@leafygreen-ui/badge';
 import { Spinner } from '@leafygreen-ui/loading-indicator';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
@@ -89,28 +90,87 @@ function EnhancedEntityResolutionPage() {
   };
 
   /**
-   * Handle network analysis initiation
+   * Handle enhanced network analysis for first hybrid search result
+   * 
+   * This method implements the enhanced workflow that analyzes the network risks
+   * of the TOP-RANKED entity from hybrid search results, not the input entity.
    */
   const handleNetworkAnalysis = async () => {
-    if (!workflowData.searchResults) return;
+    if (!workflowData.searchResults?.hybridResults?.length) {
+      setError('No hybrid search results available for network analysis');
+      return;
+    }
     
     setIsLoading(true);
     try {
-      const networkAnalysis = await enhancedEntityResolutionAPI.performNetworkAnalysis(
-        workflowData.entityInput,
-        workflowData.searchResults.topMatches
-      );
+      console.log('🎯 Starting enhanced network analysis for first hybrid search result');
+      
+      // Enhanced: Analyze the FIRST hybrid search result (highest ranked match)
+      const hybridNetworkRiskAnalysis = await enhancedEntityResolutionAPI.analyzeHybridNetworkRisk({
+        hybrid_results: workflowData.searchResults.hybridResults,
+        analysis_config: {
+          include_transaction_network: true,
+          detect_suspicious_patterns: true,
+          max_relationship_depth: 3,
+          risk_threshold: 0.6
+        }
+      });
+      
+      // Transform the enhanced analysis data for the existing UI components
+      const enhancedNetworkAnalysis = {
+        success: hybridNetworkRiskAnalysis.success,
+        targetEntity: hybridNetworkRiskAnalysis.targetEntity,
+        networkData: hybridNetworkRiskAnalysis.networkData || {
+          nodes: [],
+          edges: [],
+          metadata: {
+            centerEntityId: hybridNetworkRiskAnalysis.targetEntity.entity_id,
+            analysisType: 'hybrid_network_risk_analysis'
+          },
+          statistics: {}
+        },
+        comprehensiveRiskAnalysis: hybridNetworkRiskAnalysis.comprehensiveRiskAnalysis,
+        centralityMetrics: hybridNetworkRiskAnalysis.centralityAnalysis?.centrality_metrics || {},
+        transactionAnalysis: hybridNetworkRiskAnalysis.transactionAnalysis,  // Add transaction analysis
+        riskPropagation: {
+          networkRiskScore: hybridNetworkRiskAnalysis.comprehensiveRiskAnalysis?.overall_risk_score || 0,
+          riskLevel: hybridNetworkRiskAnalysis.comprehensiveRiskAnalysis?.risk_level || 'unknown',
+          riskBreakdown: hybridNetworkRiskAnalysis.comprehensiveRiskAnalysis?.risk_breakdown || {},
+          highRiskConnections: hybridNetworkRiskAnalysis.problematicRelationships?.length || 0,
+          riskClusters: hybridNetworkRiskAnalysis.suspiciousPatterns?.hub_entities || []
+        },
+        networkStatistics: hybridNetworkRiskAnalysis.networkData?.statistics || {
+          basic_metrics: {
+            total_nodes: hybridNetworkRiskAnalysis.networkData?.nodes?.length || 0,
+            total_edges: hybridNetworkRiskAnalysis.networkData?.edges?.length || 0,
+            avg_risk_score: null,
+            network_density: null
+          },
+          analysisDepth: hybridNetworkRiskAnalysis.analysisMetadata.analysis_depth,
+          totalConnections: hybridNetworkRiskAnalysis.analysisMetadata.total_network_entities_analyzed,
+          riskIndicators: hybridNetworkRiskAnalysis.problematicRelationships.length
+        },
+        hubEntities: [],
+        riskClusters: [],
+        // Enhanced data specific to hybrid network analysis
+        suspiciousPatterns: hybridNetworkRiskAnalysis.suspiciousPatterns,
+        problematicRelationships: hybridNetworkRiskAnalysis.problematicRelationships,
+        recommendations: hybridNetworkRiskAnalysis.recommendations,
+        analysisMetadata: hybridNetworkRiskAnalysis.analysisMetadata
+      };
       
       setWorkflowData(prev => ({
         ...prev,
-        networkAnalysis
+        networkAnalysis: enhancedNetworkAnalysis
       }));
       
       setCurrentStep(2);
       
+      console.log('✅ Enhanced network analysis completed for:', hybridNetworkRiskAnalysis.targetEntity.entity_name);
+      
     } catch (error) {
-      console.error('Network analysis failed:', error);
-      setError(error.message || 'Failed to analyze network');
+      console.error('❌ Enhanced network analysis failed:', error);
+      setError(error.message || 'Failed to analyze network risks for hybrid search result');
     } finally {
       setIsLoading(false);
     }
@@ -296,42 +356,170 @@ function EnhancedEntityResolutionPage() {
               originalEntityData={workflowData.entityInput}
               isLoading={isLoading}
             />
-            <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: spacing[2] }}>
+              <div style={{ textAlign: 'center', marginBottom: spacing[2] }}>
+                <Body weight="medium" style={{ color: palette.blue.dark2 }}>
+                  Ready for Enhanced Network Risk Analysis
+                </Body>
+                <Body style={{ fontSize: '12px', color: palette.gray.dark1, marginTop: spacing[1] }}>
+                  {workflowData.searchResults?.hybridResults?.length > 0 
+                    ? `Will analyze network risks for "${workflowData.searchResults.hybridResults[0]?.name || 'top match'}" (highest ranked result)`
+                    : 'Waiting for search results...'
+                  }
+                </Body>
+              </div>
               <Button
                 variant="primary"
                 size="large"
                 onClick={handleNetworkAnalysis}
-                disabled={isLoading || !workflowData.searchResults}
+                disabled={isLoading || !workflowData.searchResults?.hybridResults?.length}
                 leftGlyph={<Icon glyph="Diagram3" />}
               >
-                Analyze Network
+                Analyze Network Risks
               </Button>
             </div>
           </div>
         )}
 
-        {/* Step 2: Network Analysis */}
+        {/* Step 2: Enhanced Network Risk Analysis */}
         {currentStep === 2 && workflowData.networkAnalysis && (
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: spacing[4] }}>
-            <NetworkVisualizationCard
-              networkData={workflowData.networkAnalysis.networkData}
-              centerEntityId={workflowData.entityInput?.id}
-            />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[3] }}>
-              <Card style={{ padding: spacing[4] }}>
-                <H3 style={{ marginBottom: spacing[3] }}>Network Risk Analysis</H3>
-                <Body>
-                  Network analysis complete. Ready for entity classification.
-                </Body>
-                <Button
-                  variant="primary"
-                  onClick={handleClassification}
-                  disabled={isLoading}
-                  style={{ marginTop: spacing[3] }}
-                >
-                  Proceed to Classification
-                </Button>
-              </Card>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[4] }}>
+            {/* Enhanced Analysis Header */}
+            <Card style={{ padding: spacing[4], backgroundColor: palette.blue.light3 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: spacing[3] }}>
+                <Icon glyph="Diagram3" size={32} style={{ color: palette.blue.base }} />
+                <div>
+                  <H3 style={{ margin: 0, color: palette.blue.dark2 }}>
+                    Enhanced Network Risk Analysis Complete
+                  </H3>
+                  <Body style={{ color: palette.blue.dark1, marginTop: spacing[1] }}>
+                    Analyzed network risks for: <strong>{workflowData.networkAnalysis.targetEntity?.entity_name || 'Target Entity'}</strong> (top hybrid search result)
+                  </Body>
+                  {workflowData.networkAnalysis.comprehensiveRiskAnalysis && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2], marginTop: spacing[2] }}>
+                      <Body style={{ fontSize: '14px', fontWeight: '600' }}>
+                        Risk Level: 
+                      </Body>
+                      <Badge 
+                        variant={
+                          workflowData.networkAnalysis.comprehensiveRiskAnalysis.risk_level === 'critical' ? 'red' :
+                          workflowData.networkAnalysis.comprehensiveRiskAnalysis.risk_level === 'high' ? 'yellow' :
+                          workflowData.networkAnalysis.comprehensiveRiskAnalysis.risk_level === 'medium' ? 'lightgray' : 'green'
+                        }
+                      >
+                        {workflowData.networkAnalysis.comprehensiveRiskAnalysis.risk_level?.toUpperCase() || 'UNKNOWN'} 
+                        ({workflowData.networkAnalysis.comprehensiveRiskAnalysis.overall_risk_score?.toFixed(1) || '0.0'}/100)
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Card>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: spacing[4] }}>
+              <NetworkVisualizationCard
+                networkData={workflowData.networkAnalysis.networkData}
+                centerEntityId={workflowData.networkAnalysis.targetEntity?.entity_id || workflowData.networkAnalysis.networkData?.metadata?.centerEntityId}
+                networkStatistics={workflowData.networkAnalysis.networkStatistics}
+                riskPropagation={workflowData.networkAnalysis.riskPropagation}
+                centralityMetrics={workflowData.networkAnalysis.centralityMetrics}
+              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[3] }}>
+                {/* Risk Analysis Summary */}
+                {workflowData.networkAnalysis.comprehensiveRiskAnalysis && (
+                  <Card style={{ padding: spacing[4] }}>
+                    <H3 style={{ marginBottom: spacing[3] }}>Risk Analysis Summary</H3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[2] }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Body style={{ fontSize: '12px' }}>Base Entity Risk:</Body>
+                        <Body weight="medium">{workflowData.networkAnalysis.comprehensiveRiskAnalysis.risk_breakdown?.base_entity_risk?.toFixed(1) || '0.0'}%</Body>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Body style={{ fontSize: '12px' }}>Network Risk:</Body>
+                        <Body weight="medium">{workflowData.networkAnalysis.comprehensiveRiskAnalysis.risk_breakdown?.relationship_network_risk?.toFixed(1) || '0.0'}%</Body>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Body style={{ fontSize: '12px' }}>Pattern Risk:</Body>
+                        <Body weight="medium">{workflowData.networkAnalysis.comprehensiveRiskAnalysis.risk_breakdown?.suspicious_pattern_risk?.toFixed(1) || '0.0'}%</Body>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Body style={{ fontSize: '12px' }}>Centrality Risk:</Body>
+                        <Body weight="medium">{workflowData.networkAnalysis.comprehensiveRiskAnalysis.risk_breakdown?.centrality_influence_risk?.toFixed(1) || '0.0'}%</Body>
+                      </div>
+                    </div>
+                  </Card>
+                )}
+
+                {/* Transaction Analysis */}
+                {workflowData.networkAnalysis.transactionAnalysis && (
+                  <Card style={{ padding: spacing[4] }}>
+                    <H3 style={{ marginBottom: spacing[3] }}>Transaction Analysis</H3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[2] }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Body style={{ fontSize: '12px' }}>Transaction Risk Score:</Body>
+                        <Body weight="medium">{workflowData.networkAnalysis.transactionAnalysis.transaction_risk_score || '0'}/100</Body>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Body style={{ fontSize: '12px' }}>High Risk Transactions:</Body>
+                        <Body weight="medium">{workflowData.networkAnalysis.transactionAnalysis.high_risk_transactions || '0'}</Body>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Body style={{ fontSize: '12px' }}>Total Transactions:</Body>
+                        <Body weight="medium">{workflowData.networkAnalysis.transactionAnalysis.total_transactions || '0'}</Body>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Body style={{ fontSize: '12px' }}>Transaction Volume:</Body>
+                        <Body weight="medium">${workflowData.networkAnalysis.transactionAnalysis.transaction_volume?.toLocaleString() || '0'}</Body>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Body style={{ fontSize: '12px' }}>Avg Transaction Amount:</Body>
+                        <Body weight="medium">${workflowData.networkAnalysis.transactionAnalysis.avg_transaction_amount?.toLocaleString() || '0'}</Body>
+                      </div>
+                      {workflowData.networkAnalysis.transactionAnalysis.analysis_note && (
+                        <div style={{ padding: spacing[2], backgroundColor: palette.blue.light3, borderRadius: '4px', marginTop: spacing[1] }}>
+                          <Body style={{ fontSize: '11px', color: palette.blue.dark1 }}>
+                            {workflowData.networkAnalysis.transactionAnalysis.analysis_note}
+                          </Body>
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                )}
+
+                {/* Recommendations */}
+                {workflowData.networkAnalysis.recommendations && workflowData.networkAnalysis.recommendations.length > 0 && (
+                  <Card style={{ padding: spacing[4] }}>
+                    <H3 style={{ marginBottom: spacing[3] }}>Recommendations</H3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[2] }}>
+                      {workflowData.networkAnalysis.recommendations.slice(0, 2).map((rec, index) => (
+                        <div key={index} style={{ padding: spacing[2], backgroundColor: palette.gray.light3, borderRadius: '4px' }}>
+                          <Body weight="medium" style={{ fontSize: '12px', color: rec.priority === 'critical' ? palette.red.base : palette.blue.dark1 }}>
+                            {rec.title}
+                          </Body>
+                          <Body style={{ fontSize: '11px', color: palette.gray.dark1, marginTop: spacing[1] }}>
+                            {rec.description}
+                          </Body>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                )}
+
+                <Card style={{ padding: spacing[4] }}>
+                  <H3 style={{ marginBottom: spacing[3] }}>Next Steps</H3>
+                  <Body style={{ marginBottom: spacing[3] }}>
+                    Enhanced network risk analysis complete. Ready for entity classification.
+                  </Body>
+                  <Button
+                    variant="primary"
+                    onClick={handleClassification}
+                    disabled={isLoading}
+                    style={{ width: '100%' }}
+                  >
+                    Proceed to Classification
+                  </Button>
+                </Card>
+              </div>
             </div>
           </div>
         )}

@@ -8,7 +8,6 @@
 "use client";
 
 import React, { useMemo, useEffect, useRef, useState, useCallback } from 'react';
-import CytoscapeComponent from 'react-cytoscapejs';
 import { Body, H3 } from '@leafygreen-ui/typography';
 import Modal from '@leafygreen-ui/modal';
 import Icon from '@leafygreen-ui/icon';
@@ -294,20 +293,93 @@ const CytoscapeNetworkComponent = ({
     );
   }
 
+  // Add containerRef and cyRef
+  const containerRef = useRef(null);
+  const cyRef = useRef(null);
+
+  // Initialize Cytoscape when container and data are ready
+  useEffect(() => {
+    if (!containerRef.current || !elements.length) return;
+
+    // Destroy existing instance to prevent memory leaks
+    if (cyRef.current) {
+      cyRef.current.destroy();
+    }
+
+    try {
+      // Create cytoscape instance following the working pattern
+      cyRef.current = cytoscape({
+        container: containerRef.current,
+        elements: elements,
+        style: cytoscapeStyles,
+        layout: { 
+          name: 'cose',
+          animate: true,
+          animationDuration: 1000,
+          nodeDimensionsIncludeLabels: true,
+          nodeRepulsion: 8000,
+          idealEdgeLength: 100,
+          gravity: 0.1,
+          fit: true,
+          padding: 30
+        },
+        wheelSensitivity: 0.2,
+        minZoom: 0.3,
+        maxZoom: 3,
+        boxSelectionEnabled: true,
+        autoungrabify: false,
+        autounselectify: false,
+        autolock: false,
+        autoResizeContainer: false, // CRITICAL: Don't auto-resize container
+        pixelRatio: 1 // Fixed pixel ratio
+      });
+
+      // Add event listeners
+      cyRef.current.on('tap', 'node', (event) => {
+        const node = event.target;
+        setSelectedNode({
+          id: node.id(),
+          ...node.data()
+        });
+        setShowModal(true);
+      });
+
+      cyRef.current.on('tap', (event) => {
+        if (event.target === cyRef.current) {
+          setSelectedNode(null);
+        }
+      });
+
+      // Fit the graph after layout
+      cyRef.current.ready(() => {
+        cyRef.current.fit();
+        cyRef.current.center();
+      });
+
+    } catch (error) {
+      console.error('Error initializing Cytoscape:', error);
+    }
+
+    // Cleanup function
+    return () => {
+      if (cyRef.current) {
+        cyRef.current.destroy();
+        cyRef.current = null;
+      }
+    };
+  }, [elements]);
+
   return (
     <div className={className} style={containerStyle}>
-      {/* Cytoscape Graph Canvas */}
-      <CytoscapeComponent
-        elements={elements}
-        style={{ width: '100%', height: '100%' }}
-        stylesheet={cytoscapeStyles}
-        layout={{ name: 'preset' }} // We handle layout manually
-        cy={initializeCytoscape}
-        boxSelectionEnabled={true}
-        userPanningEnabled={true}
-        userZoomingEnabled={true}
-        autoungrabify={false}
-        autounselectify={false}
+      {/* Cytoscape Graph Container */}
+      <div 
+        ref={containerRef}
+        style={{ 
+          width: '100%', 
+          height: '100%',
+          minHeight: '400px',
+          backgroundColor: '#f7f8fa'
+        }}
       />
 
       {/* Layout Controls */}
@@ -600,21 +672,63 @@ const CytoscapeNetworkComponent = ({
           overflow: 'hidden',
           boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)'
         }}>
-          <CytoscapeComponent
-            elements={elements}
-            style={{ width: '100%', height: '100%' }}
-            stylesheet={cytoscapeStyles}
-            layout={{ name: 'preset' }}
-            cy={(cytoscapeInstance) => {
-              if (cytoscapeInstance && showFullscreenModal) {
-                initializeCytoscape(cytoscapeInstance);
+          {/* Fullscreen Cytoscape Container */}
+          <div 
+            style={{ 
+              width: '100%', 
+              height: '100%',
+              backgroundColor: '#f7f8fa'
+            }}
+            ref={(el) => {
+              if (el && showFullscreenModal && elements.length > 0) {
+                // Initialize fullscreen Cytoscape instance
+                setTimeout(() => {
+                  try {
+                    const fullscreenCy = cytoscape({
+                      container: el,
+                      elements: elements,
+                      style: cytoscapeStyles,
+                      layout: { 
+                        name: 'cose',
+                        animate: true,
+                        animationDuration: 1000,
+                        nodeDimensionsIncludeLabels: true,
+                        nodeRepulsion: 10000,
+                        idealEdgeLength: 120,
+                        gravity: 0.1,
+                        fit: true,
+                        padding: 50
+                      },
+                      wheelSensitivity: 0.2,
+                      minZoom: 0.1,
+                      maxZoom: 5,
+                      boxSelectionEnabled: true,
+                      autoungrabify: false,
+                      autounselectify: false,
+                      autolock: false,
+                      autoResizeContainer: false,
+                      pixelRatio: 1
+                    });
+
+                    // Add event listeners for fullscreen
+                    fullscreenCy.on('tap', 'node', (event) => {
+                      const node = event.target;
+                      setSelectedNode({
+                        id: node.id(),
+                        ...node.data()
+                      });
+                    });
+
+                    fullscreenCy.ready(() => {
+                      fullscreenCy.fit();
+                      fullscreenCy.center();
+                    });
+                  } catch (error) {
+                    console.error('Error initializing fullscreen Cytoscape:', error);
+                  }
+                }, 100);
               }
             }}
-            boxSelectionEnabled={true}
-            userPanningEnabled={true}
-            userZoomingEnabled={true}
-            autoungrabify={false}
-            autounselectify={false}
           />
           
           {/* Enhanced Legend for Fullscreen */}

@@ -49,6 +49,8 @@ function NetworkVisualizationCard({
    */
   const renderNetworkStatistics = () => {
     const stats = networkStatistics || {};
+    // Access the statistics from the correct nested structure
+    const networkStats = networkData?.statistics || {};
     
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[4] }}>
@@ -79,7 +81,7 @@ function NetworkVisualizationCard({
             </div>
             <div style={{ textAlign: 'center' }}>
               <Body weight="medium" style={{ fontSize: '18px' }}>
-                {stats.networkDensity ? (stats.networkDensity * 100).toFixed(1) : 'N/A'}%
+                {networkStats.network_density ? (networkStats.network_density * 100).toFixed(1) : 'N/A'}%
               </Body>
               <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>
                 Density
@@ -87,7 +89,7 @@ function NetworkVisualizationCard({
             </div>
             <div style={{ textAlign: 'center' }}>
               <Body weight="medium" style={{ fontSize: '18px' }}>
-                {stats.avgRiskScore || 'N/A'}
+                {networkStats.basic_metrics?.avg_risk_score ? networkStats.basic_metrics.avg_risk_score.toFixed(1) : 'N/A'}
               </Body>
               <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>
                 Avg Risk
@@ -213,30 +215,104 @@ function NetworkVisualizationCard({
         </Card>
 
         {/* Centrality Metrics */}
-        {Object.keys(centrality).length > 0 && (
+        {centrality && Object.keys(centrality).length > 0 && (
           <Card style={{ padding: spacing[3] }}>
             <H3 style={{ marginBottom: spacing[3], fontSize: '14px' }}>
               <Icon glyph="Diagram3" style={{ color: palette.blue.base, marginRight: spacing[1] }} />
               Network Centrality Analysis
             </H3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[2] }}>
-              {Object.entries(centrality).map(([metric, value]) => (
-                <div key={metric} style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  alignItems: 'center',
-                  padding: spacing[2],
-                  backgroundColor: palette.blue.light3,
-                  borderRadius: '6px'
-                }}>
-                  <Body style={{ fontSize: '13px', textTransform: 'capitalize' }}>
-                    {metric.replace(/([A-Z])/g, ' $1').trim()}
+              
+              {/* Show actual centrality metrics if available */}
+              {centrality.centrality_metrics && Object.keys(centrality.centrality_metrics).length > 0 && (
+                <div>
+                  <Body style={{ fontSize: '12px', fontWeight: '600', marginBottom: spacing[2] }}>
+                    Entity Centrality Scores
                   </Body>
-                  <Body weight="medium" style={{ fontSize: '13px' }}>
-                    {typeof value === 'number' ? value.toFixed(3) : value}
+                  {Object.entries(centrality.centrality_metrics).map(([entityId, metrics]) => (
+                    <div key={entityId} style={{ marginBottom: spacing[2] }}>
+                      <Body style={{ fontSize: '11px', color: palette.gray.dark1, marginBottom: spacing[1] }}>
+                        {entityId}
+                      </Body>
+                      {Object.entries(metrics).map(([metricName, metricValue]) => (
+                        <div key={metricName} style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center',
+                          padding: spacing[1],
+                          backgroundColor: palette.blue.light3,
+                          borderRadius: '4px',
+                          marginBottom: spacing[1]
+                        }}>
+                          <Body style={{ fontSize: '11px' }}>
+                            {metricName.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()}
+                          </Body>
+                          <Body weight="medium" style={{ fontSize: '11px' }}>
+                            {typeof metricValue === 'number' ? metricValue.toFixed(3) : String(metricValue)}
+                          </Body>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Show key entities */}
+              {centrality.key_entities && centrality.key_entities.length > 0 && (
+                <div>
+                  <Body style={{ fontSize: '12px', fontWeight: '600', marginBottom: spacing[1] }}>
+                    Key Network Entities: {centrality.key_entities.length}
+                  </Body>
+                  {centrality.key_entities.slice(0, 3).map((entity, idx) => (
+                    <div key={idx} style={{ 
+                      padding: spacing[1],
+                      backgroundColor: palette.yellow.light3,
+                      borderRadius: '4px',
+                      marginBottom: spacing[1]
+                    }}>
+                      <Body style={{ fontSize: '11px' }}>
+                        {entity.entity_id} (Score: {entity.importance_score?.toFixed(3) || 'N/A'})
+                      </Body>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Show insights */}
+              {centrality.insights && centrality.insights.length > 0 && (
+                <div>
+                  <Body style={{ fontSize: '12px', fontWeight: '600', marginBottom: spacing[1] }}>
+                    Network Insights
+                  </Body>
+                  {centrality.insights.map((insight, idx) => (
+                    <div key={idx} style={{ 
+                      padding: spacing[2],
+                      backgroundColor: palette.green.light3,
+                      borderRadius: '4px',
+                      marginBottom: spacing[1]
+                    }}>
+                      <Body style={{ fontSize: '11px' }}>
+                        {insight}
+                      </Body>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Show total entities analyzed */}
+              {centrality.total_entities && (
+                <div style={{ 
+                  padding: spacing[2],
+                  backgroundColor: palette.gray.light3,
+                  borderRadius: '4px',
+                  textAlign: 'center'
+                }}>
+                  <Body style={{ fontSize: '11px', color: palette.gray.dark1 }}>
+                    Analyzed {centrality.total_entities} entities in network
                   </Body>
                 </div>
-              ))}
+              )}
+              
             </div>
           </Card>
         )}

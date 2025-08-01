@@ -40,6 +40,7 @@ class NetworkDataResponse:
     total_relationships: int
     max_depth_reached: int
     query_time_ms: float
+    statistics: Optional[Dict[str, Any]] = None  # Add statistics field
 
 
 @dataclass

@@ -369,26 +369,125 @@ class NetworkAnalysisService:
         try:
             logger.info(f"Detecting suspicious patterns in {len(entity_ids)} entities")
             
-            # Detect patterns through repository
-            patterns = await self.network_repo.find_suspicious_patterns(
-                entity_ids=entity_ids,
-                pattern_types=pattern_types or ["circular_relationships", "hub_entities", "isolated_clusters"]
-            )
+            # Since find_suspicious_patterns is not implemented in the streamlined repository,
+            # we'll implement basic pattern detection using available methods
+            patterns_detected = {}
+            total_patterns = 0
             
-            # Analyze patterns for risk assessment
-            pattern_analysis = await self._analyze_suspicious_patterns(patterns)
+            # Pattern 1: Hub entities (check if target entities are hubs - OPTIMIZED)
+            if not pattern_types or "hub_entities" in pattern_types:
+                try:
+                    hub_entities = []
+                    # Instead of scanning all entities, check connection count for our target entities
+                    for entity_id in entity_ids:
+                        connections = await self.network_repo.get_entity_connections(
+                            entity_id=entity_id,
+                            max_depth=1,  # Only direct connections
+                            relationship_types=None,
+                            min_confidence=0.3
+                        )
+                        
+                        connection_count = len(connections) if connections else 0
+                        if connection_count >= 3:  # Hub threshold
+                            hub_entities.append({
+                                "entity_id": entity_id,
+                                "connection_count": connection_count,
+                                "pattern_type": "hub_entity",
+                                "confidence": min(1.0, connection_count / 10.0)  # Scale confidence
+                            })
+                            logger.info(f"Entity {entity_id} is a hub with {connection_count} connections")
+                    
+                    if hub_entities:
+                        patterns_detected["hub_entities"] = hub_entities
+                        total_patterns += len(hub_entities)
+                        logger.info(f"Detected {len(hub_entities)} hub entities among target entities")
+                    else:
+                        logger.info("No hub entities detected among target entities")
+                        patterns_detected["hub_entities"] = []
+                        
+                except Exception as e:
+                    logger.warning(f"Hub entity detection failed: {e}")
+                    patterns_detected["hub_entities"] = []
+            
+            # Pattern 2: High centrality entities (using centrality metrics as proxy)
+            if not pattern_types or "high_centrality" in pattern_types:
+                try:
+                    centrality_metrics = await self.network_repo.calculate_centrality_metrics(
+                        entity_ids=entity_ids,
+                        max_depth=2,
+                        include_advanced=True
+                    )
+                    
+                    high_centrality_entities = []
+                    for entity_id, metrics in centrality_metrics.items():
+                        # Consider entities with high degree centrality as potentially suspicious
+                        degree_centrality = metrics.get("degree_centrality", 0)
+                        if degree_centrality > 0.7:  # High centrality threshold
+                            high_centrality_entities.append({
+                                "entity_id": entity_id,
+                                "centrality_score": degree_centrality,
+                                "pattern_type": "high_centrality"
+                            })
+                    
+                    if high_centrality_entities:
+                        patterns_detected["high_centrality"] = high_centrality_entities
+                        total_patterns += len(high_centrality_entities)
+                        logger.info(f"Detected {len(high_centrality_entities)} high centrality entities")
+                except Exception as e:
+                    logger.warning(f"Centrality pattern detection failed: {e}")
+                    patterns_detected["high_centrality"] = []
+            
+            # Pattern 3: Risk concentration (simplified - check base entity risk only)  
+            if not pattern_types or "risk_concentration" in pattern_types:
+                risk_concentration_entities = []
+                
+                # Get entities from database to check their base risk scores
+                try:
+                    entity_collection = self.network_repo.entity_collection
+                    entities_cursor = entity_collection.find(
+                        {"entityId": {"$in": entity_ids}},
+                        {"entityId": 1, "riskAssessment": 1}
+                    )
+                    
+                    async for entity in entities_cursor:
+                        entity_id = entity.get("entityId")
+                        risk_assessment = entity.get("riskAssessment", {}).get("overall", {})
+                        base_risk_score = risk_assessment.get("score", 0)
+                        
+                        if base_risk_score > 70:  # High risk threshold
+                            risk_concentration_entities.append({
+                                "entity_id": entity_id,
+                                "base_risk_score": base_risk_score,
+                                "pattern_type": "risk_concentration",
+                                "confidence": min(1.0, base_risk_score / 100.0)
+                            })
+                            logger.info(f"Entity {entity_id} has high base risk: {base_risk_score}")
+                    
+                    if risk_concentration_entities:
+                        patterns_detected["risk_concentration"] = risk_concentration_entities
+                        total_patterns += len(risk_concentration_entities)
+                        logger.info(f"Detected {len(risk_concentration_entities)} high-risk entities")
+                    else:
+                        logger.info("No high-risk entities detected among target entities")
+                        
+                except Exception as e:
+                    logger.warning(f"Risk concentration analysis failed: {e}")
+                    patterns_detected["risk_concentration"] = []
             
             return {
                 "success": True,
                 "total_entities": len(entity_ids),
-                "patterns_detected": patterns,
-                "analysis": pattern_analysis
+                "total_patterns": total_patterns,
+                "patterns_detected": patterns_detected,
+                "analysis": await self._analyze_suspicious_patterns(patterns_detected)
             }
             
         except Exception as e:
             logger.error(f"Pattern detection failed: {e}")
             return {
                 "success": False,
+                "total_patterns": 0,
+                "patterns_detected": {},
                 "error": str(e)
             }
     

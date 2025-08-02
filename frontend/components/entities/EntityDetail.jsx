@@ -674,6 +674,23 @@ function ComprehensiveOverviewTab({ entity }) {
       {entity.addresses && entity.addresses.length > 0 && (
         <Card style={{ padding: spacing[4] }}>
           <H3 style={{ marginBottom: spacing[3] }}>Addresses</H3>
+          
+          {/* MongoDB Advantage for Address Storage */}
+          <div
+            style={{
+              padding: spacing[2],
+              background: palette.blue.light3,
+              borderRadius: '4px',
+              marginBottom: spacing[3]
+            }}
+          >
+            <Body style={{ fontSize: '12px', color: palette.blue.dark2 }}>
+              💡 <strong>MongoDB Advantage:</strong> Arrays of addresses and
+              contacts stored naturally as nested documents. PostgreSQL would
+              require separate tables with foreign keys, making queries complex
+              and slower.
+            </Body>
+          </div>
           {entity.addresses.map((address, index) => (
             <div key={index} style={{ 
               marginBottom: index < entity.addresses.length - 1 ? spacing[3] : 0,
@@ -984,6 +1001,45 @@ function ComprehensiveOverviewTab({ entity }) {
 
       {/* Entity Resolution Information */}
       <EntityResolutionDisplay resolution={entity.resolution} />
+      
+      {/* MongoDB Unified Data Model Card */}
+      <Card
+        style={{
+          background: palette.yellow.light3,
+          padding: spacing[3],
+          marginTop: spacing[3],
+          border: `1px solid ${palette.yellow.light1}`
+        }}
+      >
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'flex-start', 
+          gap: spacing[2] 
+        }}>
+          <Icon 
+            glyph="Link" 
+            size={16} 
+            fill={palette.yellow.dark2} 
+            style={{ marginTop: '2px' }}
+          />
+          <div>
+            <Body 
+              weight="medium" 
+              style={{ 
+                fontSize: '13px', 
+                color: palette.yellow.dark2,
+                marginBottom: spacing[1]
+              }}
+            >
+              Unified Data Model
+            </Body>
+            <Body style={{ fontSize: '12px', color: palette.yellow.dark1 }}>
+              All entity relationships, watchlist matches, and risk assessments in one document. 
+              No need for complex JOINs across 10+ tables like traditional RDBMS architectures.
+            </Body>
+          </div>
+        </div>
+      </Card>
 
       {/* Profile Summary */}
       {entity.profileSummaryText && (
@@ -1181,6 +1237,7 @@ function WatchlistTab({ watchlistMatches }) {
 }
 
 function NetworkAnalysisTab({ entity }) {
+  const router = useRouter();
   const [networkData, setNetworkData] = useState(null);
   const [maxDepth, setMaxDepth] = useState(2);
   const [minStrength, setMinStrength] = useState(0.5);
@@ -1188,7 +1245,6 @@ function NetworkAnalysisTab({ entity }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [networkStats, setNetworkStats] = useState(null);
-  const router = useRouter();
 
 
   const fetchNetworkData = async () => {
@@ -1281,6 +1337,7 @@ function NetworkAnalysisTab({ entity }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[4] }}>
+
       {/* Enhanced Network Controls */}
       <Card style={{ padding: spacing[4] }}>
         <H3 style={{ marginBottom: spacing[3] }}>
@@ -1378,18 +1435,48 @@ function NetworkAnalysisTab({ entity }) {
             </Button>
           </div>
         </div>
+        
+        {/* MongoDB Real-time Graph Traversal */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: spacing[2],
+            marginTop: spacing[3],
+            padding: spacing[2],
+            backgroundColor: palette.green.light3,
+            borderRadius: '8px',
+            border: `1px solid ${palette.green.light1}`
+          }}
+        >
+          <Icon 
+            glyph="Refresh" 
+            size={16} 
+            fill={palette.green.dark2} 
+            style={{ marginTop: '2px' }}
+          />
+          <div>
+            <Body 
+              weight="medium" 
+              style={{ 
+                fontSize: '13px', 
+                color: palette.green.dark2,
+                marginBottom: spacing[1]
+              }}
+            >
+              Real-time Graph Traversal
+            </Body>
+            <Body style={{ fontSize: '12px', color: palette.green.dark1 }}>
+              MongoDB's aggregation pipeline rebuilds this network instantly as you adjust
+              depth and confidence filters - no pre-computed graph tables or
+              cache invalidation needed.
+            </Body>
+          </div>
+        </div>
 
       </Card>
 
-      {/* Network Statistics Panel */}
-      <NetworkStatisticsPanel
-        statistics={networkData?.statistics}
-        loading={isLoading}
-        error={error}
-        centerEntityId={entity?.entityId}
-      />
-
-      {/* Network Visualization */}
+            {/* Network Visualization */}
       <Card style={{ padding: spacing[3] }}>
         <H3 style={{ marginBottom: spacing[3] }}>
           <Icon glyph="Charts" style={{ marginRight: spacing[2] }} />
@@ -1436,6 +1523,52 @@ function NetworkAnalysisTab({ entity }) {
           </div>
         )}
       </Card>
+
+      {/* MongoDB Graph Operations Without Neo4j */}
+      <Card style={{ 
+        background: palette.blue.light3, 
+        padding: spacing[4],
+        border: `1px solid ${palette.blue.light1}`
+      }}>
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'flex-start', 
+          gap: spacing[2],
+          marginBottom: spacing[3]
+        }}>
+          <div style={{ flex: 1 }}>
+            <H3 style={{ 
+              fontSize: '16px', 
+              color: palette.blue.dark2,
+              marginBottom: spacing[2]
+            }}>
+              Graph Operations Without Neo4j
+            </H3>
+            <Body style={{ fontSize: '13px', color: palette.blue.dark1, marginBottom: spacing[2] }}>
+              This network visualization leverages MongoDB's $graphLookup - no need for a
+              separate Neo4j instance. In PostgreSQL, this would require recursive CTEs
+              with severe performance penalties beyond 2 degrees.
+            </Body>
+            <Code 
+              language="javascript" 
+              style={{ fontSize: '12px' }}
+              showLineNumbers={false}
+            >
+              {`// Single MongoDB query replaces entire Neo4j deployment
+{ $graphLookup: { maxDepth: 4, restrictSearchWithMatch: {...} }}`}
+            </Code>
+          </div>
+        </div>
+      </Card>
+
+      {/* Network Statistics Panel */}
+      <NetworkStatisticsPanel
+        statistics={networkData?.statistics}
+        loading={isLoading}
+        error={error}
+        centerEntityId={entity?.entityId}
+      />
+    
       
       
       {/* Advanced Investigation Results Panel - Show when available */}
@@ -1508,6 +1641,46 @@ function ActivityAnalysisTab({ entity }) {
           Comprehensive analysis of entity activity patterns, transaction behaviors, 
           and risk assessment evolution over time.
         </Body>
+        
+        {/* MongoDB Transaction Analytics Advantage */}
+        <Card
+          style={{
+            background: palette.green.light3,
+            padding: spacing[2],
+            marginTop: spacing[3],
+            border: `1px solid ${palette.green.light1}`
+          }}
+        >
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'flex-start', 
+            gap: spacing[2] 
+          }}>
+            <Icon 
+              glyph="ActivityFeed" 
+              size={16} 
+              fill={palette.green.dark2} 
+              style={{ marginTop: '2px' }}
+            />
+            <div>
+              <Body 
+                weight="medium" 
+                style={{ 
+                  fontSize: '13px', 
+                  color: palette.green.dark2,
+                  marginBottom: spacing[1]
+                }}
+              >
+                Rich Transaction Context
+              </Body>
+              <Body style={{ fontSize: '12px', color: palette.green.dark1 }}>
+                MongoDB stores complete transaction documents with full context - parties, metadata, 
+                and risk signals in one place. SQL databases would scatter this across 5+ normalized 
+                tables, making pattern detection queries complex and slow.
+              </Body>
+            </div>
+          </div>
+        </Card>
       </Card>
 
       {/* Transaction Activity Table */}
@@ -1632,6 +1805,16 @@ export default function EntityDetail({ entityId }) {
           <div style={{ marginBottom: spacing[4] }}>
             <RiskScoreDisplay riskAssessment={entity.riskAssessment} />
           </div>
+          
+          {/* MongoDB Schema Flexibility Callout */}
+          <Callout variant="note" style={{ marginBottom: spacing[4] }}>
+            <strong>Schema Flexibility in Action:</strong> The
+            entity document contains nested addresses, dynamic identifier types,
+            and optional fields - all without rigid table schemas or migrations.
+            New compliance requirements? Add fields immediately without
+            downtime.
+          </Callout>
+          
           <SimilarProfilesSection entity={entity} />
         </div>
 

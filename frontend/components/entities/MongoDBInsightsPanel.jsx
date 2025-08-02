@@ -146,6 +146,29 @@ export default function MongoDBInsightsPanel({
           <H3 style={{ margin: 0 }}>MongoDB Atlas Search Insights</H3>
         </div>
 
+        {/* MongoDB Advantage */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: spacing[2],
+            marginTop: spacing[2],
+            marginBottom: spacing[3],
+            padding: spacing[2],
+            backgroundColor: palette.green.light3,
+            borderRadius: '8px'
+          }}
+        >
+          <Icon glyph="Sparkle" fill={palette.green.base} />
+          <Body style={{ fontSize: '12px', color: palette.green.dark2 }}>
+            <strong>MongoDB Advantage:</strong> Real-time fuzzy matching with 
+            autocomplete powered by MongoDB's native full-text search.Faceted 
+            search aggregations computed in real-time without separate OLAP systems or
+            pre-computed views. Elasticsearch would require separate cluster
+            management and data synchronization.
+          </Body>
+        </div>
+
         {/* Real-time Status */}
         <div style={{ 
           display: 'flex', 

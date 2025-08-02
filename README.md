@@ -313,7 +313,41 @@ ThreatSight 360 leverages MongoDB Atlas Vector Search for advanced fraud pattern
    }
    ```
 
-#### 3. Entity Vector Search Index (Optional)
+#### 3. Entity Text Search Index
+
+For enhanced entity text matching, create an Atlas Search index named "entity_text_search_index":
+
+```json
+{
+  "mappings": {
+    "dynamic": false,
+    "fields": {
+      "name": {
+        "type": "document",
+        "fields": {
+          "full": { "type": "string" },
+          "aliases": { "type": "string" }
+        }
+      },
+      "addresses": {
+        "type": "document",
+        "fields": {
+          "full": { "type": "string" }
+        }
+      },
+      "entityType": { "type": "string" },
+      "identifiers": {
+        "type": "document",
+        "fields": {
+          "value": { "type": "string" }
+        }
+      }
+    }
+  }
+}
+```
+
+#### 4. Entity Vector Search Index (Optional)
 
 For semantic entity matching, create a vector search index named "entity_vector_search_index":
 
@@ -432,6 +466,7 @@ FRONTEND_URL=http://localhost:3000
 
 # Atlas Search Configuration
 ATLAS_SEARCH_INDEX=entity_resolution_search
+ATLAS_TEXT_SEARCH_INDEX=entity_text_search_index
 ENTITY_VECTOR_INDEX=entity_vector_search_index
 
 # Performance Tuning
@@ -542,10 +577,15 @@ The Transaction Simulator allows you to test and visualize how the fraud detecti
 5. Click "Evaluate Transaction" to analyze the risk profile.
 
 6. Review the comprehensive risk assessment, including:
-   - Traditional risk assessment based on rules and patterns
-   - Advanced vector search for similar suspicious transactions
-   - Multi-factor risk scoring with detailed breakdown
-   - Context-aware filtering that prioritizes relevant transactions
+   - **Traditional Risk Assessment**: Rules-based evaluation with fraud pattern detection
+   - **Advanced Vector Search**: AI-powered similarity matching against historical transactions
+   - **Vector Search Calculation Transparency**: Detailed mathematical breakdown showing:
+     - Step-by-step weight calculations for each similar transaction
+     - Weighted average computation methodology
+     - Multiple high-risk match boost calculations
+     - Algorithm effectiveness explanations
+   - **Context-aware Filtering**: Smart prioritization of relevant similar transactions
+   - **Multi-factor Risk Scoring**: Comprehensive risk evaluation with detailed explanations
 
 > [!Note]
 > The simulator is a powerful tool for understanding how the system works and for demonstrating the capabilities to stakeholders.
@@ -560,7 +600,7 @@ The Entity Management interface provides comprehensive AML/KYC capabilities:
 
    - **Advanced Search**: Multi-strategy search with Atlas Search, autocomplete, and faceted filtering
    - **Entity Resolution**: AI-powered fuzzy matching and duplicate detection during onboarding
-   - **Network Visualization**: Interactive relationship graphs using Reagraph
+   - **Network Visualization**: Interactive relationship graphs using Cytoscape.js
    - **Risk Assessment**: Comprehensive entity risk scoring and watchlist matching
    - **Compliance Workflows**: AML/KYC onboarding and resolution processes
 
@@ -581,25 +621,29 @@ The Entity Management interface provides comprehensive AML/KYC capabilities:
 
 The Entity Resolution feature helps identify potential duplicates during customer onboarding:
 
-1. Navigate to [http://localhost:3000/entity-resolution](http://localhost:3000/entity-resolution).
+1. Navigate to [http://localhost:3000/entity-resolution/enhanced](http://localhost:3000/entity-resolution/enhanced).
 
-2. Enter new customer information including:
-   - Name and entity type
-   - Address information
-   - Contact details
-   - Identifiers (SSN, passport, etc.)
+2. Enter new customer information using the simplified onboarding form:
+   - Entity Type (Individual or Organization)
+   - Full Name
+   - Address
 
-3. The system performs AI-powered fuzzy matching to find potential duplicates:
-   - Atlas Search-based name matching
-   - Address similarity analysis
-   - Identifier cross-referencing
-   - Confidence scoring and match reasoning
+3. The system performs comprehensive AI-powered search using three methods:
+   - **Atlas Search**: Text-based fuzzy matching on names and addresses
+   - **Vector Search**: Semantic similarity analysis using AI embeddings
+   - **Hybrid Search**: MongoDB $rankFusion combining both approaches with contribution analysis
 
-4. Review potential matches with detailed explanations:
-   - Match confidence scores
-   - Reason codes for matches
-   - Side-by-side entity comparison
-   - Recommended actions (merge, keep separate, manual review)
+4. Review search results across three tabs with expandable query details:
+   - View actual MongoDB queries executed for each search method
+   - See contribution percentages for hybrid search results
+   - Click entity names to open detailed modal views
+   - Analyze match confidence scores and reasoning
+
+5. Enhanced features include:
+   - **Query Transparency**: Expandable cards showing exact MongoDB aggregation pipelines
+   - **Contribution Analysis**: Percentage breakdown of Atlas vs Vector search contributions
+   - **Network Visualization**: Interactive relationship graphs for matched entities
+   - **Real-time Search**: Instant results with optimized MongoDB operations
 
 ### Risk Model Management
 
@@ -617,6 +661,7 @@ The Risk Model Management interface allows administrators to configure and deplo
    - **Model Activation**: Easily switch between different models
    - **Performance Metrics**: Track effectiveness with false positive/negative rates
    - **Custom Thresholds**: Configure flag and block thresholds for each model
+   - **Model Reset Functionality**: Reset models to clean state by removing version 2 models and setting default configurations
 
 4. To create a new risk model:
    - Click "Create New Model"
@@ -624,6 +669,11 @@ The Risk Model Management interface allows administrators to configure and deplo
    - Add risk factors with appropriate weights and thresholds
    - Set overall model thresholds
    - Save and optionally activate the model
+
+5. To reset models to default state:
+   - Click "Reset Models" (located on the far right of the action buttons)
+   - This will delete all version 2 models, set `default-risk-model` to active, and set `behavioral-risk-model` to inactive
+   - Useful for returning to a clean baseline during testing or demos
 
 > [!Important]
 > All changes are reflected in real-time across all connected sessions thanks to MongoDB Change Streams.
@@ -755,10 +805,11 @@ Both backend services provide comprehensive API documentation:
 
 #### Fraud Detection Backend (Port 8000)
 
-- `POST /transactions/evaluate` - Evaluate transaction for fraud risk
+- `POST /transactions/evaluate` - Evaluate transaction for fraud risk with vector search calculation details
 - `GET /customers/{customer_id}` - Get customer profile and transaction history
 - `GET /risk-models` - List available risk models
 - `POST /risk-models` - Create new risk model
+- `POST /risk-models/reset` - Reset models to default state (remove v2, activate default, deactivate behavioral)
 
 #### AML/KYC Backend (Port 8001)
 

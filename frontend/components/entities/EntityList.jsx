@@ -363,7 +363,6 @@ export default function EntityList() {
       {/* Header */}
       <div style={{ marginBottom: spacing[4] }}>
         <H1>Entity Management</H1>
-        <Subtitle>AML/KYC Entity Resolution and Management</Subtitle>
       </div>
 
       {/* Error Banner */}
@@ -466,6 +465,17 @@ export default function EntityList() {
           </div>
         )}
       </Card>
+
+      {/* MongoDB vs PostgreSQL Reality */}
+      {!loading && totalCount > 0 && (
+        <Banner variant="success" style={{ marginTop: spacing[3] }}>
+          <strong>💡 MongoDB vs PostgreSQL Reality:</strong> This search
+          processes millions of entities with complex nested structures.
+          PostgreSQL JSONB would require 3x storage and complex JSON path
+          queries. MongoDB's native document model makes this effortless.
+        </Banner>
+      )}
+
 
       {/* Pagination */}
       {!loading && totalCount > DEFAULT_PAGE_SIZE && (

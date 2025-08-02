@@ -41,8 +41,8 @@ export default function ClientLayout({ children }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
             <div
               style={{
-                width: '120px',
-                height: '120px',
+                width: '60px',
+                height: '60px',
                 borderRadius: '50%',
                 background: 'rgba(255, 255, 255, 0.9)',
                 backdropFilter: 'blur(10px)',
@@ -56,8 +56,8 @@ export default function ClientLayout({ children }) {
               <Image
                 src="/threatsight logo.png"
                 alt="ThreatSight360 Logo"
-                width={100}
-                height={100}
+                width={50}
+                height={50}
                 style={{ 
                   objectFit: 'contain',
                 }}
@@ -136,7 +136,7 @@ export default function ClientLayout({ children }) {
                       e.currentTarget.style.backgroundColor = 'transparent';
                     }}
                   >
-                    <Icon glyph="Home" fill={palette.gray.light3} /> 
+                    <Icon glyph="Home" fill={palette.gray.light3} size={16} /> 
                     <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>Home</Body>
                   </Link>
                 </li>
@@ -160,7 +160,7 @@ export default function ClientLayout({ children }) {
                       e.currentTarget.style.backgroundColor = 'transparent';
                     }}
                   >
-                    <Icon glyph="CreditCard" fill={palette.gray.light3} /> 
+                    <Icon glyph="CreditCard" fill={palette.gray.light3} size={16} /> 
                     <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>Transaction Simulator</Body>
                   </Link>
                 </li>
@@ -184,7 +184,7 @@ export default function ClientLayout({ children }) {
                       e.currentTarget.style.backgroundColor = 'transparent';
                     }}
                   >
-                    <Icon glyph="Settings" fill={palette.gray.light3} /> 
+                    <Icon glyph="Settings" fill={palette.gray.light3} size={16} /> 
                     <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>Risk Models</Body>
                   </Link>
                 </li>
@@ -208,7 +208,7 @@ export default function ClientLayout({ children }) {
                       e.currentTarget.style.backgroundColor = 'transparent';
                     }}
                   >
-                    <Icon glyph="Person" fill={palette.gray.light3} /> 
+                    <Icon glyph="Person" fill={palette.gray.light3} size={16} /> 
                     <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>Entity Management</Body>
                   </Link>
                 </li>
@@ -232,7 +232,7 @@ export default function ClientLayout({ children }) {
                       e.currentTarget.style.backgroundColor = 'transparent';
                     }}
                   >
-                    <Icon glyph="Relationship" fill={palette.gray.light3} /> 
+                    <Icon glyph="Relationship" fill={palette.gray.light3} size={16} /> 
                     <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>Entity Resolution</Body>
                   </Link>
                 </li>

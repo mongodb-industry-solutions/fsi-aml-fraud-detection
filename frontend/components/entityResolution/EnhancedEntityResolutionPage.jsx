@@ -9,6 +9,7 @@ import { Tabs, Tab } from '@leafygreen-ui/tabs';
 import Icon from '@leafygreen-ui/icon';
 import Banner from '@leafygreen-ui/banner';
 import Badge from '@leafygreen-ui/badge';
+import Callout from '@leafygreen-ui/callout';
 import { Spinner } from '@leafygreen-ui/loading-indicator';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
@@ -357,6 +358,14 @@ function EnhancedEntityResolutionPage() {
               isLoading={isLoading}
             />
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: spacing[2] }}>
+              {/* MongoDB Single Database Advantage */}
+              <Callout variant="tip" style={{ marginBottom: spacing[3], width: '100%' }}>
+                <strong>Single Database, Multiple Search Types:</strong> Atlas
+                Search, Vector Search, and Hybrid Search all run within the same
+                MongoDB cluster - eliminating data movement and reducing operational
+                complexity that comes with Elasticsearch + Vector DB architectures.
+              </Callout>
+              
               <div style={{ textAlign: 'center', marginBottom: spacing[2] }}>
                 <Body weight="medium" style={{ color: palette.blue.dark2 }}>
                   Ready for Enhanced Network Risk Analysis

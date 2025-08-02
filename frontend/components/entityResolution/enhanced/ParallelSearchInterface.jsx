@@ -6,6 +6,7 @@ import ExpandableCard from '@leafygreen-ui/expandable-card';
 import Button from '@leafygreen-ui/button';
 import Modal from '@leafygreen-ui/modal';
 import Code from '@leafygreen-ui/code';
+import Callout from '@leafygreen-ui/callout';
 import { H3, Body, Label } from '@leafygreen-ui/typography';
 import { Table, TableBody, TableHead, HeaderRow, HeaderCell, Row, Cell } from '@leafygreen-ui/table';
 import Icon from '@leafygreen-ui/icon';
@@ -618,11 +619,26 @@ function ParallelSearchInterface({ searchResults, originalEntityData, isLoading 
               alignItems: 'center',
               marginBottom: spacing[3]
             }}>
-              <H3 style={{ margin: 0, fontSize: '16px' }}>Traditional Atlas Search</H3>
               <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>
-                Fuzzy matching based on name, address, and identifiers
+                Fuzzy matching based on name, address, and entity type
               </Body>
             </div>
+            
+            {/* MongoDB Atlas Search Advantage */}
+            <div
+              style={{
+                padding: spacing[2],
+                background: palette.green.light3,
+                borderRadius: '4px',
+                marginBottom: spacing[3]
+              }}
+            >
+              <Body style={{ fontSize: '12px', color: palette.green.dark2 }}>
+                <strong>Atlas Search Advantage:</strong> Built-in full-text search with automatic index synchronization. 
+                No separate search cluster to manage, no data sync delays, no additional operational overhead.
+              </Body>
+            </div>
+            
             {renderIndividualResultsTable(atlasResults, 'Atlas')}
           </div>
         )}
@@ -636,11 +652,30 @@ function ParallelSearchInterface({ searchResults, originalEntityData, isLoading 
               alignItems: 'center',
               marginBottom: spacing[3]
             }}>
-              <H3 style={{ margin: 0, fontSize: '16px' }}>AI Vector Search</H3>
               <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>
                 Semantic similarity using AI embeddings
               </Body>
             </div>
+            
+            {/* MongoDB Vector Search Advantage */}
+            <div
+              style={{
+                padding: spacing[2],
+                background: palette.purple.light3,
+                borderRadius: '4px',
+                marginBottom: spacing[3]
+              }}
+            >
+              <Body style={{ fontSize: '12px', color: palette.purple.dark2, marginBottom: spacing[1] }}>
+                <strong>Vector Search Performance:</strong> MongoDB outperforms pgvector at scale:
+              </Body>
+              <Body style={{ fontSize: '11px', color: palette.purple.dark1, lineHeight: '1.6' }}>
+                pgvector: 1+ hour index build for 900K vectors vs MongoDB: minutes for millions • 
+                pgvector degrades beyond 10M vectors, requires extensions • 
+                MongoDB provides native vector support with no extensions needed
+              </Body>
+            </div>
+            
             {renderIndividualResultsTable(vectorResults, 'Vector')}
           </div>
         )}
@@ -654,29 +689,28 @@ function ParallelSearchInterface({ searchResults, originalEntityData, isLoading 
               alignItems: 'center',
               marginBottom: spacing[3]
             }}>
-              <H3 style={{ margin: 0, fontSize: '16px' }}>MongoDB $rankFusion Hybrid Search</H3>
               <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>
-                Optimized fusion of Atlas and Vector search using native MongoDB algorithms
+                Optimized fusion of Full-text and Vector search using native MongoDB algorithms
+              </Body>
+            </div>
+            
+            {/* MongoDB $rankFusion Advantage */}
+            <div
+              style={{
+                padding: spacing[2],
+                background: palette.yellow.light3,
+                borderRadius: '4px',
+                marginBottom: spacing[3]
+              }}
+            >
+              <Body style={{ fontSize: '12px', color: palette.yellow.dark2 }}>
+                <strong>$rankFusion Advantage:</strong> MongoDB's native Reciprocal Rank Fusion combines 
+                multiple search methods in a single aggregation - no manual score weighting or external 
+                orchestration needed.
               </Body>
             </div>
             
             {/* Hybrid Search Info Panel */}
-            {hybridResults.length > 0 && (
-              <Card style={{ 
-                padding: spacing[3], 
-                marginBottom: spacing[3],
-                backgroundColor: palette.green.light3
-              }}>
-                <H3 style={{ fontSize: '14px', marginBottom: spacing[2] }}>
-                  🔀 Reciprocal Rank Fusion (RRF)
-                </H3>
-                <Body style={{ fontSize: '12px' }}>
-                  MongoDB's native $rankFusion combines Atlas Search and Vector Search results using reciprocal rank fusion algorithm. 
-                  The hybrid score represents the optimized ranking from both search methods.
-                </Body>
-              </Card>
-            )}
-            
             {renderHybridResultsTable(hybridResults)}
           </div>
         )}

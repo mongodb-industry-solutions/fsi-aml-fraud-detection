@@ -129,8 +129,6 @@ const ModelAdminPanel = () => {
   const [comparisonData, setComparisonData] = useState(null);
   const [showComparison, setShowComparison] = useState(false);
 
-  // State for filtering
-  const [statusFilter, setStatusFilter] = useState('');
 
   // Fetch details for a specific model
   const fetchModelDetails = React.useCallback(
@@ -195,14 +193,7 @@ const ModelAdminPanel = () => {
   // Fetch risk models from API
   const fetchModels = React.useCallback(async () => {
     try {
-      // Build query string with filters
-      let url = `${BACKEND_URL}/models/`;
-
-      if (statusFilter) {
-        url += `?status=${statusFilter}`;
-      }
-
-      const response = await fetch(url);
+      const response = await fetch(`${BACKEND_URL}/models/`);
       if (!response.ok) throw new Error('Failed to fetch models');
 
       const data = await response.json();
@@ -227,7 +218,7 @@ const ModelAdminPanel = () => {
       console.error('Error fetching models:', error);
       showToast('Failed to load risk models', 'error');
     }
-  }, [showToast, selectedModelId, statusFilter]);
+  }, [showToast, selectedModelId]);
 
   // Set up useEffect hooks after all callbacks are defined
 
@@ -780,52 +771,40 @@ const ModelAdminPanel = () => {
     }
   };
 
-  // Archive a model
-  const handleArchiveModel = async () => {
+
+  // Reset models to clean state
+  const handleResetModels = async () => {
     try {
-      console.log('Archiving model in MongoDB:', selectedModelId);
+      console.log('Resetting models - deleting version 2, setting default as active, behavioral as inactive');
+      
+      const response = await fetch(`${BACKEND_URL}/models/reset`, {
+        method: 'POST'
+      });
 
-      // Extract both model ID and version
-      const parts = selectedModelId.split('-v');
-      const baseModelId = parts[0];
-      const version =
-        parts.length > 1 ? parseInt(parts[1]) : undefined;
-
-      // Include version as a query parameter
-      let url = `${BACKEND_URL}/models/${baseModelId}`;
-      if (version) {
-        url += `?version=${version}`;
-      }
-
-      const response = await fetch(url, { method: 'DELETE' });
-
-      if (!response.ok) throw new Error('Failed to archive model');
+      if (!response.ok) throw new Error('Failed to reset models');
 
       const result = await response.json();
-      console.log('MongoDB archive result:', result);
+      console.log('MongoDB reset result:', result);
 
-      showToast('Risk model archived in MongoDB', 'success');
+      showToast('Models reset: version 2 deleted, default-risk-model active, behavioral-risk-model inactive', 'success');
 
-      // Refresh models list to get all status changes
+      // Refresh models list to get the updated models
       await fetchModels();
-
-      // If the archived model was selected, select another active model
-      if (selectedModelId.split('-v')[0] === baseModelId) {
+      
+      // Select the active default-risk-model after reset
+      setTimeout(() => {
         const activeModel = models.find(
-          (model) =>
-            model.status === 'active' && model.modelId !== baseModelId
+          (model) => model.modelId === 'default-risk-model' && model.status === 'active'
         );
-
         if (activeModel) {
           const compositeId = `${activeModel.modelId}-v${activeModel.version}`;
           setSelectedModelId(compositeId);
-        } else {
-          setSelectedModelId(null);
+          setSelectedModel(activeModel);
         }
-      }
+      }, 500); // Small delay to ensure models list is updated
     } catch (error) {
-      console.error('Error archiving model in MongoDB:', error);
-      showToast('Failed to archive risk model', 'error');
+      console.error('Error resetting models in MongoDB:', error);
+      showToast('Failed to reset risk models', 'error');
     }
   };
 
@@ -1165,62 +1144,6 @@ const ModelAdminPanel = () => {
             </Button>
           </div>
 
-          {/* Status Filter */}
-          <div style={{ marginBottom: spacing[3] }}>
-            <Label>Filter by Status</Label>
-            <div
-              style={{
-                display: 'flex',
-                gap: spacing[2],
-                marginTop: spacing[1],
-                flexWrap: 'wrap',
-              }}
-            >
-              <Button
-                size="small"
-                variant={statusFilter === '' ? 'primary' : 'default'}
-                onClick={() => setStatusFilter('')}
-              >
-                All
-              </Button>
-              <Button
-                size="small"
-                variant={
-                  statusFilter === 'active' ? 'primary' : 'default'
-                }
-                onClick={() => setStatusFilter('active')}
-              >
-                Active
-              </Button>
-              <Button
-                size="small"
-                variant={
-                  statusFilter === 'draft' ? 'primary' : 'default'
-                }
-                onClick={() => setStatusFilter('draft')}
-              >
-                Draft
-              </Button>
-              <Button
-                size="small"
-                variant={
-                  statusFilter === 'inactive' ? 'primary' : 'default'
-                }
-                onClick={() => setStatusFilter('inactive')}
-              >
-                Inactive
-              </Button>
-              <Button
-                size="small"
-                variant={
-                  statusFilter === 'archived' ? 'primary' : 'default'
-                }
-                onClick={() => setStatusFilter('archived')}
-              >
-                Archived
-              </Button>
-            </div>
-          </div>
 
           {/* Model Selection */}
           <div style={{ marginBottom: spacing[4] }}>
@@ -1381,15 +1304,6 @@ const ModelAdminPanel = () => {
                     </Button>
                   )}
 
-                  {selectedModel.status !== 'archived' && (
-                    <Button
-                      variant="danger"
-                      onClick={handleArchiveModel}
-                    >
-                      Archive Model
-                    </Button>
-                  )}
-
                   {!editMode &&
                     selectedModel.status !== 'archived' && (
                       <Button
@@ -1399,6 +1313,13 @@ const ModelAdminPanel = () => {
                         Edit Model
                       </Button>
                     )}
+
+                  <Button
+                    variant="danger"
+                    onClick={handleResetModels}
+                  >
+                    Reset Models
+                  </Button>
                 </div>
               </div>
 

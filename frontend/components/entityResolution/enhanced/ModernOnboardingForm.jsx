@@ -305,7 +305,7 @@ function ModernOnboardingForm({ onSubmit, isLoading = false }) {
           }}>
             <Body style={{ color: '#6B7280', fontSize: '12px' }}>
               <Icon glyph="InfoWithCircle" style={{ marginRight: spacing[1] }} />
-              This will initiate parallel Atlas and Vector search analysis
+              This will initiate parallel MongoDB Full-text, Vector and Hybrid search analysis
             </Body>
             
             <div style={{ display: 'flex', gap: spacing[2] }}>
@@ -328,19 +328,6 @@ function ModernOnboardingForm({ onSubmit, isLoading = false }) {
           </div>
         </form>
       </Card>
-
-      {/* Information Banner */}
-      <Banner variant="info">
-        <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2] }}>
-          <Icon glyph="Lightbulb" />
-          <div>
-            <Body weight="medium">Enhanced Analysis Features</Body>
-            <Body style={{ fontSize: '12px', marginTop: '2px' }}>
-              • Parallel Atlas & Vector Search • Network Graph Traversal • Risk Classification • Deep Investigation
-            </Body>
-          </div>
-        </div>
-      </Banner>
     </div>
   );
 }

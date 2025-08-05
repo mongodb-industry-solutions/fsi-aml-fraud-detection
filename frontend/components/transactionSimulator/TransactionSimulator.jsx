@@ -717,7 +717,7 @@ Device: ${transactionData.device_info?.type || 'N/A'}, ${transactionData.device_
           fontSize: '12px'
         }}>
           <Icon glyph="Database" fill={palette.blue.base} size="small" />
-          Powered by MongoDB Atlas
+          Powered by MongoDB
         </Description>
       </div>
       

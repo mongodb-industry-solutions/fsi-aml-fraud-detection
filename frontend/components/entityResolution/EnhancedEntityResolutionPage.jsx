@@ -251,9 +251,7 @@ function EnhancedEntityResolutionPage() {
     <div style={{ padding: spacing[4], maxWidth: '1400px', margin: '0 auto' }}>
       {/* Header Section */}
       <div style={{ marginBottom: spacing[4] }}>
-        <BackLink onClick={() => router.push('/entity-resolution')}>
-          Back to Entity Resolution
-        </BackLink>
+
         
         <div style={{ 
           display: 'flex', 

@@ -7,137 +7,199 @@ import { H1, H2, H3, Subtitle, Body, Description, Link as LGLink } from "@leafyg
 import { spacing } from "@leafygreen-ui/tokens";
 import { palette } from "@leafygreen-ui/palette";
 import Icon from "@leafygreen-ui/icon";
+import Badge from "@leafygreen-ui/badge";
+import Image from "next/image";
 
 export default function HomepageClient() {
+  const cardHoverStyles = {
+    onMouseEnter: (e) => {
+      e.currentTarget.style.transform = 'translateY(-2px)';
+      e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.12)';
+    },
+    onMouseLeave: (e) => {
+      e.currentTarget.style.transform = 'translateY(0)';
+      e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)';
+    }
+  };
+
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px' }}>
       <Card style={{ 
         textAlign: 'center', 
-        marginBottom: spacing[4], 
-        padding: spacing[4],
-        backgroundColor: palette.green.light3,
+        marginBottom: spacing[5], 
+        padding: spacing[5],
+        background: `linear-gradient(135deg, ${palette.green.light3} 0%, ${palette.green.light2} 100%)`,
         borderRadius: '24px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
         border: `1px solid ${palette.green.light1}`
       }}>
-        <H1>
-          ThreatSight 360
-        </H1>
-        <H3 style={{ color: palette.gray.dark1, marginBottom: spacing[3] }}>
-          Advanced Fraud Detection for Financial Services
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: spacing[3], marginBottom: spacing[2] }}>
+          <Image 
+            src="/threatsight logo.png" 
+            alt="ThreatSight Logo" 
+            width={60} 
+            height={60}
+            style={{ borderRadius: '8px' }}
+          />
+          <H1 style={{ margin: 0 }}>
+            ThreatSight 360
+          </H1>
+        </div>
+        <H3 style={{ color: palette.gray.dark1, marginBottom: spacing[4], maxWidth: '800px', margin: '0 auto' }}>
+          Fraud Detection & AML/KYC Compliance (FRAML) Platform
         </H3>
-        <Link href="/transaction-simulator">
-          <Button 
-            variant="primary" 
-            size="large" 
-            leftGlyph={<Icon glyph="Play" fill={palette.green.light3} />}
-            style={{ backgroundColor: palette.green.dark2, color: palette.gray.light3 }}
-          >
-            Try Transaction Simulator
-          </Button>
-        </Link>
+        <Description style={{ color: palette.gray.dark1, marginBottom: spacing[4], maxWidth: '600px', margin: '0 auto' }}>
+          Advanced entity resolution, network analysis, and real-time transaction monitoring powered by MongoDB
+        </Description>
       </Card>
 
-      <div style={{ display: 'flex', gap: spacing[3], flexWrap: 'wrap', marginBottom: spacing[4] }}>
+      <H2 style={{ marginBottom: spacing[4], textAlign: 'center' }}>Core Capabilities</H2>
+      
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: spacing[3], marginBottom: spacing[5] }}>
         <Card 
           contentStyle="clickable"
           as={Link}
           href="/transaction-simulator"
           style={{ 
-            flex: '1 1 300px', 
-            boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
-            border: `1px solid ${palette.blue.light2}`,
-            textDecoration: 'none'
+            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+            border: `2px solid ${palette.green.light2}`,
+            textDecoration: 'none',
+            transition: 'all 0.2s ease',
+            cursor: 'pointer'
           }}
-        >
-          <div style={{ marginBottom: spacing[2], color: palette.blue.base }}>
-            <Icon glyph="Charts" size="large" />
-          </div>
-          <H3 style={{ marginBottom: spacing[2], color: palette.gray.dark2 }}>
-            Real-time Analysis
-          </H3>
-          <Description style={{ color: palette.gray.dark1 }}>
-            Analyze transactions in real-time using behavioral patterns and historical data to identify suspicious activities.
-          </Description>
-        </Card>
-
-        <Card 
-          contentStyle="clickable"
-          as={Link}
-          href="/transaction-simulator"
-          style={{ 
-            flex: '1 1 300px', 
-            boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
-            border: `1px solid ${palette.green.light2}`,
-            textDecoration: 'none'
-          }}
+          {...cardHoverStyles}
         >
           <div style={{ marginBottom: spacing[2], color: palette.green.dark1 }}>
-            <Icon glyph="Lock" size="large" />
+            <Icon glyph="CreditCard" size="large" />
           </div>
           <H3 style={{ marginBottom: spacing[2], color: palette.gray.dark2 }}>
-            Fraud Prevention
+            Transaction Simulator
           </H3>
           <Description style={{ color: palette.gray.dark1 }}>
-            Detect and prevent fraudulent transactions before they occur, protecting your customers and your business.
+            Test fraud detection with real-time transaction monitoring. Uses MongoDB Atlas Vector Search to compare transaction patterns against known fraud embeddings for instant risk assessment.
           </Description>
         </Card>
 
         <Card 
           contentStyle="clickable"
           as={Link}
-          href="/transaction-simulator"
+          href="/entities"
           style={{ 
-            flex: '1 1 300px', 
-            boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
-            border: `1px solid ${palette.yellow.light2}`,
-            textDecoration: 'none'
+            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+            border: `2px solid ${palette.blue.light2}`,
+            textDecoration: 'none',
+            transition: 'all 0.2s ease',
+            cursor: 'pointer'
+          }}
+          {...cardHoverStyles}
+        >
+          <div style={{ marginBottom: spacing[2], color: palette.blue.dark1 }}>
+            <Icon glyph="Person" size="large" />
+          </div>
+          <H3 style={{ marginBottom: spacing[2], color: palette.gray.dark2 }}>
+            Entity Management
+          </H3>
+          <Description style={{ color: palette.gray.dark1 }}>
+            Central hub for managing customer and entity profiles. MongoDB $graphLookup powers network analysis to uncover hidden relationships and assess collective risk across connected entities.
+          </Description>
+        </Card>
+
+        <Card 
+          contentStyle="clickable"
+          as={Link}
+          href="/entity-resolution/enhanced"
+          style={{ 
+            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+            border: `2px solid ${palette.purple.light2}`,
+            textDecoration: 'none',
+            transition: 'all 0.2s ease',
+            cursor: 'pointer'
+          }}
+          {...cardHoverStyles}
+        >
+          <div style={{ marginBottom: spacing[2], color: palette.purple.dark1 }}>
+            <Icon glyph="MagnifyingGlass" size="large" />
+          </div>
+          <H3 style={{ marginBottom: spacing[2], color: palette.gray.dark2 }}>
+            Entity Resolution
+          </H3>
+          <Description style={{ color: palette.gray.dark1 }}>
+            Find duplicate entities and match identities across systems. MongoDB $rankFusion combines Atlas text search with vector embeddings to catch variations in names, addresses, and identifiers.
+          </Description>
+        </Card>
+
+        <Card 
+          contentStyle="clickable"
+          as={Link}
+          href="/risk-models"
+          style={{ 
+            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+            border: `2px solid ${palette.gray.light1}`,
+            textDecoration: 'none',
+            transition: 'all 0.2s ease',
+            cursor: 'pointer'
+          }}
+          {...cardHoverStyles}
+        >
+          <div style={{ marginBottom: spacing[2], color: palette.gray.dark1 }}>
+            <Icon glyph="Settings" size="large" />
+          </div>
+          <H3 style={{ marginBottom: spacing[2], color: palette.gray.dark2 }}>
+            Risk Models
+          </H3>
+          <Description style={{ color: palette.gray.dark1 }}>
+            Configure fraud detection rules and risk thresholds. MongoDB aggregation pipelines enable complex multi-factor scoring with real-time updates as new patterns emerge.
+          </Description>
+        </Card>
+
+        <Card 
+          style={{ 
+            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+            border: `2px solid ${palette.red.light2}`,
+            transition: 'all 0.2s ease',
+            opacity: 0.9
+          }}
+        >
+          <div style={{ marginBottom: spacing[2], color: palette.red.dark1 }}>
+            <Icon glyph="Diagram" size="large" />
+          </div>
+          <H3 style={{ marginBottom: spacing[2], color: palette.gray.dark2 }}>
+            Network Analysis
+          </H3>
+          <Description style={{ color: palette.gray.dark1 }}>
+            Visualize complex entity relationships and money flows. MongoDB $graphLookup traverses connections to detect suspicious patterns, hub entities, and risk propagation paths.
+          </Description>
+        </Card>
+
+        <Card 
+          style={{ 
+            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+            border: `2px solid ${palette.yellow.light2}`,
+            transition: 'all 0.2s ease',
+            opacity: 0.9
           }}
         >
           <div style={{ marginBottom: spacing[2], color: palette.yellow.dark2 }}>
-            <Icon glyph="ImportantWithCircle" size="large" />
+            <Icon glyph="Shield" size="large" />
           </div>
           <H3 style={{ marginBottom: spacing[2], color: palette.gray.dark2 }}>
-            Risk Assessment
+            AML Compliance
           </H3>
           <Description style={{ color: palette.gray.dark1 }}>
-            Comprehensive risk scoring system evaluates transactions across multiple dimensions to provide accurate risk assessment.
+            Automated KYC verification and transaction monitoring for regulatory compliance. MongoDB Change Streams enable real-time alerts and audit trails for suspicious activity reporting.
           </Description>
         </Card>
       </div>
 
       <div style={{ 
-        textAlign: 'center', 
-        marginTop: spacing[4],
-        padding: spacing[3],
-        backgroundColor: palette.gray.light2,
-        borderRadius: '8px'
+        marginTop: spacing[5],
+        textAlign: 'center',
+        color: palette.gray.dark1
       }}>
-        <H3 style={{ marginBottom: spacing[3] }}>
-          Ready to see it in action?
-        </H3>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: spacing[3], marginBottom: spacing[2] }}>
-          <Button
-            variant="primary"
-            size="large"
-            leftGlyph={<Icon glyph="ArrowRight" fill={palette.gray.light3} />}
-            as={Link}
-            href="/transaction-simulator"
-            style={{ backgroundColor: palette.green.dark2, color: palette.gray.light3 }}
-          >
-            Go to Transaction Simulator
-          </Button>
-          
-          <Button
-            variant="baseGreen"
-            size="large"
-            leftGlyph={<Icon glyph="Settings" fill={palette.gray.light3} />}
-            as={Link}
-            href="/risk-models"
-          >
-            Manage Risk Models
-          </Button>
-        </div>
+        <H3 style={{ marginBottom: spacing[3] }}>Powered by MongoDB</H3>
+        <Description style={{ maxWidth: '600px', margin: '0 auto' }}>
+          Built on MongoDB's advanced features including $rankFusion hybrid search, $graphLookup for network analysis, and Atlas Vector Search for AI-powered entity matching
+        </Description>
       </div>
     </div>
   );

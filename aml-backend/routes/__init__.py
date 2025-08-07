@@ -71,9 +71,11 @@ except ImportError as e:
 # LLM routes
 try:
     from .llm.classification_routes import router as llm_classification_router
+    from .llm.investigation_routes import router as llm_investigation_router
 except ImportError as e:
-    print(f"Warning: Could not import LLM classification routes: {e}")
+    print(f"Warning: Could not import LLM routes: {e}")
     llm_classification_router = None
+    llm_investigation_router = None
 
 __all__ = [
     "core_entities_router",
@@ -87,5 +89,6 @@ __all__ = [
     "relationships_router",
     "enhanced_resolution_router",
     "transactions_router",
-    "llm_classification_router"
+    "llm_classification_router",
+    "llm_investigation_router"
 ]

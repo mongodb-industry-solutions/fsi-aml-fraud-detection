@@ -20,6 +20,44 @@ import { spacing } from '@leafygreen-ui/tokens';
  * Processing steps configuration for different workflow types
  */
 const PROCESSING_STEPS = {
+  parallelSearch: [
+    {
+      id: 'entity_validation',
+      title: 'Entity Validation',
+      description: 'Validating entity input data and preparing for search',
+      icon: 'Checkmark',
+      estimatedTime: 300
+    },
+    {
+      id: 'atlas_search',
+      title: 'Atlas Text Search',
+      description: 'Performing MongoDB Atlas Search with fuzzy text matching',
+      icon: 'MagnifyingGlass',
+      estimatedTime: 1200
+    },
+    {
+      id: 'vector_search',
+      title: 'Vector Similarity Search',
+      description: 'Running semantic vector search for entity matching',
+      icon: 'Diagram2',
+      estimatedTime: 1500
+    },
+    {
+      id: 'hybrid_search',
+      title: 'Hybrid Search ($rankFusion)',
+      description: 'Combining Atlas and Vector search using MongoDB $rankFusion',
+      icon: 'Connect',
+      estimatedTime: 800
+    },
+    {
+      id: 'results_processing',
+      title: 'Results Processing',
+      description: 'Processing and ranking search results for display',
+      icon: 'Charts',
+      estimatedTime: 600
+    }
+  ],
+
   networkAnalysis: [
     {
       id: 'entity_selection',
@@ -100,6 +138,51 @@ const PROCESSING_STEPS = {
       description: 'Validating classification results and preparing for display',
       icon: 'Verified',
       estimatedTime: 400
+    }
+  ],
+
+  caseInvestigation: [
+    {
+      id: 'case_id_generation',
+      title: 'Case ID Generation',
+      description: 'Generating unique case identifier and initializing investigation',
+      icon: 'IdCard',
+      estimatedTime: 200
+    },
+    {
+      id: 'workflow_data_consolidation',
+      title: 'Workflow Data Consolidation',
+      description: 'Consolidating entity input, search results, network analysis, and classification data',
+      icon: 'Database',
+      estimatedTime: 400
+    },
+    {
+      id: 'investigation_prompt_building',
+      title: 'Investigation Prompt Building',
+      description: 'Building comprehensive investigation prompt for professional case summary',
+      icon: 'Edit',
+      estimatedTime: 600
+    },
+    {
+      id: 'llm_summary_generation',
+      title: 'LLM Summary Generation',
+      description: 'Generating professional investigation summary using Claude-3 Sonnet',
+      icon: 'Bulb',
+      estimatedTime: 15000  // Main LLM processing step
+    },
+    {
+      id: 'mongodb_document_creation',
+      title: 'MongoDB Document Creation',
+      description: 'Creating complete case document structure with workflow data and investigation results',
+      icon: 'InboxZero',
+      estimatedTime: 800
+    },
+    {
+      id: 'case_finalization',
+      title: 'Case Finalization',
+      description: 'Finalizing case investigation and preparing for display',
+      icon: 'Checkmark',
+      estimatedTime: 300
     }
   ]
 };
@@ -232,8 +315,10 @@ function ProcessingStepsIndicator({
   const steps = PROCESSING_STEPS[processType] || [];
   
   const defaultTitles = {
+    parallelSearch: '🔎 Running Parallel Search',
     networkAnalysis: '🔍 Analyzing Entity Networks',
-    llmClassification: '🧠 AI-Powered Risk Classification'
+    llmClassification: '🧠 AI-Powered Risk Classification',
+    caseInvestigation: '📋 Creating Case Investigation'
   };
 
   useEffect(() => {
@@ -382,8 +467,12 @@ function ProcessingStepsIndicator({
           color: palette.blue.dark1,
           margin: 0
         }}>
-          {processType === 'llmClassification' 
+          {processType === 'parallelSearch'
+            ? 'Running Atlas Search, Vector Search, and Hybrid Search in parallel across MongoDB...'
+            : processType === 'llmClassification' 
             ? 'AI is analyzing your entity data using advanced language models...'
+            : processType === 'caseInvestigation'
+            ? 'Creating comprehensive case investigation document with LLM-generated summary...'
             : 'Building comprehensive network analysis from MongoDB aggregations...'
           }
         </Body>

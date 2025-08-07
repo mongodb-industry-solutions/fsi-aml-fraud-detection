@@ -6,8 +6,10 @@ analysis using AWS Bedrock integration.
 """
 
 from .entity_classification_service import EntityClassificationService
+from .investigation_service import InvestigationService, get_investigation_service
 
 __all__ = [
     "EntityClassificationService",
-    # "InvestigationService",  # Will be added in Phase 2
+    "InvestigationService",
+    "get_investigation_service"
 ]

@@ -376,7 +376,7 @@ function ActionRecommendationCard({ recommendedAction, actionRationale, actionCo
   const getActionIcon = (action) => {
     switch (action?.toLowerCase()) {
       case 'approve': return 'Checkmark';
-      case 'review': return 'Eye';
+      case 'review': return 'Visibility';
       case 'reject': return 'X';
       case 'investigate': return 'MagnifyingGlass';
       default: return 'InfoWithCircle';
@@ -692,20 +692,16 @@ function LLMClassificationPanel({ classification, workflowData, onProceedToInves
         )}
 
         <div style={{ display: 'flex', gap: spacing[3], justifyContent: 'center' }}>
-          {result.recommended_action === 'investigate' && onProceedToInvestigation && (
+          {onProceedToInvestigation && (
             <Button
               variant="primary"
               size="large"
               onClick={onProceedToInvestigation}
               leftGlyph={<Icon glyph="MagnifyingGlass" />}
             >
-              Proceed to Investigation
+              Proceed to Case Investigation
             </Button>
           )}
-          
-          <Button variant="default">
-            Export Classification Report
-          </Button>
         </div>
       </Card>
 

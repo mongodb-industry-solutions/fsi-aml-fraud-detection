@@ -208,6 +208,14 @@ async def get_entity_classification_service(
     return EntityClassificationService(bedrock_client=bedrock_client)
 
 
+async def get_investigation_service(
+    bedrock_client = Depends(get_bedrock_client)
+):
+    """Get InvestigationService with injected Bedrock client"""
+    from services.llm.investigation_service import InvestigationService
+    return InvestigationService(bedrock_client=bedrock_client)
+
+
 # ==================== UTILITY FUNCTIONS ====================
 
 async def health_check_services() -> dict:

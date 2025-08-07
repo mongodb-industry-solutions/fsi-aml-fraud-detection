@@ -21,7 +21,8 @@ from routes import (
     relationships_router,
     enhanced_resolution_router,
     transactions_router,
-    llm_classification_router
+    llm_classification_router,
+    llm_investigation_router
 )
 
 # Note: Fallback routes removed after successful migration to organized structure
@@ -114,6 +115,10 @@ async def root():
                 "classify_workflow": "/llm/classification/classify-workflow",
                 "health": "/llm/classification/health",
                 "models": "/llm/classification/models"
+            },
+            "llm_investigation": {
+                "create_case": "/llm/investigation/create-case",
+                "health": "/llm/investigation/health"
             },
             "search": {
                 "atlas_search": "/search/atlas/",
@@ -219,6 +224,9 @@ include_router_safely(app, enhanced_resolution_router, "Enhanced Entity Resoluti
 
 # 4.6. LLM Classification routes (AI-powered analysis)
 include_router_safely(app, llm_classification_router, "LLM Classification")
+
+# 4.7. LLM Investigation routes (Case investigation generation)
+include_router_safely(app, llm_investigation_router, "LLM Investigation")
 
 # 5. Core entity routes (has catch-all routes, so include after more specific routes)  
 include_router_safely(app, core_entities_router, "Core Entities")

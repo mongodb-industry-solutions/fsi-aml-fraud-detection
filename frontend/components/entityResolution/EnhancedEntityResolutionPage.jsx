@@ -24,6 +24,7 @@ import DeepInvestigationWorkbench from './enhanced/DeepInvestigationWorkbench';
 import Top3ComparisonPanel from './enhanced/Top3ComparisonPanel';
 import LLMClassificationPanel from './enhanced/LLMClassificationPanel';
 import ProcessingStepsIndicator from './enhanced/ProcessingStepsIndicator';
+import CaseInvestigationDisplay from './enhanced/CaseInvestigationDisplay';
 
 // Services
 import { enhancedEntityResolutionAPI } from '@/lib/enhanced-entity-resolution-api';
@@ -68,6 +69,7 @@ function EnhancedEntityResolutionPage() {
    */
   const handleEntitySubmission = async (entityData) => {
     setIsLoading(true);
+    setCurrentProcess('parallelSearch'); // Show parallel search loading screen
     setError(null);
     
     try {
@@ -92,6 +94,7 @@ function EnhancedEntityResolutionPage() {
       setError(error.message || 'Failed to process entity information');
     } finally {
       setIsLoading(false);
+      setCurrentProcess(null); // Clear loading screen
     }
   };
 
@@ -254,14 +257,16 @@ function EnhancedEntityResolutionPage() {
   };
 
   /**
-   * Handle deep investigation
+   * Handle case investigation creation
    */
-  const handleDeepInvestigation = async () => {
+  const handleCaseInvestigation = async () => {
     setIsLoading(true);
+    setCurrentProcess('caseInvestigation');
+    
     try {
-      const investigation = await enhancedEntityResolutionAPI.performDeepInvestigation(
-        workflowData
-      );
+      console.log('🔍 Starting case investigation creation...');
+      
+      const investigation = await amlAPI.createCaseInvestigation(workflowData);
       
       setWorkflowData(prev => ({
         ...prev,
@@ -270,11 +275,14 @@ function EnhancedEntityResolutionPage() {
       
       setCurrentStep(4);
       
+      console.log('✅ Case investigation created successfully');
+      
     } catch (error) {
-      console.error('Deep investigation failed:', error);
-      setError(error.message || 'Failed to perform deep investigation');
+      console.error('❌ Case investigation failed:', error);
+      setError(error.message || 'Failed to create case investigation');
     } finally {
       setIsLoading(false);
+      setCurrentProcess(null);
     }
   };
 
@@ -466,16 +474,15 @@ function EnhancedEntityResolutionPage() {
           <LLMClassificationPanel
             classification={workflowData.classification}
             workflowData={workflowData}
-            onProceedToInvestigation={handleDeepInvestigation}
+            onProceedToInvestigation={handleCaseInvestigation}
           />
         )}
 
-        {/* Step 4: Deep Investigation */}
+        {/* Step 4: Case Investigation */}
         {currentStep === 4 && workflowData.investigation && (
-          <DeepInvestigationWorkbench
+          <CaseInvestigationDisplay
             investigation={workflowData.investigation}
             workflowData={workflowData}
-            onReset={handleReset}
           />
         )}
 
@@ -498,9 +505,13 @@ function EnhancedEntityResolutionPage() {
           <ProcessingStepsIndicator
             processType={currentProcess}
             isVisible={true}
-            title={currentProcess === 'networkAnalysis' 
+            title={currentProcess === 'parallelSearch'
+              ? '🔎 Running Parallel Search'
+              : currentProcess === 'networkAnalysis' 
               ? '🔍 Analyzing Entity Networks'
-              : '🧠 AI-Powered Risk Classification'
+              : currentProcess === 'llmClassification'
+              ? '🧠 AI-Powered Risk Classification'
+              : '📋 Creating Case Investigation'
             }
             onComplete={(totalTime) => {
               console.log(`${currentProcess} completed in ${totalTime}ms`);

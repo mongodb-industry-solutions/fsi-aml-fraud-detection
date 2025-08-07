@@ -17,6 +17,9 @@ motor = "^3.7.0"
 websockets = "^15.0.1"
 
 
+[tool.poetry.group.dev.dependencies]
+pip-licenses = "^5.0.0"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

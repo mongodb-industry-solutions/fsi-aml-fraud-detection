@@ -55,6 +55,7 @@
     "react-dom": "18.2.0"
   },
   "devDependencies": {
-    "eslint": "^9.32.0"
+    "eslint": "^9.32.0",
+    "license-checker": "^25.0.1"
   }
 }

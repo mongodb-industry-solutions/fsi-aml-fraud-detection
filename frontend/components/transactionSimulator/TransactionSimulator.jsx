@@ -411,7 +411,7 @@ Device: ${transactionData.device_info?.type || 'N/A'}, ${transactionData.device_
           setOpen={setShowResultsModal}
           size="large"
           title="Transaction Risk Assessment"
-          contentstyle={{ zIndex: 1000 }}
+          contentStyle={{ zIndex: 1001 }}
         >
           <div style={{ padding: spacing[3] }}>
             <Tabs
@@ -444,7 +444,7 @@ Device: ${transactionData.device_info?.type || 'N/A'}, ${transactionData.device_
         setOpen={setShowResultsModal}
         size="large"
         title="Transaction Risk Assessment"
-        contentstyle={{ zIndex: 1000 }}
+        contentStyle={{ zIndex: 1001 }}
       >
         <div style={{ padding: spacing[3] }}>
           <Tabs

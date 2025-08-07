@@ -140,6 +140,7 @@ function SimilarProfilesSection({ entity }) {
         open={showModal}
         setOpen={setShowModal}
         size="large"
+        contentStyle={{ zIndex: 1001 }}
       >
         <H2 style={{ marginBottom: spacing[3] }}>Similar Profiles Found</H2>
         
@@ -244,7 +245,6 @@ function SimilarProfilesSection({ entity }) {
             <Button
               variant="default"
               size="small"
-              leftGlyph={<Icon glyph="Fullscreen" />}
               onClick={(e) => {
                 e.stopPropagation();
                 setShowJsonModal(true);
@@ -276,6 +276,7 @@ function SimilarProfilesSection({ entity }) {
         open={showJsonModal}
         setOpen={setShowJsonModal}
         size="large"
+        contentStyle={{ zIndex: 1001 }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing[3] }}>
           <H2 style={{ margin: 0 }}>
@@ -319,6 +320,23 @@ function SimilarProfilesSection({ entity }) {
             This shows the complete MongoDB document structure as stored in the database, 
             including all fields, nested objects, and metadata.
           </Body>
+        </div>
+        
+        {/* Bottom Right Close Button */}
+        <div style={{
+          position: 'absolute',
+          bottom: '16px',
+          right: '16px',
+          zIndex: 1002
+        }}>
+          <Button
+            onClick={() => setShowJsonModal(false)}
+            variant="primary"
+            size="default"
+            leftGlyph={<Icon glyph="X" />}
+          >
+            Close Document
+          </Button>
         </div>
       </Modal>
 

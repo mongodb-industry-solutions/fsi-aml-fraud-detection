@@ -590,7 +590,7 @@ export default function VectorSearchCalculationBreakdown({
                   border: `1px solid ${palette.blue.light1}`
                 }}>
                   <H3 style={{ marginBottom: spacing[2], color: palette.blue.dark2 }}>
-                    🧠 Why This Algorithm Is Effective
+                    Why This Algorithm Is Effective
                   </H3>
                   <div style={{ display: 'grid', gap: spacing[2] }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: spacing[2] }}>

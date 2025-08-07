@@ -191,6 +191,23 @@ async def get_network_analysis_service(
     return NetworkAnalysisService(network_repo=network_repo)
 
 
+# ==================== LLM SERVICE DEPENDENCIES ====================
+
+@lru_cache()
+def get_bedrock_client():
+    """Get AWS Bedrock client (cached singleton)"""
+    from bedrock.client import BedrockClient
+    return BedrockClient()
+
+
+async def get_entity_classification_service(
+    bedrock_client = Depends(get_bedrock_client)
+):
+    """Get EntityClassificationService with injected Bedrock client"""
+    from services.llm.entity_classification_service import EntityClassificationService
+    return EntityClassificationService(bedrock_client=bedrock_client)
+
+
 # ==================== UTILITY FUNCTIONS ====================
 
 async def health_check_services() -> dict:

@@ -10,6 +10,7 @@
 import React, { useMemo, useEffect, useRef, useState, useCallback } from 'react';
 import { Body, H3 } from '@leafygreen-ui/typography';
 import Modal from '@leafygreen-ui/modal';
+import Button from '@leafygreen-ui/button';
 import Icon from '@leafygreen-ui/icon';
 import cytoscape from 'cytoscape';
 
@@ -39,6 +40,7 @@ const CytoscapeNetworkComponent = ({
   const fullscreenContainerRef = useRef(null);
   const fullscreenCyRef = useRef(null);
   const [currentLayout, setCurrentLayout] = useState(layout);
+  const [fullscreenLayout, setFullscreenLayout] = useState(layout);
   const [isLayoutRunning, setIsLayoutRunning] = useState(false);
   const [extensionsLoaded, setExtensionsLoaded] = useState(false);
   const [showFullscreenModal, setShowFullscreenModal] = useState(false);
@@ -105,46 +107,66 @@ const CytoscapeNetworkComponent = ({
     loadExtensions();
   }, [extensionsLoaded]);
 
-  // Handle layout changes for both main and fullscreen
-  const handleLayoutChange = useCallback((layoutName, isFullscreen = false) => {
-    const targetCy = isFullscreen ? fullscreenCyRef.current : cyRef.current;
-    
-    if (!targetCy || !extensionsLoaded || !cytoscapeLayouts[layoutName]) {
-      console.warn('Cannot switch layout: Cytoscape or extensions not ready', {
-        targetCy: !!targetCy,
-        extensionsLoaded,
-        layoutExists: !!cytoscapeLayouts[layoutName],
-        isFullscreen
-      });
+  // Handle main layout changes
+  const handleLayoutChange = useCallback((layoutName) => {
+    if (!cyRef.current || !extensionsLoaded || !cytoscapeLayouts[layoutName]) {
+      console.warn('Cannot switch main layout: Cytoscape or extensions not ready');
       return;
     }
     
-    setIsLayoutRunning(true);
     setCurrentLayout(layoutName);
+    setIsLayoutRunning(true);
     
     try {
-      // Get layout config
       const layoutConfig = {
         ...cytoscapeLayouts[layoutName],
-        fit: false, // Disable auto-fit to prevent container expansion
+        fit: false,
         animate: true,
         animationDuration: 800
       };
       
-      // Apply layout with disabled fit
-      const layout = targetCy.layout(layoutConfig);
+      const layout = cyRef.current.layout(layoutConfig);
       layout.on('layoutstop', () => {
         setIsLayoutRunning(false);
-        // Manual fit to container bounds after layout completes
-        if (targetCy) {
-          targetCy.fit(targetCy.elements(), 30);
+        if (cyRef.current) {
+          cyRef.current.fit(cyRef.current.elements(), 30);
         }
       });
       layout.run();
       
     } catch (error) {
-      console.error('Layout switch failed:', error);
+      console.error('Main layout switch failed:', error);
       setIsLayoutRunning(false);
+    }
+  }, [extensionsLoaded]);
+
+  // Handle fullscreen layout changes
+  const handleFullscreenLayoutChange = useCallback((layoutName) => {
+    if (!fullscreenCyRef.current || !extensionsLoaded || !cytoscapeLayouts[layoutName]) {
+      console.warn('Cannot switch fullscreen layout: Cytoscape or extensions not ready');
+      return;
+    }
+    
+    setFullscreenLayout(layoutName);
+    
+    try {
+      const layoutConfig = {
+        ...cytoscapeLayouts[layoutName],
+        fit: false,
+        animate: true,
+        animationDuration: 800
+      };
+      
+      const layout = fullscreenCyRef.current.layout(layoutConfig);
+      layout.on('layoutstop', () => {
+        if (fullscreenCyRef.current) {
+          fullscreenCyRef.current.fit(fullscreenCyRef.current.elements(), 30);
+        }
+      });
+      layout.run();
+      
+    } catch (error) {
+      console.error('Fullscreen layout switch failed:', error);
     }
   }, [extensionsLoaded]);
 
@@ -530,10 +552,10 @@ const CytoscapeNetworkComponent = ({
     
     // Small delay to ensure the instance is fully ready
     const timeoutId = setTimeout(() => {
-      if (fullscreenCyRef.current && cytoscapeLayouts[currentLayout]) {
+      if (fullscreenCyRef.current && cytoscapeLayouts[fullscreenLayout]) {
         try {
           const layoutConfig = {
-            ...cytoscapeLayouts[currentLayout],
+            ...cytoscapeLayouts[fullscreenLayout],
             fit: true,
             animate: true,
             animationDuration: 800
@@ -541,7 +563,7 @@ const CytoscapeNetworkComponent = ({
           
           const layout = fullscreenCyRef.current.layout(layoutConfig);
           layout.on('layoutstop', () => {
-            console.log('Fullscreen initial layout applied:', currentLayout);
+            console.log('Fullscreen initial layout applied:', fullscreenLayout);
             if (fullscreenCyRef.current && fullscreenCyRef.current.elements()) {
               fullscreenCyRef.current.fit(fullscreenCyRef.current.elements(), 50);
             }
@@ -554,7 +576,7 @@ const CytoscapeNetworkComponent = ({
     }, 300);
     
     return () => clearTimeout(timeoutId);
-  }, [showFullscreenModal, currentLayout, extensionsLoaded]);
+  }, [showFullscreenModal, fullscreenLayout, extensionsLoaded]);
 
   return (
     <div className={className} style={containerStyle}>
@@ -610,11 +632,7 @@ const CytoscapeNetworkComponent = ({
           >
             <option value="forceDirected">Force-Directed</option>
             <option value="hierarchical">Hierarchical</option>
-            <option value="circular">Circular</option>
-            <option value="concentric">Concentric</option>
             <option value="grid">Grid</option>
-            <option value="riskFocused">Risk-Focused</option>
-            <option value="centralityFocused">Centrality-Focused</option>
           </select>
 
           {/* Control buttons */}
@@ -677,7 +695,6 @@ const CytoscapeNetworkComponent = ({
               onMouseOver={(e) => e.target.style.backgroundColor = '#2563EB'}
               onMouseOut={(e) => e.target.style.backgroundColor = '#3B82F6'}
             >
-              <Icon glyph="FullScreen" size={14} fill="#FFFFFF" />
               Fullscreen
             </button>
           </div>
@@ -795,6 +812,7 @@ const CytoscapeNetworkComponent = ({
         open={showFullscreenModal}
         setOpen={setShowFullscreenModal}
         size="large"
+        contentStyle={{ zIndex: 1001 }}
       >
         <div style={{ 
           display: 'flex', 
@@ -824,60 +842,11 @@ const CytoscapeNetworkComponent = ({
         }}>
           {/* Fullscreen Cytoscape Container */}
           <div 
+            ref={fullscreenContainerRef}
             style={{ 
               width: '100%', 
               height: '100%',
               backgroundColor: '#f7f8fa'
-            }}
-            ref={(el) => {
-              if (el && showFullscreenModal && elements.length > 0) {
-                // Initialize fullscreen Cytoscape instance
-                setTimeout(() => {
-                  try {
-                    const fullscreenCy = cytoscape({
-                      container: el,
-                      elements: elements,
-                      style: cytoscapeStyles,
-                      layout: { 
-                        name: 'cose',
-                        animate: true,
-                        animationDuration: 1000,
-                        nodeDimensionsIncludeLabels: true,
-                        nodeRepulsion: 10000,
-                        idealEdgeLength: 120,
-                        gravity: 0.1,
-                        fit: true,
-                        padding: 50
-                      },
-                      wheelSensitivity: 0.2,
-                      minZoom: 0.1,
-                      maxZoom: 5,
-                      boxSelectionEnabled: true,
-                      autoungrabify: false,
-                      autounselectify: false,
-                      autolock: false,
-                      autoResizeContainer: false,
-                      pixelRatio: 1
-                    });
-
-                    // Add event listeners for fullscreen
-                    fullscreenCy.on('tap', 'node', (event) => {
-                      const node = event.target;
-                      setSelectedNode({
-                        id: node.id(),
-                        ...node.data()
-                      });
-                    });
-
-                    fullscreenCy.ready(() => {
-                      fullscreenCy.fit();
-                      fullscreenCy.center();
-                    });
-                  } catch (error) {
-                    console.error('Error initializing fullscreen Cytoscape:', error);
-                  }
-                }, 100);
-              }
             }}
           />
           
@@ -1009,8 +978,8 @@ const CytoscapeNetworkComponent = ({
             </H3>
             
             <select 
-              value={currentLayout} 
-              onChange={(e) => handleLayoutChange(e.target.value, true)}
+              value={fullscreenLayout} 
+              onChange={(e) => handleFullscreenLayoutChange(e.target.value)}
               style={{
                 padding: '6px 10px',
                 borderRadius: '6px',
@@ -1024,11 +993,7 @@ const CytoscapeNetworkComponent = ({
             >
               <option value="forceDirected">Force-Directed</option>
               <option value="hierarchical">Hierarchical</option>
-              <option value="circular">Circular</option>
-              <option value="concentric">Concentric</option>
               <option value="grid">Grid</option>
-              <option value="riskFocused">Risk-Focused</option>
-              <option value="centralityFocused">Centrality-Focused</option>
             </select>
             
             <div style={{ display: 'flex', gap: '4px' }}>
@@ -1078,6 +1043,23 @@ const CytoscapeNetworkComponent = ({
             <strong>Fullscreen View:</strong> Enhanced visibility for detailed network analysis. 
             All controls and interactions are available in this view.
           </Body>
+        </div>
+        
+        {/* Bottom Right Close Button */}
+        <div style={{
+          position: 'absolute',
+          bottom: '16px',
+          right: '16px',
+          zIndex: 1002
+        }}>
+          <Button
+            onClick={() => setShowFullscreenModal(false)}
+            variant="primary"
+            size="default"
+            leftGlyph={<Icon glyph="X" />}
+          >
+            Close Fullscreen
+          </Button>
         </div>
       </Modal>
     </div>

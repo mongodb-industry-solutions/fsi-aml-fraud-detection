@@ -135,7 +135,6 @@ function RiskComponentsDisplay({ riskAssessment }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
                   <Icon 
                     glyph={componentName === 'identity' ? 'Person' : 
-                           componentName === 'profile' ? 'UserProfile' :
                            componentName === 'activity' ? 'ActivityFeed' :
                            componentName === 'external' ? 'Cloud' :
                            componentName === 'network' ? 'Diagram3' : 'Warning'} 
@@ -702,11 +701,6 @@ function ComprehensiveOverviewTab({ entity }) {
                 <div>
                   <Label>Type</Label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
-                    <Icon 
-                      glyph={address.type === 'residential' ? 'Home' : address.type === 'business' ? 'Building' : 'Location'} 
-                      size={16} 
-                      fill={palette.gray.base} 
-                    />
                     <Body weight="medium">{address.type || 'Unknown'}</Body>
                   </div>
                 </div>
@@ -715,7 +709,6 @@ function ComprehensiveOverviewTab({ entity }) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
                     {address.primary ? (
                       <>
-                        <Icon glyph="Star" size={16} fill={palette.yellow.base} />
                         <Body weight="medium" style={{ color: palette.green.dark2 }}>Primary</Body>
                       </>
                     ) : (
@@ -798,7 +791,6 @@ function ComprehensiveOverviewTab({ entity }) {
                 <div style={{ marginTop: spacing[2] }}>
                   <Label>Geographic Coordinates</Label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
-                    <Icon glyph="Maps" size={14} fill={palette.green.base} />
                     <Body style={{ fontSize: '12px', fontFamily: 'monospace', color: palette.gray.dark1 }}>
                       {address.coordinates[1].toFixed(6)}, {address.coordinates[0].toFixed(6)}
                     </Body>
@@ -1622,15 +1614,10 @@ function ActivityAnalysisTab({ entity }) {
       flexDirection: 'column', 
       gap: spacing[4],
       width: '100%',
-      maxWidth: '100%',
-      overflow: 'hidden', // Prevent horizontal overflow
       minWidth: 0 // Allow flex shrinking
     }}>
       <Card style={{ 
-        padding: spacing[4],
-        width: '100%',
-        maxWidth: '100%',
-        minWidth: 0
+        padding: spacing[4]
       }}>
         <H3 style={{ marginBottom: spacing[3] }}>
           <Icon glyph="Charts" style={{ marginRight: spacing[2] }} />
@@ -1684,30 +1671,16 @@ function ActivityAnalysisTab({ entity }) {
       </Card>
 
       {/* Transaction Activity Table */}
-      <div style={{ 
-        width: '100%',
-        maxWidth: '100%',
-        overflow: 'hidden',
-        minWidth: 0
-      }}>
-        <TransactionActivityTable 
-          entityId={entity?.entityId} 
-          onError={handleError}
-        />
-      </div>
+      <TransactionActivityTable 
+        entityId={entity?.entityId} 
+        onError={handleError}
+      />
 
       {/* Transaction Network Graph */}
-      <div style={{ 
-        width: '100%',
-        maxWidth: '100%',
-        overflow: 'hidden',
-        minWidth: 0
-      }}>
-        <TransactionNetworkGraph 
-          entityId={entity?.entityId} 
-          onError={handleError}
-        />
-      </div>
+      <TransactionNetworkGraph 
+        entityId={entity?.entityId} 
+        onError={handleError}
+      />
     </div>
   );
 }

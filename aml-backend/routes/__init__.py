@@ -68,6 +68,13 @@ except ImportError as e:
     print(f"Warning: Could not import transaction routes: {e}")
     transactions_router = None
 
+# LLM routes
+try:
+    from .llm.classification_routes import router as llm_classification_router
+except ImportError as e:
+    print(f"Warning: Could not import LLM classification routes: {e}")
+    llm_classification_router = None
+
 __all__ = [
     "core_entities_router",
     "core_entity_resolution_router", 
@@ -79,5 +86,6 @@ __all__ = [
     "search_debug_router",
     "relationships_router",
     "enhanced_resolution_router",
-    "transactions_router"
+    "transactions_router",
+    "llm_classification_router"
 ]

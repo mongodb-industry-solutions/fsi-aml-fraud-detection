@@ -722,6 +722,7 @@ function ParallelSearchInterface({ searchResults, originalEntityData, isLoading 
         open={modalOpen} 
         setOpen={setModalOpen}
         size="large"
+        contentStyle={{ zIndex: 1001 }}
       >
         {selectedEntityId && (
           <EntityDetailWrapper entityId={selectedEntityId} />

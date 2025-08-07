@@ -168,10 +168,6 @@ const TransactionActivityTable = ({ entityId, onError }) => {
 
   return (
     <Card style={{ 
-      width: '100%',
-      maxWidth: '100%',
-      minWidth: 0,
-      overflow: 'hidden', // Prevent card expansion
       marginBottom: '24px'
     }}>
       <div style={{ 
@@ -203,14 +199,10 @@ const TransactionActivityTable = ({ entityId, onError }) => {
       ) : (
         <>
           <div style={{ 
-            overflowX: 'auto',
-            width: '100%',
-            maxWidth: '100%'
+            overflowX: 'auto'
           }}>
             <Table style={{ 
-              width: '100%',
-              maxWidth: '100%',
-              tableLayout: 'fixed' // Use fixed layout for consistent sizing
+              width: '100%'
             }}>
               <TableHead>
                 <TableRow>
@@ -229,12 +221,30 @@ const TransactionActivityTable = ({ entityId, onError }) => {
                     {getDirectionBadge(transaction.direction)}
                   </TableCell>
                   
-                  <TableCell>
-                    <div>
-                      <Body weight="medium" style={{ marginBottom: '2px' }}>
+                  <TableCell style={{ 
+                    minHeight: '60px',
+                    verticalAlign: 'top',
+                    paddingTop: '12px',
+                    paddingBottom: '12px'
+                  }}>
+                    <div style={{ 
+                      lineHeight: '1.4',
+                      wordWrap: 'break-word',
+                      overflowWrap: 'break-word',
+                      maxWidth: '200px'
+                    }}>
+                      <Body weight="medium" style={{ 
+                        marginBottom: '4px',
+                        fontSize: '13px',
+                        lineHeight: '1.3'
+                      }}>
                         {transaction.counterparty_name}
                       </Body>
-                      <Subtitle style={{ fontSize: '11px', color: '#666' }}>
+                      <Subtitle style={{ 
+                        fontSize: '11px', 
+                        color: '#666',
+                        lineHeight: '1.2'
+                      }}>
                         {transaction.counterparty_type}
                       </Subtitle>
                     </div>

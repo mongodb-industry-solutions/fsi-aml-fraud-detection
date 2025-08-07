@@ -5,7 +5,6 @@ import { H3, Body, Subtitle } from '@leafygreen-ui/typography';
 import Badge from '@leafygreen-ui/badge';
 import Button from '@leafygreen-ui/button';
 import { Spinner } from '@leafygreen-ui/loading-indicator';
-import { Select, Option } from '@leafygreen-ui/select';
 import Modal from '@leafygreen-ui/modal';
 import Icon from '@leafygreen-ui/icon';
 import { amlAPI } from '@/lib/aml-api';
@@ -26,15 +25,14 @@ const TransactionNetworkGraph = ({ entityId, onError }) => {
   const [networkData, setNetworkData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedNode, setSelectedNode] = useState(null);
-  const [maxDepth, setMaxDepth] = useState(1);
-  const [currentLayout, setCurrentLayout] = useState('cose');
+  const [currentLayout, setCurrentLayout] = useState('circle');
   const [showFullscreenModal, setShowFullscreenModal] = useState(false);
-  const [fullscreenLayout, setFullscreenLayout] = useState('cose');
+  const [fullscreenLayout, setFullscreenLayout] = useState('circle');
 
   const fetchNetworkData = async () => {
     try {
       setLoading(true);
-      const response = await amlAPI.getEntityTransactionNetwork(entityId, maxDepth);
+      const response = await amlAPI.getEntityTransactionNetwork(entityId, 1);
       setNetworkData(response);
     } catch (error) {
       console.error('Error fetching transaction network:', error);
@@ -48,7 +46,7 @@ const TransactionNetworkGraph = ({ entityId, onError }) => {
     if (entityId) {
       fetchNetworkData();
     }
-  }, [entityId, maxDepth]);
+  }, [entityId]);
 
   // Layout configurations
   const layoutConfigs = {
@@ -331,16 +329,6 @@ const TransactionNetworkGraph = ({ entityId, onError }) => {
         <H3 style={{ margin: 0 }}>Transaction Network</H3>
         
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-          <Select
-            value={maxDepth.toString()}
-            onChange={(value) => setMaxDepth(parseInt(value))}
-            label="Network Depth"
-            size="small"
-          >
-            <Option value="1">1 Hop</Option>
-            <Option value="2">2 Hops</Option>
-            <Option value="3">3 Hops</Option>
-          </Select>
           {loading && <Spinner size="small" />}
         </div>
       </div>
@@ -432,10 +420,9 @@ const TransactionNetworkGraph = ({ entityId, onError }) => {
               cursor: 'pointer'
             }}
           >
-            <option value="dagre">Hierarchical</option>
+            <option value="cose">Force-Directed</option>
             <option value="circle">Circular</option>
             <option value="concentric">Concentric</option>
-            <option value="grid">Grid</option>
           </select>
           
           <div style={{ display: 'flex', gap: '4px' }}>
@@ -503,7 +490,6 @@ const TransactionNetworkGraph = ({ entityId, onError }) => {
               fontWeight: '500'
             }}
           >
-            <Icon glyph="FullScreen" size={12} fill="#FFFFFF" />
             Fullscreen
           </button>
         </div>
@@ -552,6 +538,7 @@ const TransactionNetworkGraph = ({ entityId, onError }) => {
         open={showFullscreenModal}
         setOpen={setShowFullscreenModal}
         size="large"
+        contentStyle={{ zIndex: 1001 }}
       >
         <div style={{ 
           display: 'flex', 
@@ -654,10 +641,9 @@ const TransactionNetworkGraph = ({ entityId, onError }) => {
                 cursor: 'pointer'
               }}
             >
-              <option value="dagre">Hierarchical</option>
+              <option value="cose">Force-Directed</option>
               <option value="circle">Circular</option>
               <option value="concentric">Concentric</option>
-              <option value="grid">Grid</option>
             </select>
             
             <button
@@ -675,6 +661,23 @@ const TransactionNetworkGraph = ({ entityId, onError }) => {
               Fit to View
             </button>
           </div>
+        </div>
+        
+        {/* Bottom Right Close Button */}
+        <div style={{
+          position: 'absolute',
+          bottom: '16px',
+          right: '16px',
+          zIndex: 1002
+        }}>
+          <Button
+            onClick={() => setShowFullscreenModal(false)}
+            variant="primary"
+            size="default"
+            leftGlyph={<Icon glyph="X" />}
+          >
+            Close Fullscreen
+          </Button>
         </div>
       </Modal>
     </div>

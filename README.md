@@ -17,6 +17,8 @@ By the end of this guide, you'll have a comprehensive fraud detection and AML/KY
 
 - **Real-time Fraud Detection**: Multi-factor risk assessment with AI-powered pattern recognition
 - **Intelligent Entity Resolution**: AI-powered fuzzy matching and duplicate detection for AML/KYC compliance
+- **LLM-Powered Classification**: AWS Bedrock Claude-3 Sonnet for automated entity risk assessment
+- **Automated Case Investigation**: AI-generated investigation reports and case documentation
 - **Network Analysis**: Relationship mapping and graph analytics for compliance investigations
 - **Vector-based Pattern Recognition**: Advanced similarity matching using MongoDB Atlas Vector Search
 - **Dynamic Risk Model Management**: Configurable risk models with real-time updates
@@ -37,6 +39,8 @@ ThreatSight 360 uses a **dual-backend microservices architecture** optimized for
 ### **AML Backend** (`/aml-backend`, port 8001)  
 - **Entity Management**: Comprehensive customer and organization entity management
 - **Intelligent Entity Resolution**: AI-powered fuzzy matching and duplicate detection
+- **LLM Classification Service**: AWS Bedrock Claude-3 Sonnet for entity risk assessment
+- **Investigation Service**: Automated case investigation and report generation
 - **Network Analysis**: Relationship mapping and graph analytics for compliance
 - **Atlas Search Integration**: Advanced search capabilities with faceted filtering and autocomplete
 - **Compliance Operations**: AML/KYC workflows and regulatory compliance features
@@ -617,33 +621,50 @@ The Entity Management interface provides comprehensive AML/KYC capabilities:
    - Relationship network visualization
    - Similar entities and potential duplicates
 
-### Entity Resolution Workflow
+### Enhanced Entity Resolution Workflow
 
-The Entity Resolution feature helps identify potential duplicates during customer onboarding:
+The Enhanced Entity Resolution feature provides a comprehensive 5-step workflow for intelligent entity onboarding, duplicate detection, and risk assessment:
 
 1. Navigate to [http://localhost:3000/entity-resolution/enhanced](http://localhost:3000/entity-resolution/enhanced).
 
-2. Enter new customer information using the simplified onboarding form:
+2. **Step 0 - Entity Input**: Enter new entity information using the simplified onboarding form:
    - Entity Type (Individual or Organization)
    - Full Name
    - Address
 
-3. The system performs comprehensive AI-powered search using three methods:
+3. **Step 1 - Parallel Search**: The system performs AI-powered search using three methods simultaneously:
    - **Atlas Search**: Text-based fuzzy matching on names and addresses
-   - **Vector Search**: Semantic similarity analysis using AI embeddings
+   - **Vector Search**: Semantic similarity analysis using AWS Bedrock AI embeddings
    - **Hybrid Search**: MongoDB $rankFusion combining both approaches with contribution analysis
+   - **Loading Animation**: Visual progress indicator showing behind-the-scenes search operations
 
-4. Review search results across three tabs with expandable query details:
-   - View actual MongoDB queries executed for each search method
-   - See contribution percentages for hybrid search results
-   - Click entity names to open detailed modal views
-   - Analyze match confidence scores and reasoning
+4. **Step 2 - Network Analysis**: Comprehensive network risk assessment for top 3 hybrid search matches:
+   - **Relationship Networks**: Graph analysis with depth-2 traversal
+   - **Transaction Networks**: Transaction pattern analysis with depth-1 traversal
+   - **Risk Scoring**: Combined network and transaction risk calculations
+   - **Side-by-Side Comparison**: Compare all 3 entities' network risks simultaneously
+   - **Visual Progress**: Animated loading screen showing network analysis steps
 
-5. Enhanced features include:
+5. **Step 3 - AI Classification**: LLM-powered entity classification using AWS Bedrock Claude-3 Sonnet:
+   - **Comprehensive Analysis**: Evaluates entity data, search results, and network analysis
+   - **Risk Assessment**: Generates risk scores, confidence levels, and recommended actions
+   - **AML/KYC Compliance**: Identifies compliance flags and concerns
+   - **Network Positioning**: Analyzes entity's position within relationship networks
+   - **Processing Transparency**: Step-by-step visualization of AI analysis workflow
+
+6. **Step 4 - Case Investigation**: Automated case document creation for compliance workflows:
+   - **Case Document Generation**: Creates MongoDB case document with optimized size
+   - **LLM Investigation Summary**: Professional investigation narrative using AI
+   - **Workflow Consolidation**: Combines all previous steps into comprehensive case file
+   - **Document Export**: Download case investigation as JSON for external systems
+   - **Loading Visualization**: Shows case creation progress with detailed steps
+
+Enhanced Features:
    - **Query Transparency**: Expandable cards showing exact MongoDB aggregation pipelines
    - **Contribution Analysis**: Percentage breakdown of Atlas vs Vector search contributions
-   - **Network Visualization**: Interactive relationship graphs for matched entities
-   - **Real-time Search**: Instant results with optimized MongoDB operations
+   - **Network Visualization**: Interactive Cytoscape.js graphs for relationship analysis
+   - **Real-time Progress**: Animated loading screens for all major operations
+   - **Single Database Architecture**: All operations (search, vector, graph) run in MongoDB
 
 ### Risk Model Management
 

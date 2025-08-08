@@ -95,8 +95,8 @@ function RiskClassificationDisplay({ classification, entityData }) {
     if (!riskFactors || riskFactors.length === 0) {
       return (
         <div style={{ textAlign: 'center', padding: spacing[3] }}>
-          <Icon glyph="Shield" style={{ color: palette.green.base, marginBottom: spacing[1] }} />
-          <Body style={{ color: palette.gray.base }}>No risk factors identified</Body>
+          <Icon glyph="Dashboard" style={{ color: palette.green.base, marginBottom: spacing[1] }} />
+          <Body style={{ color: palette.gray.base, fontSize: '15px' }}>No risk factors identified</Body>
         </div>
       );
     }
@@ -123,15 +123,15 @@ function RiskClassificationDisplay({ classification, entityData }) {
                     }} 
                     size={16}
                   />
-                  <Body weight="medium" style={{ fontSize: '13px' }}>
+                  <Body weight="medium" style={{ fontSize: '15px', fontWeight: '600' }}>
                     {factor.type || factor.name || 'Risk Factor'}
                   </Body>
                 </div>
-                <Body style={{ fontSize: '12px', color: palette.gray.dark1, lineHeight: '1.4' }}>
+                <Body style={{ fontSize: '14px', color: palette.gray.dark1, lineHeight: '1.6', marginTop: spacing[1] }}>
                   {factor.description || 'No description available'}
                 </Body>
                 {factor.impact && (
-                  <Body style={{ fontSize: '11px', color: palette.gray.base, marginTop: spacing[1] }}>
+                  <Body style={{ fontSize: '13px', color: palette.gray.base, marginTop: spacing[2] }}>
                     Impact: {factor.impact}
                   </Body>
                 )}
@@ -142,7 +142,7 @@ function RiskClassificationDisplay({ classification, entityData }) {
                   {factor.severity || 'low'}
                 </Badge>
                 {factor.score && (
-                  <Body style={{ fontSize: '11px', color: palette.gray.dark1 }}>
+                  <Body style={{ fontSize: '13px', color: palette.gray.dark1 }}>
                     Score: {factor.score}
                   </Body>
                 )}
@@ -162,7 +162,7 @@ function RiskClassificationDisplay({ classification, entityData }) {
       return (
         <div style={{ textAlign: 'center', padding: spacing[3] }}>
           <Icon glyph="CheckmarkWithCircle" style={{ color: palette.green.base, marginBottom: spacing[1] }} />
-          <Body style={{ color: palette.gray.base }}>No suspicious indicators detected</Body>
+          <Body style={{ color: palette.gray.base, fontSize: '15px' }}>No suspicious indicators detected</Body>
         </div>
       );
     }
@@ -178,14 +178,14 @@ function RiskClassificationDisplay({ classification, entityData }) {
             <div style={{ display: 'flex', gap: spacing[2] }}>
               <Icon glyph="Important" style={{ color: palette.red.base, marginTop: '2px' }} size={16} />
               <div style={{ flex: 1 }}>
-                <Body weight="medium" style={{ fontSize: '13px', marginBottom: spacing[1] }}>
+                <Body weight="medium" style={{ fontSize: '15px', marginBottom: spacing[2], fontWeight: '600' }}>
                   {indicator.type || 'Suspicious Activity'}
                 </Body>
-                <Body style={{ fontSize: '12px', color: palette.gray.dark1, lineHeight: '1.4' }}>
+                <Body style={{ fontSize: '14px', color: palette.gray.dark1, lineHeight: '1.6' }}>
                   {indicator.description || indicator}
                 </Body>
                 {indicator.confidence && (
-                  <Body style={{ fontSize: '11px', color: palette.gray.base, marginTop: spacing[1] }}>
+                  <Body style={{ fontSize: '13px', color: palette.gray.base, marginTop: spacing[2] }}>
                     Confidence: {(indicator.confidence * 100).toFixed(1)}%
                   </Body>
                 )}
@@ -205,8 +205,8 @@ function RiskClassificationDisplay({ classification, entityData }) {
     
     if (allRecommendations.length === 0) {
       return (
-        <div style={{ textAlign: 'center', padding: spacing[3] }}>
-          <Body style={{ color: palette.gray.base }}>No specific recommendations available</Body>
+        <div style={{ textAlign: 'center', padding: spacing[4] }}>
+          <Body style={{ color: palette.gray.base, fontSize: '15px' }}>No specific recommendations available</Body>
         </div>
       );
     }
@@ -222,10 +222,10 @@ function RiskClassificationDisplay({ classification, entityData }) {
             <div style={{ display: 'flex', gap: spacing[2] }}>
               <Icon glyph="Target" style={{ color: palette.blue.base, marginTop: '2px' }} size={16} />
               <div style={{ flex: 1 }}>
-                <Body weight="medium" style={{ fontSize: '13px', marginBottom: spacing[1] }}>
+                <Body weight="medium" style={{ fontSize: '15px', marginBottom: spacing[2], fontWeight: '600' }}>
                   {rec.title || rec.action || 'Recommendation'}
                 </Body>
-                <Body style={{ fontSize: '12px', color: palette.gray.dark1, lineHeight: '1.4' }}>
+                <Body style={{ fontSize: '14px', color: palette.gray.dark1, lineHeight: '1.6' }}>
                   {rec.description || rec.text || rec}
                 </Body>
                 {rec.priority && (
@@ -262,14 +262,17 @@ function RiskClassificationDisplay({ classification, entityData }) {
           <H2 style={{ 
             margin: 0, 
             color: classDetails.color,
-            marginBottom: spacing[1]
+            marginBottom: spacing[2],
+            fontSize: '28px',
+            fontWeight: '700'
           }}>
             {classDetails.title}
           </H2>
           <Body style={{ 
             color: palette.gray.dark1, 
-            fontSize: '14px',
-            marginBottom: spacing[3]
+            fontSize: '16px',
+            marginBottom: spacing[4],
+            lineHeight: 1.5
           }}>
             {classDetails.description}
           </Body>
@@ -282,27 +285,27 @@ function RiskClassificationDisplay({ classification, entityData }) {
             marginTop: spacing[3]
           }}>
             <div style={{ textAlign: 'center' }}>
-              <Body weight="medium" style={{ fontSize: '20px' }}>
+              <Body weight="medium" style={{ fontSize: '24px', fontWeight: '600' }}>
                 {(confidence * 100).toFixed(1)}%
               </Body>
-              <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>
+              <Body style={{ fontSize: '14px', color: palette.gray.dark1, marginTop: spacing[1] }}>
                 Confidence
               </Body>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <Body weight="medium" style={{ fontSize: '20px' }}>
+              <Body weight="medium" style={{ fontSize: '24px', fontWeight: '600' }}>
                 {riskScore || 'N/A'}
               </Body>
-              <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>
+              <Body style={{ fontSize: '14px', color: palette.gray.dark1, marginTop: spacing[1] }}>
                 Risk Score
               </Body>
             </div>
             {duplicateProbability !== undefined && (
               <div style={{ textAlign: 'center' }}>
-                <Body weight="medium" style={{ fontSize: '20px' }}>
+                <Body weight="medium" style={{ fontSize: '24px', fontWeight: '600' }}>
                   {(duplicateProbability * 100).toFixed(1)}%
                 </Body>
-                <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>
+                <Body style={{ fontSize: '14px', color: palette.gray.dark1, marginTop: spacing[1] }}>
                   Duplicate Probability
                 </Body>
               </div>
@@ -315,10 +318,12 @@ function RiskClassificationDisplay({ classification, entityData }) {
       {reasoning && (
         <Card style={{ padding: spacing[4] }}>
           <H3 style={{ 
-            marginBottom: spacing[3],
+            marginBottom: spacing[4],
             display: 'flex',
             alignItems: 'center',
-            gap: spacing[2]
+            gap: spacing[2],
+            fontSize: '20px',
+            fontWeight: '600'
           }}>
             <Icon glyph="Bulb" style={{ color: palette.purple.base }} />
             Classification Reasoning
@@ -328,7 +333,7 @@ function RiskClassificationDisplay({ classification, entityData }) {
             backgroundColor: palette.purple.light3,
             border: `1px solid ${palette.purple.light1}`
           }}>
-            <Body style={{ fontSize: '13px', lineHeight: '1.5' }}>
+            <Body style={{ fontSize: '15px', lineHeight: '1.7' }}>
               {reasoning}
             </Body>
           </Card>
@@ -338,10 +343,12 @@ function RiskClassificationDisplay({ classification, entityData }) {
       {/* Entity Summary */}
       <Card style={{ padding: spacing[4] }}>
         <H3 style={{ 
-          marginBottom: spacing[3],
+          marginBottom: spacing[4],
           display: 'flex',
           alignItems: 'center',
-          gap: spacing[2]
+          gap: spacing[2],
+          fontSize: '20px',
+          fontWeight: '600'
         }}>
           <Icon glyph="Person" style={{ color: palette.blue.base }} />
           Entity Summary
@@ -352,24 +359,24 @@ function RiskClassificationDisplay({ classification, entityData }) {
           gap: spacing[3]
         }}>
           <div>
-            <Label>Name/Organization</Label>
-            <Body weight="medium">{entityData?.fullName || 'N/A'}</Body>
+            <Label style={{ fontSize: '14px', fontWeight: '500' }}>Name/Organization</Label>
+            <Body weight="medium" style={{ fontSize: '15px', marginTop: spacing[1] }}>{entityData?.fullName || 'N/A'}</Body>
           </div>
           <div>
-            <Label>Type</Label>
-            <Body weight="medium" style={{ textTransform: 'capitalize' }}>
+            <Label style={{ fontSize: '14px', fontWeight: '500' }}>Type</Label>
+            <Body weight="medium" style={{ textTransform: 'capitalize', fontSize: '15px', marginTop: spacing[1] }}>
               {entityData?.entityType || 'Unknown'}
             </Body>
           </div>
           {entityData?.dateOfBirth && (
             <div>
-              <Label>Date of Birth</Label>
-              <Body weight="medium">{entityData.dateOfBirth}</Body>
+              <Label style={{ fontSize: '14px', fontWeight: '500' }}>Date of Birth</Label>
+              <Body weight="medium" style={{ fontSize: '15px', marginTop: spacing[1] }}>{entityData.dateOfBirth}</Body>
             </div>
           )}
           <div>
-            <Label>Address</Label>
-            <Body weight="medium">{entityData?.address || 'N/A'}</Body>
+            <Label style={{ fontSize: '14px', fontWeight: '500' }}>Address</Label>
+            <Body weight="medium" style={{ fontSize: '15px', marginTop: spacing[1] }}>{entityData?.address || 'N/A'}</Body>
           </div>
         </div>
       </Card>
@@ -397,7 +404,9 @@ function RiskClassificationDisplay({ classification, entityData }) {
               margin: 0,
               display: 'flex',
               alignItems: 'center',
-              gap: spacing[2]
+              gap: spacing[2],
+              fontSize: '18px',
+              fontWeight: '600'
             }}>
               <Icon glyph="Warning" style={{ color: palette.red.base }} />
               Risk Factors ({riskFactors.length})
@@ -430,7 +439,9 @@ function RiskClassificationDisplay({ classification, entityData }) {
               margin: 0,
               display: 'flex',
               alignItems: 'center',
-              gap: spacing[2]
+              gap: spacing[2],
+              fontSize: '18px',
+              fontWeight: '600'
             }}>
               <Icon glyph="Important" style={{ color: palette.red.base }} />
               Suspicious Indicators ({suspiciousIndicators.length})
@@ -463,7 +474,9 @@ function RiskClassificationDisplay({ classification, entityData }) {
               margin: 0,
               display: 'flex',
               alignItems: 'center',
-              gap: spacing[2]
+              gap: spacing[2],
+              fontSize: '18px',
+              fontWeight: '600'
             }}>
               <Icon glyph="Target" style={{ color: palette.blue.base }} />
               Recommendations & Next Steps

@@ -180,7 +180,7 @@ export default function HomepageClient() {
           }}
         >
           <div style={{ marginBottom: spacing[2], color: palette.yellow.dark2 }}>
-            <Icon glyph="Shield" size="large" />
+            <Icon glyph="Dashboard" size="large" />
           </div>
           <H3 style={{ marginBottom: spacing[2], color: palette.gray.dark2 }}>
             AML Compliance

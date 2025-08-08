@@ -16,6 +16,7 @@ import Code from '@leafygreen-ui/code';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 import { amlAPI, useAMLAPIError, amlUtils } from '@/lib/aml-api';
+import EntityLink from '@/components/common/EntityLink';
 import styles from './EntityDetail.module.css';
 
 function SimilarProfilesSection({ entity }) {
@@ -184,7 +185,13 @@ function SimilarProfilesSection({ entity }) {
                   <Row key={index}>
                     <Cell>
                       <div>
-                        <Body weight="medium">{similarEntity.name?.full || 'N/A'}</Body>
+                        <EntityLink 
+                          entityId={similarEntity.entityId}
+                          weight="medium"
+                          onClick={() => setShowModal(false)}
+                        >
+                          {similarEntity.name?.full || 'N/A'}
+                        </EntityLink>
                         <Overline style={{ color: palette.gray.dark1 }}>
                           {similarEntity.entityId}
                         </Overline>
@@ -217,13 +224,23 @@ function SimilarProfilesSection({ entity }) {
                       </Tooltip>
                     </Cell>
                     <Cell>
-                      <Button
-                        variant="default"
-                        size="xsmall"
-                        onClick={() => handleEntityClick(similarEntity.entityId)}
+                      <a 
+                        href={`/entities/${similarEntity.entityId}`}
+                        onClick={(e) => {
+                          if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                            e.preventDefault();
+                            handleEntityClick(similarEntity.entityId);
+                          }
+                        }}
+                        style={{ textDecoration: 'none' }}
                       >
-                        View Details
-                      </Button>
+                        <Button
+                          variant="default"
+                          size="xsmall"
+                        >
+                          View Details
+                        </Button>
+                      </a>
                     </Cell>
                   </Row>
                 ))}

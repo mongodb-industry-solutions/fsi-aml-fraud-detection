@@ -25,6 +25,13 @@ from routes import (
     llm_investigation_router
 )
 
+# Import PDF generation routes
+try:
+    from routes.pdf_routes import router as pdf_router
+except ImportError:
+    logger.warning("PDF routes not available")
+    pdf_router = None
+
 # Note: Fallback routes removed after successful migration to organized structure
 
 # Setup logging
@@ -227,6 +234,9 @@ include_router_safely(app, llm_classification_router, "LLM Classification")
 
 # 4.7. LLM Investigation routes (Case investigation generation)
 include_router_safely(app, llm_investigation_router, "LLM Investigation")
+
+# 4.8. PDF Generation routes
+include_router_safely(app, pdf_router, "PDF Generation")
 
 # 5. Core entity routes (has catch-all routes, so include after more specific routes)  
 include_router_safely(app, core_entities_router, "Core Entities")

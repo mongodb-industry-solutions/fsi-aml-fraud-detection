@@ -402,19 +402,40 @@ const CytoscapeNetworkComponent = ({
 
   // Initialize fullscreen Cytoscape when modal opens
   useEffect(() => {
-    if (!showFullscreenModal || !fullscreenContainerRef.current || !elements.length || !extensionsLoaded) {
+    if (!showFullscreenModal) {
+      console.log('🔄 Fullscreen modal not open, skipping initialization');
       return;
     }
+
+    if (!fullscreenContainerRef.current) {
+      console.error('❌ Fullscreen container ref not available');
+      return;
+    }
+
+    if (!elements.length) {
+      console.error('❌ No elements available for fullscreen graph. Elements:', elements);
+      return;
+    }
+
+    if (!extensionsLoaded) {
+      console.error('❌ Cytoscape extensions not loaded yet');
+      return;
+    }
+
+    console.log('✅ All requirements met. Initializing fullscreen Cytoscape with', elements.length, 'elements');
 
     // Small delay to ensure container is fully rendered
     const timeoutId = setTimeout(() => {
       // Destroy existing fullscreen instance
       if (fullscreenCyRef.current) {
+        console.log('🔄 Destroying existing fullscreen Cytoscape instance');
         fullscreenCyRef.current.destroy();
         fullscreenCyRef.current = null;
       }
 
       try {
+        console.log('🔄 Creating new fullscreen Cytoscape instance');
+        
         // Create fullscreen cytoscape instance
         fullscreenCyRef.current = cytoscape({
           container: fullscreenContainerRef.current,
@@ -521,16 +542,23 @@ const CytoscapeNetworkComponent = ({
           });
         }
 
+        console.log('✅ Fullscreen Cytoscape instance created successfully');
+
         // Fit the graph after a small delay
         setTimeout(() => {
           if (fullscreenCyRef.current) {
+            console.log('🔄 Fitting fullscreen graph');
             fullscreenCyRef.current.fit();
             fullscreenCyRef.current.center();
+            console.log('✅ Fullscreen graph fitted and centered');
           }
         }, 100);
 
       } catch (error) {
-        console.error('Error initializing fullscreen Cytoscape:', error);
+        console.error('❌ Error initializing fullscreen Cytoscape:', error);
+        console.error('Container:', fullscreenContainerRef.current);
+        console.error('Elements:', elements);
+        console.error('Extensions loaded:', extensionsLoaded);
       }
     }, 200); // Delay to ensure container is ready
 
@@ -812,7 +840,6 @@ const CytoscapeNetworkComponent = ({
         open={showFullscreenModal}
         setOpen={setShowFullscreenModal}
         size="large"
-        contentStyle={{ zIndex: 1001 }}
       >
         <div style={{ 
           display: 'flex', 

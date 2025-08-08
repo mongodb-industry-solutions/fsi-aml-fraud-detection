@@ -275,11 +275,6 @@ function ProcessingStep({ step, status, isActive, completedAt }) {
                status === 'active' ? 'Processing' : 
                'Pending'}
             </Badge>
-            {completedAt && (
-              <Label style={{ fontSize: '10px', color: palette.gray.base }}>
-                {completedAt}ms
-              </Label>
-            )}
           </div>
         </div>
         

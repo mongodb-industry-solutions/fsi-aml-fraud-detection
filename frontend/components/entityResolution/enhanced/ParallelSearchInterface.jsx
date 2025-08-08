@@ -15,6 +15,7 @@ import { Spinner } from '@leafygreen-ui/loading-indicator';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 import EntityDetailWrapper from '@/components/entities/EntityDetailWrapper';
+import EntityLink from '@/components/common/EntityLink';
 
 /**
  * Parallel Search Interface
@@ -121,21 +122,22 @@ function ParallelSearchInterface({ searchResults, originalEntityData, isLoading 
     const entityId = entity.entityId || entity.entity_id;
     
     return (
-      <span
-        onClick={() => handleEntityClick(entityId)}
+      <EntityLink
+        entityId={entityId}
+        onClick={(clickedEntityId, e) => {
+          // For this component, we want to open the modal instead of navigating
+          e.preventDefault();
+          handleEntityClick(clickedEntityId);
+        }}
         style={{
-          color: palette.blue.base,
-          cursor: 'pointer',
-          textDecoration: 'underline',
           fontSize: '13px',
           lineHeight: '1.4',
           wordBreak: 'break-word'
         }}
-        onMouseEnter={(e) => e.target.style.color = palette.blue.dark1}
-        onMouseLeave={(e) => e.target.style.color = palette.blue.base}
+        weight="normal"
       >
         {entityName}
-      </span>
+      </EntityLink>
     );
   };
 

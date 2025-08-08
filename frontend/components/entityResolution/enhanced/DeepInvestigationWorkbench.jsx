@@ -215,7 +215,7 @@ function DeepInvestigationWorkbench({ investigation, workflowData, onReset }) {
                   border: `1px solid ${palette.yellow.light1}`
                 }}>
                   <div style={{ display: 'flex', gap: spacing[2] }}>
-                    <Icon glyph="Target" style={{ color: palette.yellow.dark2, marginTop: '2px' }} />
+                    <Icon glyph="Warning" style={{ color: palette.yellow.dark2, marginTop: '2px' }} />
                     <div>
                       <Body weight="medium" style={{ fontSize: '13px', marginBottom: spacing[1] }}>
                         {insight.title || 'Insight'}

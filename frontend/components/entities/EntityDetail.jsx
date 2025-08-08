@@ -779,7 +779,7 @@ function ComprehensiveOverviewTab({ entity }) {
                   <div>
                     <Label>Verification Method</Label>
                     <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
-                      <Icon glyph="Shield" size={14} fill={palette.blue.base} />
+                      <Icon glyph="Dashboard" size={14} fill={palette.blue.base} />
                       <Body style={{ fontSize: '12px', color: palette.blue.dark1 }}>
                         {address.verificationMethod.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                       </Body>
@@ -1170,7 +1170,7 @@ function WatchlistTab({ watchlistMatches }) {
   if (!watchlistMatches || watchlistMatches.length === 0) {
     return (
       <div className={styles.emptyState}>
-        <Icon glyph="Shield" size={48} fill={palette.green.base} />
+        <Icon glyph="Dashboard" size={48} fill={palette.green.base} />
         <H3>No watchlist matches</H3>
         <Body style={{ color: palette.gray.dark1 }}>
           This entity has no matches against watchlists.

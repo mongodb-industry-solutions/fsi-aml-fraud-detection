@@ -23,6 +23,7 @@ import { amlAPI, useAMLAPIError, amlUtils } from '@/lib/aml-api';
 import EnhancedSearchBar from './EnhancedSearchBar';
 import AdvancedFacetedFilters from './AdvancedFacetedFilters';
 import MongoDBInsightsPanel from './MongoDBInsightsPanel';
+import EntityLink from '@/components/common/EntityLink';
 import styles from './EntityList.module.css';
 
 // Constants
@@ -121,6 +122,7 @@ function EntityRow({ entity, onClick }) {
       style={{ 
         cursor: 'pointer',
         transition: 'background-color 0.2s ease',
+        minHeight: '80px', // Increased from default for better spacing
       }}
       className={styles.entityRow}
     >
@@ -138,7 +140,13 @@ function EntityRow({ entity, onClick }) {
       </Cell>
       <Cell>
         <div>
-          <Body weight="medium">{entity.name_full}</Body>
+          <EntityLink 
+            entityId={entity.entityId}
+            weight="medium"
+            style={{ fontSize: '14px' }}
+          >
+            {entity.name_full}
+          </EntityLink>
           <div style={{ marginTop: spacing[1] }}>
             <Body style={{ color: palette.gray.dark1, fontSize: '12px' }}>
               {amlUtils.formatEntityType(entity.entityType)}
@@ -432,8 +440,9 @@ export default function EntityList() {
             </div>
           </div>
         ) : entities.length > 0 ? (
-          <Table>
-            <TableHead>
+          <div className={styles.tableContainer}>
+            <Table>
+              <TableHead>
               <HeaderRow>
                 <HeaderCell>Entity ID & Scenario</HeaderCell>
                 <HeaderCell>Name & Type</HeaderCell>
@@ -453,6 +462,7 @@ export default function EntityList() {
               ))}
             </TableBody>
           </Table>
+          </div>
         ) : (
           <div style={{ padding: spacing[4], textAlign: 'center' }}>
             <Icon glyph="Person" size={48} fill={palette.gray.light1} />

@@ -41,6 +41,15 @@ class InvestigationService:
         try:
             logger.info("Starting simple case investigation creation")
             
+            # Validate workflow_data is not None
+            if workflow_data is None:
+                logger.error("workflow_data is None")
+                raise ValueError("workflow_data cannot be None")
+            
+            # Log workflow data structure for debugging
+            logger.info(f"Workflow data keys: {list(workflow_data.keys())}")
+            logger.info(f"Workflow data types: {[(k, type(v).__name__) for k, v in workflow_data.items()]}")
+            
             # Generate unique case ID
             case_id = f"ERC-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
             logger.info(f"Generated case ID: {case_id}")
@@ -67,6 +76,7 @@ class InvestigationService:
             
         except Exception as e:
             logger.error(f"Error creating case investigation: {e}")
+            logger.error(f"Workflow data was: {type(workflow_data)} - {workflow_data}")
             raise
     
     def _create_case_document(self, workflow_data: Dict[str, Any], case_id: str, llm_summary: str) -> Dict[str, Any]:
@@ -74,7 +84,10 @@ class InvestigationService:
         
         # Extract key information
         entity_input = workflow_data.get("entityInput", {})
-        classification = workflow_data.get("classification", {}).get("result", {})
+        classification_data = workflow_data.get("classification", {})
+        classification = classification_data.get("result", {})
+        raw_ai_response = classification_data.get("raw_ai_response", "")
+        streaming_metadata = classification_data.get("streaming_metadata", {})
         network_analysis = workflow_data.get("networkAnalysis", {})
         search_results = workflow_data.get("searchResults", {})
         
@@ -119,7 +132,10 @@ class InvestigationService:
                     "aml_kyc_flags": classification.get("aml_kyc_flags", {}),
                     "network_classification": classification.get("network_classification"),
                     "classification_model": classification.get("classification_model"),
-                    "classification_timestamp": classification.get("classification_timestamp")
+                    "classification_timestamp": classification.get("classification_timestamp"),
+                    # Store raw AI response for audit trail and transparency
+                    "raw_ai_analysis": raw_ai_response,
+                    "streaming_metadata": streaming_metadata
                 }
             },
             
@@ -150,15 +166,82 @@ class InvestigationService:
         }
     
     async def _generate_investigation_summary(self, workflow_data: Dict[str, Any]) -> str:
-        """Generate simple investigation summary using LLM"""
+        """Generate investigation summary using LLM with raw AI classification analysis"""
         
-        entity_input = workflow_data.get("entityInput", {})
-        classification = workflow_data.get("classification", {}).get("result", {})
-        network_analysis = workflow_data.get("networkAnalysis", {})
-        search_results = workflow_data.get("searchResults", {})
+        try:
+            # Validate workflow_data structure
+            if not workflow_data:
+                raise ValueError("workflow_data is empty or None")
+                
+            logger.info("Extracting data from workflow_data for investigation summary")
+            
+            entity_input = workflow_data.get("entityInput", {})
+            classification = workflow_data.get("classification", {})
+            
+            logger.info(f"Entity input keys: {list(entity_input.keys()) if entity_input else 'None'}")
+            logger.info(f"Classification keys: {list(classification.keys()) if classification else 'None'}")
+            
+            # Extract structured classification result
+            classification_result = classification.get("result", {}) if classification else {}
+            
+            # CRITICAL: Extract raw AI classification response for comprehensive analysis
+            raw_ai_response = classification.get("raw_ai_response", "") if classification else ""
+            streaming_metadata = classification.get("streaming_metadata", {}) if classification else {}
+            
+            network_analysis = workflow_data.get("networkAnalysis", {})
+            search_results = workflow_data.get("searchResults", {})
+            
+            logger.info(f"Extracted data - Entity: {entity_input.get('fullName', 'Unknown')}, Raw AI response length: {len(raw_ai_response)}")
+            
+        except Exception as e:
+            logger.error(f"Error extracting data from workflow_data: {e}")
+            logger.error(f"Workflow data structure: {workflow_data}")
+            raise
         
-        # Build simple prompt
-        prompt = f"""Create a professional investigation summary for this entity resolution case:
+        # Build enhanced prompt using raw AI classification analysis
+        if raw_ai_response:
+            logger.info(f"Using raw AI classification response ({len(raw_ai_response)} characters) for investigation summary")
+            
+            # Use the comprehensive raw AI analysis as the foundation
+            prompt = f"""Based on the comprehensive AI classification analysis below, create a professional case investigation summary:
+
+=== ENTITY INFORMATION ===
+Name: {entity_input.get('fullName', 'Unknown')}
+Type: {entity_input.get('entityType', 'Unknown')}
+Address: {entity_input.get('address', 'Not provided')}
+
+=== SEARCH & NETWORK ANALYSIS CONTEXT ===
+- Atlas Search: {len(search_results.get('atlasResults', []))} matches
+- Vector Search: {len(search_results.get('vectorResults', []))} matches  
+- Hybrid Search: {len(search_results.get('hybridResults', []))} matches
+- Network Entities Analyzed: {network_analysis.get('entitiesAnalyzed', 0)}
+- Analysis Type: {network_analysis.get('analysisType', 'unknown')}
+
+=== COMPREHENSIVE AI CLASSIFICATION ANALYSIS ===
+{raw_ai_response}
+
+=== STRUCTURED CLASSIFICATION RESULTS ===
+- Risk Score: {classification_result.get('risk_score', 0)}/100
+- Risk Level: {classification_result.get('overall_risk_level', 'unknown')}
+- Recommended Action: {classification_result.get('recommended_action', 'review')}
+- Confidence: {classification_result.get('confidence_score', 0)}%
+- Model Used: {streaming_metadata.get('model_used', 'claude-3-sonnet')}
+- Analysis Duration: {streaming_metadata.get('total_time', 0):.1f}s
+
+INSTRUCTIONS:
+Create a professional case investigation summary (2-3 paragraphs) that:
+1. Synthesizes the detailed AI classification analysis provided above
+2. References specific risk factors and concerns identified in the AI analysis
+3. Incorporates the network analysis and search results context
+4. Provides a clear, actionable recommendation based on the comprehensive analysis
+5. Uses professional AML/KYC compliance language suitable for regulatory documentation
+
+Focus on the specific insights from the AI classification analysis rather than generic statements."""
+        else:
+            logger.warning("Raw AI classification response not available, using fallback structured data approach")
+            
+            # Fallback to structured data approach if raw response unavailable
+            prompt = f"""Create a professional investigation summary for this entity resolution case:
 
 ENTITY INFORMATION:
 Name: {entity_input.get('fullName', 'Unknown')}
@@ -175,10 +258,10 @@ NETWORK ANALYSIS:
 - Analysis Type: {network_analysis.get('analysisType', 'unknown')}
 
 CLASSIFICATION RESULTS:
-- Risk Score: {classification.get('risk_score', 0)}/100
-- Risk Level: {classification.get('overall_risk_level', 'unknown')}
-- Recommended Action: {classification.get('recommended_action', 'review')}
-- Confidence: {classification.get('confidence_score', 0)}%
+- Risk Score: {classification_result.get('risk_score', 0)}/100
+- Risk Level: {classification_result.get('overall_risk_level', 'unknown')}
+- Recommended Action: {classification_result.get('recommended_action', 'review')}
+- Confidence: {classification_result.get('confidence_score', 0)}%
 
 Create a professional 2-3 paragraph investigation summary that:
 1. Summarizes the key findings from the entity resolution process

@@ -22,7 +22,7 @@ import NetworkVisualizationCard from './enhanced/NetworkVisualizationCard';
 import RiskClassificationDisplay from './enhanced/RiskClassificationDisplay';
 import DeepInvestigationWorkbench from './enhanced/DeepInvestigationWorkbench';
 import Top3ComparisonPanel from './enhanced/Top3ComparisonPanel';
-import LLMClassificationPanel from './enhanced/LLMClassificationPanel';
+import StreamingClassificationInterface from './enhanced/StreamingClassificationInterface';
 import ProcessingStepsIndicator from './enhanced/ProcessingStepsIndicator';
 import CaseInvestigationDisplay from './enhanced/CaseInvestigationDisplay';
 
@@ -210,7 +210,7 @@ function EnhancedEntityResolutionPage() {
   };
 
   /**
-   * Handle LLM-powered entity classification
+   * Handle LLM-powered entity classification - START STREAMING
    */
   const handleClassification = async () => {
     if (!workflowData.searchResults || !workflowData.networkAnalysis) {
@@ -218,41 +218,45 @@ function EnhancedEntityResolutionPage() {
       return;
     }
     
-    setIsLoading(true);
-    setCurrentProcess('llmClassification');
-    try {
-      console.log('🧠 Starting LLM-powered entity classification...');
-      
-      // Use the new LLM classification API
-      const classification = await amlAPI.classifyEntity(
-        workflowData, // Complete workflow data
-        'claude-3-sonnet', // Model preference
-        'comprehensive' // Analysis depth
-      );
-      
-      if (!classification.success) {
-        throw new Error(classification.error?.error_message || 'LLM classification failed');
-      }
-      
-      setWorkflowData(prev => ({
-        ...prev,
-        classification
-      }));
-      
-      setCurrentStep(3);
-      
-      console.log('✅ LLM classification completed successfully:', {
-        riskScore: classification.result?.risk_score,
-        recommendedAction: classification.result?.recommended_action,
-        confidenceScore: classification.result?.confidence_score
-      });
-      
-    } catch (error) {
-      console.error('❌ LLM classification failed:', error);
-      setError(error.message || 'Failed to classify entity using LLM analysis');
-    } finally {
-      setIsLoading(false);
-      setCurrentProcess(null);
+    // Immediately move to Step 3 to show streaming interface
+    setCurrentStep(3);
+    console.log('🧠 Starting streaming LLM classification...');
+  };
+
+  /**
+   * Handle streaming classification completion
+   */
+  const handleClassificationComplete = (classificationResult) => {
+    console.log('✅ Streaming classification completed:', classificationResult);
+    
+    setWorkflowData(prev => ({
+      ...prev,
+      classification: classificationResult
+    }));
+    
+    // Classification is complete, user can proceed to investigation
+    // The StreamingClassificationInterface handles the transition
+  };
+
+  /**
+   * Handle streaming classification error
+   */
+  const handleClassificationError = (error) => {
+    // Check if this is a cancellation vs actual error
+    const isCancellation = error === 'Component unmounted' || 
+                          error === 'User cancelled streaming' ||
+                          (typeof error === 'object' && error.cancelled) ||
+                          (typeof error === 'string' && (error.includes('cancel') || error.includes('unmounted') || error.includes('aborted')));
+    
+    if (isCancellation) {
+      console.log('🛑 Classification cancelled, resetting to step 2');
+      // Reset back to step 2 when cancelled
+      setCurrentStep(2);
+      setError(null); // Clear any existing errors
+    } else {
+      console.error('❌ Streaming classification error:', error);
+      setError(error.message || error || 'Failed to classify entity using streaming LLM');
+      // Stay on step 3 but show error state
     }
   };
 
@@ -265,8 +269,41 @@ function EnhancedEntityResolutionPage() {
     
     try {
       console.log('🔍 Starting case investigation creation...');
+      console.log('📋 Workflow data being sent:', {
+        entityInput: !!workflowData.entityInput,
+        searchResults: !!workflowData.searchResults,
+        networkAnalysis: !!workflowData.networkAnalysis,
+        classification: !!workflowData.classification,
+        workflowDataKeys: Object.keys(workflowData)
+      });
       
       const investigation = await amlAPI.createCaseInvestigation(workflowData);
+      
+      console.log('📊 Investigation response received:', {
+        success: investigation?.success,
+        case_id: investigation?.case_id,
+        has_investigation_summary: !!investigation?.investigation_summary,
+        investigation_summary_length: investigation?.investigation_summary?.length || 0,
+        has_case_document: !!investigation?.case_document,
+        investigation_keys: Object.keys(investigation || {})
+      });
+
+      // Validate investigation response
+      if (!investigation) {
+        throw new Error('No investigation response received from server');
+      }
+      
+      if (!investigation.success) {
+        throw new Error(`Investigation creation failed: ${investigation.error || 'Unknown error'}`);
+      }
+      
+      if (!investigation.case_id) {
+        console.warn('⚠️ Investigation response missing case_id');
+      }
+      
+      if (!investigation.investigation_summary) {
+        console.warn('⚠️ Investigation response missing investigation_summary');
+      }
       
       setWorkflowData(prev => ({
         ...prev,
@@ -275,10 +312,17 @@ function EnhancedEntityResolutionPage() {
       
       setCurrentStep(4);
       
-      console.log('✅ Case investigation created successfully');
+      console.log('✅ Case investigation created successfully:', {
+        caseId: investigation.case_id,
+        summaryAvailable: !!investigation.investigation_summary
+      });
       
     } catch (error) {
-      console.error('❌ Case investigation failed:', error);
+      console.error('❌ Case investigation failed:', {
+        error: error.message,
+        workflowDataAvailable: !!workflowData,
+        workflowKeys: workflowData ? Object.keys(workflowData) : []
+      });
       setError(error.message || 'Failed to create case investigation');
     } finally {
       setIsLoading(false);
@@ -469,11 +513,12 @@ function EnhancedEntityResolutionPage() {
           </div>
         )}
 
-        {/* Step 3: LLM-Powered Classification */}
-        {currentStep === 3 && workflowData.classification && (
-          <LLMClassificationPanel
-            classification={workflowData.classification}
+        {/* Step 3: Streaming LLM Classification */}
+        {currentStep === 3 && (
+          <StreamingClassificationInterface
             workflowData={workflowData}
+            onComplete={handleClassificationComplete}
+            onError={handleClassificationError}
             onProceedToInvestigation={handleCaseInvestigation}
           />
         )}

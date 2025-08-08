@@ -114,6 +114,21 @@
   overflow-x: auto;
 }
 
+/* Increased row height and padding for better spacing */
+.entityRow {
+  min-height: 80px !important;
+  height: auto !important;
+}
+
+.entityRow td {
+  padding: 20px 12px !important;
+  vertical-align: middle !important;
+}
+
+.entityRow:hover td {
+  background-color: #f9f9f9 !important;
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
   .filtersContainer {

@@ -229,7 +229,7 @@ const AdvancedInvestigationPanel = ({ results, centerEntityId, RiskPropagationCo
     if (!data || !data.success) {
       return (
         <div style={{ padding: spacing[3], textAlign: 'center' }}>
-          <Icon glyph="Shield" size={32} fill={palette.green.base} />
+          <Icon glyph="Dashboard" size={32} fill={palette.green.base} />
           <Body style={{ color: palette.gray.dark1, marginTop: spacing[2] }}>
             No suspicious patterns detected
           </Body>

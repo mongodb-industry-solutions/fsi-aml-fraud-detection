@@ -200,12 +200,12 @@ def get_bedrock_client():
     return BedrockClient()
 
 
-async def get_entity_classification_service(
+async def get_streaming_classification_service(
     bedrock_client = Depends(get_bedrock_client)
 ):
-    """Get EntityClassificationService with injected Bedrock client"""
-    from services.llm.entity_classification_service import EntityClassificationService
-    return EntityClassificationService(bedrock_client=bedrock_client)
+    """Get StreamingClassificationService with injected Bedrock client"""
+    from services.llm.streaming_classification_service import StreamingClassificationService
+    return StreamingClassificationService(bedrock_client=bedrock_client)
 
 
 async def get_investigation_service(

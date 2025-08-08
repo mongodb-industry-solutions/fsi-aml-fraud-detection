@@ -368,13 +368,13 @@ export default function VectorSearchCalculationBreakdown({
           </div>
 
 
-          {/* Enhanced Step-by-Step Calculation */}
-          <div style={{ marginBottom: spacing[4] }}>
-            <H3 style={{ marginBottom: spacing[3], color: palette.green.dark2 }}>
-              📊 Step-by-Step Calculation Process
-            </H3>
-            
-            {method.includes('High Risk') && components.weight_details && (
+          {/* Enhanced Step-by-Step Calculation - Only for High Risk */}
+          {method.includes('High Risk') && components.weight_details && (
+            <div style={{ marginBottom: spacing[4] }}>
+              <H3 style={{ marginBottom: spacing[3], color: palette.green.dark2 }}>
+                📊 Step-by-Step Calculation Process
+              </H3>
+              
               <div>
                 {/* Step 1: Individual Weight Details */}
                 {renderWeightDetails(components.weight_details)}
@@ -501,44 +501,22 @@ export default function VectorSearchCalculationBreakdown({
                   </div>
                 </div>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Fallback for other methods */}
-            {!method.includes('High Risk') && (
-              <div style={{ 
-                padding: spacing[3],
-                background: palette.gray.light2,
-                borderRadius: '6px',
-                border: '1px solid #e8edeb'
-              }}>
-                {steps && steps.length > 0 ? (
-                  <ol style={{ margin: 0, paddingLeft: spacing[4] }}>
-                    {steps.map((step, index) => (
-                      <li key={index} style={{ marginBottom: spacing[2] }}>
-                        <Body>{step}</Body>
-                      </li>
-                    ))}
-                  </ol>
-                ) : (
-                  <Body style={{ color: palette.gray.dark1 }}>No calculation steps available</Body>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Enhanced Result Summary and Algorithm Explanation */}
-          <div style={{ 
-            marginTop: spacing[4],
-            padding: spacing[4],
-            background: `linear-gradient(135deg, ${palette.yellow.light3}, ${palette.green.light3})`,
-            borderRadius: '8px',
-            border: `2px solid ${palette.yellow.base}`
-          }}>
-            <H3 style={{ marginBottom: spacing[3], color: palette.yellow.dark2, textAlign: 'center' }}>
-              🎯 Why This Algorithm Works & What The Result Means
-            </H3>
-            
-            {method.includes('High Risk') && (
+          {/* Enhanced Result Summary and Algorithm Explanation - Only for High Risk */}
+          {method.includes('High Risk') && (
+            <div style={{ 
+              marginTop: spacing[4],
+              padding: spacing[4],
+              background: `linear-gradient(135deg, ${palette.yellow.light3}, ${palette.green.light3})`,
+              borderRadius: '8px',
+              border: `2px solid ${palette.yellow.base}`
+            }}>
+              <H3 style={{ marginBottom: spacing[3], color: palette.yellow.dark2, textAlign: 'center' }}>
+                🎯 Why This Algorithm Works & What The Result Means
+              </H3>
+              
               <div>
                 <div style={{
                   marginBottom: spacing[3],
@@ -623,39 +601,9 @@ export default function VectorSearchCalculationBreakdown({
                     </div>
                   </div>
                 </div>
-
               </div>
-            )}
-
-            {method.includes('Low Risk') && (
-              <Body>
-                <strong>Low Risk Pattern:</strong> This transaction is similar only to legitimate transactions, 
-                suggesting it follows normal customer behavior patterns. Higher similarity to low-risk transactions 
-                actually reduces the risk score.
-              </Body>
-            )}
-
-            {method.includes('Mixed Risk') && (
-              <Body>
-                <strong>Mixed Risk Pattern:</strong> This transaction shows similarity to both risky and legitimate 
-                transactions, requiring a balanced weighted analysis across all risk levels to determine the overall pattern.
-              </Body>
-            )}
-
-            {method.includes('No Similar') && (
-              <Body>
-                <strong>Unique Pattern:</strong> No similar transactions found in the database. In a large dataset, 
-                this uniqueness itself can be suspicious as fraud often involves novel attack patterns.
-              </Body>
-            )}
-
-            {method.includes('Error') && (
-              <Body>
-                <strong>Processing Error:</strong> An error occurred during the vector search analysis. 
-                A moderate fallback risk score was assigned for safety.
-              </Body>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </ExpandableCard>
     </div>

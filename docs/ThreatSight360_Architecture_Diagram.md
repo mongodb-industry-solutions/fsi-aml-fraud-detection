@@ -55,7 +55,7 @@ graph TB
         end
         
         subgraph "Supporting Services"
-            SEARCH[Search Service<br/>• MongoDB Atlas Search<br/>• Vector Similarity<br/>• Hybrid Ranking ($rankFusion)]
+            SEARCH[Search Service<br/>• MongoDB Atlas Search<br/>• Vector Similarity<br/>• Hybrid Ranking with rankFusion]
             
             ML[ML/AI Service<br/>• AWS Bedrock Integration<br/>• Entity Classification<br/>• Risk Scoring<br/>• Pattern Recognition]
             

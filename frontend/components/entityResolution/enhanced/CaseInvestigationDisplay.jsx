@@ -385,7 +385,8 @@ function CaseReportTab({ investigation, workflowData }) {
       console.log('📋 Sending case data for PDF generation:', pdfRequestData);
       
       // Call backend PDF generation API
-      const response = await fetch('http://localhost:8001/pdf/generate-case-report', {
+      const amlApiUrl = process.env.NEXT_PUBLIC_AML_API_URL || 'http://localhost:8001';
+      const response = await fetch(`${amlApiUrl}/pdf/generate-case-report`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

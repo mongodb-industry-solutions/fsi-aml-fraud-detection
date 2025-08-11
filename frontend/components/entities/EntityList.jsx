@@ -271,7 +271,8 @@ export default function EntityList() {
       params.append('limit', DEFAULT_PAGE_SIZE.toString());
       params.append('page', page.toString());
 
-      const response = await fetch(`http://localhost:8001/entities/search/unified?${params.toString()}`);
+      const amlApiUrl = process.env.NEXT_PUBLIC_AML_API_URL || 'http://localhost:8001';
+      const response = await fetch(`${amlApiUrl}/entities/search/unified?${params.toString()}`);
       
       if (!response.ok) {
         throw new Error(`Search failed: ${response.status} ${response.statusText}`);

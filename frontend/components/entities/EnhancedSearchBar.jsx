@@ -44,8 +44,9 @@ export default function EnhancedSearchBar({
 
     try {
       setLoading(true);
+      const amlApiUrl = process.env.NEXT_PUBLIC_AML_API_URL || 'http://localhost:8001';
       const response = await fetch(
-        `http://localhost:8001/entities/search/autocomplete?q=${encodeURIComponent(searchQuery)}&limit=8`
+        `${amlApiUrl}/entities/search/autocomplete?q=${encodeURIComponent(searchQuery)}&limit=8`
       );
       
       if (response.ok) {

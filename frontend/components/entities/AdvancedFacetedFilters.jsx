@@ -31,7 +31,8 @@ export default function AdvancedFacetedFilters({
   const fetchFacets = async () => {
     try {
       setFacetsLoading(true);
-      const response = await fetch('http://localhost:8001/entities/search/facets');
+      const amlApiUrl = process.env.NEXT_PUBLIC_AML_API_URL || 'http://localhost:8001';
+      const response = await fetch(`${amlApiUrl}/entities/search/facets`);
       
       if (response.ok) {
         const data = await response.json();

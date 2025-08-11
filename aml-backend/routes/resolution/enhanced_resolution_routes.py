@@ -70,70 +70,190 @@ async def get_enhanced_demo_scenarios() -> Dict[str, Any]:
     """Get enhanced demo scenarios for testing entity resolution workflows."""
     
     scenarios = [
+        # SAFE CATEGORY (Low Risk) - 3 Options
         {
-            "id": "enhanced_safe_individual",
-            "name": "Safe Individual - Low Risk",
-            "description": "Clean individual with no risk indicators",
+            "id": "safe_individual_1",
+            "name": "Safe Individual - Lisa Anderson",
+            "description": "Generic low-risk individual from Brazil",
             "entityData": {
-                "fullName": "Jennifer Sarah Wilson",
-                "dateOfBirth": "1985-03-15",
-                "address": "123 Oak Street, Portland, OR 97201",
-                "primaryIdentifier": "SSN:555-12-3456",
+                "fullName": "Lisa Anderson",
+                "address": "269 Brian Trail, Freybury, 89323, Brazil",
                 "entityType": "individual"
             },
             "expectedClassification": "SAFE",
             "networkComplexity": "simple"
         },
         {
-            "id": "enhanced_duplicate_individual", 
-            "name": "Potential Duplicate - High Similarity",
-            "description": "Individual with high similarity to existing record",
+            "id": "safe_individual_2",
+            "name": "Safe Individual - Simone Weber",
+            "description": "Generic low-risk individual from Brazil",
             "entityData": {
-                "fullName": "Robert J. Smith",
-                "dateOfBirth": "1975-08-22",
-                "address": "456 Pine Ave, Seattle, WA 98101",
-                "primaryIdentifier": "DL:WA-567890123",
+                "fullName": "Simone Weber",
+                "address": "84 White groves, East Julie, 13119, Brazil",
+                "entityType": "individual"
+            },
+            "expectedClassification": "SAFE",
+            "networkComplexity": "simple"
+        },
+        {
+            "id": "safe_individual_3",
+            "name": "Safe Individual - Célina Barron",
+            "description": "Generic low-risk individual from Canada",
+            "entityData": {
+                "fullName": "Célina Barron",
+                "address": "23220 Brandon Station, Martinezview, PE, 56544, Canada",
+                "entityType": "individual"
+            },
+            "expectedClassification": "SAFE",
+            "networkComplexity": "simple"
+        },
+        
+        # DUPLICATE CATEGORY - 3 Options
+        {
+            "id": "duplicate_individual_1",
+            "name": "Duplicate - Mark Santiago",
+            "description": "Subtle duplicate cluster member",
+            "entityData": {
+                "fullName": "Mark Santiago",
+                "address": "Studio 53r Green locks, Apt 63B, Ollivierdan, 25708, United Kingdom",
                 "entityType": "individual"
             },
             "expectedClassification": "DUPLICATE",
             "networkComplexity": "moderate"
         },
         {
-            "id": "enhanced_risky_individual",
-            "name": "High Risk Individual - Multiple Indicators",
-            "description": "Individual with multiple risk factors and suspicious network",
+            "id": "duplicate_individual_2", 
+            "name": "Duplicate - Chr Luce Benthin",
+            "description": "Clear duplicate set member",
             "entityData": {
-                "fullName": "Alexander Petrov",
-                "dateOfBirth": "1970-12-01",
-                "address": "789 International Blvd, Miami, FL 33101",
-                "primaryIdentifier": "PASSPORT:555123456",
+                "fullName": "Chr Luce Benthin",
+                "address": "91 Fox isle, Carre, DC 99565, USA",
+                "entityType": "individual"
+            },
+            "expectedClassification": "DUPLICATE",
+            "networkComplexity": "moderate"
+        },
+        {
+            "id": "duplicate_individual_3",
+            "name": "Duplicate - Bernadette Griffin",
+            "description": "Household set member with address similarity",
+            "entityData": {
+                "fullName": "Bernadette Griffin",
+                "address": "Marlene-Schmidtke-Gasse 8, Saint Alice, ND 57636, USA",
+                "entityType": "individual"
+            },
+            "expectedClassification": "DUPLICATE",
+            "networkComplexity": "moderate"
+        },
+        
+        # HIGH RISK CATEGORY - 3 Options
+        {
+            "id": "high_risk_org_1",
+            "name": "High Risk - Strategic Consultants",
+            "description": "Shell company candidate from Malta",
+            "entityData": {
+                "fullName": "Strategic Consultants Ltd. Industries",
+                "address": "Flat 28h Evans squares, Moorechester, 26013, Malta",
+                "entityType": "organization"
+            },
+            "expectedClassification": "RISKY",
+            "networkComplexity": "complex"
+        },
+        {
+            "id": "high_risk_org_2",
+            "name": "High Risk - BrotSequi Enterprises",
+            "description": "Sanctioned organization from Syria",
+            "entityData": {
+                "fullName": "BrotSequi Enterprises",
+                "address": "Studio 92 Cooke cove, North Ashley, Y3G 1V1, Syria",
+                "entityType": "organization"
+            },
+            "expectedClassification": "RISKY",
+            "networkComplexity": "complex"
+        },
+        {
+            "id": "high_risk_org_3",
+            "name": "High Risk - Zorbach Holdings",
+            "description": "Sanctioned organization from Panama",
+            "entityData": {
+                "fullName": "Zorbach Holdings LLC",
+                "address": "8207 Alicia Orchard, Nicholasville, K1H 6J6, Panama",
+                "entityType": "organization"
+            },
+            "expectedClassification": "RISKY",
+            "networkComplexity": "complex"
+        },
+        
+        # COMPLEX CORPORATE STRUCTURE - 3 Options
+        {
+            "id": "complex_corp_1",
+            "name": "Complex Corp - NoneAbandonner LLC",
+            "description": "Complex organizational substructure from Hong Kong",
+            "entityData": {
+                "fullName": "NoneAbandonner LLC",
+                "address": "9754 Michael Extensions Suite 076, Lake Chelseastad, DG0 3ZW, Hong Kong",
+                "entityType": "organization"
+            },
+            "expectedClassification": "RISKY",
+            "networkComplexity": "very_complex"
+        },
+        {
+            "id": "complex_corp_2",
+            "name": "Complex Corp - Rodriguez Holdings",
+            "description": "Complex logistics holding structure",
+            "entityData": {
+                "fullName": "Rodriguez Holdings Logistics",
+                "address": "388 Lopez Squares Apt. 778, West Angela, PO8Y 3GD, Hong Kong",
+                "entityType": "organization"
+            },
+            "expectedClassification": "RISKY",
+            "networkComplexity": "very_complex"
+        },
+        {
+            "id": "complex_corp_3",
+            "name": "Complex Corp - Deploy Trading",
+            "description": "Complex trading corporation from Germany",
+            "entityData": {
+                "fullName": "deploy Trading Corp.",
+                "address": "rue Louis, Potiernec, 01800, Germany",
+                "entityType": "organization"
+            },
+            "expectedClassification": "RISKY",
+            "networkComplexity": "very_complex"
+        },
+        
+        # POLITICALLY EXPOSED PERSON (PEP) - 3 Options
+        {
+            "id": "pep_individual_1",
+            "name": "PEP - Betti Arnaude Barton",
+            "description": "Politically exposed person from South Africa",
+            "entityData": {
+                "fullName": "Betti Arnaude Barton",
+                "address": "9, avenue de Bouvet, Fritzville, J2K 7K7, South Africa",
                 "entityType": "individual"
             },
             "expectedClassification": "RISKY",
             "networkComplexity": "complex"
         },
         {
-            "id": "enhanced_complex_organization",
-            "name": "Complex Corporate Structure",
-            "description": "Organization with intricate ownership network",
+            "id": "pep_individual_2",
+            "name": "PEP - Karen Gérard Atzler",
+            "description": "Politically exposed person from Bahrain",
             "entityData": {
-                "fullName": "Global Trading Solutions LLC",
-                "entityType": "organization",
-                "address": "1000 Corporate Plaza, New York, NY 10001",
-                "primaryIdentifier": "EIN:12-3456789"
+                "fullName": "Karen Gérard Atzler",
+                "address": "055 Tiffany Points Suite 709, Hammelburg, Y2N 7T5, Bahrain",
+                "entityType": "individual"
             },
             "expectedClassification": "RISKY",
-            "networkComplexity": "very_complex"
+            "networkComplexity": "complex"
         },
         {
-            "id": "enhanced_pep_individual",
-            "name": "Politically Exposed Person",
-            "description": "Individual with political connections and elevated risk",
+            "id": "pep_individual_3",
+            "name": "PEP - Charlene Angela Moran",
+            "description": "Politically exposed person from Germany",
             "entityData": {
-                "fullName": "Victoria Chen-Martinez",
-                "dateOfBirth": "1968-07-10",
-                "address": "555 Embassy Row, Washington, DC 20001",
-                "primaryIdentifier": "PASSPORT:D123456789",
+                "fullName": "Charlene Angela Moran",
+                "address": "3484 Gonzalez Summit, North Kylemouth, Schleswig-Holstein, 50999, Germany",
                 "entityType": "individual"
             },
             "expectedClassification": "RISKY",

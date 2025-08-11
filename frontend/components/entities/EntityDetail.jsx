@@ -1800,13 +1800,13 @@ export default function EntityDetail({ entityId }) {
               </div>
             </Tab>
             
-            <Tab name="Network Analysis">
+            <Tab name="Relationship Network Analysis">
               <div style={{ marginTop: spacing[3] }}>
                 <NetworkAnalysisTab entity={entity} />
               </div>
             </Tab>
             
-            <Tab name="Activity Analysis">
+            <Tab name="Transaction Activity Analysis">
               <div style={{ marginTop: spacing[3] }}>
                 <ActivityAnalysisTab entity={entity} />
               </div>

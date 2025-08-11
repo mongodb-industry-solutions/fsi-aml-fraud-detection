@@ -92,8 +92,8 @@ The fastest way to get ThreatSight 360 up and running:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/threatsight360.git
-cd threatsight360
+git clone <repository-url>
+cd fsi-aml-fraud-detection
 
 # Install Poetry (if not already installed)
 make install_poetry
@@ -155,13 +155,13 @@ Now it's time to clone the ThreatSight 360 source code from GitHub to your local
 3. Once you're in the desired directory, use the `git clone` command to clone the repository:
 
    ```bash
-   git clone https://github.com/yourusername/threatsight360.git
+   git clone <repository-url>
    ```
 
 4. After running the `git clone` command, a new directory with the repository's name will be created in your chosen directory. To navigate into the cloned repository, use the `cd` command:
 
    ```bash
-   cd threatsight360
+   cd fsi-aml-fraud-detection
    ```
 
 ## MongoDB Atlas Configuration
@@ -583,11 +583,11 @@ The Transaction Simulator allows you to test and visualize how the fraud detecti
 6. Review the comprehensive risk assessment, including:
    - **Traditional Risk Assessment**: Rules-based evaluation with fraud pattern detection
    - **Advanced Vector Search**: AI-powered similarity matching against historical transactions
-   - **Vector Search Calculation Transparency**: Detailed mathematical breakdown showing:
-     - Step-by-step weight calculations for each similar transaction
-     - Weighted average computation methodology
-     - Multiple high-risk match boost calculations
-     - Algorithm effectiveness explanations
+   - **Intelligent Vector Search Analysis**: Context-aware risk score calculation featuring:
+     - **High-Risk Focus**: Detailed mathematical breakdowns only shown for concerning patterns
+     - **Smart Transparency**: Step-by-step calculations when high-risk matches are detected
+     - **Clean Interface**: Simplified display for normal/low-risk transactions
+     - **Algorithm Explanations**: Educational content for fraud analysts when needed
    - **Context-aware Filtering**: Smart prioritization of relevant similar transactions
    - **Multi-factor Risk Scoring**: Comprehensive risk evaluation with detailed explanations
 
@@ -826,7 +826,7 @@ Both backend services provide comprehensive API documentation:
 
 #### Fraud Detection Backend (Port 8000)
 
-- `POST /transactions/evaluate` - Evaluate transaction for fraud risk with vector search calculation details
+- `POST /transactions/evaluate` - Evaluate transaction for fraud risk with intelligent vector search analysis
 - `GET /customers/{customer_id}` - Get customer profile and transaction history
 - `GET /risk-models` - List available risk models
 - `POST /risk-models` - Create new risk model

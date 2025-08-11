@@ -29,6 +29,7 @@ function ModernOnboardingForm({ onSubmit, isLoading = false }) {
   const [errors, setErrors] = useState({});
   const [demoScenarios, setDemoScenarios] = useState([]);
   const [loadingDemo, setLoadingDemo] = useState(false);
+  const [categoryIndices, setCategoryIndices] = useState({});
 
   /**
    * Handle form field changes
@@ -87,13 +88,31 @@ function ModernOnboardingForm({ onSubmit, isLoading = false }) {
   };
 
   /**
-   * Load demo scenarios
+   * Load demo scenarios and organize by category
    */
   const loadDemoScenarios = async () => {
     setLoadingDemo(true);
     try {
       const scenarios = await enhancedEntityResolutionAPI.getDemoScenarios();
-      setDemoScenarios(scenarios);
+      
+      // Organize scenarios by category
+      const categorizedScenarios = {
+        'Safe (Low Risk)': scenarios.filter(s => s.id.startsWith('safe_')),
+        'Duplicate': scenarios.filter(s => s.id.startsWith('duplicate_')),
+        'High Risk': scenarios.filter(s => s.id.startsWith('high_risk_')),
+        'Complex Corporate': scenarios.filter(s => s.id.startsWith('complex_corp_')),
+        'Politically Exposed': scenarios.filter(s => s.id.startsWith('pep_'))
+      };
+      
+      setDemoScenarios(categorizedScenarios);
+      
+      // Initialize category indices to 0 (first scenario in each category)
+      const initialIndices = {};
+      Object.keys(categorizedScenarios).forEach(category => {
+        initialIndices[category] = 0;
+      });
+      setCategoryIndices(initialIndices);
+      
     } catch (error) {
       console.error('Failed to load demo scenarios:', error);
     } finally {
@@ -102,15 +121,30 @@ function ModernOnboardingForm({ onSubmit, isLoading = false }) {
   };
 
   /**
-   * Apply demo scenario
+   * Handle category card click - cycle through scenarios in that category
    */
-  const applyDemoScenario = (scenario) => {
+  const handleCategoryClick = (category) => {
+    const scenariosInCategory = demoScenarios[category];
+    if (!scenariosInCategory || scenariosInCategory.length === 0) return;
+    
+    // Get current index for this category
+    const currentIndex = categoryIndices[category] || 0;
+    
+    // Apply the current scenario
+    const scenario = scenariosInCategory[currentIndex];
     setFormData({
       fullName: scenario.entityData.fullName,
       address: scenario.entityData.address,
       entityType: scenario.entityData.entityType
     });
     setErrors({});
+    
+    // Cycle to next scenario (wrap around to 0 if at end)
+    const nextIndex = (currentIndex + 1) % scenariosInCategory.length;
+    setCategoryIndices(prev => ({
+      ...prev,
+      [category]: nextIndex
+    }));
   };
 
   /**
@@ -176,62 +210,98 @@ function ModernOnboardingForm({ onSubmit, isLoading = false }) {
         </div>
 
         {/* Demo Scenarios Grid */}
-        {demoScenarios.length > 0 && (
+        {Object.keys(demoScenarios).length > 0 && (
           <div style={{ 
             display: 'grid', 
             gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
             gap: spacing[2],
             marginBottom: spacing[4]
           }}>
-            {demoScenarios.map((scenario) => (
-              <Card 
-                key={scenario.id}
-                style={{ 
-                  padding: spacing[3],
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  border: '1px solid #E5E7EB'
-                }}
-                onClick={() => applyDemoScenario(scenario)}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.borderColor = palette.blue.base;
-                  e.currentTarget.style.boxShadow = `0 2px 8px ${palette.blue.light2}`;
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.borderColor = '#E5E7EB';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-              >
-                <Body weight="medium" style={{ fontSize: '12px', marginBottom: spacing[1] }}>
-                  {scenario.name}
-                </Body>
-                <Body style={{ fontSize: '11px', color: '#6B7280', lineHeight: '1.3' }}>
-                  {scenario.description}
-                </Body>
-                <div style={{ 
-                  marginTop: spacing[1],
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
-                  <span style={{
-                    padding: '2px 6px',
-                    backgroundColor: scenario.expectedClassification === 'SAFE' ? '#D1FAE5' : 
-                                   scenario.expectedClassification === 'DUPLICATE' ? '#FEF3C7' : '#FEE2E2',
-                    color: scenario.expectedClassification === 'SAFE' ? '#065F46' : 
-                           scenario.expectedClassification === 'DUPLICATE' ? '#92400E' : '#991B1B',
-                    borderRadius: '4px',
+            {Object.entries(demoScenarios).map(([category, scenarios]) => {
+              if (!scenarios || scenarios.length === 0) return null;
+              
+              // Get current scenario for this category
+              const currentIndex = categoryIndices[category] || 0;
+              const currentScenario = scenarios[currentIndex];
+              const totalInCategory = scenarios.length;
+              
+              return (
+                <Card 
+                  key={category}
+                  style={{ 
+                    padding: spacing[3],
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    border: '1px solid #E5E7EB',
+                    position: 'relative'
+                  }}
+                  onClick={() => handleCategoryClick(category)}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.borderColor = palette.blue.base;
+                    e.currentTarget.style.boxShadow = `0 2px 8px ${palette.blue.light2}`;
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.borderColor = '#E5E7EB';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                >
+                  {/* Category indicator and counter */}
+                  <div style={{ 
+                    position: 'absolute', 
+                    top: spacing[2], 
+                    right: spacing[2],
+                    backgroundColor: palette.gray.light3,
+                    borderRadius: '12px',
+                    padding: '2px 8px',
                     fontSize: '10px',
-                    fontWeight: '500'
+                    color: palette.gray.dark2,
+                    fontWeight: '600'
                   }}>
-                    {scenario.expectedClassification}
-                  </span>
-                  <span style={{ fontSize: '10px', color: '#9CA3AF' }}>
-                    {scenario.networkComplexity}
-                  </span>
-                </div>
-              </Card>
-            ))}
+                    {currentIndex + 1}/{totalInCategory}
+                  </div>
+                  
+                  <Body weight="medium" style={{ fontSize: '13px', marginBottom: spacing[1], color: palette.blue.dark1 }}>
+                    {category}
+                  </Body>
+                  <Body weight="medium" style={{ fontSize: '12px', marginBottom: spacing[1] }}>
+                    {currentScenario.name}
+                  </Body>
+                  <Body style={{ fontSize: '11px', color: '#6B7280', lineHeight: '1.3' }}>
+                    {currentScenario.description}
+                  </Body>
+                  <div style={{ 
+                    marginTop: spacing[2],
+                    display: 'flex',
+                    justifyContent: 'flex-start',
+                    alignItems: 'center'
+                  }}>
+                    <span style={{
+                      padding: '2px 6px',
+                      backgroundColor: currentScenario.expectedClassification === 'SAFE' ? '#D1FAE5' : 
+                                     currentScenario.expectedClassification === 'DUPLICATE' ? '#FEF3C7' : '#FEE2E2',
+                      color: currentScenario.expectedClassification === 'SAFE' ? '#065F46' : 
+                             currentScenario.expectedClassification === 'DUPLICATE' ? '#92400E' : '#991B1B',
+                      borderRadius: '4px',
+                      fontSize: '10px',
+                      fontWeight: '500'
+                    }}>
+                      {currentScenario.expectedClassification}
+                    </span>
+                  </div>
+                  
+                  {/* Click hint */}
+                  <div style={{ 
+                    marginTop: spacing[1],
+                    fontSize: '9px',
+                    color: palette.blue.base,
+                    fontStyle: 'italic',
+                    textAlign: 'center'
+                  }}>
+                    Click to cycle through {totalInCategory} options
+                  </div>
+                </Card>
+              );
+            })}
           </div>
         )}
       </Card>

@@ -400,211 +400,17 @@ const CytoscapeNetworkComponent = ({
     };
   }, [elements, extensionsLoaded, networkData, layout, onNodeClick, onEdgeClick]);
 
-  // Initialize fullscreen Cytoscape when modal opens
+  // Cleanup fullscreen instance when modal closes
   useEffect(() => {
-    if (!showFullscreenModal) {
-      console.log('🔄 Fullscreen modal not open, skipping initialization');
-      return;
-    }
-
-    if (!fullscreenContainerRef.current) {
-      console.error('❌ Fullscreen container ref not available');
-      return;
-    }
-
-    if (!elements.length) {
-      console.error('❌ No elements available for fullscreen graph. Elements:', elements);
-      return;
-    }
-
-    if (!extensionsLoaded) {
-      console.error('❌ Cytoscape extensions not loaded yet');
-      return;
-    }
-
-    console.log('✅ All requirements met. Initializing fullscreen Cytoscape with', elements.length, 'elements');
-
-    // Small delay to ensure container is fully rendered
-    const timeoutId = setTimeout(() => {
-      // Destroy existing fullscreen instance
-      if (fullscreenCyRef.current) {
-        console.log('🔄 Destroying existing fullscreen Cytoscape instance');
-        fullscreenCyRef.current.destroy();
-        fullscreenCyRef.current = null;
-      }
-
-      try {
-        console.log('🔄 Creating new fullscreen Cytoscape instance');
-        
-        // Create fullscreen cytoscape instance
-        fullscreenCyRef.current = cytoscape({
-          container: fullscreenContainerRef.current,
-          elements: elements,
-          style: cytoscapeStyles,
-          layout: { 
-            name: 'cose',
-            animate: true,
-            animationDuration: 1000,
-            nodeDimensionsIncludeLabels: true,
-            nodeRepulsion: 10000,
-            idealEdgeLength: 120,
-            gravity: 0.1,
-            fit: true,
-            padding: 50
-          },
-          wheelSensitivity: 0.2,
-          minZoom: 0.1,
-          maxZoom: 5,
-          boxSelectionEnabled: true,
-          autoungrabify: false,
-          autounselectify: false,
-          autolock: false,
-          autoResizeContainer: false,
-          pixelRatio: 1
-        });
-
-        // Simple event handlers for fullscreen
-        fullscreenCyRef.current.on('tap', 'node', (event) => {
-          const node = event.target;
-          console.log('Fullscreen node clicked:', node.data());
-          if (onNodeClick) {
-            onNodeClick({
-              id: node.id(),
-              ...node.data()
-            });
-          }
-        });
-
-        fullscreenCyRef.current.on('tap', 'edge', (event) => {
-          const edge = event.target;
-          console.log('Fullscreen edge clicked:', edge.data());
-          if (onEdgeClick) {
-            onEdgeClick({
-              id: edge.id(),
-              ...edge.data()
-            });
-          }
-        });
-
-        // Simple layout complete handler
-        fullscreenCyRef.current.on('layoutstop', () => {
-          console.log('Fullscreen layout completed');
-          setIsLayoutRunning(false);
-        });
-
-        // Setup context menus
-        if (fullscreenCyRef.current.contextMenus) {
-          fullscreenCyRef.current.contextMenus({
-            menuItems: [
-              {
-                id: 'focus-node',
-                content: 'Focus on Node',
-                tooltipText: 'Center view on this node',
-                selector: 'node',
-                onClickFunction: function(event) {
-                  const target = event.target || event.cyTarget;
-                  fullscreenCyRef.current.animate({
-                    center: { eles: target },
-                    zoom: Math.min(fullscreenCyRef.current.zoom() * 1.5, 3.0)
-                  }, { duration: 800 });
-                }
-              },
-              {
-                id: 'hide-node',
-                content: 'Hide Node',
-                tooltipText: 'Hide this node from view',
-                selector: 'node',
-                onClickFunction: function(event) {
-                  const target = event.target || event.cyTarget;
-                  target.hide();
-                }
-              }
-            ]
-          });
-        }
-
-        // Setup pan/zoom if available
-        if (fullscreenCyRef.current.panzoom) {
-          fullscreenCyRef.current.panzoom({
-            zoomFactor: 0.05,
-            zoomDelay: 45,
-            minZoom: 0.1,
-            maxZoom: 10,
-            fitPadding: 50,
-            panSpeed: 10,
-            panDistance: 10,
-            panDragAreaSize: 75,
-            panMinPercentSpeed: 0.25,
-            panMaxPercentSpeed: 2.0,
-            panInactiveArea: 8,
-            panIndicatorMinOpacity: 0.5,
-            autodisableForMobile: true
-          });
-        }
-
-        console.log('✅ Fullscreen Cytoscape instance created successfully');
-
-        // Fit the graph after a small delay
-        setTimeout(() => {
-          if (fullscreenCyRef.current) {
-            console.log('🔄 Fitting fullscreen graph');
-            fullscreenCyRef.current.fit();
-            fullscreenCyRef.current.center();
-            console.log('✅ Fullscreen graph fitted and centered');
-          }
-        }, 100);
-
-      } catch (error) {
-        console.error('❌ Error initializing fullscreen Cytoscape:', error);
-        console.error('Container:', fullscreenContainerRef.current);
-        console.error('Elements:', elements);
-        console.error('Extensions loaded:', extensionsLoaded);
-      }
-    }, 200); // Delay to ensure container is ready
-
-    // Cleanup function
     return () => {
-      clearTimeout(timeoutId);
-      if (fullscreenCyRef.current) {
+      // Cleanup when modal closes
+      if (!showFullscreenModal && fullscreenCyRef.current) {
         fullscreenCyRef.current.destroy();
         fullscreenCyRef.current = null;
       }
     };
-  }, [showFullscreenModal, elements, extensionsLoaded, onNodeClick, onEdgeClick]);
+  }, [showFullscreenModal]);
 
-  // Apply current layout to fullscreen instance when it's ready
-  useEffect(() => {
-    if (!fullscreenCyRef.current || !showFullscreenModal || !extensionsLoaded) {
-      return;
-    }
-    
-    // Small delay to ensure the instance is fully ready
-    const timeoutId = setTimeout(() => {
-      if (fullscreenCyRef.current && cytoscapeLayouts[fullscreenLayout]) {
-        try {
-          const layoutConfig = {
-            ...cytoscapeLayouts[fullscreenLayout],
-            fit: true,
-            animate: true,
-            animationDuration: 800
-          };
-          
-          const layout = fullscreenCyRef.current.layout(layoutConfig);
-          layout.on('layoutstop', () => {
-            console.log('Fullscreen initial layout applied:', fullscreenLayout);
-            if (fullscreenCyRef.current && fullscreenCyRef.current.elements()) {
-              fullscreenCyRef.current.fit(fullscreenCyRef.current.elements(), 50);
-            }
-          });
-          layout.run();
-        } catch (error) {
-          console.error('Error applying initial fullscreen layout:', error);
-        }
-      }
-    }, 300);
-    
-    return () => clearTimeout(timeoutId);
-  }, [showFullscreenModal, fullscreenLayout, extensionsLoaded]);
 
   return (
     <div className={className} style={containerStyle}>
@@ -869,7 +675,93 @@ const CytoscapeNetworkComponent = ({
         }}>
           {/* Fullscreen Cytoscape Container */}
           <div 
-            ref={fullscreenContainerRef}
+            ref={(el) => {
+              fullscreenContainerRef.current = el;
+              if (el && showFullscreenModal && elements.length > 0 && extensionsLoaded) {
+                // Small delay to ensure container is stable
+                setTimeout(() => {
+                  // Destroy existing instance if present
+                  if (fullscreenCyRef.current) {
+                    fullscreenCyRef.current.destroy();
+                    fullscreenCyRef.current = null;
+                  }
+                  
+                  try {
+                    console.log('🔄 Initializing fullscreen Cytoscape via callback ref');
+                    
+                    // Create fullscreen cytoscape instance
+                    fullscreenCyRef.current = cytoscape({
+                      container: el,
+                      elements: elements,
+                      style: cytoscapeStyles,
+                      layout: { 
+                        name: 'cose',
+                        animate: false,
+                        fit: false,
+                        nodeDimensionsIncludeLabels: true,
+                        nodeRepulsion: 10000,
+                        idealEdgeLength: 120,
+                        gravity: 0.1
+                      },
+                      wheelSensitivity: 0.2,
+                      minZoom: 0.1,
+                      maxZoom: 5,
+                      boxSelectionEnabled: true,
+                      autoungrabify: false,
+                      autounselectify: false,
+                      autolock: false,
+                      autoResizeContainer: false,
+                      pixelRatio: 1
+                    });
+                    
+                    // Add event handlers
+                    fullscreenCyRef.current.on('tap', 'node', (event) => {
+                      const node = event.target;
+                      if (onNodeClick) {
+                        onNodeClick({
+                          id: node.id(),
+                          ...node.data()
+                        });
+                      }
+                    });
+                    
+                    fullscreenCyRef.current.on('tap', 'edge', (event) => {
+                      const edge = event.target;
+                      if (onEdgeClick) {
+                        onEdgeClick({
+                          id: edge.id(),
+                          ...edge.data()
+                        });
+                      }
+                    });
+                    
+                    // Apply layout after initialization
+                    setTimeout(() => {
+                      if (fullscreenCyRef.current) {
+                        const layout = fullscreenCyRef.current.layout({
+                          name: fullscreenLayout,
+                          animate: true,
+                          animationDuration: 800,
+                          fit: true,
+                          padding: 50
+                        });
+                        layout.on('layoutstop', () => {
+                          console.log('✅ Fullscreen layout complete');
+                          if (fullscreenCyRef.current) {
+                            fullscreenCyRef.current.fit(fullscreenCyRef.current.elements(), 50);
+                          }
+                        });
+                        layout.run();
+                      }
+                    }, 100);
+                    
+                    console.log('✅ Fullscreen Cytoscape initialized successfully');
+                  } catch (error) {
+                    console.error('❌ Error initializing fullscreen Cytoscape:', error);
+                  }
+                }, 100);
+              }
+            }}
             style={{ 
               width: '100%', 
               height: '100%',

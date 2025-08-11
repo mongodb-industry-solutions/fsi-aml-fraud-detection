@@ -81,7 +81,7 @@ Create a `.env` file in the `aml-backend` directory:
 ```bash
 # MongoDB Connection
 MONGODB_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/
-DB_NAME=fsi-threatsight360
+DB_NAME=threatsight360
 
 # AWS Bedrock Credentials (for AI features)
 AWS_ACCESS_KEY_ID=your_aws_access_key_here
@@ -248,6 +248,9 @@ poetry run uvicorn main:app --host 0.0.0.0 --port 8001
 
 The API will be available at [http://localhost:8001](http://localhost:8001)
 
+> [!Note]
+> For comprehensive entity data generation, use the [Entity Resolution Synthetic Data Generation notebook](../docs/ThreatSight%20360%20-%20Entity%20Resolution%20Synthetic%20Data%20Generation.ipynb) in [Google Colab](https://colab.research.google.com/) to populate your database with realistic AML/KYC test data including entities, relationships, and risk profiles.
+
 ## API Endpoints
 
 ### 🏠 System Endpoints
@@ -410,21 +413,6 @@ The API will be available at [http://localhost:8001](http://localhost:8001)
 }
 ```
 
-## Usage Examples
-
-### Entity Search with Filters
-
-```bash
-# Search entities by name with risk level filter
-curl "http://localhost:8001/entities/search/unified?q=john&riskLevel=HIGH&limit=10"
-
-# Autocomplete entity names
-curl "http://localhost:8001/entities/search/autocomplete?q=joh&limit=5"
-
-# Get available facets
-curl "http://localhost:8001/entities/search/facets"
-```
-
 ### Entity Resolution
 
 ```bash
@@ -452,38 +440,6 @@ curl "http://localhost:8001/network/ENT_12345/connected"
 # Shortest path between entities
 curl "http://localhost:8001/network/ENT_12345/shortest_path/ENT_67890"
 ```
-
-## Testing
-
-The AML backend includes comprehensive test coverage using both unit tests and integration tests.
-
-### Running Tests
-
-```bash
-# Run all tests
-make test_all
-
-# Individual test suites
-make test_mongodb           # MongoDB connectivity and entities
-make test_aml_api          # AML API endpoints
-make test_entity_resolution # Entity resolution and Atlas Search
-
-# Run tests directly
-cd aml-backend
-python test_models.py                    # Model validation tests
-python test_repository_pattern.py       # Repository pattern tests
-python test_embedding_generation.py     # AWS Bedrock embedding tests
-python test_network_analysis.py         # Network analysis tests
-```
-
-### Test Coverage
-
-- **MongoDB Integration**: Database connectivity, collection operations, indexing
-- **API Endpoints**: All REST endpoints with various scenarios
-- **Entity Resolution**: Fuzzy matching, confidence scoring, duplicate detection
-- **Search Operations**: Atlas Search, Vector Search, autocomplete
-- **Network Analysis**: Graph construction, traversal, relationship mapping
-- **Repository Pattern**: Interface compliance, factory pattern, dependency injection
 
 ## Project Structure
 
@@ -596,36 +552,6 @@ db.entity_relationships.createIndex({ target_entity_id: 1 });
 db.entity_relationships.createIndex({ relationship_type: 1 });
 ```
 
-### Configuration Tuning
-
-```bash
-# Environment variables for performance tuning
-ATLAS_SEARCH_TIMEOUT=30000          # Atlas Search timeout (ms)
-MAX_SEARCH_RESULTS=1000              # Maximum search results
-VECTOR_SEARCH_LIMIT=100              # Vector search result limit
-CONNECTION_POOL_SIZE=50              # MongoDB connection pool size
-```
-
-## Security Considerations
-
-### Input Validation
-
-- All inputs validated using Pydantic models
-- SQL injection prevention through parameterized queries
-- XSS protection with output encoding
-
-### Authentication & Authorization
-
-- CORS configuration for frontend integration
-- Environment-based configuration for sensitive data
-- AWS IAM roles for Bedrock access
-
-### Data Protection
-
-- Sensitive PII handling with field-level encryption options
-- Audit trails for all entity modifications
-- Compliance with data retention policies
-
 ## Deployment
 
 ### Docker Deployment
@@ -633,94 +559,31 @@ CONNECTION_POOL_SIZE=50              # MongoDB connection pool size
 Create a `Dockerfile.aml-backend`:
 
 ```dockerfile
-FROM python:3.10-slim
+FROM python:3.10-slim-buster
 
-WORKDIR /app
+ENV GET_POETRY_IGNORE_DEPRECATION=1
 
-# Install Poetry
-RUN pip install poetry
+WORKDIR /
 
-# Copy dependency files
-COPY pyproject.toml poetry.lock ./
+# Poetry dependencies
+COPY aml-backend/pyproject.toml aml-backend/poetry.lock ./
 
-# Configure Poetry and install dependencies
-RUN poetry config virtualenvs.create false \
-    && poetry install --no-dev --no-interaction --no-ansi
+# Poetry installation
+RUN pip install poetry==1.8.4
 
-# Copy application code
-COPY . .
+# Poetry config & install dependencies
+RUN poetry config virtualenvs.create true
+RUN poetry config virtualenvs.in-project true
+RUN rm -rf .venv  # Remove any copied local venv
+RUN poetry lock --no-update
+RUN poetry install --no-interaction -v --no-cache --no-root
 
-# Expose port
+COPY ./aml-backend/ .
+
 EXPOSE 8001
 
-# Start the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
+CMD ["poetry", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
 ```
-
-### Production Checklist
-
-- [ ] Environment variables configured for production
-- [ ] MongoDB Atlas production cluster configured
-- [ ] Atlas Search indexes created and optimized
-- [ ] AWS Bedrock access configured with appropriate IAM roles
-- [ ] Logging level set appropriately (`INFO` or `WARNING`)
-- [ ] Health check endpoints configured for load balancer
-- [ ] Monitoring and alerting configured
-- [ ] Backup and disaster recovery procedures in place
-
-## Troubleshooting
-
-### Common Issues
-
-**MongoDB Connection Failed**
-
-```bash
-# Check connection string and network access
-poetry run python -c "from dependencies import get_mongodb_access; print('Connected:', get_mongodb_access().admin.command('ping'))"
-```
-
-**Atlas Search Not Working**
-
-- Verify search indexes are created and built
-- Check index names match configuration
-- Ensure documents are properly indexed
-
-**AWS Bedrock Access Denied**
-
-- Verify AWS credentials and permissions
-- Check Bedrock service availability in your region
-- Ensure IAM policies include Bedrock access
-
-**Import Errors**
-
-```bash
-# Reinstall dependencies
-poetry install --no-cache
-```
-
-### Debugging Tools
-
-```bash
-# Test entity resolution
-curl -X POST "http://localhost:8001/entities/onboarding/find_matches" \
-  -H "Content-Type: application/json" \
-  -d '{"entity_name": "test", "entity_type": "INDIVIDUAL"}'
-
-# Check search debug information
-curl "http://localhost:8001/debug/search/test"
-
-# Health check with details
-curl "http://localhost:8001/health"
-```
-
-## Contributing
-
-1. Follow the established clean architecture patterns
-2. Add comprehensive tests for new features
-3. Update documentation for API changes
-4. Use type hints and docstrings for all functions
-5. Follow the repository pattern for data access
-6. Add integration tests for new endpoints
 
 ## Additional Resources
 

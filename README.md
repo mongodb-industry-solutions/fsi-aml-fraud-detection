@@ -9,9 +9,9 @@
 
 **Comprehensive Financial Services Platform with Dual-Backend Microservices Architecture**
 
-In today's rapidly evolving financial landscape, detecting fraudulent transactions quickly and accurately while maintaining robust AML/KYC compliance is crucial. Financial institutions of all sizes struggle with balancing customer experience with comprehensive fraud protection and regulatory compliance. 
+In today's rapidly evolving financial landscape, detecting fraudulent transactions quickly and accurately while maintaining robust AML/KYC compliance is crucial. Financial institutions of all sizes struggle with balancing customer experience with comprehensive fraud protection and regulatory compliance.
 
-ThreatSight 360 addresses these challenges with a **dual-backend microservices architecture** that provides real-time risk assessment, AI-powered pattern recognition, intelligent entity resolution, and comprehensive compliance operations.
+ThreatSight 360 addresses these challenges with real-time risk assessment, AI-powered pattern recognition, intelligent entity resolution, and comprehensive compliance operations.
 
 By the end of this guide, you'll have a comprehensive fraud detection and AML/KYC compliance system up and running capable of:
 
@@ -22,35 +22,33 @@ By the end of this guide, you'll have a comprehensive fraud detection and AML/KY
 - **Network Analysis**: Relationship mapping and graph analytics for compliance investigations
 - **Vector-based Pattern Recognition**: Advanced similarity matching using MongoDB Atlas Vector Search
 - **Dynamic Risk Model Management**: Configurable risk models with real-time updates
-- **Interactive Transaction Simulation**: Comprehensive testing and demonstration capabilities
 
-We will walk you through the process of configuring and using [MongoDB Atlas](https://www.mongodb.com/atlas) as your backend with [AWS Bedrock](https://aws.amazon.com/bedrock/) for AI-powered risk assessment and entity resolution in your [Next.js](https://nextjs.org/) and [FastAPI](https://fastapi.tiangolo.com/) application.
+We will walk you through the process of configuring and using [MongoDB Atlas](https://www.mongodb.com/atlas/database) as your backend with [AWS Bedrock](https://aws.amazon.com/bedrock/) for AI-powered risk assessment and entity resolution in your [Next.js](https://nextjs.org/) and [FastAPI](https://fastapi.tiangolo.com/) application.
 
 ## Architecture Overview
 
-ThreatSight 360 uses a **dual-backend microservices architecture** optimized for financial services:
+ThreatSight 360 uses a **dual-backend microservices architecture**:
 
-### **Main Backend** (`/backend`, port 8000)
-- **Fraud Detection**: Real-time transaction analysis and risk scoring
-- **Transaction Processing**: High-throughput transaction validation and processing
-- **Risk Assessment**: Multi-factor risk evaluation with configurable models
-- **Pattern Recognition**: Vector-based fraud pattern detection using MongoDB Atlas Vector Search
+### **Backend** (`/backend`, port 8000)
 
-### **AML Backend** (`/aml-backend`, port 8001)  
-- **Entity Management**: Comprehensive customer and organization entity management
-- **Intelligent Entity Resolution**: AI-powered fuzzy matching and duplicate detection
+- **Risk Model Management**: Multi-factor risk evaluation with risk models configurable in real-time with [MongoDB Atlas Change Streams](https://www.mongodb.com/docs/manual/changeStreams/).
+- **Transaction Screening**: Real-time transaction screening using [MongoDB Atlas Vector Search](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-overview/)
+
+### **AML Backend** (`/aml-backend`, port 8001)
+
+- **Entity Management**: Comprehensive individual and organization entity management with Customer 360 view possible due to the [MongoDB Document Model](https://www.mongodb.com/docs/manual/core/data-modeling-introduction/)
+- **Intelligent Entity Resolution**: [MongoDB Atlas Search](https://www.mongodb.com/docs/atlas/atlas-search/) fuzzy matching and duplicate detection
 - **LLM Classification Service**: AWS Bedrock Claude-3 Sonnet for entity risk assessment
 - **Investigation Service**: Automated case investigation and report generation
-- **Network Analysis**: Relationship mapping and graph analytics for compliance
-- **Atlas Search Integration**: Advanced search capabilities with faceted filtering and autocomplete
-- **Compliance Operations**: AML/KYC workflows and regulatory compliance features
+- **Network Analysis**: Relationship and transaction graph traversal analytics using [MongoDB $graphLookup](https://www.mongodb.com/docs/manual/reference/operator/aggregation/graphLookup/)
+- **Atlas Search Integration**: Advanced search capabilities with [faceted filtering](https://www.mongodb.com/docs/atlas/atlas-search/facet/) and [autocomplete](https://www.mongodb.com/docs/atlas/atlas-search/autocomplete/)
 
 ### **Frontend** (`/frontend`, port 3000)
-- **Next.js 15+** with App Router and MongoDB LeafyGreen UI components
+
 - **Transaction Simulator**: Interactive fraud scenario testing
-- **Entity Management Dashboard**: Advanced entity search and relationship visualization
-- **Risk Model Management**: Dynamic risk model configuration interface
-- **Real-time Updates**: MongoDB Change Streams for live data synchronization
+- **Risk Model Management**: Dynamic risk model configuration interface and [MongoDB Change Streams](https://www.mongodb.com/docs/manual/changeStreams/) for live risk model synchronization
+- **Entity Management Dashboard**: Advanced entity 360 with relationship and transaction network visualization
+- **Intelligent Entity Resolution Workflow**: A multi-step entity onboarding workflow involving MongoDB full-text + vector + [hybrid search with $rankFusion](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-stage/#atlas-vector-search-rankfusion), network traversal using [$graphLookup](https://www.mongodb.com/docs/manual/reference/operator/aggregation/graphLookup/) and risk classification and case generation using LLMs
 
 ![ThreatSight360 Fraud Detection App Architecture](frontend/public/sol_arch.png)
 
@@ -96,18 +94,36 @@ git clone <repository-url>
 cd fsi-aml-fraud-detection
 
 # Install Poetry (if not already installed)
-make install_poetry
+curl -sSL https://install.python-poetry.org | python3 -
 
 # Setup all components
-make setup_all
+# Backend (Fraud Detection)
+cd backend && poetry install && cd ..
 
-# Start all services in development mode
-make dev_all
+# AML Backend
+cd aml-backend && poetry install && cd ..
+
+# Frontend
+cd frontend && npm install && cd ..
+
+# Start all services in development mode (in separate terminals)
+# Terminal 1: Fraud Detection Backend
+cd backend
+poetry run uvicorn main:app --reload --port 8000
+
+# Terminal 2: AML/KYC Backend
+cd aml-backend
+poetry run uvicorn main:app --reload --port 8001
+
+# Terminal 3: Frontend
+cd frontend
+npm run dev
 ```
 
 This will start:
+
 - **Fraud Detection Backend** at [http://localhost:8000](http://localhost:8000)
-- **AML/KYC Backend** at [http://localhost:8001](http://localhost:8001)  
+- **AML/KYC Backend** at [http://localhost:8001](http://localhost:8001)
 - **Frontend Application** at [http://localhost:3000](http://localhost:3000)
 
 For detailed configuration, continue with the sections below.
@@ -435,11 +451,15 @@ Install dependencies and start the server:
 
 ```bash
 # Install dependencies
-make setup_fraud
+cd backend
+poetry install
 
 # Start development server
-make dev_fraud
+poetry run uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
+
+> [!Note]
+> For detailed backend configuration and API documentation, see [backend/README.md](backend/README.md)
 
 ### AML Backend (Entity Resolution & Compliance) Setup
 
@@ -483,12 +503,16 @@ CONNECTION_POOL_SIZE=50
 Install dependencies and start the server:
 
 ```bash
-# Install dependencies  
-make setup_aml
+# Install dependencies
+cd aml-backend
+poetry install
 
 # Start development server
-make dev_aml
+poetry run uvicorn main:app --host 0.0.0.0 --port 8001 --reload
 ```
+
+> [!Note]
+> For detailed AML backend configuration and API documentation, see [aml-backend/README.md](aml-backend/README.md)
 
 > [!Note]
 > Never commit your `.env` files to version control. Make sure they're included in your `.gitignore` file.
@@ -523,33 +547,48 @@ Install the frontend dependencies and start the development server:
 
 ```bash
 # Install dependencies
-make setup_frontend
+cd frontend
+npm install
 
 # Start development server
-make dev_frontend
+npm run dev
 ```
 
 Your frontend application should now be running at [http://localhost:3000](http://localhost:3000).
 
 ## Data Seeding
 
-To populate your database with initial data for testing, run the seeding script:
+To populate your database with initial data for testing, we provide Jupyter notebooks with comprehensive synthetic data generation:
 
-```bash
-# Seed fraud detection data
-make db_seed
+### Transaction Data (Fraud Detection Backend)
 
-# For comprehensive entity data, use the AML backend test scripts
-make test_mongodb
-```
-
-This will create:
-
+Use the [Transaction Synthetic Data Generation notebook](docs/ThreatSight360%20-%20Transaction%20Synthetic%20Data%20Generation.ipynb) to create:
 - Customer profiles with varied transaction histories
+- Realistic transaction patterns (normal and fraudulent)
 - Sample fraud patterns for testing
 - Risk models with different configurations
-- Entity data for AML/KYC testing
-- Sample relationships for network analysis
+
+```bash
+# Option 1: Use the provided notebook
+jupyter notebook "docs/ThreatSight360 - Transaction Synthetic Data Generation.ipynb"
+
+# Option 2: Run the backend seeding script
+cd backend
+poetry run python scripts/seed_data.py
+```
+
+### Entity Data (AML Backend)
+
+Use the [Entity Resolution Synthetic Data Generation notebook](docs/ThreatSight%20360%20-%20Entity%20Resolution%20Synthetic%20Data%20Generation.ipynb) to create:
+- Individual and organization entities
+- Entity relationships for network analysis
+- Risk assessment data
+- Sample watchlist matches
+
+```bash
+# Use the provided notebook
+jupyter notebook "docs/ThreatSight 360 - Entity Resolution Synthetic Data Generation.ipynb"
+```
 
 ## Using the Application
 
@@ -603,12 +642,11 @@ The Entity Management interface provides comprehensive AML/KYC capabilities:
 2. Key capabilities include:
 
    - **Advanced Search**: Multi-strategy search with Atlas Search, autocomplete, and faceted filtering
-   - **Entity Resolution**: AI-powered fuzzy matching and duplicate detection during onboarding
+   - **Entity Resolution**: AI-powered fuzzy matching and duplicate detection with vector search during onboarding
    - **Network Visualization**: Interactive relationship graphs using Cytoscape.js
-   - **Risk Assessment**: Comprehensive entity risk scoring and watchlist matching
-   - **Compliance Workflows**: AML/KYC onboarding and resolution processes
 
 3. Search and filter entities using:
+
    - Name-based fuzzy search with autocomplete
    - Entity type filters (Individual, Organization)
    - Risk level filters (Low, Medium, High, Critical)
@@ -618,7 +656,7 @@ The Entity Management interface provides comprehensive AML/KYC capabilities:
 4. Click on any entity to view:
    - Detailed entity information and identifiers
    - Risk assessment details and watchlist matches
-   - Relationship network visualization
+   - Relationship + transaction network visualization
    - Similar entities and potential duplicates
 
 ### Enhanced Entity Resolution Workflow
@@ -628,43 +666,34 @@ The Enhanced Entity Resolution feature provides a comprehensive 5-step workflow 
 1. Navigate to [http://localhost:3000/entity-resolution/enhanced](http://localhost:3000/entity-resolution/enhanced).
 
 2. **Step 0 - Entity Input**: Enter new entity information using the simplified onboarding form:
+
    - Entity Type (Individual or Organization)
    - Full Name
    - Address
 
 3. **Step 1 - Parallel Search**: The system performs AI-powered search using three methods simultaneously:
+
    - **Atlas Search**: Text-based fuzzy matching on names and addresses
    - **Vector Search**: Semantic similarity analysis using AWS Bedrock AI embeddings
    - **Hybrid Search**: MongoDB $rankFusion combining both approaches with contribution analysis
-   - **Loading Animation**: Visual progress indicator showing behind-the-scenes search operations
 
 4. **Step 2 - Network Analysis**: Comprehensive network risk assessment for top 3 hybrid search matches:
+
    - **Relationship Networks**: Graph analysis with depth-2 traversal
    - **Transaction Networks**: Transaction pattern analysis with depth-1 traversal
-   - **Risk Scoring**: Combined network and transaction risk calculations
-   - **Side-by-Side Comparison**: Compare all 3 entities' network risks simultaneously
-   - **Visual Progress**: Animated loading screen showing network analysis steps
 
 5. **Step 3 - AI Classification**: LLM-powered entity classification using AWS Bedrock Claude-3 Sonnet:
+
    - **Comprehensive Analysis**: Evaluates entity data, search results, and network analysis
    - **Risk Assessment**: Generates risk scores, confidence levels, and recommended actions
    - **AML/KYC Compliance**: Identifies compliance flags and concerns
    - **Network Positioning**: Analyzes entity's position within relationship networks
-   - **Processing Transparency**: Step-by-step visualization of AI analysis workflow
 
 6. **Step 4 - Case Investigation**: Automated case document creation for compliance workflows:
-   - **Case Document Generation**: Creates MongoDB case document with optimized size
+   - **Case Document Generation**: Creates MongoDB case document
    - **LLM Investigation Summary**: Professional investigation narrative using AI
    - **Workflow Consolidation**: Combines all previous steps into comprehensive case file
-   - **Document Export**: Download case investigation as JSON for external systems
-   - **Loading Visualization**: Shows case creation progress with detailed steps
-
-Enhanced Features:
-   - **Query Transparency**: Expandable cards showing exact MongoDB aggregation pipelines
-   - **Contribution Analysis**: Percentage breakdown of Atlas vs Vector search contributions
-   - **Network Visualization**: Interactive Cytoscape.js graphs for relationship analysis
-   - **Real-time Progress**: Animated loading screens for all major operations
-   - **Single Database Architecture**: All operations (search, vector, graph) run in MongoDB
+   - **Report Generation**: Export PDF report Case Report
 
 ### Risk Model Management
 
@@ -685,6 +714,7 @@ The Risk Model Management interface allows administrators to configure and deplo
    - **Model Reset Functionality**: Reset models to clean state by removing version 2 models and setting default configurations
 
 4. To create a new risk model:
+
    - Click "Create New Model"
    - Configure basic information (name, description)
    - Add risk factors with appropriate weights and thresholds
@@ -699,83 +729,29 @@ The Risk Model Management interface allows administrators to configure and deplo
 > [!Important]
 > All changes are reflected in real-time across all connected sessions thanks to MongoDB Change Streams.
 
-## Development Commands
-
-ThreatSight 360 includes a comprehensive Makefile for easy development:
-
-### Setup Commands
-
-```bash
-make setup_all          # Setup all components (backends + frontend)
-make setup_fraud        # Setup fraud detection backend only
-make setup_aml          # Setup AML/KYC backend only
-make setup_frontend     # Setup frontend only
-```
-
-### Development Commands
-
-```bash
-make dev_all           # Start all services in development mode
-make dev_fraud         # Start fraud detection backend (port 8000)
-make dev_aml           # Start AML/KYC backend (port 8001)
-make dev_frontend      # Start frontend (port 3000)
-make dev_both          # Start both backends concurrently
-```
-
-### Testing Commands
-
-```bash
-make test_all              # Run complete test suite
-make test_mongodb          # Test MongoDB connectivity and entities
-make test_aml_api          # Test AML API endpoints
-make test_entity_resolution # Test entity resolution and Atlas Search
-make test_models           # Test Pydantic models and validation
-make test_repositories     # Test repository pattern implementation
-make test_network          # Test network analysis functionality
-```
-
-### Health Check Commands
-
-```bash
-make health_all        # Check all services health
-make health_fraud      # Check fraud detection backend health
-make health_aml        # Check AML/KYC backend health
-make health_frontend   # Check frontend health
-```
-
-### Docker Commands
-
-```bash
-make build            # Build and start all containers
-make build_fraud      # Build fraud detection backend container
-make build_aml        # Build AML/KYC backend container
-make build_frontend   # Build frontend container
-make start            # Start existing containers
-make stop             # Stop running containers
-make clean            # Remove all containers, images, and volumes
-```
-
-For a complete list of available commands, run:
-
-```bash
-make help
-```
-
 ## Docker Deployment
 
-For containerized deployment in production environments, you can use Docker Compose:
+For containerized deployment in production environments:
 
 1. Ensure Docker and Docker Compose are installed on your system.
 
 2. Configure environment variables for production in your `.env` files.
 
-3. From the root directory of the project, run:
+3. Build and run the containers:
 
    ```bash
-   make build
+   # Build all images
+   docker-compose build
+   
+   # Start all services
+   docker-compose up -d
+   
+   # Or build and start in one command
+   docker-compose up --build -d
    ```
 
-4. This will build and run containers for:
+4. This will run containers for:
+
    - Frontend (port 3000)
    - Fraud Detection Backend (port 8000)
    - AML/KYC Backend (port 8001)
@@ -785,164 +761,33 @@ For containerized deployment in production environments, you can use Docker Comp
 > [!Note]
 > The Docker configuration uses production settings by default. Check the `docker-compose.yml` file and individual Dockerfiles for details.
 
-## Demo Scenarios
-
-The system includes pre-configured scenarios for comprehensive testing:
-
-### Fraud Detection Scenarios
-
-1. **Normal Transaction**: A transaction matching the customer's typical behavior pattern
-
-2. **Unusual Amount**: A transaction with an amount significantly above the customer's average
-
-3. **Unusual Location**: A transaction originating from a location outside the customer's normal geographic patterns
-
-4. **New Device**: A transaction from a device not previously associated with the customer
-
-5. **Multiple Red Flags**: A high-risk transaction combining multiple suspicious indicators
-
-### Entity Resolution Scenarios
-
-1. **Exact Match**: Identical customer attempting to create duplicate account
-
-2. **Fuzzy Name Match**: Similar names with minor variations (typos, nicknames)
-
-3. **Address Similarity**: Same customer with different address formats
-
-4. **Identifier Cross-Reference**: Matching identifiers with different personal information
-
-5. **Complex Resolution**: Multiple potential matches requiring manual review
-
-Running through these scenarios will give you a good understanding of how both systems evaluate different risk factors and compliance requirements.
-
-## API Documentation
-
-Both backend services provide comprehensive API documentation:
-
-- **Fraud Detection API**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **AML/KYC API**: [http://localhost:8001/docs](http://localhost:8001/docs)
-
-### Key API Endpoints
-
-#### Fraud Detection Backend (Port 8000)
-
-- `POST /transactions/evaluate` - Evaluate transaction for fraud risk with intelligent vector search analysis
-- `GET /customers/{customer_id}` - Get customer profile and transaction history
-- `GET /risk-models` - List available risk models
-- `POST /risk-models` - Create new risk model
-- `POST /risk-models/reset` - Reset models to default state (remove v2, activate default, deactivate behavioral)
-
-#### AML/KYC Backend (Port 8001)
-
-- `GET /entities/` - List entities with advanced filtering
-- `GET /entities/{entity_id}` - Get detailed entity information
-- `POST /entities/onboarding/find_matches` - Find potential duplicate entities
-- `GET /entities/search/unified` - Advanced entity search with faceting
-- `GET /entities/search/autocomplete` - Real-time autocomplete suggestions
-- `GET /network/{entity_id}` - Entity relationship network analysis
-- `GET /relationships/` - Relationship management operations
-
-## Troubleshooting
-
-Here are some common issues and their solutions:
-
-### Database Connection Issues
-
-- **MongoDB Connection Failed**:
-  - Verify your MongoDB connection string and network access settings
-  - Ensure your IP address is whitelisted in MongoDB Atlas
-  - Check that the database name is correctly configured
-
-### Atlas Search Issues
-
-- **Search Not Working**:
-  - Verify that Atlas Search indexes are created and built
-  - Check that index names match the configuration exactly
-  - Ensure documents are properly indexed and searchable
-
-### AWS Bedrock Errors
-
-- **AWS Bedrock Access Denied**:
-  - Ensure your AWS credentials are valid and have appropriate permissions
-  - Check that you have access to the Bedrock service in your AWS account
-  - Verify that the region is correctly configured
-
-### Frontend API Errors
-
-- **Backend Connection Issues**:
-  - Check that both backend servers are running and accessible
-  - Verify the API URLs in your frontend environment variables
-  - Ensure CORS is properly configured on both backends
-
-### Docker Deployment Issues
-
-- **Container Startup Problems**:
-  - Verify port mappings and network settings in docker-compose.yml
-  - Check Docker logs with `make logs`
-  - Ensure environment variables are properly configured
-
-### Performance Issues
-
-- **Slow Search Performance**:
-  - Verify MongoDB indexes are created and optimized
-  - Check Atlas Search index build status
-  - Consider adjusting search result limits and timeouts
-
-For additional troubleshooting, check the logs of individual services:
-
-```bash
-# Backend logs
-make logs_fraud    # Fraud detection backend logs
-make logs_aml      # AML/KYC backend logs
-make logs_frontend # Frontend logs
-
-# Or view all logs
-make logs
-```
-
 ## Additional Resources
 
 Check additional and accompanying resources below:
 
 ### MongoDB Resources
+
 - [MongoDB for Financial Services](https://www.mongodb.com/industries/financial-services)
 - [MongoDB Atlas Search Documentation](https://www.mongodb.com/docs/atlas/atlas-search/)
-- [Vector Search Documentation](https://www.mongodb.com/docs/atlas/atlas-search/vector-search/)
+- [MongoDB Atlas Vector Search](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-overview/)
+- [MongoDB Change Streams](https://www.mongodb.com/docs/manual/changeStreams/)
+- [MongoDB $graphLookup](https://www.mongodb.com/docs/manual/reference/operator/aggregation/graphLookup/)
+- [MongoDB $rankFusion](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-stage/#atlas-vector-search-rankfusion)
 - [MongoDB LeafyGreen UI](https://www.mongodb.design/)
 
-### AWS Resources
-- [AWS Bedrock AI Foundation Models](https://aws.amazon.com/bedrock/foundation-models/)
-- [AWS Bedrock Documentation](https://docs.aws.amazon.com/bedrock/)
-
-### Framework Documentation
-- [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [Next.js Documentation](https://nextjs.org/docs)
-- [Poetry Documentation](https://python-poetry.org/docs/)
-- [Pydantic Documentation](https://docs.pydantic.dev/)
-
 ### Financial Services & Compliance
-- [Anti-Money Laundering (AML) Compliance](https://www.mongodb.com/use-cases/financial-services)
-- [Know Your Customer (KYC) Best Practices](https://www.mongodb.com/industries/financial-services)
-- [Building Real-time Fraud Detection Systems](https://www.mongodb.com/developer/products/atlas/vector-search-fraud-detection/)
+
+- [Building Real-time Fraud Detection Systems](https://www.mongodb.com/use-cases/fraud-detection)
+- [Financial Services Solutions](https://www.mongodb.com/solutions/industries/financial-services)
+- [Vector Search for Fraud Detection](https://www.mongodb.com/developer/products/atlas/vector-search-fraud-detection/)
 
 ## Architecture Details
 
 For detailed information about the system architecture and implementation:
 
-- **Main README**: This file - overall system overview
-- **AML Backend README**: [aml-backend/README.md](aml-backend/README.md) - detailed AML/KYC backend documentation
-- **Architecture Analysis**: [aml-backend/ARCHITECTURE_ANALYSIS.md](aml-backend/ARCHITECTURE_ANALYSIS.md) - technical architecture decisions
-- **Implementation Guides**: Various implementation documentation in [aml-backend/reference/](aml-backend/reference/)
-
-## Contributing
-
-1. Follow the established clean architecture patterns for both backends
-2. Add comprehensive tests for new features
-3. Update documentation for API changes
-4. Use type hints and docstrings for all Python functions
-5. Follow the repository pattern for data access in the AML backend
-6. Add integration tests for new endpoints
-7. Ensure frontend components follow LeafyGreen UI patterns
+- **Fraud Detection Backend**: [backend/README.md](backend/README.md) - Real-time fraud detection and risk assessment
+- **AML/KYC Backend**: [aml-backend/README.md](aml-backend/README.md) - Entity resolution and compliance operations
+- **Architecture Documentation**: [docs/](docs/) - Detailed architecture diagrams and implementation guides
 
 ## License
 

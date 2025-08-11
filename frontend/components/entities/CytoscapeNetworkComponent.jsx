@@ -737,14 +737,15 @@ const CytoscapeNetworkComponent = ({
                     
                     // Apply layout after initialization
                     setTimeout(() => {
-                      if (fullscreenCyRef.current) {
-                        const layout = fullscreenCyRef.current.layout({
-                          name: fullscreenLayout,
+                      if (fullscreenCyRef.current && cytoscapeLayouts[fullscreenLayout]) {
+                        const layoutConfig = {
+                          ...cytoscapeLayouts[fullscreenLayout],
                           animate: true,
                           animationDuration: 800,
                           fit: true,
                           padding: 50
-                        });
+                        };
+                        const layout = fullscreenCyRef.current.layout(layoutConfig);
                         layout.on('layoutstop', () => {
                           console.log('✅ Fullscreen layout complete');
                           if (fullscreenCyRef.current) {

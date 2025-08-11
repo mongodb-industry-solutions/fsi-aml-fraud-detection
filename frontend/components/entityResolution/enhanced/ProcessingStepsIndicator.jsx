@@ -174,7 +174,7 @@ const PROCESSING_STEPS = {
       id: 'mongodb_document_creation',
       title: 'MongoDB Document Creation',
       description: 'Creating complete case document structure with workflow data and investigation results',
-      icon: 'InboxZero',
+      icon: 'Folder',
       estimatedTime: 800
     },
     {

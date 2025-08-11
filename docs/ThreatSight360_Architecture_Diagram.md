@@ -106,7 +106,7 @@ graph TB
         end
         
         subgraph "Search Infrastructure"
-            ATLAS_SEARCH[Atlas Search Indexes<br/>• Text Search (entity_text_search)<br/>• Vector Search (entity_vector)<br/>• Autocomplete & Fuzzy Matching]
+            ATLAS_SEARCH[Atlas Search Indexes<br/>• Text Search - entity_text_search<br/>• Vector Search - entity_vector<br/>• Autocomplete & Fuzzy Matching]
         end
     end
 

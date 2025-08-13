@@ -271,7 +271,7 @@ export default function EntityList() {
       params.append('limit', DEFAULT_PAGE_SIZE.toString());
       params.append('page', page.toString());
 
-      const amlApiUrl = process.env.NEXT_PUBLIC_AML_API_URL || 'http://localhost:8001';
+      const amlApiUrl = process.env.NEXT_PUBLIC_AML_API_URL || 'https://threatsight-aml.api.mongodb-industry-solutions.com';
       const response = await fetch(`${amlApiUrl}/entities/search/unified?${params.toString()}`);
       
       if (!response.ok) {

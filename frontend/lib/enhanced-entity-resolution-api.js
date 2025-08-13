@@ -5,7 +5,7 @@
  * with parallel search, network analysis, and intelligent classification
  */
 
-const AML_BACKEND_URL = process.env.NEXT_PUBLIC_AML_BACKEND_URL || 'http://localhost:8001';
+const AML_BACKEND_URL = process.env.NEXT_PUBLIC_AML_API_URL || 'https://threatsight-aml.api.mongodb-industry-solutions.com';
 
 class EnhancedEntityResolutionAPI {
   constructor() {

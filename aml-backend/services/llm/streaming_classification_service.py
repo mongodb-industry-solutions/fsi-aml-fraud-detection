@@ -35,13 +35,15 @@ class StreamingClassificationService:
         """Initialize streaming classification service"""
         self.bedrock_client = bedrock_client or BedrockClient()
         self.supported_models = {
+            'claude-sonnet-4': 'us.anthropic.claude-sonnet-4-20250514-v1:0',
+            'claude-3.5-sonnet-v2': 'anthropic.claude-3-5-sonnet-20241022-v2:0',
             'claude-3-sonnet': 'anthropic.claude-3-sonnet-20240229-v1:0',
             'claude-3-haiku': 'anthropic.claude-3-haiku-20240307-v1:0'
         }
         logger.info("StreamingClassificationService initialized for transparent AI classification")
     
     async def classify_entity_stream(self, workflow_data: Dict[str, Any], 
-                                   model_preference: str = 'claude-3-sonnet',
+                                   model_preference: str = 'claude-sonnet-4',
                                    analysis_depth: str = 'comprehensive') -> AsyncGenerator[str, None]:
         """
         Stream entity classification with real-time updates
@@ -593,7 +595,7 @@ Provide your complete analysis in this exact JSON structure (ALL fields required
     "Detailed recommendation 2 with timeline and responsible party",
     "Additional recommendation 3 with success criteria"
   ],
-  "classification_model": "streaming_claude_3_sonnet_comprehensive",
+  "classification_model": "streaming_claude_sonnet_4_comprehensive",
   "classification_timestamp": "{datetime.utcnow().isoformat()}"
 }}
 
@@ -712,7 +714,7 @@ Provide JSON with: risk_level, risk_score, recommended_action."""
             'key_risk_factors': safe_list(parsed_result.get('key_risk_factors')),
             'detailed_analysis': safe_dict(parsed_result.get('detailed_analysis')),
             'recommendations': safe_list(parsed_result.get('recommendations')),
-            'classification_model': 'streaming_claude_3_sonnet_v1.0',
+            'classification_model': 'streaming_claude_sonnet_4_v1.0',
             'classification_timestamp': datetime.utcnow().isoformat(),
             'streaming_enabled': True,
             'parsing_successful': True,

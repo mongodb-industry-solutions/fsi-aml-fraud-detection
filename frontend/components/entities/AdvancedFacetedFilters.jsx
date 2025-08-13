@@ -31,7 +31,7 @@ export default function AdvancedFacetedFilters({
   const fetchFacets = async () => {
     try {
       setFacetsLoading(true);
-      const amlApiUrl = process.env.NEXT_PUBLIC_AML_API_URL || 'http://localhost:8001';
+      const amlApiUrl = process.env.NEXT_PUBLIC_AML_API_URL || 'https://threatsight-aml.api.mongodb-industry-solutions.com';
       const response = await fetch(`${amlApiUrl}/entities/search/facets`);
       
       if (response.ok) {

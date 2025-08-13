@@ -190,7 +190,7 @@ async def test_endpoint():
             "mongodb_uri_configured": bool(os.getenv("MONGODB_URI")),
             "db_name": os.getenv("DB_NAME", "Not configured"),
             "host": os.getenv("HOST", "0.0.0.0"),
-            "port": os.getenv("PORT", "8001")
+            "port": os.getenv("PORT", "8000")
         }
     }
 
@@ -250,7 +250,7 @@ if __name__ == "__main__":
     import uvicorn
     
     host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", "8001"))
+    port = int(os.getenv("PORT", "8000"))
     
     logger.info(f"Starting ThreatSight 360 AML/KYC API on {host}:{port}")
     uvicorn.run("main:app", host=host, port=port, reload=True, log_level="info")

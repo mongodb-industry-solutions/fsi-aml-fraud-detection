@@ -137,7 +137,7 @@ function StreamingClassificationInterface({ workflowData, onComplete, onError, o
           ...prev,
           phase: 'prompt_ready',
           prompt: data.prompt,
-          model: data.model || 'claude-3-sonnet'
+          model: data.model || 'claude-sonnet-4'
         }));
         break;
         
@@ -303,7 +303,7 @@ function StreamingClassificationInterface({ workflowData, onComplete, onError, o
           workflowDataRef.current,
           eventHandlerRef.current,
           {
-            model_preference: 'claude-3-sonnet',
+            model_preference: 'claude-sonnet-4',
             analysis_depth: 'comprehensive',
             signal: abortControllerRef.current.signal
           }
@@ -396,7 +396,7 @@ function StreamingClassificationInterface({ workflowData, onComplete, onError, o
     switch (streamingState.phase) {
       case 'starting': return 'Preparing comprehensive entity analysis...';
       case 'prompt_ready': return 'Analysis prompt generated with full workflow context';
-      case 'llm_streaming': return 'Claude-3 Sonnet analyzing entity risk profile...';
+      case 'llm_streaming': return 'Claude Sonnet 4 analyzing entity risk profile...';
       case 'processing': return 'Structuring AI insights into actionable intelligence...';
       case 'complete': return 'Risk assessment and recommendations ready';
       case 'error': return 'An error occurred during classification';

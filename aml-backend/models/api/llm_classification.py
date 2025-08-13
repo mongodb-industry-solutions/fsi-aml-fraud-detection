@@ -40,7 +40,7 @@ class ConfidenceLevel(str, Enum):
 class ClassificationRequest(BaseModel):
     """Request for LLM entity classification"""
     workflow_data: Dict[str, Any] = Field(..., description="Complete workflow data from steps 0-2")
-    model_preference: str = Field(default="claude-3-sonnet", description="AWS Bedrock model to use")
+    model_preference: str = Field(default="claude-sonnet-4", description="AWS Bedrock model to use")
     analysis_depth: str = Field(default="comprehensive", description="Analysis depth: basic, standard, comprehensive")
     
     class Config:
@@ -51,7 +51,7 @@ class ClassificationRequest(BaseModel):
                     "searchResults": {"hybridResults": [{"entityId": "ent_123", "hybridScore": 0.85}]},
                     "networkAnalysis": {"entitiesAnalyzed": 3, "entityAnalyses": []}
                 },
-                "model_preference": "claude-3-sonnet",
+                "model_preference": "claude-sonnet-4",
                 "analysis_depth": "comprehensive"
             }
         }

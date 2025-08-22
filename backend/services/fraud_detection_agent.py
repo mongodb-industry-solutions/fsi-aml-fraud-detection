@@ -211,6 +211,7 @@ class FraudDetectionAgent:
             - Risk score (0-100)
             - Key factors that influenced the decision
             - Specific fraud indicators found
+            - similar transactions found using find_similar_transactions
 
             Be thorough but efficient in your analysis.""",
             toolset=toolset,
@@ -238,14 +239,7 @@ class FraudDetectionAgent:
             
             Transaction Details:
             {json.dumps(transaction, indent=2, default=str)}
-            
-            Steps to follow:
-            1. Get the customer profile for customer_id: {transaction.get('customer_id')}
-            2. Use analyze_transaction_with_profile(customer_id) to apply fraud detection rules
-            3. Search for similar fraud patterns using vector_search_fraud_patterns with this embedding: {embedding[:10]}... (truncated)
-            4. Based on all findings, make a final decision: APPROVE, BLOCK, or ESCALATE
-            5. Provide a risk score (0-100) and detailed reasoning
-            
+                        
             Respond with your analysis and final decision.
             """
             
@@ -264,7 +258,7 @@ class FraudDetectionAgent:
             
             # Handle the conversation loop
             loop_count = 0
-            max_iterations = 20  # Add a safety limit
+            max_iterations = 50  # Add a safety limit
             while run.status in [RunStatus.QUEUED, RunStatus.IN_PROGRESS, RunStatus.REQUIRES_ACTION]:
                 loop_count += 1
                 print(f"🔄 Agent loop iteration: {loop_count} (Status: {run.status})")
@@ -287,9 +281,9 @@ class FraudDetectionAgent:
                         # Execute the appropriate function
                         if function_name == "get_customer_profile":
                             result = self.get_customer_profile(**arguments)
-                        elif function_name == "vector_search_fraud_patterns":
+                        elif function_name == "find_similar_transactions":
                             # Use the pre-generated embedding
-                            result = self.vector_search_fraud_patterns(embedding)
+                            result = self.find_similar_transactions(embedding)
                         elif function_name == "analyze_transaction_with_profile":
                                 # Use the new combined function - only needs customer_id
                                 customer_id = arguments.get("customer_id")

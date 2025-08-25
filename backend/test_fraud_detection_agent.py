@@ -1,6 +1,6 @@
 # Create a simple debug script: debug_agent.py
 import asyncio
-import os
+import json
 from services.fraud_detection_agent import FraudDetectionAgent
 
 async def debug_agent():
@@ -67,7 +67,16 @@ async def debug_agent():
     }
     
     result = await agent.evaluate_transaction(transaction)
-    print(f"Result: {result}")
+    # print(f"Result: {result}")
+    # print the result in a pretty format
+
+    reasoning = json.dumps(result, indent=4).result['reasoning']
+    print(reasoning)
+
+    # save the reasoning to a file
+    with open('reasoning.md', 'w') as f:
+        f.write(reasoning)
+
     agent.cleanup_resources()
 
 if __name__ == "__main__":

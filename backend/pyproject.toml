@@ -20,6 +20,9 @@ azure-ai-inference = "^1.0.0b9"
 azure-core = "^1.35.0"
 azure-ai-agents = "^1.1.0"
 azure-identity = "^1.24.0"
+numpy = "1.24.3"
+memorizz = "^0.0.26"
+mlflow = "^3.3.1"
 
 
 [build-system]

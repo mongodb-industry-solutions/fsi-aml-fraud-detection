@@ -18,37 +18,36 @@ Key Updates:
 import asyncio
 import json
 import numpy as np
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
 from dataclasses import dataclass, asdict, field
 from enum import Enum
 import logging
 from collections import defaultdict
-import aiohttp
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # =====================================
 # AZURE AI FOUNDRY IMPORTS
 # =====================================
-from azure.ai.ml import MLClient
-from azure.ai.ml.entities import (
-    ManagedOnlineEndpoint,
-    ManagedOnlineDeployment,
-    Model,
-    Environment,
-    CodeConfiguration
-)
+# from azure.ai.ml import MLClient
+# from azure.ai.ml.entities import (
+#     ManagedOnlineEndpoint,
+#     ManagedOnlineDeployment,
+#     Model,
+#     Environment,
+#     CodeConfiguration
+# )
 from azure.identity import DefaultAzureCredential
-from azure.core.credentials import AzureKeyCredential
-
-# Azure OpenAI for embeddings - Correct import
-from openai import AzureOpenAI
+from azure.ai.agents import AgentsClient
+from azure_foundry.embeddings import get_embedding
 
 # =====================================
 # DATABRICKS IMPORTS (via Azure ML)
 # =====================================
 import mlflow
-import mlflow.pyfunc
 from mlflow.tracking import MlflowClient
 
 # =====================================
@@ -57,9 +56,12 @@ from mlflow.tracking import MlflowClient
 try:
     from memorizz.memory_provider.mongodb.provider import MongoDBConfig, MongoDBProvider
     from memorizz.memagent import MemAgent
-    from memorizz.llms.openai import OpenAI as MemorizzOpenAI
-    from memorizz.persona import Persona
-    from memorizz.persona.role_type import RoleType
+    from memorizz.llms.openai import OpenAI
+
+    # from memorizz.memory_provider.mongodb.provider import MongoDBConfig, MongoDBProvider
+    # from memorizz.memagent import MemAgent
+    # from memorizz.llms.openai import OpenAI as MemorizzOpenAI
+    from memorizz.long_term_memory.semantic.persona import Persona, RoleType
     MEMORIZZ_AVAILABLE = True
 except ImportError:
     MEMORIZZ_AVAILABLE = False
@@ -80,6 +82,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
 
 # =============================================================================
 # SECTION 1: CORE DATA STRUCTURES
@@ -210,9 +213,7 @@ class DatabricksMLScoring:
     
     def __init__(
         self,
-        workspace_name: str,
-        resource_group: str,
-        subscription_id: str,
+        project_endpoint: str,
         databricks_workspace_url: str,
         model_name: str = "transaction_behavioral_anomaly_model"
     ):
@@ -221,11 +222,10 @@ class DatabricksMLScoring:
         """
         # Initialize Azure ML client
         self.credential = DefaultAzureCredential()
-        self.ml_client = MLClient(
-            credential=self.credential,
-            subscription_id=subscription_id,
-            resource_group_name=resource_group,
-            workspace_name=workspace_name
+        
+        self.agents_client = AgentsClient(
+            endpoint=project_endpoint, 
+            credential=self.credential
         )
         
         # Initialize MLflow for Databricks
@@ -508,45 +508,14 @@ class DatabricksMLScoring:
 class AzureEmbeddingService:
     """
     Generate text embeddings using Azure OpenAI.
-    """
-    
-    def __init__(
-        self,
-        endpoint: str,
-        api_key: str,
-        deployment_name: str = "text-embedding-ada-002",
-        api_version: str = "2024-02-01"
-    ):
-        """Initialize Azure OpenAI embedding service."""
-        self.client = AzureOpenAI(
-            azure_endpoint=endpoint,
-            api_key=api_key,
-            api_version=api_version
-        )
-        self.deployment_name = deployment_name
-        
-        logger.info(f"Azure Embedding Service initialized: {deployment_name}")
-    
-    async def generate_embedding(self, text: str) -> List[float]:
-        """Generate embedding for text."""
-        try:
-            response = self.client.embeddings.create(
-                model=self.deployment_name,
-                input=text
-            )
-            return response.data[0].embedding
-        except Exception as e:
-            logger.error(f"Embedding generation failed: {e}")
-            # Return random embedding as fallback (for demo)
-            return [np.random.random() for _ in range(1536)]
-    
+    """    
     async def generate_transaction_embedding(
         self,
         transaction: Transaction
     ) -> List[float]:
         """Generate embedding for a transaction."""
         text = self._transaction_to_text(transaction)
-        return await self.generate_embedding(text)
+        return await get_embedding(text)
     
     def _transaction_to_text(self, transaction: Transaction) -> str:
         """Convert transaction to text for embedding."""
@@ -728,7 +697,7 @@ class SimplifiedTransactionMonitor:
         self,
         agent_name: str,
         mongodb_uri: str,
-        azure_ml_config: Dict[str, str],
+        azure_ai_foundry_config: Dict[str, str],
         databricks_config: Optional[Dict[str, str]] = None,
         database_name: str = "fsi-threatsight360"  # Updated database name
     ):
@@ -748,28 +717,12 @@ class SimplifiedTransactionMonitor:
         self.transactions_collection = self.db['transactions']
         self.decisions_collection = self.db['decisions']
         
-        # =====================================
-        # Initialize Azure ML Client
-        # =====================================
-        logger.info("Initializing Azure ML Client...")
-        self.credential = DefaultAzureCredential()
-        self.ml_client = MLClient(
-            credential=self.credential,
-            subscription_id=azure_ml_config['subscription_id'],
-            resource_group_name=azure_ml_config['resource_group'],
-            workspace_name=azure_ml_config['workspace_name']
-        )
-        
-        # =====================================
-        # Initialize Embedding Service
-        # =====================================
+        # =============================================
+        # Initialize Azure AI Foundry Embedding Service
+        # =============================================
         logger.info("Setting up Azure Embedding Service...")
-        self.embedding_service = AzureEmbeddingService(
-            endpoint=azure_ml_config['openai_endpoint'],
-            api_key=azure_ml_config['openai_api_key'],
-            deployment_name=azure_ml_config.get('embedding_deployment', 'text-embedding-ada-002')
-        )
-        
+        self.embedding_service = AzureEmbeddingService()
+
         # =====================================
         # Initialize Vector Search Engine
         # =====================================
@@ -783,16 +736,14 @@ class SimplifiedTransactionMonitor:
         if databricks_config:
             logger.info("Setting up Databricks Behavioral Anomaly ML...")
             self.databricks_ml = DatabricksMLScoring(
-                workspace_name=azure_ml_config['workspace_name'],
-                resource_group=azure_ml_config['resource_group'],
-                subscription_id=azure_ml_config['subscription_id'],
+                workspace_name=azure_ai_foundry_config['project_endpoint'],
                 databricks_workspace_url=databricks_config['workspace_url'],
                 model_name='transaction_behavioral_anomaly_model'  # Updated model name
             )
         
-        # =====================================
+        # ===========================================================
         # Initialize Memory System (Fallback if Memorizz unavailable)
-        # =====================================
+        # ===========================================================
         logger.info("Setting up memory system...")
         self.memory_provider = None
         self.mem_agent = None
@@ -808,7 +759,7 @@ class SimplifiedTransactionMonitor:
                 
                 # Create Memorizz agent
                 self.mem_agent = MemAgent(
-                    model=MemorizzOpenAI(model="gpt-3.5-turbo"),
+                    model=OpenAI(model="gpt-4o"),
                     instruction=self._get_agent_instructions(),
                     memory_provider=self.memory_provider
                 )
@@ -894,6 +845,7 @@ class SimplifiedTransactionMonitor:
         # =====================================
         if not transaction.vector_embedding or len(transaction.vector_embedding) == 0:
             logger.info("Generating embedding for new transaction...")
+            
             transaction.vector_embedding = await self.embedding_service.generate_transaction_embedding(
                 transaction
             )
@@ -1665,54 +1617,100 @@ class SimplifiedTransactionMonitor:
         stage2_result: StageResult,
         similar_transactions: List[VectorSearchResult]
     ) -> float:
-        """AI analysis with behavioral context."""
+        """AI analysis with behavioral context and historical memory."""
         if not self.mem_agent:
             # Fallback analysis without Memorizz
             return self._fallback_analysis(
                 transaction, customer, similar_transactions
             )
         
-        # Prepare context
-        context = f"""
-        Analyze this transaction for behavioral anomalies:
+        # Retrieve relevant historical decisions for this customer
+        historical_context = ""
+        try:
+            # Query for similar customer transactions in memory
+            query = f"Customer {customer.customer_id} transaction analysis behavioral patterns"
+            historical_memories = self.mem_agent.retrieve_long_term_memory_by_query(
+                query=query,
+                namespace="transaction_decisions",
+                limit=5
+            )
+            
+            if historical_memories:
+                historical_context = "\n\nHistorical Transaction Patterns:\n"
+                for memory in historical_memories:
+                    historical_context += f"- {memory.get('content', '')}\n"
+        except Exception as e:
+            logger.warning(f"Failed to retrieve historical context: {e}")
         
-        Transaction:
-        - Amount: ${transaction.amount}
-        - Normal amount for customer: ${customer.avg_transaction_amount}
-        - Merchant: {transaction.merchant['category']}
-        - Customer's usual merchants: {', '.join(customer.common_merchant_categories)}
-        - Location: {transaction.location['country']}
-        - Customer's usual locations: {', '.join(customer.usual_locations)}
+        # Prepare comprehensive context
+        context = f"""
+        You are an expert fraud detection analyst. Analyze this transaction for behavioral anomalies using the customer's profile and historical patterns.
+        
+        Current Transaction:
+        - Transaction ID: {transaction.transaction_id}
+        - Customer ID: {customer.customer_id}
+        - Amount: ${transaction.amount:.2f}
+        - Merchant Category: {transaction.merchant.get('category', 'Unknown')}
+        - Location: {transaction.location.get('country', 'Unknown')}
+        - Device Type: {transaction.device_info.get('type', 'Unknown')}
         
         Customer Profile:
+        - Average Transaction Amount: ${customer.avg_transaction_amount:.2f}
         - Risk Score: {customer.risk_score}
         - Credit Score: {customer.credit_score}
+        - Usual Merchants: {', '.join(customer.common_merchant_categories) if customer.common_merchant_categories else 'None recorded'}
+        - Usual Locations: {', '.join(customer.usual_locations) if customer.usual_locations else 'None recorded'}
         
-        Vector Search Results:
-        - Found {len(similar_transactions)} similar transactions
-        - Fraud matches: {sum(1 for t in similar_transactions if t.is_fraud)}
+        Current Analysis Results:
+        - Stage 1 Risk Score: {stage1_result.risk_score:.1f}
+        - Stage 2 Risk Score: {stage2_result.risk_score:.1f}
+        - Detected Patterns: {', '.join(stage2_result.patterns_detected) if stage2_result.patterns_detected else 'None'}
+        - Similar Transactions Found: {len(similar_transactions)}
+        - Fraud Matches in Similar: {sum(1 for t in similar_transactions if t.is_fraud)}
+        {historical_context}
         
-        Previous Analysis:
-        - Stage 1 Score: {stage1_result.risk_score}
-        - Stage 2 Score: {stage2_result.risk_score}
-        - Patterns: {stage2_result.patterns_detected}
+        Based on this comprehensive analysis, assess the behavioral anomaly risk level:
+        - Consider deviations from customer's normal patterns
+        - Evaluate the significance of detected anomalies
+        - Factor in historical transaction decisions for this customer
+        - Account for the similarity to known fraud patterns
         
-        Assess the behavioral anomaly risk (0-1).
+        Respond with one of: HIGH_RISK, MODERATE_RISK, LOW_RISK, NORMAL
+        Then provide a brief explanation of your reasoning.
         """
         
         try:
             response = self.mem_agent.run(context)
+            response_lower = response.lower()
             
-            if "high risk" in response.lower() or "anomaly" in response.lower():
-                return 0.8
-            elif "medium risk" in response.lower():
-                return 0.5
-            elif "low risk" in response.lower() or "normal" in response.lower():
-                return 0.2
+            # Parse AI response for risk assessment
+            if "high_risk" in response_lower or "high risk" in response_lower:
+                return 0.9
+            elif "moderate_risk" in response_lower or "moderate risk" in response_lower:
+                return 0.6
+            elif "low_risk" in response_lower or "low risk" in response_lower:
+                return 0.3
+            elif "normal" in response_lower:
+                return 0.1
+            else:
+                # Fallback: look for key risk indicators in response
+                risk_indicators = ["suspicious", "anomaly", "unusual", "concerning", "fraud"]
+                positive_indicators = ["normal", "typical", "expected", "legitimate"]
+                
+                risk_count = sum(1 for indicator in risk_indicators if indicator in response_lower)
+                positive_count = sum(1 for indicator in positive_indicators if indicator in response_lower)
+                
+                if risk_count > positive_count:
+                    return 0.7
+                elif positive_count > risk_count:
+                    return 0.2
+                else:
+                    return 0.4
+                
         except Exception as e:
             logger.error(f"AI analysis failed: {e}")
+            return self._fallback_analysis(transaction, customer, similar_transactions)
         
-        return 0.3
     
     def _fallback_analysis(
         self,
@@ -2056,31 +2054,30 @@ class SimplifiedTransactionMonitor:
         decision: MonitoringDecision,
         transaction: Transaction
     ):
-        """Store decision in database."""
+        """Store decision in database and memory for AI agent learning."""
         await self.decisions_collection.insert_one(asdict(decision))
         
-        # Store in memory if available
-        if self.memory_provider and MEMORIZZ_AVAILABLE:
+        # Store in memorizz long-term memory for AI analysis
+        if self.mem_agent and MEMORIZZ_AVAILABLE:
             memory_content = (
-                f"Transaction {transaction.transaction_id}: "
-                f"Amount ${transaction.amount}, "
-                f"Risk {decision.final_score:.1f}, "
-                f"Decision {decision.decision}, "
-                f"Similar found: {decision.similar_transactions_found}"
+                f"Transaction Analysis: ID {transaction.transaction_id}, "
+                f"Customer {transaction.customer_id}, Amount ${transaction.amount:.2f}, "
+                f"Risk Score {decision.final_score:.1f}/100, Decision: {decision.decision}. "
+                f"Behavioral patterns detected: {', '.join(decision.patterns) if decision.patterns else 'None'}. "
+                f"Found {decision.similar_transactions_found} similar transactions. "
+                f"Processing stages: {decision.stages_completed}. "
+                f"Merchant: {transaction.merchant.get('category', 'Unknown')}, "
+                f"Location: {transaction.location.get('country', 'Unknown')}, "
+                f"Device: {transaction.device_info.get('type', 'Unknown')}."
             )
             
             try:
-                self.memory_provider.store_memory(
+                # Store as long-term memory for future AI analysis
+                self.mem_agent.add_long_term_memory(
                     content=memory_content,
-                    memory_type="episodic",
-                    metadata={
-                        'transaction_id': transaction.transaction_id,
-                        'risk_score': decision.final_score,
-                        'decision': decision.decision,
-                        'patterns': decision.patterns,
-                        'similar_count': decision.similar_transactions_found
-                    }
+                    namespace="transaction_decisions"
                 )
+                logger.debug(f"Stored transaction decision in agent memory: {transaction.transaction_id}")
             except Exception as e:
                 logger.warning(f"Failed to store memory: {e}")
 
@@ -2088,7 +2085,49 @@ class SimplifiedTransactionMonitor:
 # SECTION 7: USAGE EXAMPLE
 # =============================================================================
 
-async def main():
+async def memorizz_test():
+    """Test function to verify memorizz library functionality."""
+    
+    try:
+        memory_content = (
+            f"Transaction Analysis: ID 123, "
+            f"Customer 123, Amount $100, "
+            f"Risk Score 30/100, Decision: INVESTIGATE. "
+            f"Behavioral patterns detected: None. "
+            f"Found 0 similar transactions. "
+            f"Processing stages: 2. "
+            f"Merchant: Unknown, "
+            f"Location: Unknown, "
+            f"Device: Unknown."
+        )
+
+        memory_config = MongoDBConfig(
+            uri=os.getenv("MONGODB_URI"),
+        )
+
+        memory_provider = MongoDBProvider(memory_config)
+
+        mem_agent = MemAgent(
+            model=OpenAI(model="gpt-4o"),
+            instruction="You are an advanced transaction monitoring specialist focusing on behavioral anomaly detection.",
+            memory_provider=memory_provider
+        )
+        
+        mem_agent.set_persona(Persona(
+            name=f"Test_Agent_001_monitor",
+            role=RoleType.TECHNICAL_EXPERT,
+            goals="Detect financial crimes using behavioral analysis",
+            background="Expert in customer-specific pattern detection"
+        ))
+        logger.info("Memorizz agent initialized successfully")
+
+        mem_agent.add_long_term_memory(memory_content, namespace="transaction_decisions")
+
+        logger.debug(f"Stored transaction decision in agent memory: {memory_content}")
+    except Exception as e:
+        logger.warning(f"Memorizz initialization failed: {e}, using fallback")
+
+async def usage_example():
     """Example usage with behavioral anomaly detection."""
     
     # Configuration
@@ -2177,6 +2216,10 @@ async def main():
             print(f"  ML Score (Behavioral): {decision.ml_score:.1f}")
         print(f"  Processing Time: {decision.processing_time:.3f}s")
         print(f"\nExplanation: {decision.explanation}")
+
+async def main():
+    # await usage_example()
+    await memorizz_test()
 
 if __name__ == "__main__":
     asyncio.run(main())

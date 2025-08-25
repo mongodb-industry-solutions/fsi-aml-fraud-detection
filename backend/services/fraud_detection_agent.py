@@ -211,7 +211,7 @@ class FraudDetectionAgent:
             - Risk score (0-100)
             - Key factors that influenced the decision
             - Specific fraud indicators found
-            - similar transactions found using find_similar_transactions
+            - list of similar transactions found using find_similar_transactions
 
             Be thorough but efficient in your analysis.""",
             toolset=toolset,

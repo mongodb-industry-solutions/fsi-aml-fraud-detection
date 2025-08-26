@@ -1,10 +1,10 @@
 # Create a simple debug script: debug_agent.py
 import asyncio
 import json
-from services.fraud_detection_agent_stream import FraudDetectionAgent
+from services.fraud_detection_agent_stream import FraudDetectionAgentStream
 
 async def debug_agent():
-    agent = FraudDetectionAgent()
+    agent = FraudDetectionAgentStream()
     
     transaction = {
         "_id": {

@@ -29,14 +29,7 @@ def test_agents_client_initialization():
         project_endpoint = os.getenv('AZURE_AI_PROJECT_ENDPOINT')
         api_key = os.getenv('AZURE_AI_API_KEY')
         
-        # Try API Key authentication first
-        if api_key:
-            credential = AzureKeyCredential(api_key)
-            client = AgentsClient(endpoint=project_endpoint, credential=credential)
-            print("✅ AgentsClient created with API key authentication")
-            return client, "api_key"
-        
-        # Fallback to default credential
+        # Try DefaultAzureCredential first (preferred for Azure AI Foundry Agents)
         try:
             credential = DefaultAzureCredential()
             client = AgentsClient(endpoint=project_endpoint, credential=credential)
@@ -44,7 +37,18 @@ def test_agents_client_initialization():
             return client, "default"
         except Exception as e:
             print(f"⚠️ DefaultAzureCredential failed: {e}")
-            return None, "failed"
+        
+        # Fallback to API Key authentication (will likely fail for agents)
+        if api_key:
+            try:
+                credential = AzureKeyCredential(api_key)
+                client = AgentsClient(endpoint=project_endpoint, credential=credential)
+                print("✅ AgentsClient created with API key authentication")
+                return client, "api_key"
+            except Exception as e:
+                print(f"⚠️ API key authentication failed: {e}")
+        
+        return None, "failed"
             
     except Exception as e:
         print(f"❌ AgentsClient creation failed: {e}")
@@ -88,8 +92,8 @@ def test_thread_creation(agents_client):
         return None
     
     try:
-        # Create a thread for conversation
-        thread = agents_client.create_thread()
+        # Create a thread for conversation using sub-client
+        thread = agents_client.threads.create()
         
         print(f"✅ Thread created successfully: {thread.id}")
         
@@ -134,17 +138,12 @@ def test_native_conversation_handler():
     try:
         from azure_foundry.conversation import NativeConversationHandler
         from azure.ai.agents import AgentsClient
-        from azure.core.credentials import AzureKeyCredential
+        from azure.identity import DefaultAzureCredential
         
-        # Create agents client
+        # Create agents client with DefaultAzureCredential
         project_endpoint = os.getenv('AZURE_AI_PROJECT_ENDPOINT')
-        api_key = os.getenv('AZURE_AI_API_KEY')
         
-        if not api_key:
-            print("❌ API key required for conversation handler test")
-            return False
-            
-        credential = AzureKeyCredential(api_key)
+        credential = DefaultAzureCredential()
         agents_client = AgentsClient(endpoint=project_endpoint, credential=credential)
         
         # Test conversation handler initialization

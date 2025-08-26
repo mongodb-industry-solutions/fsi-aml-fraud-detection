@@ -43,10 +43,11 @@ def get_db():
         # Clean up and close connection when done
         del db
 
-# Dependency to get fraud detection service
+# Dependency to get enhanced fraud detection service with Azure AI Foundry
 def get_fraud_detection_service(db: MongoDBAccess = Depends(get_db)):
-    service = FraudDetectionService(db_client=db, db_name=DB_NAME)
-    return service
+    from dependencies import get_enhanced_fraud_detection_service
+    # Use the enhanced service that integrates Azure AI Foundry
+    return get_enhanced_fraud_detection_service()
 
 @router.post("/", response_description="Add new transaction", response_model=TransactionResponse)
 async def create_transaction(

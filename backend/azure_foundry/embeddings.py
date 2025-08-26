@@ -1,7 +1,7 @@
 import os
 import logging
 from typing import Optional, List
-from azure.ai.inference import EmbeddingsClient
+from openai import AzureOpenAI
 from azure.identity import DefaultAzureCredential, AzureCliCredential
 from azure.core.credentials import AzureKeyCredential
 from dotenv import load_dotenv
@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
 class AzureFoundryEmbeddings:
-    """A class to generate text embeddings using Azure AI Foundry models."""
+    """A class to generate text embeddings using Azure OpenAI models."""
     
     log: logging.Logger = logging.getLogger("AzureFoundryEmbeddings")
     
@@ -21,67 +21,63 @@ class AzureFoundryEmbeddings:
         self,
         endpoint: Optional[str] = None,
         api_key: Optional[str] = None,
-        model_name: Optional[str] = None,
-        use_cli_credential: bool = True
+        model_deployment: Optional[str] = None,
+        api_version: Optional[str] = None
     ) -> None:
         """
         Initialize the AzureFoundryEmbeddings class.
         
         Args:
-            endpoint (str): The Azure AI Foundry endpoint URL
-            api_key (str): The API key for authentication (optional)
-            model_name (str): The embedding model name (e.g., 'text-embedding-ada-002')
-            use_cli_credential (bool): Whether to prefer Azure CLI credential
+            endpoint (str): The Azure OpenAI endpoint URL
+            api_key (str): The API key for authentication
+            model_deployment (str): The embedding model deployment name (e.g., 'text-embedding-ada-002')
+            api_version (str): The API version to use
         """
         # Set up endpoint
-        self.endpoint = endpoint or os.getenv("INFERENCE_ENDPOINT")
+        self.endpoint = endpoint or os.getenv("AZURE_OPENAI_ENDPOINT")
         if not self.endpoint:
-            raise ValueError("Inference endpoint must be provided via parameter or environment variable")
+            raise ValueError("Azure OpenAI endpoint must be provided via parameter or environment variable")
         
         # Set up authentication
-        self.api_key = api_key or os.getenv("AZURE_AI_API_KEY")
-        self.use_cli_credential = use_cli_credential
-        self.credential = self._get_credential()
+        self.api_key = api_key or os.getenv("AZURE_OPENAI_API_KEY")
+        if not self.api_key:
+            raise ValueError("Azure OpenAI API key must be provided via parameter or environment variable")
 
-        # Set up model name
-        self.model_name = model_name or os.getenv("EMBEDDING_MODEL")
-        if not self.model_name:
-            raise ValueError("Model name must be provided via parameter or environment variable")
+        # Set up model deployment
+        self.model_deployment = model_deployment or os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT")
+        if not self.model_deployment:
+            raise ValueError("Model deployment must be provided via parameter or environment variable")
         
-        # Create the Azure client
+        # Set up API version
+        self.api_version = api_version or os.getenv("AZURE_OPENAI_EMBEDDING_API_VERSION")
+        if not self.api_version:
+            raise ValueError("API version must be provided via parameter or environment variable")
+        
+        # Create the Azure OpenAI client
         try:
-            self.embeddings_client = EmbeddingsClient(endpoint=self.endpoint, credential=self.credential)
+            self.embeddings_client = AzureOpenAI(
+                azure_endpoint=self.endpoint,
+                api_key=self.api_key,
+                api_version=self.api_version
+            )
         except Exception as e:
-            self.log.error(f"Failed to create EmbeddingsClient: {e}")
+            self.log.error(f"Failed to create AzureOpenAI client: {e}")
             raise
         
-        self.log.info(f"Initialized Azure Foundry Embeddings with model: {self.model_name}")
+        self.log.info(f"Initialized Azure OpenAI Embeddings with deployment: {self.model_deployment}")
     
-    def _get_credential(self):
-        """Get the appropriate Azure credential."""
-        if self.api_key:
-            self.log.info("Using API Key authentication")
-            return AzureKeyCredential(self.api_key)
-        
-        if self.use_cli_credential:
-            try:
-                self.log.info("Using Azure CLI authentication")
-                return AzureCliCredential()
-            except Exception as e:
-                self.log.warning(f"Azure CLI credential failed: {e}, falling back to DefaultAzureCredential")
-        
-        self.log.info("Using DefaultAzureCredential")
-        return DefaultAzureCredential()
-
     def predict(self, text: str) -> List[float]:
         """Generate embedding for a single text."""
         if not text or not text.strip():
             raise ValueError("Text input cannot be empty")
         
         try:
-            response = self.embeddings_client.embed(input=[text], model=self.model_name)
+            response = self.embeddings_client.embeddings.create(
+                input=[text], 
+                model=self.model_deployment
+            )
             if not response.data or len(response.data) == 0:
-                raise ValueError("No embedding data received from Azure AI Foundry")
+                raise ValueError("No embedding data received from Azure OpenAI")
             return response.data[0].embedding
         except Exception as e:
             self.log.error(f"Error generating embedding: {e}")
@@ -137,29 +133,30 @@ if __name__ == '__main__':
     import asyncio
     
     # Example usage
-    endpoint = os.getenv("INFERENCE_ENDPOINT")
-    embedding_model = os.getenv("EMBEDDING_MODEL")
-    api_key = os.getenv("AZURE_AI_API_KEY")
+    endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+    embedding_deployment = os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT")
+    api_key = os.getenv("AZURE_OPENAI_API_KEY")
+    api_version = os.getenv("AZURE_OPENAI_EMBEDDING_API_VERSION")
     
-    if not endpoint or not embedding_model or not api_key:
+    if not endpoint or not embedding_deployment or not api_key or not api_version:
         print("Error: Missing required environment variables:")
-        print(f"  INFERENCE_ENDPOINT: {'✓' if endpoint else '✗'}")
-        print(f"  EMBEDDING_MODEL: {'✓' if embedding_model else '✗'}")
-        print(f"  AZURE_AI_API_KEY: {'✓' if api_key else '✗'}")
+        print(f"  AZURE_OPENAI_ENDPOINT: {'✓' if endpoint else '✗'}")
+        print(f"  AZURE_OPENAI_EMBEDDING_DEPLOYMENT: {'✓' if embedding_deployment else '✗'}")
+        print(f"  AZURE_OPENAI_API_KEY: {'✓' if api_key else '✗'}")
+        print(f"  AZURE_OPENAI_EMBEDDING_API_VERSION: {'✓' if api_version else '✗'}")
         exit(1)
     
     try:
-        credential = AzureKeyCredential(api_key)
-
-        # Direct usage of the class
-        embeddings_client = EmbeddingsClient(
-            endpoint=endpoint,
-            credential=credential
+        # Direct usage of Azure OpenAI client
+        embeddings_client = AzureOpenAI(
+            azure_endpoint=endpoint,
+            api_key=api_key,
+            api_version=api_version
         )
         
         # Test direct prediction
         sample_text = "This is a sample text for fraud detection in financial transactions."
-        result = embeddings_client.embed(input=[sample_text], model=embedding_model)
+        result = embeddings_client.embeddings.create(input=[sample_text], model=embedding_deployment)
         print(f"Direct embedding result (first 5 values): {result.data[0].embedding[:5]}... (total length: {len(result.data[0].embedding)})")
         
         # Test the async wrapper function

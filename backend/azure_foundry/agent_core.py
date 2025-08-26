@@ -431,8 +431,8 @@ class TwoStageAgentCore:
             return self.thread_cache[transaction_id]
         
         try:
-            # Create new thread
-            thread = self.agents_client.create_thread()
+            # Create new thread using correct API method
+            thread = self.agents_client.threads.create()
             thread_id = thread.id
             
             # Cache it

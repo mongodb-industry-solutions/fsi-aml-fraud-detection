@@ -46,6 +46,14 @@ class FraudDetectionService:
         self.transaction_collection = "transactions"
         self.fraud_pattern_collection = "fraud_patterns"
         
+        # Azure AI Foundry collections for enhanced capabilities
+        self.agent_decisions_collection = "agent_decision_history"
+        self.learning_patterns_collection = "fraud_learning_patterns"
+        
+        # Azure AI Foundry client (injected by dependencies)
+        self._azure_agents_client = None
+        self._azure_agent_id = None
+        
         logger.info(f"Initialized FraudDetectionService with database: {self.db_name}")
     
     async def evaluate_transaction(self, transaction: Dict[str, Any]) -> Dict[str, Any]:
@@ -1180,3 +1188,427 @@ class FraudDetectionService:
         c = 2 * math.asin(math.sqrt(a))
         r = 6371  # Radius of earth in kilometers
         return c * r
+    
+    # =============================================================================
+    # AZURE AI FOUNDRY INTEGRATION METHODS
+    # Enhanced capabilities using existing MongoDB infrastructure
+    # =============================================================================
+    
+    async def analyze_with_azure_agent(
+        self,
+        transaction: Dict[str, Any],
+        similar_transactions: List[Dict[str, Any]] = None,
+        risk_assessment: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
+        """
+        Analyze transaction using Azure AI Foundry agent, building on existing fraud detection.
+        
+        Args:
+            transaction: Transaction to analyze
+            similar_transactions: Similar transactions from existing find_similar_transactions()
+            risk_assessment: Risk assessment from existing evaluate_transaction()
+            
+        Returns:
+            Enhanced analysis with AI agent recommendations
+        """
+        if not self._azure_agents_client or not self._azure_agent_id:
+            logger.warning("Azure AI Foundry not available - falling back to standard analysis")
+            return risk_assessment or {"score": 50.0, "level": "medium", "ai_available": False}
+        
+        try:
+            # If not provided, get similar transactions using existing method
+            if similar_transactions is None:
+                similar_transactions, similarity_risk, _ = await self.find_similar_transactions(transaction)
+            
+            # If not provided, get risk assessment using existing method
+            if risk_assessment is None:
+                risk_assessment = await self.evaluate_transaction(transaction)
+            
+            # Create analysis context for AI agent
+            analysis_context = self._build_agent_analysis_context(
+                transaction, similar_transactions, risk_assessment
+            )
+            
+            # Create thread and analyze with Azure AI agent
+            thread = self._azure_agents_client.threads.create()
+            
+            # Add analysis request message
+            self._azure_agents_client.messages.create(
+                thread_id=thread.id,
+                role="user",
+                content=analysis_context
+            )
+            
+            # Run agent analysis
+            run = self._azure_agents_client.runs.create_and_process(
+                thread_id=thread.id,
+                agent_id=self._azure_agent_id,
+                temperature=0.3
+            )
+            
+            # Extract AI response
+            messages = self._azure_agents_client.messages.list(thread_id=thread.id, limit=1)
+            ai_response = ""
+            if messages and len(messages) > 0:
+                latest_message = messages[0]
+                if latest_message.role == "assistant" and latest_message.content:
+                    content = latest_message.content[0]
+                    if hasattr(content, 'text'):
+                        ai_response = content.text.value if hasattr(content.text, 'value') else str(content.text)
+            
+            # Parse AI recommendation
+            ai_recommendation = self._parse_ai_recommendation(ai_response)
+            
+            # Combine existing analysis with AI insights
+            enhanced_analysis = {
+                **risk_assessment,  # Keep existing analysis
+                "ai_analysis": {
+                    "available": True,
+                    "recommendation": ai_recommendation.get("decision"),
+                    "confidence": ai_recommendation.get("confidence", 0.7),
+                    "reasoning": ai_recommendation.get("reasoning"),
+                    "full_response": ai_response,
+                    "thread_id": thread.id
+                },
+                "enhanced_score": self._calculate_enhanced_score(risk_assessment, ai_recommendation),
+                "analysis_method": "azure_ai_foundry_enhanced"
+            }
+            
+            # Store agent decision for learning
+            await self.store_agent_decision(enhanced_analysis, transaction)
+            
+            return enhanced_analysis
+            
+        except Exception as e:
+            logger.error(f"Azure AI agent analysis failed: {e}")
+            # Fallback to existing analysis
+            return {
+                **(risk_assessment or {}),
+                "ai_analysis": {
+                    "available": False,
+                    "error": str(e),
+                    "fallback_mode": True
+                }
+            }
+    
+    async def store_agent_decision(
+        self,
+        agent_decision: Dict[str, Any],
+        transaction_data: Dict[str, Any],
+        context: Dict[str, Any] = None
+    ):
+        """
+        Store agent decision using existing MongoDB infrastructure for learning.
+        
+        Args:
+            agent_decision: Agent's decision and analysis
+            transaction_data: Original transaction data
+            context: Additional context for the decision
+        """
+        try:
+            # Switch to Azure OpenAI embeddings (replacing Bedrock)
+            from azure_foundry.embeddings import get_embedding
+            
+            # Build decision context for embedding
+            decision_context = self._build_decision_context(agent_decision, transaction_data)
+            decision_embedding = await get_embedding(decision_context)
+            
+            # Create decision record using existing collection pattern
+            decision_record = {
+                "decision_id": f"dec_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{hash(str(transaction_data)) % 10000}",
+                "timestamp": datetime.now(),
+                "agent_decision": {
+                    "decision": agent_decision.get("level", "medium"),  # Use existing level field
+                    "confidence": agent_decision.get("ai_analysis", {}).get("confidence", 0.5),
+                    "risk_score": agent_decision.get("score", 50.0),
+                    "reasoning": agent_decision.get("ai_analysis", {}).get("reasoning", "Standard rule-based analysis"),
+                    "enhanced_score": agent_decision.get("enhanced_score"),
+                    "analysis_method": agent_decision.get("analysis_method", "standard")
+                },
+                "transaction_data": {
+                    "transaction_id": transaction_data.get("transaction_id", "unknown"),
+                    "amount": transaction_data.get("amount", 0),
+                    "merchant_category": transaction_data.get("merchant", {}).get("category"),
+                    "customer_id": transaction_data.get("customer_id"),
+                    "location_country": transaction_data.get("location", {}).get("country")
+                },
+                "decision_embedding": decision_embedding,
+                "context": context or {},
+                "metadata": {
+                    "transaction_amount": transaction_data.get("amount"),
+                    "merchant_category": transaction_data.get("merchant", {}).get("category"),
+                    "risk_level": agent_decision.get("level"),
+                    "has_ai_analysis": "ai_analysis" in agent_decision,
+                    "thread_id": agent_decision.get("ai_analysis", {}).get("thread_id")
+                }
+            }
+            
+            # Store using existing MongoDB infrastructure
+            self.db_client.insert_one(
+                db_name=self.db_name,
+                collection_name=self.agent_decisions_collection,
+                document=decision_record
+            )
+            
+            logger.debug(f"Agent decision stored for transaction: {transaction_data.get('transaction_id', 'unknown')}")
+            
+        except Exception as e:
+            logger.error(f"Failed to store agent decision: {e}")
+    
+    async def retrieve_similar_agent_decisions(
+        self,
+        transaction_data: Dict[str, Any],
+        similarity_threshold: float = 0.7,
+        limit: int = 5
+    ) -> List[Dict[str, Any]]:
+        """
+        Retrieve similar agent decisions using existing vector search infrastructure.
+        
+        Args:
+            transaction_data: Current transaction to find similar decisions for
+            similarity_threshold: Minimum similarity score
+            limit: Maximum number of results
+            
+        Returns:
+            List of similar past agent decisions
+        """
+        try:
+            # Switch to Azure OpenAI embeddings
+            from azure_foundry.embeddings import get_embedding
+            
+            # Build search context
+            search_context = self._build_decision_context({"score": 50}, transaction_data)
+            search_embedding = await get_embedding(search_context)
+            
+            # Use existing MongoDB vector search pattern
+            collection = self.db_client.get_collection(self.db_name, self.agent_decisions_collection)
+            
+            # Vector search pipeline
+            pipeline = [
+                {
+                    "$vectorSearch": {
+                        "index": "decision_vector_index",  # Index to be created
+                        "path": "decision_embedding",
+                        "queryVector": search_embedding,
+                        "numCandidates": limit * 5,
+                        "limit": limit
+                    }
+                },
+                {
+                    "$addFields": {
+                        "score": {"$meta": "vectorSearchScore"}
+                    }
+                },
+                {
+                    "$match": {
+                        "score": {"$gte": similarity_threshold}
+                    }
+                }
+            ]
+            
+            # Execute search
+            results = list(collection.aggregate(pipeline))
+            logger.debug(f"Found {len(results)} similar agent decisions")
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"Failed to retrieve similar agent decisions: {e}")
+            return []
+    
+    async def store_learning_pattern(
+        self,
+        pattern_type: str,
+        pattern_data: Dict[str, Any],
+        effectiveness_score: float
+    ):
+        """
+        Store fraud learning pattern using existing MongoDB infrastructure.
+        
+        Args:
+            pattern_type: Type of pattern (e.g., "high_amount_electronics")
+            pattern_data: Pattern details and features
+            effectiveness_score: How effective this pattern is (0.0-1.0)
+        """
+        try:
+            # Switch to Azure OpenAI embeddings
+            from azure_foundry.embeddings import get_embedding
+            
+            # Create pattern description for embedding
+            pattern_description = f"""
+            Pattern Type: {pattern_type}
+            Pattern Features: {str(pattern_data)}
+            Effectiveness: {effectiveness_score}
+            """
+            
+            pattern_embedding = await get_embedding(pattern_description.strip())
+            
+            # Create learning pattern record
+            pattern_record = {
+                "pattern_id": f"pattern_{pattern_type}_{int(datetime.now().timestamp())}",
+                "timestamp": datetime.now(),
+                "pattern_type": pattern_type,
+                "pattern_data": pattern_data,
+                "effectiveness_score": effectiveness_score,
+                "pattern_embedding": pattern_embedding,
+                "metadata": {
+                    "created_date": datetime.now().isoformat(),
+                    "pattern_version": "1.0"
+                }
+            }
+            
+            # Store using existing infrastructure
+            self.db_client.insert_one(
+                db_name=self.db_name,
+                collection_name=self.learning_patterns_collection,
+                document=pattern_record
+            )
+            
+            logger.debug(f"Learning pattern stored: {pattern_type}")
+            
+        except Exception as e:
+            logger.error(f"Failed to store learning pattern: {e}")
+    
+    def _build_agent_analysis_context(
+        self,
+        transaction: Dict[str, Any],
+        similar_transactions: List[Dict[str, Any]],
+        risk_assessment: Dict[str, Any]
+    ) -> str:
+        """Build analysis context for Azure AI agent"""
+        
+        context = f"""
+        FRAUD ANALYSIS REQUEST
+        
+        Transaction Details:
+        - Amount: ${transaction.get('amount', 0):,.2f} {transaction.get('currency', 'USD')}
+        - Merchant: {transaction.get('merchant', {}).get('name', 'Unknown')}
+        - Category: {transaction.get('merchant', {}).get('category', 'Unknown')}
+        - Customer ID: {transaction.get('customer_id', 'Unknown')}
+        - Location: {transaction.get('location', {}).get('country', 'Unknown')}
+        
+        Current Risk Assessment:
+        - Risk Score: {risk_assessment.get('score', 0)}/100
+        - Risk Level: {risk_assessment.get('level', 'Unknown')}
+        - Flags: {', '.join(risk_assessment.get('flags', []))}
+        
+        Similar Historical Transactions Found: {len(similar_transactions)}
+        """
+        
+        if similar_transactions:
+            context += "\n\nSimilar Transaction Analysis:"
+            for i, sim_txn in enumerate(similar_transactions[:3], 1):
+                txn_data = sim_txn.get('transaction_data', {}) if 'transaction_data' in sim_txn else sim_txn
+                risk = sim_txn.get('risk_assessment', {})
+                context += f"""
+        {i}. Amount: ${txn_data.get('amount', 0):,.2f}, 
+           Category: {txn_data.get('merchant', {}).get('category', 'Unknown')},
+           Risk: {risk.get('level', 'Unknown')} ({risk.get('score', 0)}/100)"""
+        
+        context += """
+        
+        Please analyze this transaction and provide:
+        1. Your recommendation: APPROVE, INVESTIGATE, ESCALATE, or BLOCK
+        2. Confidence level (0.0-1.0)
+        3. Key reasoning points
+        4. Additional risk factors or patterns noticed
+        
+        Format your response as:
+        RECOMMENDATION: [your decision]
+        CONFIDENCE: [0.0-1.0]
+        REASONING: [your analysis]
+        """
+        
+        return context
+    
+    def _parse_ai_recommendation(self, ai_response: str) -> Dict[str, Any]:
+        """Parse AI agent response into structured recommendation"""
+        
+        try:
+            lines = ai_response.strip().split('\n')
+            recommendation = {
+                "decision": "INVESTIGATE",  # Default
+                "confidence": 0.7,  # Default
+                "reasoning": ai_response  # Fallback to full response
+            }
+            
+            for line in lines:
+                line = line.strip()
+                if line.startswith("RECOMMENDATION:"):
+                    decision_text = line.replace("RECOMMENDATION:", "").strip()
+                    if any(d in decision_text.upper() for d in ["APPROVE", "BLOCK", "ESCALATE", "INVESTIGATE"]):
+                        for d in ["APPROVE", "BLOCK", "ESCALATE", "INVESTIGATE"]:
+                            if d in decision_text.upper():
+                                recommendation["decision"] = d
+                                break
+                
+                elif line.startswith("CONFIDENCE:"):
+                    conf_text = line.replace("CONFIDENCE:", "").strip()
+                    try:
+                        conf_value = float(conf_text)
+                        recommendation["confidence"] = max(0.0, min(1.0, conf_value))
+                    except:
+                        pass
+                
+                elif line.startswith("REASONING:"):
+                    reasoning_text = line.replace("REASONING:", "").strip()
+                    if reasoning_text:
+                        recommendation["reasoning"] = reasoning_text
+            
+            return recommendation
+            
+        except Exception as e:
+            logger.warning(f"Failed to parse AI recommendation: {e}")
+            return {
+                "decision": "INVESTIGATE",
+                "confidence": 0.7,
+                "reasoning": f"AI analysis completed (parsing error: {str(e)})"
+            }
+    
+    def _calculate_enhanced_score(
+        self,
+        risk_assessment: Dict[str, Any],
+        ai_recommendation: Dict[str, Any]
+    ) -> float:
+        """Calculate enhanced risk score combining traditional analysis and AI insights"""
+        
+        base_score = risk_assessment.get("score", 50.0)
+        ai_confidence = ai_recommendation.get("confidence", 0.5)
+        ai_decision = ai_recommendation.get("decision", "INVESTIGATE")
+        
+        # AI adjustment based on decision
+        ai_adjustments = {
+            "APPROVE": -15,
+            "INVESTIGATE": 0,
+            "ESCALATE": +20,
+            "BLOCK": +30
+        }
+        
+        ai_adjustment = ai_adjustments.get(ai_decision, 0)
+        
+        # Weight adjustment by AI confidence
+        weighted_adjustment = ai_adjustment * ai_confidence
+        
+        # Calculate final enhanced score
+        enhanced_score = base_score + weighted_adjustment
+        
+        # Ensure score stays in valid range
+        return max(0.0, min(100.0, enhanced_score))
+    
+    def _build_decision_context(
+        self,
+        agent_decision: Dict[str, Any],
+        transaction_data: Dict[str, Any]
+    ) -> str:
+        """Build decision context string for embedding"""
+        
+        context = f"""
+        Transaction Analysis Decision:
+        Amount: ${transaction_data.get('amount', 0):,.2f}
+        Merchant Category: {transaction_data.get('merchant', {}).get('category', 'Unknown')}
+        Risk Score: {agent_decision.get('score', 50)}
+        Risk Level: {agent_decision.get('level', 'medium')}
+        Decision: {agent_decision.get('ai_analysis', {}).get('recommendation', 'standard_analysis')}
+        """
+        
+        return context.strip()

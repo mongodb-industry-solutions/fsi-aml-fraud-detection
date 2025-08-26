@@ -1,19 +1,11 @@
 # Create a simple debug script: debug_agent.py
 import asyncio
 import json
-from services.fraud_detection_agent import FraudDetectionAgent
+from services.fraud_detection_agent_stream import FraudDetectionAgentStream
 
 async def debug_agent():
-    agent = FraudDetectionAgent()
+    agent = FraudDetectionAgentStream()
     
-    # Test transaction
-    # transaction = {
-    #     "transaction_id": "debug_001",
-    #     "customer_id": "customer_123",
-    #     "amount": 1000.00,
-    #     "timestamp": "2024-01-15T10:30:00Z"
-    # }
-
     transaction = {
         "_id": {
             "$oid": "6838963110a89768cd90e4eb"
@@ -67,15 +59,7 @@ async def debug_agent():
     }
     
     result = await agent.evaluate_transaction(transaction)
-    # print(f"Result: {result}")
-    # print the result in a pretty format
-
-    reasoning = json.dumps(result, indent=4).result['reasoning']
-    print(reasoning)
-
-    # save the reasoning to a file
-    with open('reasoning.md', 'w') as f:
-        f.write(reasoning)
+    print(f"Result: {result}")
 
     agent.cleanup_resources()
 

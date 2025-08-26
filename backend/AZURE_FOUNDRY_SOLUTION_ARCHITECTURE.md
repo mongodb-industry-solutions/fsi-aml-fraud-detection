@@ -20,7 +20,7 @@ graph TB
     subgraph "🔌 API Gateway Layer"
         API1[🚀 Transaction API<br/>POST /transactions]
         API2[🔍 Fraud Detection API<br/>POST /analyze]
-        API3[📊 Risk Assessment API<br/>GET /risk/{id}]
+        API3[📊 Risk Assessment API<br/>GET /risk/id]
         API4[🧠 Agent Analysis API<br/>POST /agent/analyze]
         API5[📈 Learning API<br/>POST /learn/pattern]
     end
@@ -290,7 +290,7 @@ graph LR
         API1[🚀 POST /transactions<br/>Real-time Analysis]
         API2[🔍 POST /analyze<br/>Detailed Investigation]
         API3[🤖 POST /agent/analyze<br/>AI-Enhanced Analysis]
-        API4[📊 GET /risk/{id}<br/>Risk Assessment]
+        API4[📊 GET /risk/id<br/>Risk Assessment]
         API5[📚 POST /learn/pattern<br/>Learning Feedback]
     end
     

@@ -31,6 +31,7 @@ import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 import ExpandableCard from '@leafygreen-ui/expandable-card';
 import VectorSearchCalculationBreakdown from '../vectorSearch/VectorSearchCalculationBreakdown';
+import AgentEvaluationModal from './AgentEvaluationModal';
 import styles from './TransactionSimulator.module.css';
 
 
@@ -112,6 +113,9 @@ function TransactionSimulator() {
   const [similarityRiskScore, setSimilarityRiskScore] = useState(0);
   const [showCustomerJson, setShowCustomerJson] = useState(false);
   const [hoveredButton, setHoveredButton] = useState(false);
+  const [showAgentModal, setShowAgentModal] = useState(false);
+  const [agentLoading, setAgentLoading] = useState(false);
+  const [agentError, setAgentError] = useState('');
 
   // Fetch customers and initial data
   useEffect(() => {
@@ -362,6 +366,18 @@ Device: ${transactionData.device_info?.type || 'N/A'}, ${transactionData.device_
     } finally {
       setLoading(false);
     }
+  };
+
+  // Handle agent evaluation
+  const handleAgentEvaluation = () => {
+    const transactionData = prepareTransactionData();
+    if (!transactionData) {
+      setAgentError('Cannot create transaction: No customer selected');
+      return;
+    }
+    
+    setAgentError('');
+    setShowAgentModal(true);
   };
   
   // No longer needed: Submit and store transaction function has been removed
@@ -1282,6 +1298,21 @@ Device: ${transactionData.device_info?.type || 'N/A'}, ${transactionData.device_
         marginTop: spacing[3]
       }}>
         <Button
+          variant="default"
+          disabled={agentLoading || !selectedCustomer}
+          onClick={handleAgentEvaluation}
+          leftGlyph={agentLoading ? <Spinner /> : <Icon glyph="PersonWithLock" fill={palette.blue.base} />}
+          style={{ 
+            backgroundColor: agentLoading || !selectedCustomer ? palette.gray.light2 : palette.blue.light3,
+            color: agentLoading || !selectedCustomer ? palette.gray.dark1 : palette.blue.dark2,
+            border: `1px solid ${palette.blue.base}`,
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+          }}
+        >
+          {agentLoading ? 'Agent Processing...' : 'Evaluate with Agent'}
+        </Button>
+        
+        <Button
           variant="primary"
           disabled={loading || !selectedCustomer}
           onClick={handleSubmitTransaction}
@@ -1303,8 +1334,26 @@ Device: ${transactionData.device_info?.type || 'N/A'}, ${transactionData.device_
         </Banner>
       )}
       
+      {/* Agent Error Display */}
+      {agentError && (
+        <Banner variant="danger" style={{ marginTop: spacing[2] }}>
+          <ErrorText>{agentError}</ErrorText>
+        </Banner>
+      )}
+      
       {/* Results Modal */}
       {renderResultsModal()}
+      
+      {/* Agent Evaluation Modal */}
+      <AgentEvaluationModal
+        open={showAgentModal}
+        setOpen={setShowAgentModal}
+        transactionData={prepareTransactionData()}
+        loading={agentLoading}
+        setLoading={setAgentLoading}
+        error={agentError}
+        setError={setAgentError}
+      />
     </div>
   );
 }

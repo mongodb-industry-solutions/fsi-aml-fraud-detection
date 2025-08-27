@@ -7,9 +7,13 @@ import os
 from models.customer import CustomerModel, CustomerResponse
 from db.mongo_db import MongoDBAccess
 
+# Load environment variables
+from dotenv import load_dotenv
+load_dotenv()
+
 # Environment variables
 MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
-DB_NAME = os.getenv("DB_NAME", "fsi-threatsight360")
+DB_NAME = os.getenv("DB_NAME", "threatsight360")
 CUSTOMER_COLLECTION = "customers"
 
 router = APIRouter(
@@ -57,6 +61,11 @@ async def list_customers(db: MongoDBAccess = Depends(get_db), limit: int = 5, sk
     import logging
     logger = logging.getLogger(__name__)
     
+    print(f"=== CUSTOMER ENDPOINT CALLED ===")
+    print(f"limit: {limit}, skip: {skip}")
+    print(f"DB_NAME: {DB_NAME}")
+    print(f"CUSTOMER_COLLECTION: {CUSTOMER_COLLECTION}")
+    
     try:
         # Log what we're trying to do
         logger.info(f"Attempting to access collection '{CUSTOMER_COLLECTION}' in database '{DB_NAME}'")
@@ -69,11 +78,18 @@ async def list_customers(db: MongoDBAccess = Depends(get_db), limit: int = 5, sk
         
         # Try to get a count first to verify connection
         count = collection.count_documents({})
+        print(f"Found {count} documents in the collection")
         logger.info(f"Found {count} documents in the collection")
         
         # Get the customers
         customers = list(collection.find().skip(skip).limit(limit))
+        print(f"Retrieved {len(customers)} customers")
         logger.info(f"Retrieved {len(customers)} customers")
+        
+        # Check first customer structure
+        if customers:
+            print(f"First customer keys: {list(customers[0].keys())}")
+            print(f"First customer _id: {customers[0].get('_id')}")
         
         return customers
     

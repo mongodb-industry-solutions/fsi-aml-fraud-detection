@@ -3,7 +3,7 @@ FastAPI routes for Azure AI Foundry Agent integration
 """
 
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 
@@ -17,26 +17,48 @@ router = APIRouter(prefix="/api/agent", tags=["AI Agent"])
 class TransactionAnalysisRequest(BaseModel):
     transaction_id: str = Field(..., description="Unique transaction identifier")
     customer_id: str = Field(..., description="Customer identifier")
+    timestamp: str = Field(..., description="Transaction timestamp")
     amount: float = Field(..., gt=0, description="Transaction amount")
     currency: str = Field(default="USD", description="Transaction currency")
     merchant: Dict[str, Any] = Field(..., description="Merchant information")
     location: Dict[str, Any] = Field(..., description="Transaction location")
+    device_info: Dict[str, Any] = Field(..., description="Device information")
+    transaction_type: str = Field(..., description="Type of transaction")
+    payment_method: str = Field(..., description="Payment method used")
+    status: str = Field(default="completed", description="Transaction status")
     
     class Config:
         json_schema_extra = {
             "example": {
                 "transaction_id": "tx_12345",
-                "customer_id": "cust_67890", 
+                "customer_id": "cust_67890",
+                "timestamp": "2024-01-01T12:00:00Z", 
                 "amount": 1500.00,
                 "currency": "USD",
                 "merchant": {
                     "category": "electronics",
-                    "name": "Best Buy"
+                    "name": "Best Buy",
+                    "id": "m_12345"
                 },
                 "location": {
                     "country": "US",
-                    "city": "New York"
-                }
+                    "city": "New York",
+                    "state": "NY",
+                    "coordinates": {
+                        "type": "Point",
+                        "coordinates": [-74.0, 40.7]
+                    }
+                },
+                "device_info": {
+                    "device_id": "device_123",
+                    "type": "mobile",
+                    "os": "iOS",
+                    "browser": "Safari",
+                    "ip": "192.168.1.1"
+                },
+                "transaction_type": "purchase",
+                "payment_method": "credit_card",
+                "status": "completed"
             }
         }
 
@@ -49,7 +71,7 @@ class AgentAnalysisResponse(BaseModel):
     stage_completed: int = Field(..., description="1 or 2 indicating which stage completed analysis")
     reasoning: str = Field(..., description="Human-readable reasoning")
     processing_time_ms: float = Field(..., description="Processing time in milliseconds")
-    thread_id: str = None
+    thread_id: Optional[str] = Field(None, description="Thread ID (optional)")
 
 class AgentStatusResponse(BaseModel):
     initialized: bool

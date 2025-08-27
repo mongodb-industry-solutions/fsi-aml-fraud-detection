@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import APIRouter
+from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 import os
 import logging
@@ -11,6 +12,7 @@ from routes.customer import router as customer_router
 from routes.transaction import router as transaction_router
 from routes.fraud_pattern import router as fraud_pattern_router
 from routes.model_management import router as model_management_router
+from routes.agent_routes import router as agent_router
 # Entity resolution router removed - using enhanced system
 
 # Setup logging
@@ -23,13 +25,44 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
-# Create FastAPI app
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Handle application startup and shutdown"""
+    # Startup
+    logger.info("🚀 Starting ThreatSight 360 API with Azure AI Agent...")
+    
+    # Import here to avoid circular imports during startup
+    from services.agent_service import agent_service
+    
+    # Initialize the agent service on startup (optional - can also be done on first request)
+    try:
+        success = await agent_service.initialize()
+        if success:
+            logger.info("✅ Azure AI Agent initialized and ready")
+        else:
+            logger.warning("⚠️ Agent initialization failed - will be available via /api/agent/initialize")
+    except Exception as e:
+        logger.warning(f"⚠️ Agent initialization failed on startup: {e}")
+        logger.info("Agent will be available for manual initialization via /api/agent/initialize")
+    
+    yield
+    
+    # Shutdown
+    logger.info("🔄 Shutting down ThreatSight 360 API...")
+    try:
+        await agent_service.cleanup()
+        logger.info("✅ Agent resources cleaned up")
+    except Exception as e:
+        logger.error(f"Error during shutdown: {e}")
+
+# Create FastAPI app with lifespan management
 app = FastAPI(
     title="ThreatSight 360",
-    description="Fraud Detection API for Financial Services",
+    description="Fraud Detection API for Financial Services with Azure AI Agent",
     version="1.0.0",
     # Disable automatic redirects for trailing slashes
     redirect_slashes=False,
+    lifespan=lifespan,
 )
 
 # Configure CORS
@@ -43,7 +76,24 @@ app.add_middleware(
 
 @app.get("/")
 async def root():
-    return {"status": "Server is running!"}
+    """Root endpoint with system status"""
+    from services.agent_service import agent_service
+    
+    agent_status = await agent_service.get_agent_status()
+    
+    return {
+        "status": "ThreatSight 360 API is running!",
+        "version": "1.0.0",
+        "agent_status": agent_status.get("status", "unknown"),
+        "agent_initialized": agent_status.get("initialized", False),
+        "endpoints": {
+            "agent_status": "/api/agent/status",
+            "agent_analyze": "/api/agent/analyze", 
+            "agent_test": "/api/agent/test",
+            "docs": "/docs",
+            "health": "/test-cors"
+        }
+    }
 
 # Test endpoint for CORS
 @app.get("/test-cors/", tags=["Health"])
@@ -105,6 +155,7 @@ app.include_router(customer_router)
 app.include_router(transaction_router)
 app.include_router(fraud_pattern_router)
 app.include_router(model_management_router)
+app.include_router(agent_router)
 # Entity resolution router removed - using enhanced system
 
 # if __name__ == "__main__":

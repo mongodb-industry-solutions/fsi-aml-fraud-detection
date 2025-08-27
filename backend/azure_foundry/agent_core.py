@@ -16,7 +16,7 @@ from .models import (
 )
 from .config import get_demo_agent_config, get_agent_instructions
 from .conversation import NativeConversationHandler
-from .tools import create_fraud_toolset
+# Moved to function level to avoid circular import
 from .memory import create_mongodb_vector_store
 
 logger = logging.getLogger(__name__)
@@ -125,8 +125,10 @@ class TwoStageAgentCore:
             # Initialize native conversation handler
             # Will be set after agent creation
             
-            # Create fraud detection toolset
+            # Create fraud detection toolset (import locally to avoid circular import)
             from services.fraud_detection import FraudDetectionService
+            from .tools import create_fraud_toolset
+            
             fraud_service = FraudDetectionService(self.db_client)
 
             # Initialize MongoDB vector store for learning patterns (uses Azure embeddings)

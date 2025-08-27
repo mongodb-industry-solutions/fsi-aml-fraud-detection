@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 
 from azure.ai.agents.models import FunctionTool
 from db.mongo_db import MongoDBAccess
-from services.fraud_detection import FraudDetectionService
+# Import moved to function level to avoid circular import
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class FraudDetectionTools:
     Based on Azure AI Foundry documentation best practices.
     """
     
-    def __init__(self, db_client: MongoDBAccess, fraud_service: FraudDetectionService):
+    def __init__(self, db_client: MongoDBAccess, fraud_service):
         self.db_client = db_client
         self.fraud_service = fraud_service
         import os
@@ -482,7 +482,7 @@ class FraudDetectionTools:
             }
 
 
-def create_fraud_toolset(db_client: MongoDBAccess, fraud_service: FraudDetectionService) -> List[FunctionTool]:
+def create_fraud_toolset(db_client: MongoDBAccess, fraud_service) -> List[FunctionTool]:
     """
     Convenience function to create complete fraud detection toolset.
     

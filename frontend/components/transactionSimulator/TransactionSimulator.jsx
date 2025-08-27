@@ -30,6 +30,7 @@ import Code from '@leafygreen-ui/code';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 import ExpandableCard from '@leafygreen-ui/expandable-card';
+import VectorSearchCalculationBreakdown from '../vectorSearch/VectorSearchCalculationBreakdown';
 import styles from './TransactionSimulator.module.css';
 
 
@@ -71,9 +72,7 @@ const MERCHANT_CATEGORIES = [
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 // Tab IDs for the results modal
-const TAB_OVERVIEW = 0;
-const TAB_TRANSACTION_DETAILS = 1;
-const TAB_VECTOR_SEARCH = 2;
+const TAB_VECTOR_SEARCH = 0;
 
 function TransactionSimulator() {
   // State variables
@@ -108,7 +107,7 @@ function TransactionSimulator() {
   const [error, setError] = useState('');
   const [results, setResults] = useState(null);
   const [showResultsModal, setShowResultsModal] = useState(false);
-  const [activeTab, setActiveTab] = useState(0);
+  const [activeTab, setActiveTab] = useState(TAB_VECTOR_SEARCH);
   const [similarTransactions, setSimilarTransactions] = useState([]);
   const [similarityRiskScore, setSimilarityRiskScore] = useState(0);
   const [showCustomerJson, setShowCustomerJson] = useState(false);
@@ -309,30 +308,23 @@ function TransactionSimulator() {
 
   // Submit transaction for evaluation
   // Generate a descriptive text of the transaction for embedding
+  // This must match the format used for stored transaction embeddings (excluding Transaction ID and risk fields)
   const generateTransactionDescription = (transaction, riskAssessment) => {
-    const flags = riskAssessment?.flags || [];
-    const merchant = transaction.merchant?.category || 'unknown';
-    const amount = transaction.amount || 0;
-    const transType = transaction.transaction_type || 'purchase';
+    const transactionData = prepareTransactionData();
+    if (!transactionData) return '';
     
-    // Check if this is a scenario-based transaction and ensure the scenario is reflected in the description
-    let riskDescription;
-    if (flags.length > 0) {
-      riskDescription = ` the following risk indicators: ${flags.join(', ')}`;
-    } else if (selectedScenario === SCENARIOS.LOCATION_ANOMALY) {
-      riskDescription = ' unusual location detected';
-    } else if (selectedScenario === SCENARIOS.AMOUNT_ANOMALY) {
-      riskDescription = ' unusual amount detected';
-    } else if (selectedScenario === SCENARIOS.DEVICE_ANOMALY) {
-      riskDescription = ' unknown device detected';
-    } else if (selectedScenario === SCENARIOS.MULTI_FLAG) {
-      riskDescription = ' multiple suspicious indicators: unusual amount, location, and device';
-    } else {
-      riskDescription = ' no suspicious indicators';
-    }
+    // Format transaction details as structured text to match backend format
+    const text = `
+Amount: ${transactionData.amount || 0} ${transactionData.currency || 'USD'}
+Merchant: ${transactionData.merchant?.name || 'N/A'}
+Merchant Category: ${transactionData.merchant?.category || 'N/A'}
+Transaction Type: ${transactionData.transaction_type || 'N/A'}
+Payment Method: ${transactionData.payment_method || 'N/A'}
+Location: ${transactionData.location?.city || 'N/A'}, ${transactionData.location?.state || 'N/A'}, ${transactionData.location?.country || 'N/A'}
+Device: ${transactionData.device_info?.type || 'N/A'}, ${transactionData.device_info?.os || 'N/A'}, ${transactionData.device_info?.browser || 'N/A'}
+    `.trim();
     
-    // Generate a natural language description
-    return `${transType} transaction for $${amount} at ${merchant} merchant with${riskDescription}`;
+    return text;
   };
 
   const handleSubmitTransaction = async () => {
@@ -419,7 +411,7 @@ function TransactionSimulator() {
           setOpen={setShowResultsModal}
           size="large"
           title="Transaction Risk Assessment"
-          contentstyle={{ zIndex: 1000 }}
+          contentStyle={{ zIndex: 1001 }}
         >
           <div style={{ padding: spacing[3] }}>
             <Tabs
@@ -427,48 +419,6 @@ function TransactionSimulator() {
               setSelected={setActiveTab}
               aria-label="Transaction assessment tabs"
             >
-              <Tab name="Overview">
-                <div style={{ marginTop: spacing[3] }}>
-                  <CardSkeleton style={{ height: '400px' }} />
-                </div>
-              </Tab>
-              
-              <Tab name="Transaction Details">
-                <div style={{ marginTop: spacing[3] }}>
-                  <CardSkeleton style={{ height: '450px', padding: spacing[3] }}>
-                    <div style={{ marginBottom: spacing[3] }}>
-                      <ParagraphSkeleton withHeader />
-                    </div>
-                    
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[3] }}>
-                      {/* Transaction Details Skeleton */}
-                      <div style={{ 
-                        padding: spacing[3], 
-                        background: palette.gray.light2, 
-                        borderRadius: '4px',
-                        height: '120px'
-                      }}/>
-                      
-                      {/* Risk Assessment Skeleton */}
-                      <div style={{ 
-                        padding: spacing[3], 
-                        background: palette.gray.light2, 
-                        borderRadius: '4px',
-                        height: '120px'
-                      }}/>
-                      
-                      {/* Risk Factors Skeleton */}
-                      <div style={{ 
-                        padding: spacing[3], 
-                        background: palette.gray.light2, 
-                        borderRadius: '4px',
-                        height: '120px'
-                      }}/>
-                    </div>
-                  </CardSkeleton>
-                </div>
-              </Tab>
-              
               <Tab name="Vector Search Fraud Assessment">
                 <div style={{ marginTop: spacing[3] }}>
                   <CardSkeleton style={{ height: '500px' }} />
@@ -494,7 +444,7 @@ function TransactionSimulator() {
         setOpen={setShowResultsModal}
         size="large"
         title="Transaction Risk Assessment"
-        contentstyle={{ zIndex: 1000 }}
+        contentStyle={{ zIndex: 1001 }}
       >
         <div style={{ padding: spacing[3] }}>
           <Tabs
@@ -502,221 +452,6 @@ function TransactionSimulator() {
             setSelected={setActiveTab}
             aria-label="Transaction assessment tabs"
           >
-            <Tab name="Overview">
-              <div style={{ marginTop: spacing[3] }}>
-                <Card>
-                  <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between',
-                    marginBottom: spacing[3]
-                  }}>
-                    <H3>Risk Assessment</H3>
-                    {renderRiskLevelIndicator(risk.level)}
-                  </div>
-                  
-                  <div style={{ 
-                    display: 'flex', 
-                    flexDirection: 'column',
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    marginBottom: spacing[3],
-                    padding: spacing[3],
-                    background: palette.gray.light2,
-                    borderRadius: '4px'
-                  }}>
-                    <div style={{ textAlign: 'center', marginBottom: spacing[2] }}>
-                      <H1 style={{ 
-                        color: risk.level === 'high' 
-                          ? palette.red.base 
-                          : risk.level === 'medium' 
-                            ? palette.yellow.dark2 
-                            : palette.green.dark1
-                      }}>
-                        {Math.round(risk.score)}
-                      </H1>
-                      <Body>Risk Score</Body>
-                    </div>
-                    
-                    {risk.diagnostics && (
-                      <div style={{ width: '100%', maxWidth: '400px', marginTop: spacing[2] }}>
-                        <Subtitle style={{ marginBottom: spacing[1], textAlign: 'center' }}>
-                          Risk Factors Breakdown
-                        </Subtitle>
-                        
-                        {/* Customer Base Risk */}
-                        <div style={{ 
-                          display: 'flex', 
-                          justifyContent: 'space-between', 
-                          padding: `${spacing[1]}px 0`
-                        }}>
-                          <Body weight="medium">Customer Base Risk:</Body>
-                          <Body>{Math.round(risk.diagnostics.customer_base_risk)}</Body>
-                        </div>
-                        
-                        {/* Transaction Factors */}
-                        {Object.entries(risk.diagnostics.transaction_factors).map(([factor, value]) => (
-                          value > 0 && (
-                            <div key={factor} style={{ 
-                              display: 'flex', 
-                              justifyContent: 'space-between',
-                              padding: `${spacing[1]}px 0` 
-                            }}>
-                              <Body weight="medium">{factor.charAt(0).toUpperCase() + factor.slice(1)} Risk:</Body>
-                              <Body>{Math.round(value)}</Body>
-                            </div>
-                          )
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  
-                  {risk.flags && risk.flags.length > 0 ? (
-                    <div>
-                      <Subtitle style={{ marginBottom: spacing[2] }}>
-                        Risk Factors Detected:
-                      </Subtitle>
-                      <ul style={{ marginLeft: spacing[3] }}>
-                        {risk.flags.map((flag, index) => (
-                          <li key={index}>
-                            <Body>
-                              {flag.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                            </Body>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : (
-                    <div style={{ 
-                      padding: '16px', 
-                      background: palette.green.light2, 
-                      border: `1px solid ${palette.green.base}`,
-                      borderRadius: '4px'
-                    }}>
-                      <H3 style={{ 
-                        color: palette.green.dark2,
-                        marginBottom: '8px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
-                      }}>
-                        <Icon glyph="CheckmarkWithCircle" fill={palette.green.base} />
-                        No Risk Factors Detected
-                      </H3>
-                      <Body>This transaction appears to be normal and doesn't trigger any risk flags.</Body>
-                    </div>
-                  )}
-                </Card>
-              </div>
-            </Tab>
-            
-            <Tab name="Transaction Details">
-              <div style={{ marginTop: spacing[3] }}>
-                <Card>
-                  <H3 style={{ marginBottom: spacing[3] }}>
-                    Transaction Information
-                  </H3>
-                  
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[3] }}>
-                    {/* Transaction Details Section */}
-                    <div style={{ 
-                      padding: spacing[3], 
-                      background: palette.gray.light2, 
-                      borderRadius: '4px'
-                    }}>
-                      <Subtitle style={{ marginBottom: spacing[2] }}>Transaction Basics</Subtitle>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', rowGap: spacing[2], columnGap: spacing[4] }}>
-                        <div>
-                          <Body weight="medium">Amount:</Body>
-                          <Body>${transaction?.amount || 'N/A'}</Body>
-                        </div>
-                        <div>
-                          <Body weight="medium">Merchant Category:</Body>
-                          <Body>{transaction?.merchant || 'N/A'}</Body>
-                        </div>
-                        <div>
-                          <Body weight="medium">Transaction Type:</Body>
-                          <Body>{transaction?.transaction_type ? 
-                            transaction.transaction_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 
-                            'N/A'}</Body>
-                        </div>
-                        <div>
-                          <Body weight="medium">Classification:</Body>
-                          <Body>{risk.transaction_type?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Standard'}</Body>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Risk Assessment Section */}
-                    <div style={{ 
-                      padding: spacing[3], 
-                      background: palette.gray.light2, 
-                      borderRadius: '4px'
-                    }}>
-                      <Subtitle style={{ marginBottom: spacing[2] }}>Risk Assessment</Subtitle>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', rowGap: spacing[2], columnGap: spacing[4] }}>
-                        <div>
-                          <Body weight="medium">Risk Level:</Body>
-                          <div>{renderRiskLevelIndicator(risk.level)}</div>
-                        </div>
-                        <div>
-                          <Body weight="medium">Risk Score:</Body>
-                          <Body>{Math.round(risk.score)}</Body>
-                        </div>
-                        <div>
-                          <Body weight="medium">Customer Base Risk:</Body>
-                          <Body>{Math.round(risk.diagnostics?.customer_base_risk || 0)}</Body>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Risk Factors Section */}
-                    {Object.entries(risk.diagnostics?.transaction_factors || {})
-                      .filter(([_, value]) => value > 0)
-                      .length > 0 && (
-                        <div style={{ 
-                          padding: spacing[3], 
-                          background: palette.gray.light2, 
-                          borderRadius: '4px'
-                        }}>
-                          <Subtitle style={{ marginBottom: spacing[2] }}>Risk Factors</Subtitle>
-                          <div style={{ 
-                            display: 'grid', 
-                            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', 
-                            gap: spacing[2] 
-                          }}>
-                            {Object.entries(risk.diagnostics?.transaction_factors || {})
-                              .filter(([_, value]) => value > 0)
-                              .map(([factor, value]) => (
-                                <div key={factor} style={{ 
-                                  padding: spacing[2],
-                                  background: 'white',
-                                  borderRadius: '4px',
-                                  boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
-                                }}>
-                                  <Body weight="medium">{factor.charAt(0).toUpperCase() + factor.slice(1)} Risk:</Body>
-                                  <H3 style={{ 
-                                    color: value > 50 
-                                      ? palette.red.base 
-                                      : value > 25 
-                                        ? palette.yellow.dark2 
-                                        : palette.green.dark1,
-                                    marginTop: spacing[1]
-                                  }}>
-                                    {Math.round(value)}
-                                  </H3>
-                                </div>
-                              ))
-                            }
-                          </div>
-                        </div>
-                      )
-                    }
-                  </div>
-                </Card>
-              </div>
-            </Tab>
-            
             <Tab name="Vector Search Fraud Assessment">
               <div style={{ marginTop: spacing[3] }}>
                 <Card>
@@ -724,26 +459,6 @@ function TransactionSimulator() {
                     <H3>Vector Search Fraud Analysis</H3>
                     <Body style={{ marginTop: spacing[1] }}>
                       Using MongoDB Vector Search to analyze semantically similar transactions for fraud detection
-                    </Body>
-                  </div>
-                  
-                  {/* Transaction description */}
-                  <div style={{ 
-                    padding: spacing[3],
-                    background: palette.gray.light2,
-                    borderRadius: '4px',
-                    marginBottom: spacing[3]
-                  }}>
-                    <Subtitle>Transaction Description:</Subtitle>
-                    <Body style={{ fontStyle: 'italic', marginTop: spacing[1] }}>
-                      {generateTransactionDescription(
-                        {
-                          amount: transaction?.amount,
-                          merchant: { category: transaction?.merchant },
-                          transaction_type: transaction?.transaction_type
-                        }, 
-                        risk
-                      )}
                     </Body>
                   </div>
                   
@@ -817,46 +532,15 @@ function TransactionSimulator() {
                     </div>
                   </div>
                   
-                  {/* Similarity Risk Score */}
-                  <div style={{ 
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: spacing[3],
-                    background: palette.gray.light2,
-                    borderRadius: '4px',
-                    marginBottom: spacing[3]
-                  }}>
-                    <div>
-                      <Subtitle>Vector Search Risk Score:</Subtitle>
-                    </div>
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: '80px',
-                      height: '80px',
-                      borderRadius: '50%',
-                      background: 'white',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                      border: `3px solid ${
-                        similarityRiskScore >= 0.8 ? palette.red.base :
-                        similarityRiskScore >= 0.65 ? palette.yellow.base :
-                        palette.green.base
-                      }`
-                    }}>
-                      <H2 style={{ 
-                        color: similarityRiskScore >= 0.8 ? palette.red.base :
-                               similarityRiskScore >= 0.65 ? palette.yellow.base :
-                               palette.green.base
-                      }}>
-                        {Math.round(similarityRiskScore * 100)}
-                      </H2>
-                    </div>
-                  </div>
+                  {/* Vector Search Calculation Breakdown */}
+                  <VectorSearchCalculationBreakdown 
+                    calculationBreakdown={results?.vector_search_calculation}
+                    similarityRiskScore={similarityRiskScore}
+                  />
                   
-                  {/* Similar transactions list */}
-                  <div>
+                  <div style={{ marginTop: spacing[4] }}>
+                    {/* Similar transactions list */}
+                    <div>
                     <Subtitle style={{ marginBottom: spacing[2] }}>
                       Vector - Matched Transactions:
                       {results.similar_transactions_count > similarTransactions.length && (
@@ -953,6 +637,7 @@ function TransactionSimulator() {
                         <Body>No vector matches found in transaction database.</Body>
                       </div>
                     )}
+                    </div>
                   </div>
                 </Card>
               </div>
@@ -1032,7 +717,7 @@ function TransactionSimulator() {
           fontSize: '12px'
         }}>
           <Icon glyph="Database" fill={palette.blue.base} size="small" />
-          Powered by MongoDB Atlas
+          Powered by MongoDB
         </Description>
       </div>
       

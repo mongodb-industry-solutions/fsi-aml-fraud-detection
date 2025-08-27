@@ -1,6 +1,7 @@
 "use client";
 
 import Link from 'next/link';
+import Image from 'next/image';
 import Card from '@leafygreen-ui/card';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
@@ -37,7 +38,31 @@ export default function ClientLayout({ children }) {
             padding: `${spacing[3]}px ${spacing[3]}px`,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+            <div
+              style={{
+                width: '60px',
+                height: '60px',
+                borderRadius: '50%',
+                background: 'rgba(255, 255, 255, 0.9)',
+                backdropFilter: 'blur(10px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.1)',
+                border: '1px solid rgba(255, 255, 255, 0.3)',
+              }}
+            >
+              <Image
+                src="/threatsight logo.png"
+                alt="ThreatSight360 Logo"
+                width={50}
+                height={50}
+                style={{ 
+                  objectFit: 'contain',
+                }}
+              />
+            </div>
             <div>
               <H1
                 style={{
@@ -111,7 +136,7 @@ export default function ClientLayout({ children }) {
                       e.currentTarget.style.backgroundColor = 'transparent';
                     }}
                   >
-                    <Icon glyph="Home" fill={palette.gray.light3} /> 
+                    <Icon glyph="Home" fill={palette.gray.light3} size={16} /> 
                     <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>Home</Body>
                   </Link>
                 </li>
@@ -135,7 +160,7 @@ export default function ClientLayout({ children }) {
                       e.currentTarget.style.backgroundColor = 'transparent';
                     }}
                   >
-                    <Icon glyph="CreditCard" fill={palette.gray.light3} /> 
+                    <Icon glyph="CreditCard" fill={palette.gray.light3} size={16} /> 
                     <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>Transaction Simulator</Body>
                   </Link>
                 </li>
@@ -159,8 +184,56 @@ export default function ClientLayout({ children }) {
                       e.currentTarget.style.backgroundColor = 'transparent';
                     }}
                   >
-                    <Icon glyph="Settings" fill={palette.gray.light3} /> 
+                    <Icon glyph="Settings" fill={palette.gray.light3} size={16} /> 
                     <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>Risk Models</Body>
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/entities"
+                    style={{
+                      color: palette.gray.light3,
+                      textDecoration: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: spacing[1],
+                      padding: `${spacing[2]}px ${spacing[3]}px`,
+                      borderRadius: '4px',
+                      transition: 'background-color 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = palette.green.dark1;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <Icon glyph="Person" fill={palette.gray.light3} size={16} /> 
+                    <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>Entity Management</Body>
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/entity-resolution/enhanced"
+                    style={{
+                      color: palette.gray.light3,
+                      textDecoration: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: spacing[1],
+                      padding: `${spacing[2]}px ${spacing[3]}px`,
+                      borderRadius: '4px',
+                      transition: 'background-color 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = palette.green.dark1;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <Icon glyph="Relationship" fill={palette.gray.light3} size={16} /> 
+                    <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>Entity Resolution</Body>
                   </Link>
                 </li>
               </ul>

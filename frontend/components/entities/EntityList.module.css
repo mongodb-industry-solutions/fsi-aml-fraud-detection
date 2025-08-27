@@ -1,0 +1,149 @@
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.entityRow {
+  transition: background-color 0.2s ease;
+  cursor: pointer;
+}
+
+.entityRow:hover {
+  background-color: #f9f9f9;
+}
+
+.filtersContainer {
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+.filterField {
+  min-width: 200px;
+  flex: 1;
+}
+
+.searchField {
+  min-width: 300px;
+  flex: 2;
+}
+
+.riskBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.riskBadgeHigh {
+  background-color: #ffeaea;
+  color: #d82c20;
+  border: 1px solid #d82c20;
+}
+
+.riskBadgeMedium {
+  background-color: #fff8e1;
+  color: #f57c00;
+  border: 1px solid #f57c00;
+}
+
+.riskBadgeLow {
+  background-color: #e8f5e8;
+  color: #2e7d32;
+  border: 1px solid #2e7d32;
+}
+
+.riskBadgeUnknown {
+  background-color: #f5f5f5;
+  color: #616161;
+  border: 1px solid #616161;
+}
+
+.emptyState {
+  padding: 48px 24px;
+  text-align: center;
+  color: #757575;
+}
+
+.emptyStateIcon {
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.paginationContainer {
+  margin-top: 24px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+}
+
+.paginationInfo {
+  color: #757575;
+  padding: 0 16px;
+}
+
+.actionButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.actionButton:hover {
+  background-color: #f0f0f0;
+}
+
+.resultsInfo {
+  margin-bottom: 16px;
+  color: #757575;
+  font-size: 14px;
+}
+
+/* Table enhancements */
+.tableContainer {
+  overflow-x: auto;
+}
+
+/* Increased row height and padding for better spacing */
+.entityRow {
+  min-height: 80px !important;
+  height: auto !important;
+}
+
+.entityRow td {
+  padding: 20px 12px !important;
+  vertical-align: middle !important;
+}
+
+.entityRow:hover td {
+  background-color: #f9f9f9 !important;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .filtersContainer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .filterField,
+  .searchField {
+    min-width: auto;
+    width: 100%;
+  }
+  
+  .paginationContainer {
+    flex-direction: column;
+    gap: 8px;
+  }
+}

@@ -88,7 +88,7 @@ async def evaluate_transaction(
     This endpoint is useful for pre-screening transactions or simulating fraud detection.
     """
     # Find similar transactions using vector search
-    similar_transactions, similarity_risk_score = await fraud_service.find_similar_transactions(transaction)
+    similar_transactions, similarity_risk_score, calculation_breakdown = await fraud_service.find_similar_transactions(transaction)
     
     # Perform fraud detection (traditional rules-based)
     risk_assessment = await fraud_service.evaluate_transaction(transaction)
@@ -278,7 +278,8 @@ async def evaluate_transaction(
         "risk_assessment": risk_assessment,
         "similar_transactions": display_transactions,
         "similar_transactions_count": len(similar_transactions),  # Include total count for context
-        "similarity_risk_score": recalculated_similarity_risk_score
+        "similarity_risk_score": recalculated_similarity_risk_score,
+        "vector_search_calculation": calculation_breakdown  # Include calculation breakdown for transparency
     }
 
 @router.get("/", response_description="List transactions", response_model=List[TransactionResponse])

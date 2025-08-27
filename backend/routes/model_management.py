@@ -417,6 +417,73 @@ async def activate_risk_model(
         
         return {"message": f"Model {model_id} activated successfully"}
 
+@router.post("/reset")
+async def reset_risk_models(db = Depends(get_database)):
+    """
+    Reset risk models to clean state:
+    - Delete all models with version 2
+    - Set default-risk-model status to 'active' 
+    - Set behavioral-risk-model status to 'inactive'
+    """
+    # Get risk_models collection
+    risk_models_collection = db["risk_models"]
+    
+    try:
+        # Use a transaction to ensure all operations succeed or fail together
+        async with await db.client.start_session() as session:
+            async with session.start_transaction():
+                # 1. Delete all models with version 2
+                delete_result = await risk_models_collection.delete_many(
+                    {"version": 2},
+                    session=session
+                )
+                
+                # 2. Set default-risk-model to active
+                default_result = await risk_models_collection.update_one(
+                    {"modelId": "default-risk-model"},
+                    {"$set": {"status": "active", "updatedAt": datetime.now()}},
+                    session=session
+                )
+                
+                # 3. Set behavioral-risk-model to inactive
+                behavioral_result = await risk_models_collection.update_one(
+                    {"modelId": "behavioral-risk-model"},
+                    {"$set": {"status": "inactive", "updatedAt": datetime.now()}},
+                    session=session
+                )
+        
+        # Prepare response message
+        messages = []
+        messages.append(f"Deleted {delete_result.deleted_count} models with version 2")
+        
+        if default_result.modified_count > 0:
+            messages.append("Set default-risk-model to active")
+        elif default_result.matched_count > 0:
+            messages.append("default-risk-model was already active")
+        else:
+            messages.append("default-risk-model not found")
+            
+        if behavioral_result.modified_count > 0:
+            messages.append("Set behavioral-risk-model to inactive")
+        elif behavioral_result.matched_count > 0:
+            messages.append("behavioral-risk-model was already inactive")
+        else:
+            messages.append("behavioral-risk-model not found")
+        
+        return {
+            "message": "Models reset successfully",
+            "details": messages,
+            "deletedCount": delete_result.deleted_count,
+            "defaultModelUpdated": default_result.modified_count > 0,
+            "behavioralModelUpdated": behavioral_result.modified_count > 0
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to reset models: {str(e)}"
+        )
+
 @router.get("/{model_id}/performance", response_model=Dict[str, Any])
 async def get_model_performance(
     model_id: str,

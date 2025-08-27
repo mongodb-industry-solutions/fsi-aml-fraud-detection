@@ -4,6 +4,11 @@ import ClientLayout from '@/components/ClientLayout';
 export const metadata = {
   title: 'ThreatSight 360 - Fraud Detection',
   description: 'Advanced fraud detection for financial transactions',
+  icons: {
+    icon: '/threatsight logo.png',
+    shortcut: '/threatsight logo.png',
+    apple: '/threatsight logo.png',
+  },
 };
 
 export default function RootLayout({ children }) {

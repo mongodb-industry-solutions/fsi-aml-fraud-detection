@@ -50,15 +50,31 @@ ThreatSight 360 uses a **dual-backend microservices architecture**:
 - **Entity Management Dashboard**: Advanced entity 360 with relationship and transaction network visualization
 - **Intelligent Entity Resolution Workflow**: A multi-step entity onboarding workflow involving MongoDB full-text + vector + [hybrid search with $rankFusion](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-stage/#atlas-vector-search-rankfusion), network traversal using [$graphLookup](https://www.mongodb.com/docs/manual/reference/operator/aggregation/graphLookup/) and risk classification and case generation using LLMs
 
-![ThreatSight360 Fraud Detection App Architecture](frontend/public/sol_arch.png)
+## Solution Architecture
 
-If you want to learn more about Financial Fraud Detection, AML/KYC Compliance, and AI-powered Risk Assessment, visit the following pages:
+ThreatSight 360 employs a microservices architecture with four key components working in tandem:
 
-- [MongoDB for Financial Services](https://www.mongodb.com/industries/financial-services)
-- [AWS Bedrock Foundation Models](https://aws.amazon.com/bedrock/foundation-models/)
-- [Vector Search for Fraud Detection](https://www.mongodb.com/use-cases/fraud-detection)
-- [Building Real-time Fraud Detection Systems](https://www.mongodb.com/developer/products/atlas/vector-search-fraud-detection/)
-- [MongoDB Atlas Search Documentation](https://www.mongodb.com/docs/atlas/atlas-search/)
+### Fraud Detection Flow
+
+![Fraud Detection Architecture](docs/Sol%20Arch%201.png)
+
+The fraud detection flow demonstrates:
+
+- **Transaction Simulator**: Generates simulated transactions for testing fraud scenarios
+- **Fraud Detection Engine**: Processes transactions in real-time with customer profile lookup, rule application, vector search, and embedding generation via AWS Bedrock
+- **Risk Model Engine**: Manages dynamic risk models with versioning and real-time updates via MongoDB Change Streams
+- **MongoDB Collections**: Stores Customer 360 profiles, transactions, and risk models
+
+### AML/Entity Resolution Flow
+
+![AML Entity Resolution Architecture](docs/Sol%20Arch%202.png)
+
+The AML/entity resolution flow showcases:
+
+- **Entity Management**: Handles entity onboarding and exploration
+- **Entity Resolution Engine**: Performs embedding generation via AWS Bedrock, finds similar/duplicate entities using Vector Search or Hybrid Search, and analyzes transaction and relationship networks
+- **Advanced Search Capabilities**: Leverages MongoDB's Graph Traversal for relationship analysis and AI Risk Classification via Claude Sonnet 4
+- **MongoDB Collections**: Manages entities, transactions, and relationships data
 
 Let's get started!
 
@@ -225,113 +241,71 @@ ThreatSight 360 leverages MongoDB Atlas Vector Search for advanced fraud pattern
 
 3. Use the following comprehensive index definition for entity resolution:
 
-   ```json
-   {
-     "mappings": {
-       "dynamic": false,
-       "fields": {
-         "name": {
-           "type": "document",
-           "fields": {
-             "full": [
-               {
-                 "type": "string",
-                 "analyzer": "lucene.standard"
-               },
-               {
-                 "type": "autocomplete",
-                 "tokenization": "edgeGram",
-                 "minGrams": 2,
-                 "maxGrams": 15,
-                 "foldDiacritics": true
-               }
-             ],
-             "aliases": {
-               "type": "string",
-               "analyzer": "lucene.standard"
-             }
-           }
-         },
-         "entityType": {
-           "type": "stringFacet"
-         },
-         "nationality": {
-           "type": "stringFacet"
-         },
-         "residency": {
-           "type": "stringFacet"
-         },
-         "jurisdictionOfIncorporation": {
-           "type": "stringFacet"
-         },
-         "riskAssessment": {
-           "type": "document",
-           "fields": {
-             "overall": {
-               "type": "document",
-               "fields": {
-                 "level": {
-                   "type": "stringFacet"
-                 },
-                 "score": {
-                   "type": "numberFacet",
-                   "boundaries": [0.0, 15.0, 25.0, 50.0, 100.0]
-                 }
-               }
-             }
-           }
-         },
-         "customerInfo": {
-           "type": "document",
-           "fields": {
-             "businessType": {
-               "type": "stringFacet"
-             }
-           }
-         },
-         "addresses": {
-           "type": "document",
-           "fields": {
-             "structured": {
-               "type": "document",
-               "fields": {
-                 "country": {
-                   "type": "string",
-                   "analyzer": "lucene.keyword"
-                 },
-                 "city": {
-                   "type": "string",
-                   "analyzer": "lucene.keyword"
-                 }
-               }
-             },
-             "full": {
-               "type": "string",
-               "analyzer": "lucene.standard"
-             }
-           }
-         },
-         "identifiers": {
-           "type": "document",
-           "fields": {
-             "type": {
-               "type": "string",
-               "analyzer": "lucene.keyword"
-             },
-             "value": {
-               "type": "string",
-               "analyzer": "lucene.standard"
-             }
-           }
-         },
-         "scenarioKey": {
-           "type": "string",
-           "analyzer": "lucene.keyword"
-         }
-       }
-     }
-   }
-   ```
+```json
+{
+  "mappings": {
+    "dynamic": false,
+    "fields": {
+      "name": {
+        "type": "document",
+        "fields": {
+          "full": [
+            {
+              "type": "autocomplete",
+              "analyzer": "lucene.standard",
+              "tokenization": "edgeGram",
+              "minGrams": 2,
+              "maxGrams": 15
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "aliases": {
+            "type": "string"
+          }
+        }
+      },
+      "entityType": {
+        "type": "stringFacet"
+      },
+      "nationality": {
+        "type": "stringFacet"
+      },
+      "residency": {
+        "type": "stringFacet"
+      },
+      "jurisdictionOfIncorporation": {
+        "type": "stringFacet"
+      },
+      "riskAssessment": {
+        "type": "document",
+        "fields": {
+          "overall": {
+            "type": "document",
+            "fields": {
+              "level": {
+                "type": "stringFacet"
+              },
+              "score": {
+                "type": "numberFacet"
+              }
+            }
+          }
+        }
+      },
+      "customerInfo": {
+        "type": "document",
+        "fields": {
+          "businessType": {
+            "type": "stringFacet"
+          }
+        }
+      }
+    }
+  }
+}
+```
 
 #### 3. Entity Text Search Index
 
@@ -558,37 +532,113 @@ Your frontend application should now be running at [http://localhost:3000](http:
 
 ## Data Seeding
 
-To populate your database with initial data for testing, we provide Jupyter notebooks with comprehensive synthetic data generation:
+To populate your database with initial data for testing and demonstration, we provide comprehensive Jupyter notebooks for synthetic data generation that showcase MongoDB's document model capabilities and advanced features.
 
-### Transaction Data (Fraud Detection Backend)
+### Transaction Data Generation
 
-Use the [Transaction Synthetic Data Generation notebook](docs/ThreatSight360%20-%20Transaction%20Synthetic%20Data%20Generation.ipynb) to create:
-- Customer profiles with varied transaction histories
-- Realistic transaction patterns (normal and fraudulent)
-- Sample fraud patterns for testing
-- Risk models with different configurations
+The [Transaction Synthetic Data Generation notebook](docs/ThreatSight360%20-%20Transaction%20Synthetic%20Data%20Generation.ipynb) demonstrates how MongoDB's document model enables sophisticated fraud detection through dynamic behavioral profiling:
+
+**What it generates:**
+
+- **50 Customer Profiles** with rich behavioral patterns including:
+  - Personal and account information
+  - Device fingerprints and usual locations (GeoJSON)
+  - Transaction behavior patterns (average amounts, merchant categories, usual times)
+  - Risk profiles with scoring and flags
+- **6 Months of Synthetic Transactions** (26,000+ transactions) with:
+  - Realistic mix of normal (60%), suspicious (25%), and fraudulent (15%) transactions
+  - Location data as GeoJSON for geospatial queries
+  - Device information for device fingerprinting
+  - Risk assessments with scores and flags
+- **5 Fraud Patterns** with AWS Bedrock embeddings:
+
+  - Account Takeover
+  - Card Testing
+  - Transaction Laundering
+  - Geographic Anomaly
+  - Purchase Anomaly
+
+- **MongoDB Indexes** including:
+  - Standard indexes for query performance
+  - Geospatial indexes for location-based fraud detection
+  - Atlas Search indexes for text search
+  - Vector search indexes for pattern matching
+
+**Key Features Demonstrated:**
+
+- Rich document model for complex customer profiles
+- Nested documents for behavioral patterns
+- Geospatial data for location-based fraud detection
+- Vector embeddings for similarity-based pattern matching
+- AWS Bedrock integration for AI-powered embeddings
 
 ```bash
-# Option 1: Use the provided notebook
+# Run the transaction data generation notebook
 jupyter notebook "docs/ThreatSight360 - Transaction Synthetic Data Generation.ipynb"
 
-# Option 2: Run the backend seeding script
+# Or use the backend seeding script
 cd backend
 poetry run python scripts/seed_data.py
 ```
 
-### Entity Data (AML Backend)
+### Entity Data Generation
 
-Use the [Entity Resolution Synthetic Data Generation notebook](docs/ThreatSight%20360%20-%20Entity%20Resolution%20Synthetic%20Data%20Generation.ipynb) to create:
-- Individual and organization entities
-- Entity relationships for network analysis
-- Risk assessment data
-- Sample watchlist matches
+The [Entity Resolution Synthetic Data Generation notebook](docs/ThreatSight%20360%20-%20Entity%20Resolution%20Synthetic%20Data%20Generation.ipynb) creates comprehensive entity data for AML/KYC compliance testing:
+
+**What it generates:**
+
+- **Individual and Organization Entities** with:
+  - Complete identity information with aliases
+  - Multiple addresses and identifiers
+  - Risk assessment scores and levels
+  - Customer information and watchlist flags
+- **Entity Relationships** for network analysis:
+  - Corporate relationships (director_of, owner_of, subsidiary_of)
+  - Household relationships (family members, same address)
+  - Transactional relationships (frequent_transactor, beneficiary)
+  - Suspicious patterns with confidence scores
+- **Embeddings and Search Data**:
+  - AWS Bedrock embeddings for semantic search
+  - Text search optimized fields
+  - Network graph data for relationship traversal
+
+**Key Features Demonstrated:**
+
+- Complex entity resolution scenarios with duplicates
+- Multi-hop relationship networks for graph analysis
+- Vector embeddings for semantic entity matching
+- Risk propagation through relationship networks
 
 ```bash
-# Use the provided notebook
+# Run the entity data generation notebook
 jupyter notebook "docs/ThreatSight 360 - Entity Resolution Synthetic Data Generation.ipynb"
 ```
+
+### Prerequisites for Data Generation
+
+Before running the notebooks, ensure you have:
+
+1. **Jupyter Notebook or JupyterLab installed**:
+
+   ```bash
+   pip install notebook
+   # or
+   pip install jupyterlab
+   ```
+
+2. **Required Python packages**:
+
+   ```bash
+   pip install pymongo pandas faker numpy scikit-learn python-dotenv geojson boto3
+   ```
+
+3. **MongoDB Atlas connection string** and **AWS Bedrock credentials** configured in the notebooks
+
+> [!Important]
+> The notebooks use AWS Bedrock to generate embeddings. If Bedrock is not available, the notebooks will fall back to random embeddings for demonstration purposes.
+
+> [!Note]
+> The synthetic data generation creates realistic patterns that closely mirror production scenarios, making it ideal for testing, demonstrations, and training purposes.
 
 ## Using the Application
 
@@ -742,10 +792,10 @@ For containerized deployment in production environments:
    ```bash
    # Build all images
    docker-compose build
-   
+
    # Start all services
    docker-compose up -d
-   
+
    # Or build and start in one command
    docker-compose up --build -d
    ```
@@ -781,13 +831,15 @@ Check additional and accompanying resources below:
 - [Financial Services Solutions](https://www.mongodb.com/solutions/industries/financial-services)
 - [Vector Search for Fraud Detection](https://www.mongodb.com/developer/products/atlas/vector-search-fraud-detection/)
 
-## Architecture Details
+### Key MongoDB Features Demonstrated
 
-For detailed information about the system architecture and implementation:
-
-- **Fraud Detection Backend**: [backend/README.md](backend/README.md) - Real-time fraud detection and risk assessment
-- **AML/KYC Backend**: [aml-backend/README.md](aml-backend/README.md) - Entity resolution and compliance operations
-- **Architecture Documentation**: [docs/](docs/) - Detailed architecture diagrams and implementation guides
+- **Document Model**: Rich, nested structures for customer and entity profiles
+- **Atlas Search**: Full-text search with fuzzy matching and autocomplete
+- **Vector Search**: AI-powered similarity matching for fraud patterns and entity resolution
+- **$graphLookup**: Relationship network traversal for compliance investigations
+- **$rankFusion**: Hybrid search combining text and vector search
+- **Change Streams**: Real-time updates for risk models
+- **Geospatial Queries**: Location-based fraud detection
 
 ## License
 

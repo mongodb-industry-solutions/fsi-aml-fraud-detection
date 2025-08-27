@@ -15,7 +15,7 @@ def get_demo_agent_config() -> AgentConfig:
     project_endpoint = os.getenv("AZURE_FOUNDRY_PROJECT_ENDPOINT")
     if not project_endpoint:
         raise ValueError(
-            "AZURE_AI_PROJECT_ENDPOINT environment variable is required. "
+            "AZURE_FOUNDRY_PROJECT_ENDPOINT environment variable is required. "
             "Set this to your Azure AI Foundry project endpoint URL."
         )
     

@@ -156,8 +156,10 @@ class NativeConversationHandler:
                 limit=1  # Just get the latest
             )
             
-            if messages and len(messages) > 0:
-                latest_message = messages[0]
+            # Handle ItemPaged object correctly 
+            messages_list = list(messages) if messages else []
+            if messages_list and len(messages_list) > 0:
+                latest_message = messages_list[0]
                 if latest_message.role == "assistant":
                     # Handle different content formats
                     content = latest_message.content

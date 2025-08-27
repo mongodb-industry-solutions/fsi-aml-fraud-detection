@@ -5,13 +5,13 @@ Simplified implementation optimized for demo purposes
 
 import logging
 from datetime import datetime
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 
 from azure.ai.agents import AgentsClient
 from azure.identity import DefaultAzureCredential
 
 from .models import (
-    TransactionInput, AgentDecision, AgentConfig, DecisionType, 
+    TransactionInput, AgentDecision, AgentConfig, DecisionType, RiskLevel,
     PerformanceMetrics, AgentError, AzureAIError
 )
 from .config import get_demo_agent_config, get_agent_instructions
@@ -160,10 +160,21 @@ class TwoStageAgentCore:
                 "top_p": 0.95
             }
             
-            # Add tools if available (Phase 2 enhancement)
+            # Add tools if available (Phase 2 enhancement) - CORRECT AZURE AI FOUNDRY PATTERN
             if self.fraud_toolset:
-                agent_kwargs["tools"] = self.fraud_toolset
-                logger.info("🛠️ Creating agent with fraud detection tools")
+                # Use the TOOLSET approach as documented in Azure AI Foundry research
+                from azure.ai.agents.models import ToolSet
+                
+                toolset = ToolSet()
+                for tool in self.fraud_toolset:
+                    toolset.add(tool)
+                
+                # Enable auto function calls with the toolset (CRITICAL step from docs)
+                self.agents_client.enable_auto_function_calls(toolset)
+                
+                # Pass toolset to agent creation (NOT tools parameter)
+                agent_kwargs["toolset"] = toolset
+                logger.info(f"🛠️ Creating agent with toolset containing {len(self.fraud_toolset)} fraud detection tools")
             else:
                 logger.info("🛠️ Creating agent without tools (degraded mode)")
             
@@ -228,6 +239,7 @@ class TwoStageAgentCore:
                     decision=decision_type,
                     confidence=confidence,
                     risk_score=stage1_result.combined_score,
+                    risk_level=self._calculate_risk_level(stage1_result.combined_score),
                     stage_completed=1,
                     stage1_result=stage1_result,
                     reasoning=self._build_stage1_reasoning(stage1_result),
@@ -266,12 +278,14 @@ class TwoStageAgentCore:
                 
                 # Make final decision combining Stage 1 and Stage 2 results
                 decision_type, confidence = self._make_stage2_decision(stage1_result, stage2_result)
+                final_risk_score = self._calculate_final_risk_score(stage1_result, stage2_result)
                 
                 final_decision = AgentDecision(
                     transaction_id=transaction.transaction_id,
                     decision=decision_type,
                     confidence=confidence,
-                    risk_score=self._calculate_final_risk_score(stage1_result, stage2_result),
+                    risk_score=final_risk_score,
+                    risk_level=self._calculate_risk_level(final_risk_score),
                     stage_completed=2,
                     stage1_result=stage1_result,
                     stage2_result=stage2_result,
@@ -305,12 +319,13 @@ class TwoStageAgentCore:
                 decision=DecisionType.ESCALATE,
                 confidence=0.3,
                 risk_score=75.0,
+                risk_level=self._calculate_risk_level(75.0),
                 stage_completed=1,
                 reasoning=f"Analysis failed: {str(e)}",
                 total_processing_time_ms=(datetime.now() - start_time).total_seconds() * 1000
             )
     
-    def _make_stage1_decision(self, stage1_result) -> tuple[DecisionType, float]:
+    def _make_stage1_decision(self, stage1_result) -> Tuple[DecisionType, float]:
         """Make decision based on Stage 1 results only"""
         score = stage1_result.combined_score
         
@@ -322,7 +337,7 @@ class TwoStageAgentCore:
             # This shouldn't happen if thresholds are configured correctly
             return DecisionType.INVESTIGATE, 0.6
     
-    def _make_stage2_decision(self, stage1_result, stage2_result) -> tuple[DecisionType, float]:
+    def _make_stage2_decision(self, stage1_result, stage2_result) -> Tuple[DecisionType, float]:
         """Make final decision based on both Stage 1 and Stage 2 results"""
         # If AI has a strong recommendation, respect it
         if stage2_result.ai_recommendation:
@@ -347,6 +362,17 @@ class TwoStageAgentCore:
             return DecisionType.APPROVE, 0.75
         else:
             return DecisionType.INVESTIGATE, 0.70
+    
+    def _calculate_risk_level(self, risk_score: float) -> RiskLevel:
+        """Calculate risk level from risk score"""
+        if risk_score >= 80:
+            return RiskLevel.CRITICAL
+        elif risk_score >= 60:
+            return RiskLevel.HIGH
+        elif risk_score >= 40:
+            return RiskLevel.MEDIUM
+        else:
+            return RiskLevel.LOW
     
     def _calculate_final_risk_score(self, stage1_result, stage2_result) -> float:
         """Calculate final risk score combining both stages"""

@@ -39,9 +39,10 @@ class Stage1Analyzer:
             # Import and initialize existing fraud detection service
             from services.fraud_detection import FraudDetectionService
             
+            import os
             self.fraud_service = FraudDetectionService(
                 self.db_client, 
-                db_name=self.db_client.db_name if hasattr(self.db_client, 'db_name') else "fsi-threatsight360"
+                db_name=self.db_client.db_name if hasattr(self.db_client, 'db_name') else os.getenv("DB_NAME", "threatsight360")
             )
             
             logger.info("✅ Stage 1 analyzer initialized")

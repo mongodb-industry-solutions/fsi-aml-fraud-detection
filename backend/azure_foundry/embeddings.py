@@ -34,24 +34,23 @@ class AzureFoundryEmbeddings:
             api_version (str): The API version to use
         """
         # Set up endpoint
-        self.endpoint = endpoint or os.getenv("AZURE_OPENAI_ENDPOINT")
+        self.endpoint = endpoint or os.getenv("INFERENCE_ENDPOINT")
         if not self.endpoint:
             raise ValueError("Azure OpenAI endpoint must be provided via parameter or environment variable")
         
         # Set up authentication
-        self.api_key = api_key or os.getenv("AZURE_OPENAI_API_KEY")
+        self.api_key = api_key or os.getenv("AZURE_AI_API_KEY")
         if not self.api_key:
             raise ValueError("Azure OpenAI API key must be provided via parameter or environment variable")
 
         # Set up model deployment
-        self.model_deployment = model_deployment or os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT")
+        self.model_deployment = model_deployment or os.getenv("EMBEDDING_MODEL")
         if not self.model_deployment:
             raise ValueError("Model deployment must be provided via parameter or environment variable")
         
         # Set up API version
-        self.api_version = api_version or os.getenv("AZURE_OPENAI_EMBEDDING_API_VERSION")
-        if not self.api_version:
-            raise ValueError("API version must be provided via parameter or environment variable")
+        self.api_version = api_version or os.getenv("AZURE_OPENAI_EMBEDDING_API_VERSION") or "2023-05-15"
+        # Default API version if not provided
         
         # Create the Azure OpenAI client
         try:
@@ -133,17 +132,17 @@ if __name__ == '__main__':
     import asyncio
     
     # Example usage
-    endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-    embedding_deployment = os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT")
-    api_key = os.getenv("AZURE_OPENAI_API_KEY")
-    api_version = os.getenv("AZURE_OPENAI_EMBEDDING_API_VERSION")
+    endpoint = os.getenv("INFERENCE_ENDPOINT")
+    embedding_deployment = os.getenv("EMBEDDING_MODEL")
+    api_key = os.getenv("AZURE_AI_API_KEY")
+    api_version = os.getenv("AZURE_OPENAI_EMBEDDING_API_VERSION") or "2023-05-15"
     
     if not endpoint or not embedding_deployment or not api_key or not api_version:
         print("Error: Missing required environment variables:")
-        print(f"  AZURE_OPENAI_ENDPOINT: {'✓' if endpoint else '✗'}")
-        print(f"  AZURE_OPENAI_EMBEDDING_DEPLOYMENT: {'✓' if embedding_deployment else '✗'}")
-        print(f"  AZURE_OPENAI_API_KEY: {'✓' if api_key else '✗'}")
-        print(f"  AZURE_OPENAI_EMBEDDING_API_VERSION: {'✓' if api_version else '✗'}")
+        print(f"  INFERENCE_ENDPOINT: {'✓' if endpoint else '✗'}")
+        print(f"  EMBEDDING_MODEL: {'✓' if embedding_deployment else '✗'}")
+        print(f"  AZURE_AI_API_KEY: {'✓' if api_key else '✗'}")
+        print(f"  API_VERSION: {'✓' if api_version else '✗'}")
         exit(1)
     
     try:

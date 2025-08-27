@@ -32,7 +32,8 @@ class FraudDetectionTools:
     def __init__(self, db_client: MongoDBAccess, fraud_service: FraudDetectionService):
         self.db_client = db_client
         self.fraud_service = fraud_service
-        self.db_name = "fsi-threatsight360"  # From existing implementation
+        import os
+        self.db_name = os.getenv("DB_NAME", "threatsight360")  # Use environment variable
         
         logger.info("✅ FraudDetectionTools initialized with native patterns")
     

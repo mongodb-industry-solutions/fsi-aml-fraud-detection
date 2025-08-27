@@ -7,7 +7,7 @@ from pymongo import MongoClient
 from bson import ObjectId
 
 from db.mongo_db import MongoDBAccess
-from bedrock.embeddings import get_embedding
+from azure_foundry.embeddings import get_embedding
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -38,10 +38,10 @@ class FraudDetectionService:
         
         Args:
             db_client: MongoDB client instance
-            db_name: Database name to use (defaults to environment variable or "fsi-threatsight360")
+            db_name: Database name to use (defaults to environment variable or "threatsight360")
         """
         self.db_client = db_client
-        self.db_name = db_name or os.getenv("DB_NAME", "fsi-threatsight360")
+        self.db_name = db_name or os.getenv("DB_NAME", "threatsight360")
         self.customer_collection = "customers"  # Updated to match the correct collection name
         self.transaction_collection = "transactions"
         self.fraud_pattern_collection = "fraud_patterns"

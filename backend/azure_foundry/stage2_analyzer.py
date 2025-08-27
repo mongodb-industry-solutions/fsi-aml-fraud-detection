@@ -7,7 +7,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 
 from azure.ai.agents import AgentsClient
 from azure.core.exceptions import HttpResponseError
@@ -44,9 +44,10 @@ class Stage2Analyzer:
             # Import and initialize existing fraud detection service for vector search
             from services.fraud_detection import FraudDetectionService
             
+            import os
             self.fraud_service = FraudDetectionService(
                 self.db_client,
-                db_name=self.db_client.db_name if hasattr(self.db_client, 'db_name') else "fsi-threatsight360"
+                db_name=self.db_client.db_name if hasattr(self.db_client, 'db_name') else os.getenv("DB_NAME", "threatsight360")
             )
             
             logger.info("✅ Stage 2 analyzer initialized")
@@ -61,7 +62,8 @@ class Stage2Analyzer:
         transaction_data: Dict[str, Any], 
         stage1_result: Stage1Result,
         thread_id: str,
-        agent_id: str
+        agent_id: str,
+        conversation_handler=None
     ) -> Stage2Result:
         """
         Perform Stage 2 analysis: vector search + AI analysis
@@ -72,6 +74,7 @@ class Stage2Analyzer:
             stage1_result: Results from Stage 1 analysis
             thread_id: Azure AI conversation thread
             agent_id: Azure AI agent ID
+            conversation_handler: Optional conversation handler for native Azure AI operations
             
         Returns:
             Stage2Result with AI analysis and recommendations
@@ -102,7 +105,8 @@ class Stage2Analyzer:
                 similar_transactions=similar_transactions,
                 similarity_breakdown=similarity_breakdown,
                 thread_id=thread_id,
-                agent_id=agent_id
+                agent_id=agent_id,
+                conversation_handler=conversation_handler
             )
             
             logger.debug(f"AI analysis complete: recommendation={ai_recommendation}")
@@ -129,7 +133,7 @@ class Stage2Analyzer:
     async def _vector_similarity_search(
         self, 
         transaction_data: Dict[str, Any]
-    ) -> tuple[List[Dict], float, Dict]:
+    ) -> Tuple[List[Dict], float, Dict]:
         """
         Use existing vector similarity search service
         
@@ -172,8 +176,9 @@ class Stage2Analyzer:
         similar_transactions: List[Dict],
         similarity_breakdown: Dict,
         thread_id: str,
-        agent_id: str
-    ) -> tuple[str, Optional[DecisionType]]:
+        agent_id: str,
+        conversation_handler=None
+    ) -> Tuple[str, Optional[DecisionType]]:
         """
         Use Azure AI Foundry agent for sophisticated analysis
         
@@ -187,15 +192,21 @@ class Stage2Analyzer:
                 transaction, stage1_result, similar_transactions, similarity_breakdown
             )
             
-            # Add context to conversation thread
-            self.project_client.agents.messages.create(
-                thread_id=thread_id,
-                role="user",
-                content=context
-            )
-            
-            # Run AI analysis
-            ai_response = await self._run_ai_conversation(thread_id, agent_id)
+            # Use conversation handler if available, otherwise use agents client
+            if conversation_handler:
+                # Use the native conversation handler's method
+                ai_response = await conversation_handler.run_conversation_native(
+                    thread_id=thread_id,
+                    message=context
+                )
+            else:
+                # Fallback to direct agents client usage
+                self.agents_client.messages.create(
+                    thread_id=thread_id,
+                    role="user",
+                    content=context
+                )
+                ai_response = await self._run_ai_conversation(thread_id, agent_id, self.agents_client)
             
             # Extract recommendation from AI response
             ai_recommendation = self._extract_ai_recommendation(ai_response)
@@ -275,7 +286,7 @@ Focus on actionable insights that can help prevent fraud while minimizing false 
         
         return context
     
-    async def _run_ai_conversation(self, thread_id: str, agent_id: str) -> str:
+    async def _run_ai_conversation(self, thread_id: str, agent_id: str, client) -> str:
         """
         Run Azure AI conversation with simplified loop for demo
         
@@ -286,7 +297,7 @@ Focus on actionable insights that can help prevent fraud while minimizing false 
             logger.debug(f"Starting AI conversation in thread {thread_id}")
             
             # Create run
-            run = self.project_client.agents.runs.create(
+            run = client.runs.create(
                 thread_id=thread_id,
                 assistant_id=agent_id
             )
@@ -298,7 +309,7 @@ Focus on actionable insights that can help prevent fraud while minimizing false 
             while run.status in ["queued", "in_progress"] and iteration < max_iterations:
                 await asyncio.sleep(2)  # Wait 2 seconds between checks
                 
-                run = self.project_client.agents.runs.get(
+                run = client.runs.get(
                     thread_id=thread_id,
                     run_id=run.id
                 )
@@ -308,7 +319,7 @@ Focus on actionable insights that can help prevent fraud while minimizing false 
             
             if run.status == "completed":
                 # Get the response
-                messages = self.project_client.agents.messages.list(thread_id=thread_id, limit=1)
+                messages = client.messages.list(thread_id=thread_id, limit=1)
                 
                 if messages and messages[0].role == "assistant":
                     content = messages[0].content

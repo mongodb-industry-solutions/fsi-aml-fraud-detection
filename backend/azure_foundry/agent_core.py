@@ -3,22 +3,18 @@ Core Azure AI Foundry Two-Stage Agent
 Simplified implementation optimized for demo purposes
 """
 
-import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, Any, Optional, List
 
 from azure.ai.agents import AgentsClient
 from azure.identity import DefaultAzureCredential
-from azure.core.exceptions import HttpResponseError
 
 from .models import (
     TransactionInput, AgentDecision, AgentConfig, DecisionType, 
     PerformanceMetrics, AgentError, AzureAIError
 )
 from .config import get_demo_agent_config, get_agent_instructions
-from .stage1_analyzer import Stage1Analyzer
-from .stage2_analyzer import Stage2Analyzer
 from .conversation import NativeConversationHandler
 from .tools import create_fraud_toolset
 from .memory import create_mongodb_vector_store
@@ -129,17 +125,15 @@ class TwoStageAgentCore:
             # Initialize native conversation handler
             # Will be set after agent creation
             
-            # Initialize MongoDB vector store for learning patterns (uses Azure embeddings)
-            self.mongodb_vector_store = create_mongodb_vector_store(
-                mongodb_client=self.db_client
-            )
-            
-            # Setup vector indexes for learning patterns
-            await self.mongodb_vector_store.setup_vector_indexes()
-            
             # Create fraud detection toolset
             from services.fraud_detection import FraudDetectionService
             fraud_service = FraudDetectionService(self.db_client)
+
+            # Initialize MongoDB vector store for learning patterns (uses Azure embeddings)
+            self.mongodb_vector_store = create_mongodb_vector_store(fraud_service)
+            
+            # Setup vector indexes for learning patterns
+            await self.mongodb_vector_store.setup_vector_indexes()            
             
             self.fraud_toolset = create_fraud_toolset(
                 db_client=self.db_client,

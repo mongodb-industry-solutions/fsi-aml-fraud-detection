@@ -10,6 +10,9 @@ import logging
 from datetime import datetime
 from typing import Dict, Any
 
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from azure_foundry import TwoStageAgentCore, validate_environment
 from azure_foundry.config import DEMO_TEST_TRANSACTIONS
 from db.mongo_db import MongoDBAccess

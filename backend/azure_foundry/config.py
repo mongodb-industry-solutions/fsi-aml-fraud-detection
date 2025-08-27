@@ -12,7 +12,7 @@ def get_demo_agent_config() -> AgentConfig:
     """Get demo-optimized agent configuration"""
     
     # Required Azure AI Foundry settings
-    project_endpoint = os.getenv("AZURE_AI_PROJECT_ENDPOINT")
+    project_endpoint = os.getenv("AZURE_FOUNDRY_PROJECT_ENDPOINT")
     if not project_endpoint:
         raise ValueError(
             "AZURE_AI_PROJECT_ENDPOINT environment variable is required. "
@@ -22,7 +22,7 @@ def get_demo_agent_config() -> AgentConfig:
     return AgentConfig(
         # Azure AI Foundry settings
         project_endpoint=project_endpoint,
-        model_deployment=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o"),
+        model_deployment=os.getenv("MODEL_DEPLOYMENT_NAME"),
         agent_temperature=0.3,  # Lower temperature for consistent results
         
         # Demo-optimized thresholds
@@ -158,7 +158,7 @@ def validate_environment() -> Dict[str, Any]:
     
     # Check required variables
     required_vars = [
-        "AZURE_AI_PROJECT_ENDPOINT",
+        "AZURE_FOUNDRY_PROJECT_ENDPOINT",
         "MONGODB_URI",
         "DB_NAME"
     ]

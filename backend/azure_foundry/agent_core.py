@@ -63,6 +63,9 @@ class TwoStageAgentCore:
         # Thread management for conversation memory
         self.thread_cache: Dict[str, str] = {}  # transaction_id -> thread_id
         
+        # Track if we're using an existing agent (to avoid deleting it on cleanup)
+        self.is_reused_agent = False
+        
         logger.info(f"Initializing TwoStageAgentCore: {agent_name}")
     
     async def initialize(self):
@@ -151,37 +154,60 @@ class TwoStageAgentCore:
             self.fraud_toolset = None
     
     async def _init_azure_agent(self):
-        """Create and configure the Azure AI Foundry agent"""
+        """Get existing Azure AI Foundry agent or create new one if needed"""
         try:
-            # Create agent with native tools if available
-            agent_kwargs = {
-                "model": self.config.model_deployment,
-                "name": self.agent_name,
-                "instructions": get_agent_instructions(),
-                "temperature": self.config.agent_temperature,
-                "top_p": 0.95
-            }
+            # Get the existing agent ID from config or environment variable
+            import os
+            EXISTING_AGENT_ID = os.getenv("AZURE_AGENT_ID", "asst_Q6FO8w2G1h81QnSI5giqHX9M")
             
-            # Add tools if available (Phase 2 enhancement) - CORRECT AZURE AI FOUNDRY PATTERN
-            if self.fraud_toolset:
-                # Use the TOOLSET approach as documented in Azure AI Foundry research
-                from azure.ai.agents.models import ToolSet
+            try:
+                # First, try to get the existing agent
+                self.agent = self.agents_client.get_agent(EXISTING_AGENT_ID)
+                self.agent_id = self.agent.id
+                self.is_reused_agent = True  # Mark as reused agent
+                logger.info(f"✅ Reusing existing Azure AI agent with ID: {self.agent_id}")
                 
-                toolset = ToolSet()
-                for tool in self.fraud_toolset:
-                    toolset.add(tool)
+                # For reused agents, we don't need to enable function calls here
+                # We'll pass the tools directly to the run() method instead
+                if self.fraud_toolset:
+                    logger.info(f"🛠️ Fraud toolset available with {len(self.fraud_toolset)} tools for reused agent")
+                else:
+                    logger.warning("⚠️ No fraud toolset available - functions may not work")
                 
-                # Enable auto function calls with the toolset (CRITICAL step from docs)
-                self.agents_client.enable_auto_function_calls(toolset)
+            except Exception as get_error:
+                logger.warning(f"Could not retrieve existing agent {EXISTING_AGENT_ID}: {get_error}")
+                logger.info("Creating new agent as fallback...")
                 
-                # Pass toolset to agent creation (NOT tools parameter)
-                agent_kwargs["toolset"] = toolset
-                logger.info(f"🛠️ Creating agent with toolset containing {len(self.fraud_toolset)} fraud detection tools")
-            else:
-                logger.info("🛠️ Creating agent without tools (degraded mode)")
-            
-            self.agent = self.agents_client.create_agent(**agent_kwargs)
-            self.agent_id = self.agent.id
+                # Fallback: Create new agent with native tools if available
+                agent_kwargs = {
+                    "model": self.config.model_deployment,
+                    "name": self.agent_name,
+                    "instructions": get_agent_instructions(),
+                    "temperature": self.config.agent_temperature,
+                    "top_p": 0.95
+                }
+                
+                # Add tools if available (Phase 2 enhancement) - CORRECT AZURE AI FOUNDRY PATTERN
+                if self.fraud_toolset:
+                    # Use the TOOLSET approach as documented in Azure AI Foundry research
+                    from azure.ai.agents.models import ToolSet
+                    
+                    toolset = ToolSet()
+                    for tool in self.fraud_toolset:
+                        toolset.add(tool)
+                    
+                    # Enable auto function calls with the toolset (CRITICAL step from docs)
+                    self.agents_client.enable_auto_function_calls(toolset)
+                    
+                    # Pass toolset to agent creation (NOT tools parameter)
+                    agent_kwargs["toolset"] = toolset
+                    logger.info(f"🛠️ Creating fallback agent with toolset containing {len(self.fraud_toolset)} fraud detection tools")
+                else:
+                    logger.info("🛠️ Creating fallback agent without tools (degraded mode)")
+                
+                self.agent = self.agents_client.create_agent(**agent_kwargs)
+                self.agent_id = self.agent.id
+                logger.info(f"✅ Created fallback Azure AI agent with ID: {self.agent_id}")
             
             # Initialize native conversation handler now that agent exists
             if self.agents_client and self.agent_id:
@@ -191,10 +217,8 @@ class TwoStageAgentCore:
                 )
                 logger.info("✅ Native conversation handler initialized")
             
-            logger.info(f"✅ Azure AI agent created with ID: {self.agent_id}")
-            
         except Exception as e:
-            raise AzureAIError(f"Failed to create Azure AI agent: {str(e)}")
+            raise AzureAIError(f"Failed to initialize Azure AI agent: {str(e)}")
     
     async def analyze_transaction(self, transaction_data: Dict[str, Any]) -> AgentDecision:
         """
@@ -270,7 +294,8 @@ class TwoStageAgentCore:
                     stage1_result=stage1_result,
                     thread_id=thread_id,
                     agent_id=self.agent_id,
-                    conversation_handler=self.conversation_handler  # Pass native handler
+                    conversation_handler=self.conversation_handler,  # Pass native handler
+                    fraud_toolset=self.fraud_toolset  # CRITICAL: Pass fraud tools for reused agents
                 )
                 
                 logger.info(
@@ -550,6 +575,7 @@ class TwoStageAgentCore:
             "avg_confidence": round(self.metrics.avg_confidence, 3),
             "decision_breakdown": self.metrics.decision_breakdown,
             "agent_id": self.agent_id,
+            "is_reused_agent": self.is_reused_agent,
             "model_deployment": self.config.model_deployment,
             "demo_mode": self.config.demo_mode,
             "native_enhancements_enabled": {
@@ -562,10 +588,12 @@ class TwoStageAgentCore:
     async def cleanup(self):
         """Clean up resources"""
         try:
-            # Delete Azure AI agent
-            if self.agent_id and self.agents_client:
+            # Only delete Azure AI agent if we created it (not reused)
+            if self.agent_id and self.agents_client and not self.is_reused_agent:
                 self.agents_client.delete_agent(self.agent_id)
                 logger.info(f"Deleted agent {self.agent_id}")
+            elif self.is_reused_agent:
+                logger.info(f"Skipping deletion of reused agent {self.agent_id}")
             
             # Clean up analyzers
             if self.stage1_analyzer:

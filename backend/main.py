@@ -13,6 +13,7 @@ from routes.transaction import router as transaction_router
 from routes.fraud_pattern import router as fraud_pattern_router
 from routes.model_management import router as model_management_router
 from routes.agent_routes import router as agent_router
+from routes.observability import router as observability_router
 # Entity resolution router removed - using enhanced system
 
 # Setup logging
@@ -156,6 +157,7 @@ app.include_router(transaction_router)
 app.include_router(fraud_pattern_router)
 app.include_router(model_management_router)
 app.include_router(agent_router)
+app.include_router(observability_router)
 # Entity resolution router removed - using enhanced system
 
 # if __name__ == "__main__":

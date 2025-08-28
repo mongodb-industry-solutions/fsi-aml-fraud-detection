@@ -495,3 +495,54 @@ def create_fraud_toolset(db_client: MongoDBAccess, fraud_service) -> List[Functi
     """
     tools = FraudDetectionTools(db_client, fraud_service)
     return tools.create_complete_toolset()
+
+
+def create_connected_agent_toolset() -> List:
+    """
+    Create toolset for connected agents (portal-created agents).
+    
+    Returns:
+        List of connected agent tools
+    """
+    import os
+    from azure.ai.projects import AIProjectClient
+    from azure.ai.agents.models import ConnectedAgentTool
+    from azure.identity import DefaultAzureCredential
+    
+    connected_tools = []
+    
+    try:
+        # Initialize Azure AI client
+        project_endpoint = os.getenv("AZURE_FOUNDRY_PROJECT_ENDPOINT") or os.getenv("PROJECT_ENDPOINT")
+        if not project_endpoint:
+            logger.warning("⚠️ AZURE_FOUNDRY_PROJECT_ENDPOINT not set - skipping connected agents")
+            return connected_tools
+        
+        client = AIProjectClient(
+            endpoint=project_endpoint,
+            credential=DefaultAzureCredential()
+        )
+        
+        # Add the suspicious reports file doc agent
+        connected_agent_id = "asst_fQA3rCdyVoarTaifTSrlehuZ"
+        try:
+            portal_agent = client.agents.get_agent(connected_agent_id)
+            
+            # Create connected agent tool
+            connected_tool = ConnectedAgentTool(
+                id=portal_agent.id,
+                name=portal_agent.name or "SuspiciousReportsAgent",
+                description=portal_agent.instructions[:200] if portal_agent.instructions else 
+                    "Analyzes past suspicious activity reports and case files to provide historical context for fraud investigation"
+            )
+            
+            connected_tools.append(connected_tool)
+            logger.info(f"✅ Created connected agent tool for {connected_agent_id}")
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Could not create connected agent tool for {connected_agent_id}: {e}")
+            
+    except Exception as e:
+        logger.warning(f"⚠️ Error setting up connected agents: {e}")
+    
+    return connected_tools

@@ -63,7 +63,8 @@ class Stage2Analyzer:
         stage1_result: Stage1Result,
         thread_id: str,
         agent_id: str,
-        conversation_handler=None
+        conversation_handler=None,
+        fraud_toolset=None
     ) -> Stage2Result:
         """
         Perform Stage 2 analysis: vector search + AI analysis
@@ -106,7 +107,8 @@ class Stage2Analyzer:
                 similarity_breakdown=similarity_breakdown,
                 thread_id=thread_id,
                 agent_id=agent_id,
-                conversation_handler=conversation_handler
+                conversation_handler=conversation_handler,
+                fraud_toolset=fraud_toolset
             )
             
             logger.debug(f"AI analysis complete: recommendation={ai_recommendation}")
@@ -177,7 +179,8 @@ class Stage2Analyzer:
         similarity_breakdown: Dict,
         thread_id: str,
         agent_id: str,
-        conversation_handler=None
+        conversation_handler=None,
+        fraud_toolset=None
     ) -> Tuple[str, Optional[DecisionType]]:
         """
         Use Azure AI Foundry agent for sophisticated analysis
@@ -194,10 +197,11 @@ class Stage2Analyzer:
             
             # Use conversation handler if available, otherwise use agents client
             if conversation_handler:
-                # Use the native conversation handler's method
+                # For existing agents, pass the fraud_toolset for manual function handling
                 ai_response = await conversation_handler.run_conversation_native(
                     thread_id=thread_id,
-                    message=context
+                    message=context,
+                    fraud_toolset=fraud_toolset
                 )
             else:
                 # Fallback to direct agents client usage

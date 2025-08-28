@@ -18,12 +18,13 @@ By the end of this guide, you'll have a comprehensive fraud detection and AML/KY
 - **Real-time Fraud Detection**: Multi-factor risk assessment with AI-powered pattern recognition
 - **Intelligent Entity Resolution**: AI-powered fuzzy matching and duplicate detection for AML/KYC compliance
 - **LLM-Powered Classification**: AWS Bedrock Claude-3 Sonnet for automated entity risk assessment
+- **Azure AI Foundry Agent Integration**: Orchestrated multi-agent system with connected agents for historical context analysis
 - **Automated Case Investigation**: AI-generated investigation reports and case documentation
 - **Network Analysis**: Relationship mapping and graph analytics for compliance investigations
 - **Vector-based Pattern Recognition**: Advanced similarity matching using MongoDB Atlas Vector Search
 - **Dynamic Risk Model Management**: Configurable risk models with real-time updates
 
-We will walk you through the process of configuring and using [MongoDB Atlas](https://www.mongodb.com/atlas/database) as your backend with [AWS Bedrock](https://aws.amazon.com/bedrock/) for AI-powered risk assessment and entity resolution in your [Next.js](https://nextjs.org/) and [FastAPI](https://fastapi.tiangolo.com/) application.
+We will walk you through the process of configuring and using [MongoDB Atlas](https://www.mongodb.com/atlas/database) as your backend with [AWS Bedrock](https://aws.amazon.com/bedrock/) and [Azure AI Foundry](https://azure.microsoft.com/en-us/products/ai-foundry) for AI-powered risk assessment, multi-agent orchestration, and entity resolution in your [Next.js](https://nextjs.org/) and [FastAPI](https://fastapi.tiangolo.com/) application.
 
 ## Architecture Overview
 
@@ -61,6 +62,32 @@ If you want to learn more about Financial Fraud Detection, AML/KYC Compliance, a
 - [MongoDB Atlas Search Documentation](https://www.mongodb.com/docs/atlas/atlas-search/)
 
 Let's get started!
+
+## Azure AI Foundry Agent System
+
+ThreatSight 360 leverages **Azure AI Foundry's multi-agent orchestration** to provide sophisticated fraud analysis with connected specialized agents:
+
+### Main Fraud Detection Agent
+- **Agent ID**: `asst_Q6FO8w2G1h81QnSI5giqHX9M`
+- **Purpose**: Primary fraud detection orchestrator with 4 specialized functions:
+  - `analyze_transaction_patterns`: Analyzes customer transaction history and velocity patterns
+  - `check_sanctions_lists`: Validates entities against sanctions and watchlists  
+  - `calculate_network_risk`: Performs graph-based network risk assessment
+  - `search_similar_transactions`: Vector-based similarity matching against historical fraud patterns
+
+### Connected File Doc Agent
+- **Agent ID**: `asst_fQA3rCdyVoarTaifTSrlehuZ`  
+- **Purpose**: Historical context analysis from past suspicious activity reports
+- **Integration**: Connected agent that the main fraud agent calls for additional context when analyzing high-risk transactions
+
+### Agent Orchestration Flow
+1. **Stage 1**: Rules-based analysis determines if deeper investigation is needed
+2. **Stage 2**: If required, Azure AI agent performs comprehensive analysis using:
+   - All 4 fraud detection functions for current transaction analysis
+   - Connected file doc agent for historical suspicious activity context
+   - Multi-agent coordination for comprehensive risk assessment
+
+The system automatically handles agent-to-agent communication, function calling, and response aggregation through Azure AI Foundry's native orchestration capabilities.
 
 ## Prerequisites
 

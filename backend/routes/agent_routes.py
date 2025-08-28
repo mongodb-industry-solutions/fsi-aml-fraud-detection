@@ -79,6 +79,16 @@ class AgentStatusResponse(BaseModel):
     metrics: Dict[str, Any] = None
     error: str = None
 
+class AgentChatRequest(BaseModel):
+    thread_id: str = Field(..., description="Thread ID for continued conversation")
+    message: str = Field(..., description="Message to send to agent")
+    
+class AgentChatResponse(BaseModel):
+    thread_id: str
+    message: str
+    response: str
+    response_time_ms: float
+
 @router.post("/initialize", summary="Initialize AI Agent")
 async def initialize_agent():
     """Initialize the Azure AI Foundry agent"""
@@ -183,6 +193,55 @@ async def test_agent(service: AgentService = Depends(get_agent_service)):
     except Exception as e:
         logger.error(f"Agent test failed: {e}")
         raise HTTPException(status_code=500, detail=f"Test error: {str(e)}")
+
+@router.post("/chat", response_model=AgentChatResponse, summary="Continue Chat with Agent")
+async def chat_with_agent(
+    request: AgentChatRequest,
+    service: AgentService = Depends(get_agent_service)
+):
+    """
+    Continue chatting with the agent using an existing thread
+    
+    Use this endpoint to have follow-up conversations with the agent
+    after an initial transaction analysis.
+    """
+    try:
+        import time
+        start_time = time.time()
+        
+        logger.info(f"💬 Chat request for thread {request.thread_id}: {request.message}")
+        
+        # Get the agent's conversation handler
+        if not service._initialized or not service.agent:
+            raise RuntimeError("Agent service not initialized")
+        
+        conversation_handler = service.agent.conversation_handler
+        if not conversation_handler:
+            raise RuntimeError("Agent conversation handler not available")
+        
+        # Use the existing thread for continued conversation
+        response = await conversation_handler.run_conversation_native(
+            thread_id=request.thread_id,
+            message=request.message
+        )
+        
+        response_time_ms = (time.time() - start_time) * 1000
+        
+        logger.info(f"✅ Chat response generated in {response_time_ms:.0f}ms")
+        
+        return AgentChatResponse(
+            thread_id=request.thread_id,
+            message=request.message,
+            response=response,
+            response_time_ms=response_time_ms
+        )
+        
+    except RuntimeError as e:
+        logger.error(f"Agent chat error: {e}")
+        raise HTTPException(status_code=503, detail="Agent service not available")
+    except Exception as e:
+        logger.error(f"Chat failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
 
 @router.delete("/cleanup", summary="Cleanup Agent Resources")
 async def cleanup_agent():

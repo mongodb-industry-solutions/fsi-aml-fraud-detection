@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { H3, Body } from '@leafygreen-ui/typography';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 
@@ -74,9 +75,14 @@ const MessageFlowOverlay = ({
   const generateMessageFlow = () => {
     if (!isSimulationRunning || !nodes.length || !edges.length) return;
 
-    const activeEdges = edges.filter(edge => 
+    // Use all edges if no active edges found, to ensure message generation
+    let activeEdges = edges.filter(edge => 
       edge.data?.activity === 'high' || edge.data?.activity === 'medium'
     );
+
+    if (activeEdges.length === 0) {
+      activeEdges = edges.slice(0, 3); // Use first 3 edges as fallback
+    }
 
     if (activeEdges.length === 0) return;
 
@@ -106,6 +112,8 @@ const MessageFlowOverlay = ({
       id: `msg_${messageIdCounter}`,
       sourceId: edge.source,
       targetId: edge.target,
+      sourceAgent: sourceNode.data?.name || edge.source, // Include agent names
+      targetAgent: targetNode.data?.name || edge.target,
       type: messageType,
       startTime: Date.now(),
       timestamp: Date.now(),
@@ -254,108 +262,122 @@ const MessageFlowOverlay = ({
   };
 
   return (
-    <div
-      ref={overlayRef}
-      style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
-        pointerEvents: 'none',
-        zIndex: 50
-      }}
-    >
-      {activeMessages.map(message => {
-        const position = calculateMessagePosition(message);
-        const messageConfig = messageTypes[message.type];
-        
-        return (
-          <div
-            key={message.id}
-            style={{
-              ...getMessageStyle(message, position),
-              pointerEvents: 'all'
-            }}
-            title={`${message.type}: ${Object.entries(message.payload).map(([k,v]) => `${k}: ${v}`).join(', ')}`}
-          >
-            <span>{messageConfig.icon}</span>
-            
-            {/* Message trail effect */}
-            <div
-              style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                width: '200%',
-                height: '200%',
-                borderRadius: '50%',
-                background: `radial-gradient(circle, ${messageConfig.color}15, transparent)`,
-                animation: 'messageTrail 1s ease-out infinite',
-                zIndex: -1
-              }}
-            />
-          </div>
-        );
-      })}
-
-      {/* Message Statistics Panel */}
-      {isSimulationRunning && activeMessages.length > 0 && (
-        <div
-          style={{
-            position: 'absolute',
-            top: spacing[2],
-            right: spacing[2],
-            background: `${palette.white}f0`,
-            backdropFilter: 'blur(8px)',
-            border: `1px solid ${palette.gray.light2}`,
-            borderRadius: '8px',
-            padding: spacing[2],
-            pointerEvents: 'all',
-            minWidth: '150px'
-          }}
-        >
-          <div style={{
-            fontSize: '11px',
-            fontWeight: 600,
-            color: palette.gray.dark3,
-            marginBottom: spacing[1],
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px'
+    <div style={{
+      width: '100%',
+      marginTop: spacing[2]
+    }}>
+      {/* Message Activity Panel */}
+      <div style={{
+        background: palette.white,
+        border: `1px solid ${palette.gray.light2}`,
+        borderRadius: '8px',
+        padding: spacing[3]
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: spacing[1],
+          marginBottom: spacing[2]
+        }}>
+          <span style={{ fontSize: '16px' }}>💬</span>
+          <H3 style={{
+            fontSize: '16px',
+            color: palette.gray.dark2,
+            margin: 0,
+            fontFamily: "'Euclid Circular A', sans-serif"
           }}>
-            Active Messages
-          </div>
-          
-          {Object.entries(
-            activeMessages.reduce((acc, msg) => {
-              acc[msg.type] = (acc[msg.type] || 0) + 1;
-              return acc;
-            }, {})
-          ).map(([type, count]) => (
-            <div key={type} style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: spacing[1],
-              fontSize: '10px',
-              color: palette.gray.dark1,
-              marginBottom: '2px'
+            Message Activity
+          </H3>
+          {activeMessages.length > 0 && (
+            <span style={{
+              fontSize: '11px',
+              padding: '2px 6px',
+              borderRadius: '4px',
+              background: palette.blue.base,
+              color: palette.white,
+              fontWeight: 600
             }}>
-              <span>{messageTypes[type]?.icon}</span>
-              <span style={{ flex: 1, textTransform: 'capitalize' }}>
-                {type.replace('_', ' ')}
-              </span>
-              <span style={{ 
-                fontWeight: 600, 
-                color: messageTypes[type]?.color 
-              }}>
-                {count}
-              </span>
-            </div>
-          ))}
+              {activeMessages.length} active
+            </span>
+          )}
         </div>
-      )}
 
+        {activeMessages.length === 0 ? (
+          <Body style={{
+            color: palette.gray.base,
+            fontStyle: 'italic',
+            margin: 0
+          }}>
+            No active message flows
+          </Body>
+        ) : (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: spacing[2]
+          }}>
+            {Object.entries(
+              activeMessages.reduce((acc, msg) => {
+                acc[msg.type] = (acc[msg.type] || []).concat(msg);
+                return acc;
+              }, {})
+            ).map(([type, messages]) => (
+              <div key={type} style={{
+                padding: spacing[2],
+                background: `${messageTypes[type]?.color || palette.gray.base}10`,
+                borderRadius: '6px',
+                border: `1px solid ${messageTypes[type]?.color || palette.gray.base}30`
+              }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: spacing[1],
+                  marginBottom: spacing[1]
+                }}>
+                  <span>{messageTypes[type]?.icon}</span>
+                  <Body style={{
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: messageTypes[type]?.color || palette.gray.dark2,
+                    margin: 0,
+                    textTransform: 'capitalize'
+                  }}>
+                    {type.replace('_', ' ')}
+                  </Body>
+                  <span style={{
+                    fontSize: '11px',
+                    color: palette.gray.base,
+                    background: palette.white,
+                    padding: '1px 4px',
+                    borderRadius: '3px'
+                  }}>
+                    {messages.length}
+                  </span>
+                </div>
+                
+                <div style={{ fontSize: '10px', color: palette.gray.dark1 }}>
+                  {messages.slice(0, 2).map((msg, index) => (
+                    <div key={msg.id} style={{ 
+                      marginBottom: '2px',
+                      opacity: 0.8 
+                    }}>
+                      {msg.payload && Object.entries(msg.payload).slice(0, 1).map(([key, value]) => 
+                        `${key}: ${value}`
+                      )}
+                    </div>
+                  ))}
+                  {messages.length > 2 && (
+                    <div style={{ color: palette.gray.base, fontStyle: 'italic' }}>
+                      +{messages.length - 2} more...
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      
       <style jsx>{`
         @keyframes messageFloat {
           0%, 100% { transform: translateY(0px); }

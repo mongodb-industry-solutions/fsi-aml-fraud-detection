@@ -12,6 +12,9 @@ from datetime import datetime
 from azure.ai.agents import AgentsClient
 from azure.core.exceptions import HttpResponseError
 
+# Import observability for event emission (safe - no WebSocket broadcasting)
+from ..streaming.observability_streamer import observability_streamer
+
 logger = logging.getLogger(__name__)
 
 
@@ -71,6 +74,18 @@ class NativeConversationHandler:
                 **run_kwargs
             )
             
+            # Emit agent run started event (safe - only stores, no WebSocket broadcast)
+            try:
+                await observability_streamer.emit_agent_run_started(
+                    thread_id=thread_id,
+                    run_id=run.id,
+                    agent_id=self.agent_id,
+                    message=message,
+                    context={"status": "started", "conversation_type": "native"}
+                )
+            except Exception as e:
+                logger.warning(f"Failed to emit agent_run_started event: {e}")
+            
             # Manual polling with function call handling (required for existing agents)
             max_iterations = 50
             iteration = 0
@@ -93,10 +108,28 @@ class NativeConversationHandler:
             
             logger.debug(f"✅ Run completed with status: {run.status}")
             
+            # Get response before emitting completion event
+            response = self._extract_latest_response(thread_id)
+            
+            # Emit agent run completed event (safe - only stores, no WebSocket broadcast)
+            try:
+                await observability_streamer.emit_agent_run_completed(
+                    thread_id=thread_id,
+                    run_id=run.id,
+                    agent_id=self.agent_id,
+                    response=response,
+                    metrics={
+                        "status": run.status,
+                        "iterations": iteration,
+                        "conversation_type": "native"
+                    }
+                )
+            except Exception as e:
+                logger.warning(f"Failed to emit agent_run_completed event: {e}")
+            
             logger.debug(f"✅ Native conversation completed with status: {run.status}")
             
-            # Extract the agent's response
-            return self._extract_latest_response(thread_id)
+            return response
             
         except HttpResponseError as e:
             logger.error(f"❌ Azure AI API error in conversation: {e}")
@@ -123,8 +156,39 @@ class NativeConversationHandler:
                     
                     logger.debug(f"Executing function: {function_name} with args: {arguments}")
                     
+                    # Emit tool call initiated event (safe - only stores, no WebSocket broadcast)
+                    try:
+                        await observability_streamer.emit_tool_call_initiated(
+                            thread_id=thread_id,
+                            run_id=run.id,
+                            tool_call_id=tool_call.id,
+                            tool_name=function_name,
+                            arguments=arguments
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to emit tool_call_initiated event: {e}")
+                    
+                    # Track execution time for observability
+                    import time
+                    start_time = time.time()
+                    
                     # Execute the function based on name
                     output = await self._execute_fraud_function(function_name, arguments, fraud_toolset)
+                    
+                    execution_time_ms = (time.time() - start_time) * 1000
+                    
+                    # Emit tool call completed event (safe - only stores, no WebSocket broadcast)
+                    try:
+                        await observability_streamer.emit_tool_call_completed(
+                            thread_id=thread_id,
+                            run_id=run.id,
+                            tool_call_id=tool_call.id,
+                            tool_name=function_name,
+                            result=output,
+                            execution_time_ms=execution_time_ms
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to emit tool_call_completed event: {e}")
                     
                     tool_outputs.append({
                         "tool_call_id": tool_call.id,
@@ -133,6 +197,18 @@ class NativeConversationHandler:
                     
                 except Exception as e:
                     logger.error(f"Error executing function {function_name}: {e}")
+                    
+                    # Emit tool call failed event (safe - only stores, no WebSocket broadcast)
+                    try:
+                        await observability_streamer.emit_error(
+                            thread_id=thread_id,
+                            run_id=run.id,
+                            error_type="tool_execution_error",
+                            error_message=f"Function {function_name} failed: {str(e)}"
+                        )
+                    except Exception as emit_error:
+                        logger.warning(f"Failed to emit error event: {emit_error}")
+                    
                     tool_outputs.append({
                         "tool_call_id": tool_call.id,
                         "output": json.dumps({"error": f"Function execution failed: {str(e)}"})

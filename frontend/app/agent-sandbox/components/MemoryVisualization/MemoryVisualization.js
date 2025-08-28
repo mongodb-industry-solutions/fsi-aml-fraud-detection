@@ -14,10 +14,16 @@ import VectorMemoryPanel from './VectorMemoryPanel';
 import GraphMemoryPanel from './GraphMemoryPanel';
 import TemporalMemoryPanel from './TemporalMemoryPanel';
 
+// MAS Research-driven Memory Panels
+import MASMemoryArchitecturePanel from './MASMemoryArchitecturePanel';
+import SharedBlackboardPanel from './SharedBlackboardPanel';
+
 const MemoryVisualization = ({ selectedScenario, isSimulationRunning }) => {
   const [memoryData, setMemoryData] = useState(generateMockMemoryData());
-  const [activePanel, setActivePanel] = useState('vector');
+  const [activePanel, setActivePanel] = useState('architecture'); // Start with architecture overview
   const [exploreMode, setExploreMode] = useState(false);
+  const [selectedAgent, setSelectedAgent] = useState(null);
+  const [memoryAccesses, setMemoryAccesses] = useState([]);
 
   // Update memory data periodically during simulation
   useEffect(() => {
@@ -231,7 +237,7 @@ const MemoryVisualization = ({ selectedScenario, isSimulationRunning }) => {
         </Card>
       </div>
 
-      {/* Panel Navigation */}
+      {/* MAS Research-Driven Memory Navigation */}
       <div style={{
         display: 'flex',
         gap: spacing[2],
@@ -242,33 +248,103 @@ const MemoryVisualization = ({ selectedScenario, isSimulationRunning }) => {
         border: `1px solid ${palette.gray.light2}`
       }}>
         <Button
-          variant={activePanel === 'vector' ? 'primary' : 'default'}
+          variant={activePanel === 'architecture' ? 'primary' : 'default'}
           size="small"
-          leftGlyph={<Icon glyph="Cloud" />}
-          onClick={() => setActivePanel('vector')}
+          leftGlyph={<Icon glyph="Building" />}
+          onClick={() => setActivePanel('architecture')}
         >
-          Vector Memory
+          🏗️ Memory Architecture
         </Button>
         <Button
-          variant={activePanel === 'graph' ? 'primary' : 'default'}
+          variant={activePanel === 'shared' ? 'primary' : 'default'}
           size="small"
-          leftGlyph={<Icon glyph="Relationship" />}
-          onClick={() => setActivePanel('graph')}
+          leftGlyph={<Icon glyph="Megaphone" />}
+          onClick={() => setActivePanel('shared')}
         >
-          Graph Memory
+          🔗 Shared Blackboard
         </Button>
         <Button
-          variant={activePanel === 'temporal' ? 'primary' : 'default'}
+          variant={activePanel === 'private' ? 'primary' : 'default'}
+          size="small"
+          leftGlyph={<Icon glyph="Lock" />}
+          onClick={() => setActivePanel('private')}
+        >
+          🔐 Private Scratchpads
+        </Button>
+        <Button
+          variant={activePanel === 'episodic' ? 'primary' : 'default'}
           size="small"
           leftGlyph={<Icon glyph="Clock" />}
-          onClick={() => setActivePanel('temporal')}
+          onClick={() => setActivePanel('episodic')}
         >
-          Time-Decay Memory
+          📚 Episodic Memory
+        </Button>
+        <Button
+          variant={activePanel === 'semantic' ? 'primary' : 'default'}
+          size="small"
+          leftGlyph={<Icon glyph="University" />}
+          onClick={() => setActivePanel('semantic')}
+        >
+          🧠 Semantic Knowledge
         </Button>
       </div>
 
       {/* Active Memory Panel */}
       <div style={{ minHeight: '600px' }}>
+        {activePanel === 'architecture' && (
+          <MASMemoryArchitecturePanel 
+            memoryData={memoryData}
+            isSimulationRunning={isSimulationRunning}
+            selectedAgent={selectedAgent}
+            onAgentSelect={setSelectedAgent}
+            memoryAccesses={memoryAccesses}
+          />
+        )}
+
+        {activePanel === 'shared' && (
+          <SharedBlackboardPanel 
+            memoryData={memoryData}
+            isSimulationRunning={isSimulationRunning}
+            selectedAgent={selectedAgent}
+          />
+        )}
+
+        {activePanel === 'private' && (
+          <div style={{
+            padding: spacing[3],
+            textAlign: 'center',
+            background: palette.gray.light3,
+            borderRadius: '8px'
+          }}>
+            <H3 style={{
+              color: palette.gray.dark2,
+              margin: `0 0 ${spacing[2]}px 0`
+            }}>
+              🔐 Private Scratchpads Panel
+            </H3>
+            <Body style={{ color: palette.gray.dark1 }}>
+              Coming soon - Individual agent private memory spaces with working memory, temporary calculations, and agent-specific context.
+            </Body>
+          </div>
+        )}
+
+        {activePanel === 'episodic' && (
+          <TemporalMemoryPanel 
+            vectorMemory={memoryData.vectorMemory}
+            exploreMode={exploreMode}
+            isSimulationRunning={isSimulationRunning}
+          />
+        )}
+
+        {activePanel === 'semantic' && (
+          <GraphMemoryPanel 
+            graphMemory={memoryData.graphMemory}
+            exploreMode={exploreMode}
+            isSimulationRunning={isSimulationRunning}
+          />
+        )}
+        
+        {/* Legacy panels for backward compatibility */}
         {activePanel === 'vector' && (
           <VectorMemoryPanel 
             vectorMemory={memoryData.vectorMemory}

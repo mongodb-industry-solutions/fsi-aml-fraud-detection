@@ -14,6 +14,8 @@ import { CardSkeleton } from '@leafygreen-ui/skeleton-loader';
 import Badge from '@leafygreen-ui/badge';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
+import AgentObservabilityDashboard from '../observability/AgentObservabilityDashboard';
+import AgentChatInterface from '../observability/AgentChatInterface';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -29,12 +31,16 @@ function AgentEvaluationModal({
   const [agentResults, setAgentResults] = useState(null);
   const [activeTab, setActiveTab] = useState(0);
   const [processingStage, setProcessingStage] = useState('');
+  const [observabilityActive, setObservabilityActive] = useState(false);
+  const [threadId, setThreadId] = useState(null);
 
   // Reset results when modal opens  
   useEffect(() => {
     if (open && agentResults) {
       setAgentResults(null);
       setActiveTab(0);
+      setObservabilityActive(false);
+      setThreadId(null);
     }
   }, [open]);
 
@@ -49,12 +55,25 @@ function AgentEvaluationModal({
       setError('');
       setProcessingStage('Initializing agent...');
       
+      // Activate observability immediately when analysis starts (waiting mode)
+      setObservabilityActive(true);
+      
+      // Clear any previous thread ID to ensure clean state
+      setThreadId(null);
+      
       try {
         console.log('Sending transaction data to agent:', transactionData);
+        console.log('🔄 Starting observability in waiting mode...');
         
         // Call the agent API
         const response = await axios.post(`${API_BASE_URL}/api/agent/analyze`, transactionData);
         console.log('Agent analysis response:', response.data);
+        
+        // Extract thread ID for live observability
+        if (response.data.thread_id) {
+          console.log('🔄 Thread ID available, starting live observability:', response.data.thread_id);
+          setThreadId(response.data.thread_id);
+        }
         
         console.log('Setting agent results:', response.data);
         setAgentResults(response.data);
@@ -65,6 +84,7 @@ function AgentEvaluationModal({
         console.error('Error details:', err.response?.data || err.message);
         setError(`Failed to evaluate transaction with agent: ${err.response?.data?.detail || err.message}`);
         setProcessingStage('');
+        // Keep observability active even on error to show any events that occurred
       } finally {
         setLoading(false);
       }
@@ -394,6 +414,29 @@ function AgentEvaluationModal({
               </Card>
             </div>
           </Tab>
+
+          <Tab name="Real-time Observability">
+            <div style={{ marginTop: spacing[3] }}>
+              {/* Embedded Observability Dashboard */}
+              <AgentObservabilityDashboard
+                threadId={threadId}
+                isActive={loading || (observabilityActive && threadId)}
+                isWaitingForAnalysis={loading && !threadId}
+                backendUrl={API_BASE_URL}
+                isEmbedded={true}
+              />
+            </div>
+          </Tab>
+
+          <Tab name="Chat with Agent">
+            <div style={{ marginTop: spacing[3] }}>
+              <AgentChatInterface
+                threadId={threadId}
+                backendUrl={API_BASE_URL}
+                agentDecision={agentResults}
+              />
+            </div>
+          </Tab>
         </Tabs>
       </div>
     );
@@ -438,12 +481,36 @@ function AgentEvaluationModal({
         </div>
         
         <div style={{ display: 'flex', gap: spacing[2] }}>
+          {/* Observability Toggle */}
+          {threadId && (
+            <Button 
+              variant={observabilityActive ? "primary" : "default"}
+              onClick={() => setObservabilityActive(!observabilityActive)}
+              leftGlyph={
+                <Icon 
+                  glyph={observabilityActive ? "Visibility" : "EyeClosed"} 
+                  fill={observabilityActive ? palette.white : palette.blue.base} 
+                />
+              }
+              style={{
+                backgroundColor: observabilityActive ? palette.blue.base : 'transparent',
+                color: observabilityActive ? palette.white : palette.blue.base,
+                border: `1px solid ${palette.blue.base}`
+              }}
+            >
+              {observabilityActive ? 'Hide Monitor' : 'Show Monitor'}
+            </Button>
+          )}
+          
           {!loading && agentResults && (
             <Button 
               variant="default"
               onClick={() => {
                 setAgentResults(null);
-                handleAgentEvaluation();
+                setActiveTab(0);
+                setProcessingStage('');
+                // Keep observability active for re-analysis
+                // performAnalysis will be triggered by the useEffect
               }}
               leftGlyph={<Icon glyph="Refresh" />}
             >
@@ -464,6 +531,7 @@ function AgentEvaluationModal({
           </Button>
         </div>
       </div>
+      
     </Modal>
   );
 }

@@ -333,7 +333,7 @@ const ConsensusOverlay = ({
           top: node.position.y - 15,
           left: node.position.x + 100,
           transform: 'translateX(-50%)',
-          zIndex: 200
+          zIndex: 12
         }}
       >
         {hasVoted ? (
@@ -386,7 +386,7 @@ const ConsensusOverlay = ({
           width: '100%',
           height: '100%',
           pointerEvents: 'none',
-          zIndex: 150
+          zIndex: 11
         }}
       >
         {nodes.map(node => renderNodeConsensus(node))}
@@ -406,7 +406,7 @@ const ConsensusOverlay = ({
             minWidth: '320px',
             maxWidth: '400px',
             boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-            zIndex: 200,
+            zIndex: 12,
             pointerEvents: 'all'
           }}
         >

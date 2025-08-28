@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useState, useMemo, memo } from 'react';
 import ReactFlow, { 
   ReactFlowProvider, 
   Controls, 
@@ -31,9 +31,11 @@ import MessageFlowOverlay from './overlays/MessageFlowOverlay';
 import ConsensusOverlay from './overlays/ConsensusOverlay';
 import DecisionTreeOverlay from './overlays/DecisionTreeOverlay';
 import ConfidenceMetersOverlay from './overlays/ConfidenceMetersOverlay';
+import ToolInvocationOverlay from './overlays/ToolInvocationOverlay';
 
 // New Glass Box Components
 import SequenceDiagramPanel from './panels/SequenceDiagramPanel';
+import ToolInspectorPanel from './panels/ToolInspectorPanel';
 import { useMessageCorrelation } from './managers/MessageCorrelationManager';
 
 // Node types mapping - defined outside component to prevent recreation
@@ -90,7 +92,12 @@ const OrchestrationCanvas = ({
   onNodeSelect,
   isSimulationRunning,
   simulationSpeed,
-  selectedScenario
+  selectedScenario,
+  activePanel = 'orchestration', // Add activePanel prop for tab switching
+  toolCallHistory = [],
+  selectedToolCall,
+  onToolCallSelect,
+  onToolInvocation
 }) => {
   // Initialize nodes and edges from pattern
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -123,6 +130,11 @@ const OrchestrationCanvas = ({
     background: palette.white
   }), []);
 
+  const memoizedWrapperStyle = useMemo(() => ({
+    width: '100%',
+    position: 'relative' // Container for both canvas and overlays below it
+  }), []);
+
   // Memoized callback functions to prevent recreation
   const memoizedOnMessageComplete = useCallback((message) => {
     console.log('Message completed:', message);
@@ -140,6 +152,10 @@ const OrchestrationCanvas = ({
     console.log('Confidence update:', confidence);
   }, []);
 
+  const memoizedOnToolInvocation = useCallback((toolCall) => {
+    onToolInvocation?.(toolCall);
+  }, [onToolInvocation]);
+
   // Initialize message correlation system
   const messageCorrelation = useMessageCorrelation();
 
@@ -148,14 +164,14 @@ const OrchestrationCanvas = ({
     event.stopPropagation();
     onNodeSelect?.(node.data);
     messageCorrelation.handleNodeSelection(node.id);
-  }, [onNodeSelect, messageCorrelation]);
+  }, [onNodeSelect]); // Removed messageCorrelation from deps to prevent infinite loop
 
   // Clear messages when simulation stops
   useEffect(() => {
     if (!isSimulationRunning) {
       messageCorrelation.clearMessages();
     }
-  }, [isSimulationRunning, messageCorrelation]);
+  }, [isSimulationRunning]); // Removed messageCorrelation from deps to prevent infinite loop
 
   // Update node highlighting separately to avoid infinite loops
   useEffect(() => {
@@ -174,25 +190,45 @@ const OrchestrationCanvas = ({
     }
   }, [messageCorrelation.selectedAgent, messageCorrelation.selectedMessage, setNodes]);
 
-  // Update nodes when pattern changes
+  // Update nodes when pattern changes (without selection state)
   useEffect(() => {
     if (pattern?.agents) {
-      // Transform agent data to ReactFlow node format
-      const flowNodes = pattern.agents.map(agent => ({
-        id: agent.id,
-        type: getNodeType(agent.type),
-        position: agent.position,
-        data: {
-          ...agent,
-          isSelected: selectedNode === agent.id,
-          highlighted: false // Will be updated by separate effect
-        },
-        style: getNodeStyle(agent.type, agent.status)
-      }));
-      
-      setNodes(flowNodes);
+      // Transform agent data to ReactFlow node format  
+      setNodes(prevNodes => {
+        const flowNodes = pattern.agents.map(agent => {
+          // Check if this node already exists with a user-modified position
+          const existingNode = prevNodes.find(n => n.id === agent.id);
+          const preservedPosition = existingNode ? existingNode.position : agent.position;
+
+          return {
+            id: agent.id,
+            type: getNodeType(agent.type),
+            position: preservedPosition, // Preserve user-modified positions
+            data: {
+              ...agent,
+              highlighted: false // Will be updated by separate effect
+            },
+            style: getNodeStyle(agent.type, agent.status)
+          };
+        });
+        
+        return flowNodes;
+      });
     }
-  }, [pattern, selectedNode, setNodes]);
+  }, [pattern, setNodes]);
+
+  // Update node selection state separately to avoid infinite loops
+  useEffect(() => {
+    setNodes(prevNodes => 
+      prevNodes.map(node => ({
+        ...node,
+        data: {
+          ...node.data,
+          isSelected: selectedNode === node.id
+        }
+      }))
+    );
+  }, [selectedNode, setNodes]);
 
   // Update edges when pattern changes
   useEffect(() => {
@@ -251,9 +287,36 @@ const OrchestrationCanvas = ({
     onNodeSelect?.(null);
   }, [onNodeSelect]);
 
+  // Conditional rendering based on active panel
+  if (activePanel === 'tools') {
+    return (
+      <div style={memoizedWrapperStyle}>
+        <ToolInspectorPanel
+          toolCallHistory={toolCallHistory}
+          isSimulationRunning={isSimulationRunning}
+          selectedToolCall={selectedToolCall}
+          onToolCallSelect={onToolCallSelect}
+        />
+        {/* Hidden Tool Invocation Overlay to generate tool calls */}
+        {isSimulationRunning && (
+          <div style={{ display: 'none' }}>
+            <ToolInvocationOverlay
+              nodes={nodes}
+              isSimulationRunning={isSimulationRunning}
+              simulationSpeed={simulationSpeed}
+              onToolInvocation={memoizedOnToolInvocation}
+            />
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div style={memoizedContainerStyle}>
-      <ReactFlow
+    <div style={memoizedWrapperStyle}>
+      {/* Main ReactFlow Canvas */}
+      <div style={memoizedContainerStyle}>
+        <ReactFlow
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
@@ -291,9 +354,10 @@ const OrchestrationCanvas = ({
           zoomable
           style={memoizedMinimapStyle}
         />
-      </ReactFlow>
+        </ReactFlow>
+      </div>
       
-      {/* Real-time collaboration overlays */}
+      {/* Real-time collaboration overlays - positioned below canvas */}
       {isSimulationRunning && (
         <>
           <MessageFlowOverlay
@@ -320,11 +384,12 @@ const OrchestrationCanvas = ({
             onDecisionUpdate={memoizedOnDecisionUpdate}
           />
           
-          <ConfidenceMetersOverlay
+          
+          <ToolInvocationOverlay
             nodes={nodes}
             isSimulationRunning={isSimulationRunning}
             simulationSpeed={simulationSpeed}
-            onConfidenceUpdate={memoizedOnConfidenceUpdate}
+            onToolInvocation={memoizedOnToolInvocation}
           />
         </>
       )}
@@ -425,10 +490,13 @@ function getNodeStyle(type, status) {
 }
 
 
+// Memoize the OrchestrationCanvas to prevent unnecessary re-renders
+const MemoizedOrchestrationCanvas = memo(OrchestrationCanvas);
+
 // Wrap with ReactFlowProvider for context
 const OrchestrationCanvasWrapper = (props) => (
   <ReactFlowProvider>
-    <OrchestrationCanvas {...props} />
+    <MemoizedOrchestrationCanvas {...props} />
   </ReactFlowProvider>
 );
 

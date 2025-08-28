@@ -130,7 +130,7 @@ class TwoStageAgentCore:
             
             # Create fraud detection toolset (import locally to avoid circular import)
             from services.fraud_detection import FraudDetectionService
-            from .tools import create_fraud_toolset
+            from .tools import create_fraud_toolset, create_connected_agent_toolset
             
             fraud_service = FraudDetectionService(self.db_client)
 
@@ -140,10 +140,19 @@ class TwoStageAgentCore:
             # Setup vector indexes for learning patterns
             await self.mongodb_vector_store.setup_vector_indexes()            
             
-            self.fraud_toolset = create_fraud_toolset(
+            # Create fraud detection tools
+            fraud_tools = create_fraud_toolset(
                 db_client=self.db_client,
                 fraud_service=fraud_service
             )
+            
+            # Create connected agent tools
+            connected_tools = create_connected_agent_toolset()
+            
+            # Combine all tools
+            self.fraud_toolset = fraud_tools + connected_tools
+            
+            logger.info(f"✅ Combined toolset: {len(fraud_tools)} fraud tools + {len(connected_tools)} connected agents")
             
             logger.info("✅ Native Azure AI Foundry enhancements initialized")
             

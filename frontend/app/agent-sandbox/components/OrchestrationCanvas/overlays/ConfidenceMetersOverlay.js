@@ -149,7 +149,7 @@ const ConfidenceMetersOverlay = ({
         
         return updated;
       });
-    }, Math.max(500, 2000 / simulationSpeed)); // Faster updates with higher simulation speed
+    }, Math.max(2000, 5000 / simulationSpeed)); // Reduced frequency to prevent freezing
 
     return () => clearInterval(interval);
   }, [isSimulationRunning, simulationSpeed, nodes, onConfidenceUpdate]);

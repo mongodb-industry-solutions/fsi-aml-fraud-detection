@@ -17,7 +17,7 @@ const SequenceDiagramPanel = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
-  const [filteredMessages, setFilteredMessages] = useState([]);
+  // Removed filteredMessages state - now computed directly with useMemo
   const [timeRange, setTimeRange] = useState({ start: null, end: null });
   const scrollContainerRef = useRef(null);
 
@@ -73,7 +73,7 @@ const SequenceDiagramPanel = ({
     }
   };
 
-  // Process and sort messages chronologically
+  // Process and sort messages chronologically - simplified to avoid dependency loops
   const processedMessages = useMemo(() => {
     if (!messages || messages.length === 0) return [];
 
@@ -83,26 +83,22 @@ const SequenceDiagramPanel = ({
         id: msg.id || `msg_${index}`,
         timestamp: msg.timestamp || Date.now() - (messages.length - index) * 1000,
         type: msg.type || 'data_query',
-        sourceAgent: nodes.find(n => n.id === msg.sourceId)?.data?.name || msg.sourceId,
-        targetAgent: nodes.find(n => n.id === msg.targetId)?.data?.name || msg.targetId,
+        sourceAgent: msg.sourceAgent || msg.sourceId, // Use provided names or fallback to ID
+        targetAgent: msg.targetAgent || msg.targetId,
         payload: msg.payload || {},
         latency: msg.latency || Math.random() * 200 + 50,
         success: msg.success !== false
       }))
       .sort((a, b) => a.timestamp - b.timestamp);
-  }, [messages, nodes]);
+  }, [messages]); // Only depend on messages, not nodes
 
-  // Filter messages based on selected agent
-  useEffect(() => {
-    if (!selectedAgent) {
-      setFilteredMessages(processedMessages);
-      return;
-    }
-
-    const filtered = processedMessages.filter(msg => 
+  // Filter messages based on selected agent - computed directly to avoid useEffect loops
+  const filteredMessages = useMemo(() => {
+    if (!selectedAgent) return processedMessages;
+    
+    return processedMessages.filter(msg => 
       msg.sourceId === selectedAgent || msg.targetId === selectedAgent
     );
-    setFilteredMessages(filtered);
   }, [processedMessages, selectedAgent]);
 
   // Auto-scroll to latest message

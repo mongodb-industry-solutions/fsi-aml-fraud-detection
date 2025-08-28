@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { H1, H2, Body, Overline } from '@leafygreen-ui/typography';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
@@ -18,6 +18,7 @@ import PerformanceMetrics from './components/PerformanceMetrics/PerformanceMetri
 import TimelineView from './components/TimelineView/TimelineView';
 import InteractiveDebug from './components/InteractiveDebug/InteractiveDebug';
 import ExportToolbar from './components/ExportToolbar/ExportToolbar';
+import ToolInspectorPanel from './components/OrchestrationCanvas/panels/ToolInspectorPanel';
 
 export default function AgentSandbox() {
   // State management
@@ -31,6 +32,11 @@ export default function AgentSandbox() {
   const [selectedNode, setSelectedNode] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredData, setFilteredData] = useState(null);
+  // Tool invocation state - shared across all tabs
+  const [toolCallHistory, setToolCallHistory] = useState([]);
+  const [selectedToolCall, setSelectedToolCall] = useState(null);
+  // Tool inspector panel state
+  const [showToolInspector, setShowToolInspector] = useState(false);
 
   // Performance metrics update disabled to prevent re-renders
   // useEffect(() => {
@@ -400,15 +406,23 @@ export default function AgentSandbox() {
   );
 
   // Node selection handler
-  const handleNodeSelect = (node) => {
+  const handleNodeSelect = useCallback((node) => {
     setSelectedNode(node);
     if (node && !debugPanelOpen) {
       setDebugPanelOpen(true);
     }
-  };
+  }, [debugPanelOpen]);
 
-  // Main orchestration canvas component
-  const MainCanvas = () => (
+  // Tool invocation handler - shared across all tabs
+  const handleToolInvocation = useCallback((toolCall) => {
+    setToolCallHistory(prev => [toolCall, ...prev.slice(0, 49)]); // Keep last 50 tool calls
+  }, []);
+
+  // Memoize the orchestration pattern to prevent unnecessary re-renders
+  const currentPattern = useMemo(() => orchestrationPatterns[orchestrationMode], [orchestrationMode]);
+
+  // Main orchestration canvas component - memoized to prevent recreation
+  const MainCanvas = useCallback(() => (
     <div>
       {/* Canvas Header */}
       <div style={{
@@ -450,19 +464,30 @@ export default function AgentSandbox() {
           <Badge variant={isSimulationRunning ? 'green' : 'lightgray'}>
             {orchestrationPatterns[orchestrationMode].agents.length} Agents
           </Badge>
+          <Button
+            variant={showToolInspector ? 'primary' : 'default'}
+            size="small"
+            leftGlyph={<Icon glyph={showToolInspector ? 'ChevronUp' : 'ChevronDown'} />}
+            onClick={() => setShowToolInspector(!showToolInspector)}
+          >
+            Tool Inspector ({toolCallHistory.length})
+          </Button>
         </div>
       </div>
 
       {/* ReactFlow Canvas */}
       <OrchestrationCanvas
-        pattern={orchestrationPatterns[orchestrationMode]}
+        pattern={currentPattern}
         selectedNode={selectedNode?.id}
         onNodeSelect={handleNodeSelect}
         isSimulationRunning={isSimulationRunning}
         simulationSpeed={simulationSpeed}
+        activePanel={activeView}
+        onToolInvocation={handleToolInvocation}
       />
+
     </div>
-  );
+  ), [currentPattern, selectedNode, handleNodeSelect, isSimulationRunning, simulationSpeed, activeView, handleToolInvocation, orchestrationMode, selectedScenario.name]);
 
   return (
     <div style={{
@@ -490,6 +515,65 @@ export default function AgentSandbox() {
           <ControlPanel />
           <QuickMetrics />
           <MainCanvas />
+          
+          {/* Collapsible Tool Inspector Panel - Outside MainCanvas */}
+          {showToolInspector && (
+            <div style={{
+              marginTop: spacing[3],
+              border: `2px solid ${palette.yellow.base}`,
+              borderRadius: '12px',
+              background: palette.white,
+              overflow: 'hidden'
+            }}>
+              <div style={{
+                padding: spacing[2],
+                background: `linear-gradient(135deg, ${palette.yellow.light3}, ${palette.gray.light3})`,
+                borderBottom: `1px solid ${palette.gray.light2}`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2] }}>
+                  <div style={{
+                    width: '24px',
+                    height: '24px',
+                    borderRadius: '6px',
+                    background: palette.yellow.base,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '12px'
+                  }}>
+                    🔧
+                  </div>
+                  <H2 style={{
+                    fontSize: '16px',
+                    color: palette.yellow.dark2,
+                    margin: 0,
+                    fontFamily: "'Euclid Circular A', sans-serif"
+                  }}>
+                    Tool Inspector
+                  </H2>
+                </div>
+                <Button
+                  variant="default"
+                  size="xsmall"
+                  rightGlyph={<Icon glyph="X" />}
+                  onClick={() => setShowToolInspector(false)}
+                >
+                  Close
+                </Button>
+              </div>
+              <div style={{ height: '400px', overflow: 'auto' }}>
+                <ToolInspectorPanel
+                  toolCallHistory={toolCallHistory}
+                  isSimulationRunning={isSimulationRunning}
+                  selectedToolCall={selectedToolCall}
+                  onToolCallSelect={setSelectedToolCall}
+                />
+              </div>
+            </div>
+          )}
         </Tab>
         
         <Tab name="memory" label="Memory Architecture">

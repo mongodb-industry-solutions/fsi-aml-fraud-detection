@@ -14,7 +14,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from azure_foundry import TwoStageAgentCore, validate_environment
-from azure_foundry.config import DEMO_TEST_TRANSACTIONS
+from azure_foundry.config import PAUL_TEST_TRANSACTIONS, DEMO_TEST_TRANSACTIONS
 from db.mongo_db import MongoDBAccess
 
 # Configure logging
@@ -74,8 +74,8 @@ async def run_demo():
     
     results = []
     
-    for i, test_txn in enumerate(DEMO_TEST_TRANSACTIONS, 1):
-        print(f"\n🔍 Test {i}/{len(DEMO_TEST_TRANSACTIONS)}: {test_txn['description']}")
+    for i, test_txn in enumerate(PAUL_TEST_TRANSACTIONS, 1):
+        print(f"\n🔍 Test {i}/{len(PAUL_TEST_TRANSACTIONS)}: {test_txn['description']}")
         print(f"   Transaction ID: {test_txn['transaction_id']}")
         print(f"   Amount: ${test_txn['amount']:,.2f}")
         print(f"   Expected: {test_txn['expected_decision']} (Stage {test_txn['expected_stage']})")

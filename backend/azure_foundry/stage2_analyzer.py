@@ -35,6 +35,7 @@ class Stage2Analyzer:
         self.agents_client = agents_client
         self.config = config
         self.fraud_service = None
+        self.enhanced_memory = None  # Will be set by agent_core
         
         logger.info("Initializing Stage2Analyzer")
     
@@ -65,7 +66,9 @@ class Stage2Analyzer:
         agent_id: str,
         conversation_handler=None,
         fraud_toolset=None,
-        fraud_tools_instance=None
+        fraud_tools_instance=None,
+        enhanced_memory=None,
+        meta_context=None
     ) -> Stage2Result:
         """
         Perform Stage 2 analysis: vector search + AI analysis
@@ -110,7 +113,9 @@ class Stage2Analyzer:
                 agent_id=agent_id,
                 conversation_handler=conversation_handler,
                 fraud_toolset=fraud_toolset,
-                fraud_tools_instance=fraud_tools_instance
+                fraud_tools_instance=fraud_tools_instance,
+                enhanced_memory=enhanced_memory,
+                meta_context=meta_context
             )
             
             logger.debug(f"AI analysis complete: recommendation={ai_recommendation}")
@@ -183,7 +188,9 @@ class Stage2Analyzer:
         agent_id: str,
         conversation_handler=None,
         fraud_toolset=None,
-        fraud_tools_instance=None
+        fraud_tools_instance=None,
+        enhanced_memory=None,
+        meta_context=None
     ) -> Tuple[str, Optional[DecisionType]]:
         """
         Use Azure AI Foundry agent for sophisticated analysis
@@ -195,8 +202,18 @@ class Stage2Analyzer:
         try:
             # Build comprehensive context for AI analysis
             context = self._build_ai_context(
-                transaction, stage1_result, similar_transactions, similarity_breakdown, fraud_tools_instance
+                transaction, stage1_result, fraud_tools_instance, meta_context
             )
+            
+            # Store the prompt for meta-learning
+            if enhanced_memory:
+                await enhanced_memory.store_conversation_message(
+                    thread_id=thread_id,
+                    transaction_id=transaction.transaction_id,
+                    role="user",
+                    content=context,
+                    metadata={"stage": "stage2_analysis", "prompt_type": "ai_investigation"}
+                )
             
             # Use conversation handler if available, otherwise use agents client
             if conversation_handler:
@@ -214,6 +231,33 @@ class Stage2Analyzer:
                     content=context
                 )
                 ai_response = await self._run_ai_conversation(thread_id, agent_id, self.agents_client)
+                
+                # Store fallback conversation if enhanced memory provided
+                if enhanced_memory:
+                    await enhanced_memory.store_conversation_message(
+                        thread_id=thread_id,
+                        transaction_id=transaction.transaction_id,
+                        role="user",
+                        content=context,
+                        metadata={"stage": "stage2_analysis", "prompt_type": "ai_investigation", "fallback": True}
+                    )
+                    await enhanced_memory.store_conversation_message(
+                        thread_id=thread_id,
+                        transaction_id=transaction.transaction_id,
+                        role="assistant",
+                        content=ai_response,
+                        metadata={"stage": "stage2_analysis", "response_type": "ai_investigation", "fallback": True}
+                    )
+            
+            # Store the AI response for meta-learning
+            if enhanced_memory:
+                await enhanced_memory.store_conversation_message(
+                    thread_id=thread_id,
+                    transaction_id=transaction.transaction_id,
+                    role="assistant",
+                    content=ai_response,
+                    metadata={"stage": "stage2_analysis", "response_type": "ai_investigation"}
+                )
             
             # Extract recommendation from AI response
             ai_recommendation = self._extract_ai_recommendation(ai_response)
@@ -228,9 +272,8 @@ class Stage2Analyzer:
         self,
         transaction: TransactionInput,
         stage1_result: Stage1Result,
-        similar_transactions: List[Dict],
-        similarity_breakdown: Dict,
-        fraud_tools_instance=None
+        fraud_tools_instance=None,
+        meta_context=None
     ) -> str:
         """Build comprehensive context for AI analysis"""
         
@@ -251,26 +294,38 @@ Stage 1 Analysis Results:
 - Basic ML Score: {stage1_result.basic_ml_score or 'N/A'}
 - Rule Flags: {stage1_result.rule_flags if stage1_result.rule_flags else 'None'}
 - Processing Time: {stage1_result.processing_time_ms:.1f}ms
-
-Vector Similarity Analysis:
-- Similar Transactions Found: {len(similar_transactions)}
-- Overall Similarity Risk: {similarity_breakdown.get('total_matches', 0)}
-- High Risk Matches: {similarity_breakdown.get('high_risk_matches', 0)}
-- Search Method: {similarity_breakdown.get('method', 'vector_similarity')}
-
-Similar Transaction Patterns:
 """
         
-        # Add sample of similar transactions for pattern analysis
-        if similar_transactions:
-            context += "\nTop Similar Transactions:\n"
-            for i, similar_txn in enumerate(similar_transactions[:5]):  # Limit to top 5
-                context += f"{i+1}. Amount: ${similar_txn.get('amount', 0):,.2f}, "
-                context += f"Merchant: {similar_txn.get('merchant', {}).get('category', 'unknown')}, "
-                context += f"Risk: {similar_txn.get('risk_score', 0):.1f}/100\n"
-        else:
-            context += "\nNo significantly similar transactions found.\n"
+        # Add meta-learning context if available
+        if meta_context and meta_context.get("similar_decisions"):
+            context += f"""\n
+META-LEARNING CONTEXT:
+Found {len(meta_context['similar_decisions'])} similar past decisions:
+"""
+            for i, decision in enumerate(meta_context['similar_decisions'][:3], 1):
+                context += f"""\n{i}. Transaction from {decision.get('created_at', 'Unknown date')}
+   - Decision: {decision.get('decision')}
+   - Risk Score: {decision.get('risk_score', 0):.1f}/100
+   - Confidence: {decision.get('confidence', 0):.2%}
+   - Reasoning: {decision.get('reasoning', 'N/A')[:100]}...
+"""
+            
+            if meta_context.get("statistics"):
+                context += f"""\n
+Historical Statistics:
+- Most Common Decision: {meta_context['statistics'].get('most_common_decision', 'N/A')}
+- Average Risk Score: {meta_context['statistics'].get('avg_risk_score', 0):.1f}/100
+"""
         
+        if meta_context and meta_context.get("relevant_patterns"):
+            context += f"""\n
+Learned Patterns ({len(meta_context['relevant_patterns'])} relevant):
+"""
+            for pattern in meta_context['relevant_patterns'][:2]:
+                context += f"""\n- Pattern Type: {pattern.get('pattern_type')}
+  Effectiveness: {pattern.get('effectiveness_score', 0):.2%}
+  Usage Count: {pattern.get('usage_count', 0)}
+"""
         
         # Build strategic tool selection guidance using the fraud tools instance
         tool_guidance = ""
@@ -285,19 +340,44 @@ STRATEGIC ANALYSIS REQUEST:
 This transaction scored {stage1_result.combined_score:.1f}/100 in our initial analysis, 
 placing it in the edge case category that requires deeper investigation.
 
+AVAILABLE ANALYSIS TOOLS:
+1. analyze_transaction_patterns() - Customer behavioral analysis
+2. search_similar_transactions() - Vector similarity search for patterns
+3. calculate_network_risk() - Network analysis for connected fraud rings  
+4. check_sanctions_lists() - PEP/sanctions screening
+5. SuspiciousReportsAgent - Connected agent for historical SAR analysis
+
+TOOL SELECTION STRATEGY:
 {tool_guidance}
 
-ANALYSIS APPROACH:
-1. Start with analyze_transaction_patterns() to understand customer baseline
-2. Based on those results, intelligently select additional tools that will provide meaningful insights
-3. Use findings from each tool to inform whether further analysis is needed
-4. Make your final decision based on the complete picture
+CONNECTED AGENT GUIDANCE:
+Use SuspiciousReportsAgent when:
+- High-value transactions ($10K+) with unusual patterns
+- Multiple risk flags from Stage 1 (3+ flags)
+- Transactions to high-risk jurisdictions
+- Complex fraud patterns that may match historical SARs
+- Network analysis reveals suspicious connections
 
+When calling SuspiciousReportsAgent, provide:
+- Transaction details (amount, location, merchant category)
+- Customer profile and risk flags
+- Stage 1 analysis summary
+- Any tool findings that suggest historical pattern matches
+
+ANALYSIS APPROACH:
+1. Start with analyze_transaction_patterns() to establish customer baseline
+2. Use search_similar_transactions() if patterns seem anomalous
+3. Call SuspiciousReportsAgent if multiple red flags or complex patterns emerge
+4. Use network/sanctions tools for high-risk scenarios
+5. Make final decision based on comprehensive analysis
+
+RESPONSE FORMAT:
 Based on your strategic analysis, provide:
 1. A clear risk assessment citing specific tool findings
 2. Your recommendation: APPROVE, INVESTIGATE, ESCALATE, or BLOCK  
 3. Explanation of your tool selection strategy and key findings
 4. Specific risk factors or reassuring patterns from your analysis
+5. If you used SuspiciousReportsAgent, integrate its historical insights
 
 Focus on efficient, targeted analysis that maximizes insight while minimizing unnecessary tool usage.
 """

@@ -105,9 +105,19 @@ class AgentDecision:
     timestamp: datetime = None
     agent_version: str = "demo-v1"
     
+    # Connected Agent Architecture (Phase 3A)
+    connected_threads: Optional[Dict[str, str]] = None  # agent_name -> thread_id
+    connected_agent_results: Optional[Dict[str, Any]] = None  # agent_name -> analysis_result
+    
     def __post_init__(self):
         if self.timestamp is None:
             self.timestamp = datetime.now()
+        
+        # Initialize connected agent tracking (Phase 3A)
+        if self.connected_threads is None:
+            self.connected_threads = {}
+        if self.connected_agent_results is None:
+            self.connected_agent_results = {}
         
         # Determine risk level from score
         if self.risk_score >= 80:

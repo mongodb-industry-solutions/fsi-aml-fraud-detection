@@ -45,7 +45,8 @@ function AgentEvaluationModal({
     performanceMetrics: {},
     connectionError: null,
     lastEventId: null,
-    processedEventIds: new Set()
+    processedEventIds: new Set(),
+    connectedAgents: []  // Phase 3A: Connected agent tracking
   });
   
   const pollingIntervalRef = useRef(null);
@@ -188,38 +189,48 @@ function AgentEvaluationModal({
       );
       
       if (response.data.events && response.data.events.length > 0) {
-        // Filter new events that haven't been processed
-        const newEvents = response.data.events.filter(event => 
-          event.id && !observabilityState.processedEventIds.has(event.id)
-        );
+        // Use functional update to get current state and avoid closure issues
+        setObservabilityState(prevState => {
+          // Filter new events that haven't been processed using current state
+          const newEvents = response.data.events.filter(event => 
+            event.id && !prevState.processedEventIds.has(event.id)
+          );
         
-        if (newEvents.length > 0) {
-          console.log(`🆕 Centralized processing ${newEvents.length} new events`);
-          
-          newEvents.forEach(event => {
-            console.log(`📝 Processing event: ${event.event_type} (ID: ${event.id})`);
-            handleObservabilityEvent(event);
-          });
-          
-          // Update processed event IDs and last event ID
-          const newProcessedIds = new Set(observabilityState.processedEventIds);
-          newEvents.forEach(event => newProcessedIds.add(event.id));
-          
-          const lastEvent = newEvents[newEvents.length - 1];
-          
-          // Fix: Update ref immediately for next poll
-          lastEventIdRef.current = lastEvent.id;
-          console.log(`✅ Updated lastEventId to: ${lastEvent.id}`);
-          
-          setObservabilityState(prev => ({
-            ...prev,
-            processedEventIds: newProcessedIds,
-            lastEventId: lastEvent.id,
-            connectionError: null
-          }));
-        } else {
-          console.log('📭 No new events (all processed)');
-        }
+          if (newEvents.length > 0) {
+            console.log(`🆕 Centralized processing ${newEvents.length} new events`);
+            
+            // Process each event and update state atomically
+            let updatedState = { ...prevState };
+            
+            newEvents.forEach(event => {
+              console.log(`📝 Processing event: ${event.event_type} (ID: ${event.id})`);
+              // Process event and update state
+              updatedState = processObservabilityEvent(event, updatedState);
+            });
+            
+            // Update processed event IDs and last event ID
+            const newProcessedIds = new Set(prevState.processedEventIds);
+            newEvents.forEach(event => newProcessedIds.add(event.id));
+            
+            const lastEvent = newEvents[newEvents.length - 1];
+            
+            // Fix: Update ref immediately for next poll
+            lastEventIdRef.current = lastEvent.id;
+            console.log(`✅ Updated lastEventId to: ${lastEvent.id}`);
+            
+            return {
+              ...updatedState,
+              processedEventIds: newProcessedIds,
+              lastEventId: lastEvent.id,
+              connectionError: null
+            };
+          } else {
+            console.log('📭 No new events (all processed)');
+            return prevState; // No changes
+          }
+        });
+      } else {
+        console.log('📭 No events received');
       }
     } catch (error) {
       console.error('❌ Centralized polling error:', error);
@@ -230,116 +241,160 @@ function AgentEvaluationModal({
     }
   };
 
-  const handleObservabilityEvent = (eventData) => {
+  // Atomic event processing function to prevent duplicates
+  const processObservabilityEvent = (eventData, currentState) => {
     const { event_type, data, timestamp, run_id, agent_id } = eventData;
     
-    // Add to events log
-    setObservabilityState(prev => ({
-      ...prev,
-      events: [
-        ...prev.events.slice(-99), // Keep last 100 events
+    // Start with current state
+    let updatedState = { ...currentState };
+    
+    // Add to events log (avoid duplicates by checking if already exists)
+    const eventExists = updatedState.events.some(existingEvent => existingEvent.id === eventData.id);
+    if (!eventExists) {
+      updatedState.events = [
+        ...updatedState.events.slice(-99), // Keep last 100 events
         { ...eventData, id: eventData.id || Date.now() + Math.random() }
-      ]
-    }));
+      ];
+    }
 
     // Update state based on event type
     switch (event_type) {
       case 'agent_run_started':
-        setObservabilityState(prev => ({
-          ...prev,
-          agentStatus: 'running',
-          currentRun: {
-            run_id,
-            agent_id,
-            started_at: timestamp,
-            status: 'in_progress'
-          }
-        }));
+        updatedState.agentStatus = 'running';
+        updatedState.currentRun = {
+          run_id,
+          agent_id,
+          started_at: timestamp,
+          status: 'in_progress'
+        };
         break;
 
       case 'agent_run_completed':
-        setObservabilityState(prev => ({
-          ...prev,
-          agentStatus: 'completed',
-          currentRun: prev.currentRun ? {
-            ...prev.currentRun,
-            completed_at: timestamp,
-            status: 'completed',
-            response: data.response
-          } : null
-        }));
+        updatedState.agentStatus = 'completed';
+        updatedState.currentRun = updatedState.currentRun ? {
+          ...updatedState.currentRun,
+          completed_at: timestamp,
+          status: 'completed',
+          response: data.response
+        } : null;
         break;
 
       case 'tool_call_initiated':
-        setObservabilityState(prev => ({
-          ...prev,
-          toolCalls: [
-            ...prev.toolCalls,
-            {
-              id: data.tool_call_id,
-              name: data.tool_name,
-              arguments: data.arguments,
-              status: 'initiated',
-              started_at: timestamp
-            }
-          ]
-        }));
+        updatedState.toolCalls = [
+          ...updatedState.toolCalls,
+          {
+            id: data.tool_call_id,
+            name: data.tool_name,
+            arguments: data.arguments,
+            status: 'initiated',
+            started_at: timestamp
+          }
+        ];
         break;
 
       case 'tool_call_completed':
-        setObservabilityState(prev => ({
-          ...prev,
-          toolCalls: prev.toolCalls.map(tc => 
-            tc.id === data.tool_call_id ? {
-              ...tc,
-              status: 'completed',
-              result: data.result,
-              execution_time_ms: data.execution_time_ms,
-              completed_at: timestamp
-            } : tc
-          )
-        }));
+        updatedState.toolCalls = updatedState.toolCalls.map(call =>
+          call.id === data.tool_call_id
+            ? {
+                ...call,
+                status: 'completed',
+                result: data.result,
+                completed_at: timestamp,
+                execution_time_ms: data.execution_time_ms
+              }
+            : call
+        );
         break;
 
       case 'decision_made':
-        setObservabilityState(prev => ({
-          ...prev,
-          decisions: [
-            ...prev.decisions,
-            {
-              id: eventData.id || Date.now() + Math.random(),
-              type: data.decision_type,
-              summary: data.decision_summary,
-              confidence: data.confidence_score,
-              reasoning: data.reasoning,
-              timestamp
-            }
-          ]
-        }));
+        const newDecision = {
+          run_id,
+          agent_id,
+          decision_type: data.decision_type,
+          decision_summary: data.decision_summary,
+          confidence_score: data.confidence_score,
+          reasoning: data.reasoning || [],
+          timestamp
+        };
+        
+        // Avoid duplicate decisions
+        const decisionExists = updatedState.decisions.some(d => 
+          d.run_id === run_id && d.timestamp === timestamp
+        );
+        if (!decisionExists) {
+          updatedState.decisions = [...updatedState.decisions, newDecision];
+        }
         break;
 
       case 'performance_metrics':
-        setObservabilityState(prev => ({
-          ...prev,
-          performanceMetrics: {
-            ...prev.performanceMetrics,
-            ...data,
-            last_updated: timestamp
-          }
-        }));
+        updatedState.performanceMetrics = {
+          ...updatedState.performanceMetrics,
+          [agent_id]: data
+        };
         break;
 
-      case 'status_update':
-        setObservabilityState(prev => ({
-          ...prev,
-          agentStatus: data.status
-        }));
+      // Connected Agent Events (Phase 3A)
+      case 'connected_agent_started':
+        updatedState.connectedAgents = [
+          ...updatedState.connectedAgents.filter(agent => 
+            agent.connected_thread_id !== data.connected_thread_id
+          ),
+          {
+            connected_agent_name: data.connected_agent_name,
+            connected_thread_id: data.connected_thread_id,
+            analysis_type: data.analysis_type,
+            status: data.status,
+            started_at: timestamp
+          }
+        ];
+        break;
+
+      case 'connected_agent_completed':
+        updatedState.connectedAgents = updatedState.connectedAgents.map(agent =>
+          agent.connected_thread_id === data.connected_thread_id
+            ? {
+                ...agent,
+                status: data.status,
+                analysis_results: data.analysis_results,
+                execution_time_ms: data.execution_time_ms,
+                completed_at: timestamp
+              }
+            : agent
+        );
+        break;
+
+      case 'connected_agent_progress':
+        updatedState.connectedAgents = updatedState.connectedAgents.map(agent =>
+          agent.connected_thread_id === data.connected_thread_id
+            ? {
+                ...agent,
+                progress_message: data.progress_message,
+                progress_percentage: data.progress_percentage,
+                status: 'in_progress'
+              }
+            : agent
+        );
+        break;
+
+      case 'connected_agent_failed':
+        updatedState.connectedAgents = updatedState.connectedAgents.map(agent =>
+          agent.connected_thread_id === data.connected_thread_id
+            ? {
+                ...agent,
+                status: 'failed',
+                error: data.error || 'Analysis failed'
+              }
+            : agent
+        );
         break;
 
       default:
-        console.log('📡 Received observability event:', event_type, data);
+        console.log('📡 Processed observability event:', event_type, data);
     }
+    
+    return updatedState;
   };
+
 
   const clearObservabilityHistory = async () => {
     try {
@@ -354,7 +409,8 @@ function AgentEvaluationModal({
         decisions: [],
         performanceMetrics: {},
         lastEventId: null,
-        processedEventIds: new Set()
+        processedEventIds: new Set(),
+        connectedAgents: []  // Phase 3A: Clear connected agents too
       }));
     } catch (error) {
       console.error('Failed to clear history:', error);
@@ -613,6 +669,117 @@ function AgentEvaluationModal({
                       <Badge variant="green" style={{ fontSize: '11px' }}>Event Timeline</Badge>
                     </div>
                   </Card>
+                  
+                  {/* Simulated Status Display */}
+                  <Card style={{ 
+                    marginBottom: spacing[3], 
+                    background: `linear-gradient(135deg, ${palette.blue.light3}, ${palette.white})`,
+                    border: `2px solid ${palette.blue.base}`
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2], marginBottom: spacing[3] }}>
+                      <Icon glyph="ActivityFeed" fill={palette.blue.base} size={20} />
+                      <H3 style={{ margin: 0, color: palette.blue.dark2 }}>
+                        Live Analysis Progress
+                      </H3>
+                      <Badge variant="blue" style={{ fontSize: '11px' }}>
+                        SIMULATED STATUS
+                      </Badge>
+                    </div>
+                    
+                    {/* Stage Progress Indicators */}
+                    <div style={{ marginBottom: spacing[3] }}>
+                      <div style={{ display: 'flex', alignItems: 'center', marginBottom: spacing[2] }}>
+                        <div style={{
+                          width: '24px',
+                          height: '24px',
+                          borderRadius: '50%',
+                          background: palette.green.base,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          marginRight: spacing[2]
+                        }}>
+                          <Icon glyph="Checkmark" fill={palette.white} size={16} />
+                        </div>
+                        <Body weight="medium" style={{ color: palette.green.dark2, flex: 1 }}>
+                          Stage 1: Rules + Basic ML Analysis
+                        </Body>
+                        <Badge variant="green" style={{ fontSize: '10px' }}>COMPLETED</Badge>
+                      </div>
+                      
+                      <div style={{ display: 'flex', alignItems: 'center', marginBottom: spacing[2] }}>
+                        <div style={{
+                          width: '24px',
+                          height: '24px',
+                          borderRadius: '50%',
+                          background: palette.yellow.base,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          marginRight: spacing[2],
+                          animation: 'pulse 2s infinite'
+                        }}>
+                          <div style={{
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            background: palette.white,
+                            animation: 'pulse 1s infinite'
+                          }} />
+                        </div>
+                        <Body weight="medium" style={{ color: palette.yellow.dark2, flex: 1 }}>
+                          Stage 2: AI Agent Analysis in Progress
+                        </Body>
+                        <Badge variant="yellow" style={{ fontSize: '10px' }}>IN PROGRESS</Badge>
+                      </div>
+                      
+                      <div style={{ marginLeft: spacing[4], paddingLeft: spacing[2], borderLeft: `2px solid ${palette.gray.light1}` }}>
+                        <div style={{ display: 'flex', alignItems: 'center', marginBottom: spacing[1] }}>
+                          <Icon glyph="Target" fill={palette.blue.base} size={16} />
+                          <Body size="small" style={{ color: palette.blue.dark1, marginLeft: spacing[1] }}>
+                            Analyzing transaction patterns...
+                          </Body>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', marginBottom: spacing[1] }}>
+                          <Icon glyph="MagnifyingGlass" fill={palette.purple.base} size={16} />
+                          <Body size="small" style={{ color: palette.purple.dark1, marginLeft: spacing[1] }}>
+                            Searching similar transactions...
+                          </Body>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', marginBottom: spacing[1] }}>
+                          <Icon glyph="Connect" fill={palette.purple.base} size={16} />
+                          <Body size="small" style={{ color: palette.purple.dark1, marginLeft: spacing[1] }}>
+                            Evaluating connected agent requirements...
+                          </Body>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Current Activity */}
+                    <div style={{ 
+                      background: `linear-gradient(135deg, ${palette.gray.light3}, ${palette.white})`,
+                      padding: spacing[2],
+                      borderRadius: '8px',
+                      border: `1px solid ${palette.gray.light1}`
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2] }}>
+                        <div style={{
+                          width: '16px',
+                          height: '16px',
+                          borderRadius: '50%',
+                          background: palette.blue.base,
+                          animation: 'pulse 1s infinite'
+                        }} />
+                        <Body size="small" weight="medium" style={{ color: palette.blue.dark2 }}>
+                          Azure AI Agent processing transaction...
+                        </Body>
+                      </div>
+                      <Body size="small" style={{ color: palette.gray.dark1, marginTop: spacing[1] }}>
+                        The AI agent is analyzing the transaction using strategic tool selection. 
+                        This process typically takes 2-5 seconds depending on complexity.
+                      </Body>
+                    </div>
+                  </Card>
                 </div>
               ) : agentResults ? (
                 // Enhanced results display
@@ -801,15 +968,15 @@ function AgentEvaluationModal({
                       </div>
                       <div>
                         <Body weight="bold" style={{ color: palette.blue.dark2, margin: 0 }}>
-                          Stage 1: ML Detection
+                          Stage 1: Rules + Basic ML
                         </Body>
                         <Body size="small" style={{ color: palette.blue.dark1, margin: 0 }}>
-                          Core risk assessment
+                          Fast triage (70-80% of transactions)
                         </Body>
                       </div>
                     </div>
                     <Body size="small" style={{ color: palette.blue.dark1, lineHeight: 1.4 }}>
-                      Machine learning models analyze transaction patterns, customer behavior, and risk indicators using advanced statistical algorithms
+                      Rules-based analysis combined with basic ML scoring for immediate approve/block decisions. Edge cases (25-85 risk score) proceed to Stage 2.
                     </Body>
                     <div style={{ marginTop: spacing[2], paddingTop: spacing[2], borderTop: `1px solid ${palette.blue.light1}` }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -847,20 +1014,20 @@ function AgentEvaluationModal({
                       </div>
                       <div>
                         <Body weight="bold" style={{ color: palette.purple.dark2, margin: 0 }}>
-                          Stage 2: Vector Analysis
+                          Stage 2: AI Agent Analysis
                         </Body>
                         <Body size="small" style={{ color: palette.purple.dark1, margin: 0 }}>
-                          Semantic similarity
+                          Deep investigation (20-30% of transactions)
                         </Body>
                       </div>
                     </div>
                     <Body size="small" style={{ color: palette.purple.dark1, lineHeight: 1.4 }}>
-                      Vector similarity search against known fraud patterns and suspicious transactions using embedding models
+                      Azure AI Foundry agent with strategic tool selection: transaction patterns, vector search, network analysis, sanctions checks, and connected SAR analysis.
                     </Body>
                     <div style={{ marginTop: spacing[2], paddingTop: spacing[2], borderTop: `1px solid ${palette.purple.light1}` }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <Body size="small" weight="medium" style={{ color: palette.purple.dark2 }}>Processing Time</Body>
-                        <Badge variant="lightgray" style={{ fontSize: '10px' }}>~150ms</Badge>
+                        <Badge variant="lightgray" style={{ fontSize: '10px' }}>~2-5s</Badge>
                       </div>
                     </div>
                   </div>
@@ -943,6 +1110,331 @@ function AgentEvaluationModal({
                       <Body size="small" weight="medium" style={{ color: palette.blue.dark2 }}>Pattern DB</Body>
                       <Badge variant="blue" style={{ fontSize: '10px' }}>50K+ patterns</Badge>
                     </div>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Connected Agent Architecture (Phase 3A) */}
+              <Card style={{ marginBottom: spacing[4] }}>
+                <H3 style={{ marginBottom: spacing[3], display: 'flex', alignItems: 'center', gap: spacing[2] }}>
+                  <Icon glyph="Connect" fill={palette.purple.base} />
+                  Connected Agent Architecture
+                  <Badge variant="lightgray" style={{ fontSize: '11px' }}>PHASE 3A</Badge>
+                </H3>
+                <Body style={{ color: palette.gray.dark1, marginBottom: spacing[3] }}>
+                  Multi-agent collaboration for complex fraud investigations using specialized connected agents.
+                </Body>
+                
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
+                  gap: spacing[3]
+                }}>
+                  {/* Main Agent */}
+                  <div style={{ 
+                    background: `linear-gradient(135deg, ${palette.blue.light3}, ${palette.blue.light2})`,
+                    padding: spacing[3],
+                    borderRadius: '8px',
+                    border: `2px solid ${palette.blue.base}`,
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: spacing[2] }}>
+                      <Icon glyph="Diagram" fill={palette.blue.base} size={20} />
+                      <Body weight="bold" style={{ color: palette.blue.dark2, marginLeft: spacing[1] }}>
+                        Primary Fraud Agent
+                      </Body>
+                    </div>
+                    <Body size="small" style={{ color: palette.blue.dark1, lineHeight: 1.4, marginBottom: spacing[2] }}>
+                      Orchestrates analysis with strategic tool selection using 4 custom functions plus Connected Agent capability
+                    </Body>
+                    <div style={{ paddingTop: spacing[1], borderTop: `1px solid ${palette.blue.light1}` }}>
+                      <Body size="small" weight="medium" style={{ color: palette.blue.dark2 }}>Function Tools: 4 + Connected Agents</Body>
+                    </div>
+                  </div>
+
+                  {/* Connected Agent */}
+                  <div style={{ 
+                    background: `linear-gradient(135deg, ${palette.purple.light3}, ${palette.purple.light2})`,
+                    padding: spacing[3],
+                    borderRadius: '8px',
+                    border: `2px solid ${palette.purple.base}`,
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: spacing[2] }}>
+                      <Icon glyph="File" fill={palette.purple.base} size={20} />
+                      <Body weight="bold" style={{ color: palette.purple.dark2, marginLeft: spacing[1] }}>
+                        SuspiciousReportsAgent
+                      </Body>
+                    </div>
+                    <Body size="small" style={{ color: palette.purple.dark1, lineHeight: 1.4, marginBottom: spacing[2] }}>
+                      Specialized SAR (Suspicious Activity Reports) analysis with file access and code interpreter capabilities
+                    </Body>
+                    <div style={{ paddingTop: spacing[1], borderTop: `1px solid ${palette.purple.light1}` }}>
+                      <Body size="small" weight="medium" style={{ color: palette.purple.dark2 }}>Tools: File Reader + Code Interpreter</Body>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Agent Communication Flow */}
+                <div style={{ 
+                  marginTop: spacing[4], 
+                  padding: spacing[3], 
+                  background: palette.gray.light3, 
+                  borderRadius: '8px',
+                  border: `1px solid ${palette.gray.light1}`
+                }}>
+                  <Body weight="bold" style={{ color: palette.gray.dark2, marginBottom: spacing[2] }}>
+                    Multi-Thread Communication Flow
+                  </Body>
+                  <Body size="small" style={{ color: palette.gray.dark1, lineHeight: 1.5 }}>
+                    1. Primary agent analyzes transaction and identifies complex patterns<br/>
+                    2. Creates dedicated thread for SuspiciousReportsAgent when criteria met<br/>
+                    3. Passes transaction context and preliminary findings<br/>
+                    4. SAR agent performs historical analysis and returns insights<br/>
+                    5. Primary agent integrates findings for final decision
+                  </Body>
+                </div>
+              </Card>
+
+              {/* Agent Tools Detail */}
+              <Card style={{ marginBottom: spacing[4] }}>
+                <H3 style={{ marginBottom: spacing[3], display: 'flex', alignItems: 'center', gap: spacing[2] }}>
+                  <Icon glyph="Wrench" fill={palette.green.base} />
+                  Agent Tools & Capabilities
+                </H3>
+                
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', 
+                  gap: spacing[4]
+                }}>
+                  {/* Primary Agent Tools */}
+                  <div>
+                    <div style={{ 
+                      background: `linear-gradient(135deg, ${palette.blue.light3}, ${palette.blue.light2})`,
+                      padding: spacing[3],
+                      borderRadius: '8px',
+                      border: `2px solid ${palette.blue.base}`,
+                      marginBottom: spacing[3]
+                    }}>
+                      <Body weight="bold" style={{ color: palette.blue.dark2, marginBottom: spacing[2] }}>
+                        🏛️ Primary Fraud Agent - Function Tools
+                      </Body>
+                    </div>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[2] }}>
+                      <div style={{ 
+                        background: palette.gray.light3, 
+                        padding: spacing[2], 
+                        borderRadius: '6px',
+                        borderLeft: `3px solid ${palette.green.base}`
+                      }}>
+                        <Body size="small" weight="bold" style={{ color: palette.gray.dark2 }}>
+                          analyze_transaction_patterns()
+                        </Body>
+                        <Body size="small" style={{ color: palette.gray.dark1 }}>
+                          Customer behavioral analysis and anomaly detection
+                        </Body>
+                      </div>
+                      
+                      <div style={{ 
+                        background: palette.gray.light3, 
+                        padding: spacing[2], 
+                        borderRadius: '6px',
+                        borderLeft: `3px solid ${palette.blue.base}`
+                      }}>
+                        <Body size="small" weight="bold" style={{ color: palette.gray.dark2 }}>
+                          search_similar_transactions()
+                        </Body>
+                        <Body size="small" style={{ color: palette.gray.dark1 }}>
+                          Vector similarity search against historical fraud patterns
+                        </Body>
+                      </div>
+                      
+                      <div style={{ 
+                        background: palette.gray.light3, 
+                        padding: spacing[2], 
+                        borderRadius: '6px',
+                        borderLeft: `3px solid ${palette.red.base}`
+                      }}>
+                        <Body size="small" weight="bold" style={{ color: palette.gray.dark2 }}>
+                          calculate_network_risk()
+                        </Body>
+                        <Body size="small" style={{ color: palette.gray.dark1 }}>
+                          Network analysis for fraud rings and suspicious connections
+                        </Body>
+                      </div>
+                      
+                      <div style={{ 
+                        background: palette.gray.light3, 
+                        padding: spacing[2], 
+                        borderRadius: '6px',
+                        borderLeft: `3px solid ${palette.yellow.base}`
+                      }}>
+                        <Body size="small" weight="bold" style={{ color: palette.gray.dark2 }}>
+                          check_sanctions_lists()
+                        </Body>
+                        <Body size="small" style={{ color: palette.gray.dark1 }}>
+                          PEP and sanctions screening for regulatory compliance
+                        </Body>
+                      </div>
+                      
+                      <div style={{ 
+                        background: palette.gray.light3, 
+                        padding: spacing[2], 
+                        borderRadius: '6px',
+                        borderLeft: `3px solid ${palette.purple.base}`
+                      }}>
+                        <Body size="small" weight="bold" style={{ color: palette.gray.dark2 }}>
+                          ConnectedAgentTool
+                        </Body>
+                        <Body size="small" style={{ color: palette.gray.dark1 }}>
+                          Ability to create and communicate with specialized connected agents
+                        </Body>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Connected Agent Tools */}
+                  <div>
+                    <div style={{ 
+                      background: `linear-gradient(135deg, ${palette.purple.light3}, ${palette.purple.light2})`,
+                      padding: spacing[3],
+                      borderRadius: '8px',
+                      border: `2px solid ${palette.purple.base}`,
+                      marginBottom: spacing[3]
+                    }}>
+                      <Body weight="bold" style={{ color: palette.purple.dark2, marginBottom: spacing[2] }}>
+                        📄 SuspiciousReportsAgent - Built-in Tools
+                      </Body>
+                    </div>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[2] }}>
+                      <div style={{ 
+                        background: palette.gray.light3, 
+                        padding: spacing[2], 
+                        borderRadius: '6px',
+                        borderLeft: `3px solid ${palette.purple.base}`
+                      }}>
+                        <Body size="small" weight="bold" style={{ color: palette.gray.dark2 }}>
+                          File Reader
+                        </Body>
+                        <Body size="small" style={{ color: palette.gray.dark1 }}>
+                          Access to historical SAR files and regulatory documents for pattern analysis
+                        </Body>
+                      </div>
+                      
+                      <div style={{ 
+                        background: palette.gray.light3, 
+                        padding: spacing[2], 
+                        borderRadius: '6px',
+                        borderLeft: `3px solid ${palette.purple.base}`
+                      }}>
+                        <Body size="small" weight="bold" style={{ color: palette.gray.dark2 }}>
+                          Code Interpreter
+                        </Body>
+                        <Body size="small" style={{ color: palette.gray.dark1 }}>
+                          Advanced data analysis and statistical computations for complex pattern matching
+                        </Body>
+                      </div>
+                      
+                      <div style={{ 
+                        background: `linear-gradient(135deg, ${palette.purple.light2}, ${palette.purple.light1})`, 
+                        padding: spacing[2], 
+                        borderRadius: '6px',
+                        border: `1px solid ${palette.purple.base}`
+                      }}>
+                        <Body size="small" weight="bold" style={{ color: palette.purple.dark2, marginBottom: spacing[1] }}>
+                          Specialization: Historical SAR Analysis
+                        </Body>
+                        <Body size="small" style={{ color: palette.purple.dark1 }}>
+                          Reviews historical suspicious activity reports to identify patterns and provide contextual analysis for current transactions
+                        </Body>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Tool Strategy Guide */}
+              <Card style={{ marginBottom: spacing[4] }}>
+                <H3 style={{ marginBottom: spacing[3], display: 'flex', alignItems: 'center', gap: spacing[2] }}>
+                  <Icon glyph="Bulb" fill={palette.yellow.base} />
+                  Strategic Tool Selection
+                </H3>
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
+                  gap: spacing[3]
+                }}>
+                  <div style={{ 
+                    background: `linear-gradient(135deg, ${palette.green.light3}, ${palette.green.light2})`,
+                    padding: spacing[3],
+                    borderRadius: '8px',
+                    borderLeft: `4px solid ${palette.green.base}`,
+                  }}>
+                    <Body weight="bold" style={{ color: palette.green.dark2, marginBottom: spacing[1] }}>
+                      analyze_transaction_patterns()
+                    </Body>
+                    <Body size="small" style={{ color: palette.green.dark1, lineHeight: 1.4 }}>
+                      Always used first - establishes customer behavioral baseline and identifies anomalies
+                    </Body>
+                  </div>
+                  
+                  <div style={{ 
+                    background: `linear-gradient(135deg, ${palette.blue.light3}, ${palette.blue.light2})`,
+                    padding: spacing[3],
+                    borderRadius: '8px',
+                    borderLeft: `4px solid ${palette.blue.base}`,
+                  }}>
+                    <Body weight="bold" style={{ color: palette.blue.dark2, marginBottom: spacing[1] }}>
+                      search_similar_transactions()
+                    </Body>
+                    <Body size="small" style={{ color: palette.blue.dark1, lineHeight: 1.4 }}>
+                      Vector similarity search - used when patterns appear anomalous for historical context
+                    </Body>
+                  </div>
+
+                  <div style={{ 
+                    background: `linear-gradient(135deg, ${palette.purple.light3}, ${palette.purple.light2})`,
+                    padding: spacing[3],
+                    borderRadius: '8px',
+                    borderLeft: `4px solid ${palette.purple.base}`,
+                  }}>
+                    <Body weight="bold" style={{ color: palette.purple.dark2, marginBottom: spacing[1] }}>
+                      SuspiciousReportsAgent
+                    </Body>
+                    <Body size="small" style={{ color: palette.purple.dark1, lineHeight: 1.4 }}>
+                      Called for high-value transactions ($10K+), multiple risk flags, or complex patterns
+                    </Body>
+                  </div>
+
+                  <div style={{ 
+                    background: `linear-gradient(135deg, ${palette.red.light3}, ${palette.red.light2})`,
+                    padding: spacing[3],
+                    borderRadius: '8px',
+                    borderLeft: `4px solid ${palette.red.base}`,
+                  }}>
+                    <Body weight="bold" style={{ color: palette.red.dark2, marginBottom: spacing[1] }}>
+                      calculate_network_risk()
+                    </Body>
+                    <Body size="small" style={{ color: palette.red.dark1, lineHeight: 1.4 }}>
+                      Network analysis for fraud rings and suspicious entity connections
+                    </Body>
+                  </div>
+
+                  <div style={{ 
+                    background: `linear-gradient(135deg, ${palette.yellow.light3}, ${palette.yellow.light2})`,
+                    padding: spacing[3],
+                    borderRadius: '8px',
+                    borderLeft: `4px solid ${palette.yellow.base}`,
+                  }}>
+                    <Body weight="bold" style={{ color: palette.yellow.dark2, marginBottom: spacing[1] }}>
+                      check_sanctions_lists()
+                    </Body>
+                    <Body size="small" style={{ color: palette.yellow.dark1, lineHeight: 1.4 }}>
+                      PEP and sanctions screening for compliance requirements
+                    </Body>
                   </div>
                 </div>
               </Card>

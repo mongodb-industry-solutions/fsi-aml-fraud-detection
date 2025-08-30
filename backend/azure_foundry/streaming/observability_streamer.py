@@ -29,6 +29,12 @@ class EventType(Enum):
     CONVERSATION_STARTED = "conversation_started"
     CONVERSATION_ENDED = "conversation_ended"
     
+    # Connected Agent Events (Phase 3A)
+    CONNECTED_AGENT_STARTED = "connected_agent_started"
+    CONNECTED_AGENT_COMPLETED = "connected_agent_completed"
+    CONNECTED_AGENT_FAILED = "connected_agent_failed"
+    CONNECTED_AGENT_PROGRESS = "connected_agent_progress"
+    
     STATUS_UPDATE = "status_update"
     ERROR_OCCURRED = "error_occurred"
 
@@ -320,6 +326,80 @@ class ObservabilityStreamer:
                 "error_type": error_type,
                 "error_message": error_message,
                 "stack_trace": stack_trace
+            }
+        )
+        await self.emit_event(event)
+    
+    # Connected Agent Event Methods (Phase 3A)
+    async def emit_connected_agent_started(
+        self,
+        thread_id: str,
+        run_id: str,
+        connected_agent_name: str,
+        connected_thread_id: str,
+        analysis_type: str = "SAR Analysis"
+    ):
+        """Emit connected agent started event"""
+        event = ObservabilityEvent(
+            event_type=EventType.CONNECTED_AGENT_STARTED,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            thread_id=thread_id,
+            run_id=run_id,
+            data={
+                "connected_agent_name": connected_agent_name,
+                "connected_thread_id": connected_thread_id,
+                "analysis_type": analysis_type,
+                "status": "started"
+            }
+        )
+        await self.emit_event(event)
+    
+    async def emit_connected_agent_completed(
+        self,
+        thread_id: str,
+        run_id: str,
+        connected_agent_name: str,
+        connected_thread_id: str,
+        analysis_results: Dict[str, Any],
+        execution_time_ms: float = None
+    ):
+        """Emit connected agent completed event"""
+        event = ObservabilityEvent(
+            event_type=EventType.CONNECTED_AGENT_COMPLETED,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            thread_id=thread_id,
+            run_id=run_id,
+            data={
+                "connected_agent_name": connected_agent_name,
+                "connected_thread_id": connected_thread_id,
+                "analysis_results": analysis_results,
+                "execution_time_ms": execution_time_ms,
+                "status": "completed"
+            }
+        )
+        await self.emit_event(event)
+    
+    async def emit_connected_agent_progress(
+        self,
+        thread_id: str,
+        run_id: str,
+        connected_agent_name: str,
+        connected_thread_id: str,
+        progress_message: str,
+        progress_percentage: Optional[float] = None
+    ):
+        """Emit connected agent progress event"""
+        event = ObservabilityEvent(
+            event_type=EventType.CONNECTED_AGENT_PROGRESS,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            thread_id=thread_id,
+            run_id=run_id,
+            data={
+                "connected_agent_name": connected_agent_name,
+                "connected_thread_id": connected_thread_id,
+                "progress_message": progress_message,
+                "progress_percentage": progress_percentage,
+                "status": "in_progress"
             }
         )
         await self.emit_event(event)

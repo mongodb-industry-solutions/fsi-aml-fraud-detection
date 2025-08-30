@@ -16,6 +16,7 @@ import { ToolCallProgress } from './ToolCallProgress';
 import { DecisionTracker } from './DecisionTracker';
 import { PerformanceMetrics } from './PerformanceMetrics';
 import { EventLog } from './EventLog';
+import { ConnectedAgentStatus } from './ConnectedAgentStatus';
 
 const AgentObservabilityDashboard = ({ 
   observabilityState = {},
@@ -42,7 +43,8 @@ const AgentObservabilityDashboard = ({
     toolCalls = [],
     decisions = [],
     performanceMetrics = {},
-    connectionError = null
+    connectionError = null,
+    connectedAgents = []  // Phase 3A: Connected agent tracking
   } = observabilityState;
 
   const containerClasses = isEmbedded 
@@ -114,6 +116,9 @@ const AgentObservabilityDashboard = ({
               currentRun={currentRun}
               isConnected={isConnected}
             />
+
+            {/* Connected Agent Status (Phase 3A) */}
+            <ConnectedAgentStatus connectedAgents={connectedAgents} />
 
             {/* Tool Call Progress */}
             {toolCalls.length > 0 && (

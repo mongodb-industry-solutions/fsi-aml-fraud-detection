@@ -268,7 +268,8 @@ class NativeConversationHandler:
                     merchant_category=arguments.get("merchant_category", ""),
                     location_city=arguments.get("location_city", ""),
                     customer_id=arguments.get("customer_id", ""),
-                    limit=arguments.get("limit", 10)
+                    days_lookback=arguments.get("days_lookback", 180),
+                    location_country=arguments.get("location_country", "")
                 )
             else:
                 result = {"error": f"Unknown function: {function_name}"}

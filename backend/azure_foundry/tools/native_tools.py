@@ -37,6 +37,55 @@ class FraudDetectionTools:
         
         logger.info("✅ FraudDetectionTools initialized with native patterns")
     
+    def build_tool_selection_guidance(self, transaction, stage1_result) -> str:
+        """Build intelligent tool selection guidance based on transaction context and Stage 1 findings"""
+        
+        guidance_parts = []
+        
+        # Always start with transaction patterns
+        guidance_parts.append("🔍 START: Use analyze_transaction_patterns() - essential baseline for any edge case")
+        
+        # High-value transaction guidance
+        if transaction.amount > 5000:
+            guidance_parts.append("💰 HIGH VALUE: Consider check_sanctions_lists() for AML compliance on large transactions")
+            guidance_parts.append("🌐 NETWORK RISK: Consider calculate_network_risk() - high-value transactions may indicate fraud rings")
+        
+        # Stage 1 anomaly-based guidance  
+        if hasattr(stage1_result, 'rule_flags') and stage1_result.rule_flags:
+            if any('velocity' in str(flag).lower() for flag in stage1_result.rule_flags):
+                guidance_parts.append("⚡ VELOCITY SPIKE: Use calculate_network_risk() to check for coordinated attacks")
+            if any('location' in str(flag).lower() or 'geographic' in str(flag).lower() for flag in stage1_result.rule_flags):
+                guidance_parts.append("📍 LOCATION ANOMALY: Use search_similar_transactions() to validate if location pattern is normal")
+            if any('amount' in str(flag).lower() for flag in stage1_result.rule_flags):
+                guidance_parts.append("💵 AMOUNT ANOMALY: Use search_similar_transactions() to confirm if amount is truly unusual")
+        
+        # Merchant category guidance
+        high_risk_merchants = ['money_transfer', 'cash_advance', 'cryptocurrency', 'gambling']
+        if transaction.merchant_category in high_risk_merchants:
+            guidance_parts.append("⚠️ HIGH-RISK MERCHANT: Use search_similar_transactions() to identify potential fraud patterns")
+            guidance_parts.append("🔒 COMPLIANCE: Use check_sanctions_lists() for regulatory requirements")
+        
+        # Geographic risk guidance  
+        high_risk_countries = ['XX', 'RU', 'CN', 'IR', 'KP']  # Example high-risk countries
+        if transaction.location_country in high_risk_countries:
+            guidance_parts.append("🌍 HIGH-RISK GEOGRAPHY: Strongly consider check_sanctions_lists() for compliance")
+            guidance_parts.append("🕸️ NETWORK ANALYSIS: Use calculate_network_risk() to identify international fraud networks")
+        
+        # Score-based guidance
+        if stage1_result.combined_score > 60:
+            guidance_parts.append("🚨 HIGH STAGE 1 SCORE: Multiple tools recommended - this needs comprehensive analysis")
+        elif stage1_result.combined_score < 40:
+            guidance_parts.append("✅ LOWER RISK: Focus on search_similar_transactions() to validate normalcy - other tools optional")
+        
+        # Build final guidance
+        if guidance_parts:
+            guidance = "TOOL SELECTION STRATEGY for this specific transaction:\n" + "\n".join(f"  {part}" for part in guidance_parts)
+            guidance += "\n\nREMEMBER: Use results from each tool to decide if additional analysis would add value."
+        else:
+            guidance = "TOOL SELECTION: Start with analyze_transaction_patterns(), then choose additional tools based on findings."
+            
+        return guidance
+    
     def get_function_definitions(self) -> Set:
         """
         Create function set following Azure AI Foundry standards.
@@ -143,7 +192,9 @@ class FraudDetectionTools:
             transaction_amount: float,
             merchant_category: str,
             customer_id: str = None,
-            days_lookback: int = 90
+            days_lookback: int = 90,
+            location_city: str = None,
+            location_country: str = None
         ) -> dict:
             """
             Search for similar transactions using vector similarity and pattern matching.
@@ -168,7 +219,8 @@ class FraudDetectionTools:
                 - confidence: Confidence in the similarity assessment (0-1)
             """
             return self._search_similar_transactions_impl(
-                transaction_amount, merchant_category, customer_id, days_lookback
+                transaction_amount, merchant_category, customer_id, days_lookback,
+                location_city, location_country
             )
         
         # Return the function set for Azure AI Foundry
@@ -381,7 +433,9 @@ class FraudDetectionTools:
         transaction_amount: float,
         merchant_category: str, 
         customer_id: str,
-        days_lookback: int
+        days_lookback: int,
+        location_city: str = None,
+        location_country: str = None
     ) -> dict:
         """Implementation of similar transaction search with async-to-sync wrapper"""
         try:

@@ -58,7 +58,8 @@ class TwoStageAgentCore:
         # Native Azure AI Foundry components (Phase 2 enhancements)
         self.conversation_handler: NativeConversationHandler = None
         self.mongodb_vector_store = None
-        self.fraud_toolset = None
+        self.fraud_toolset = None  # List of FunctionTool objects for agent creation
+        self.fraud_tools_instance = None  # FraudDetectionTools instance for guidance methods
         
         # Thread management for conversation memory
         self.thread_cache: Dict[str, str] = {}  # transaction_id -> thread_id
@@ -140,7 +141,9 @@ class TwoStageAgentCore:
             # Setup vector indexes for learning patterns
             await self.mongodb_vector_store.setup_vector_indexes()            
             
-            # Create fraud detection tools
+            # Create fraud detection tools instance and toolset
+            from azure_foundry.tools.native_tools import FraudDetectionTools
+            self.fraud_tools_instance = FraudDetectionTools(self.db_client, fraud_service)
             fraud_tools = create_fraud_toolset(
                 db_client=self.db_client,
                 fraud_service=fraud_service
@@ -149,7 +152,7 @@ class TwoStageAgentCore:
             # Create connected agent tools
             connected_tools = create_connected_agent_toolset()
             
-            # Combine all tools
+            # Combine all tools for agent creation
             self.fraud_toolset = fraud_tools + connected_tools
             
             logger.info(f"✅ Combined toolset: {len(fraud_tools)} fraud tools + {len(connected_tools)} connected agents")
@@ -161,6 +164,7 @@ class TwoStageAgentCore:
             # Continue in degraded mode for demo purposes
             self.mongodb_vector_store = None
             self.fraud_toolset = None
+            self.fraud_tools_instance = None
     
     async def _init_azure_agent(self):
         """Get existing Azure AI Foundry agent or create new one if needed"""
@@ -304,7 +308,8 @@ class TwoStageAgentCore:
                     thread_id=thread_id,
                     agent_id=self.agent_id,
                     conversation_handler=self.conversation_handler,  # Pass native handler
-                    fraud_toolset=self.fraud_toolset  # CRITICAL: Pass fraud tools for reused agents
+                    fraud_toolset=self.fraud_toolset,  # CRITICAL: Pass fraud tools for reused agents
+                    fraud_tools_instance=self.fraud_tools_instance  # Pass instance for tool selection guidance
                 )
                 
                 logger.info(

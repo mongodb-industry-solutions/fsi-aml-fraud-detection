@@ -243,6 +243,76 @@ async def chat_with_agent(
         logger.error(f"Chat failed: {e}")
         raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
 
+@router.get("/thread/{thread_id}/messages", summary="Get Thread Messages")
+async def get_thread_messages(
+    thread_id: str,
+    limit: int = 10,
+    service: AgentService = Depends(get_agent_service)
+):
+    """
+    Retrieve messages from an Azure AI Foundry thread
+    
+    This endpoint returns the full conversation history including:
+    - Original detailed prompts sent to the agent
+    - Complete AI responses (not summarized versions)
+    - Message metadata and timestamps
+    """
+    try:
+        # Get the agent's agents client
+        if not service._initialized or not service.agent:
+            raise RuntimeError("Agent service not initialized")
+        
+        agents_client = service.agent.agents_client
+        if not agents_client:
+            raise RuntimeError("Azure AI Foundry client not available")
+        
+        # Retrieve messages from the thread
+        messages = agents_client.messages.list(
+            thread_id=thread_id,
+            limit=limit
+        )
+        
+        # Convert messages to a serializable format
+        formatted_messages = []
+        for msg in messages:
+            message_data = {
+                "id": msg.id,
+                "role": msg.role,
+                "content": [],
+                "created_at": msg.created_at.isoformat() if hasattr(msg, 'created_at') and msg.created_at else None,
+                "thread_id": msg.thread_id
+            }
+            
+            # Extract content based on message type
+            if hasattr(msg, 'content') and msg.content:
+                for content_block in msg.content:
+                    if hasattr(content_block, 'text') and content_block.text:
+                        message_data["content"].append({
+                            "type": "text",
+                            "text": content_block.text.value if hasattr(content_block.text, 'value') else str(content_block.text)
+                        })
+                    else:
+                        # Handle other content types
+                        message_data["content"].append({
+                            "type": "unknown",
+                            "text": str(content_block)
+                        })
+            
+            formatted_messages.append(message_data)
+        
+        return {
+            "thread_id": thread_id,
+            "messages": formatted_messages,
+            "total_count": len(formatted_messages)
+        }
+        
+    except RuntimeError as e:
+        logger.error(f"Thread messages retrieval error: {e}")
+        raise HTTPException(status_code=503, detail="Agent service not available")
+    except Exception as e:
+        logger.error(f"Failed to retrieve thread messages: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve messages: {str(e)}")
+
 @router.delete("/cleanup", summary="Cleanup Agent Resources")
 async def cleanup_agent():
     """Cleanup agent resources"""

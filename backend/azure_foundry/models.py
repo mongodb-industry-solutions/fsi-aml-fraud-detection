@@ -55,6 +55,10 @@ class Stage1Result:
             self.combined_score = (self.rule_score * 0.6) + (self.basic_ml_score * 0.4)
         else:
             self.combined_score = self.rule_score
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for storage/API responses"""
+        return asdict(self)
 
 
 @dataclass
@@ -70,6 +74,14 @@ class Stage2Result:
     def __post_init__(self):
         if self.pattern_insights is None:
             self.pattern_insights = []
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for storage/API responses"""
+        result = asdict(self)
+        # Convert enum to string if present
+        if self.ai_recommendation:
+            result['ai_recommendation'] = self.ai_recommendation.value
+        return result
 
 
 @dataclass
@@ -115,6 +127,11 @@ class AgentDecision:
         result['risk_level'] = self.risk_level.value
         # Convert datetime to ISO string
         result['timestamp'] = self.timestamp.isoformat()
+        # Convert stage results using their to_dict methods
+        if self.stage1_result:
+            result['stage1_result'] = self.stage1_result.to_dict()
+        if self.stage2_result:
+            result['stage2_result'] = self.stage2_result.to_dict()
         return result
 
 

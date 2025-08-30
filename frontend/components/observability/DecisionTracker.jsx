@@ -9,6 +9,10 @@ import React, { useState } from 'react';
 import Badge from '@leafygreen-ui/badge';
 import Button from '@leafygreen-ui/button';
 import Icon from '@leafygreen-ui/icon';
+import Card from '@leafygreen-ui/card';
+import { Body, H3 } from '@leafygreen-ui/typography';
+import { palette } from '@leafygreen-ui/palette';
+import { spacing } from '@leafygreen-ui/tokens';
 
 export const DecisionTracker = ({ decisions }) => {
   const [expandedDecision, setExpandedDecision] = useState(null);
@@ -49,15 +53,15 @@ export const DecisionTracker = ({ decisions }) => {
   }
 
   return (
-    <div className="bg-gray-50 rounded-lg p-3 border">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-semibold text-sm text-gray-800">Agent Decisions</h3>
-        <Badge variant="purple" className="text-xs">
+    <Card style={{ background: palette.gray.light3, padding: spacing[3] }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing[3] }}>
+        <H3 style={{ margin: 0, fontSize: '14px', color: palette.gray.dark3 }}>Agent Decisions</H3>
+        <Badge variant="purple" style={{ fontSize: '11px' }}>
           {decisions.length} decisions
         </Badge>
       </div>
 
-      <div className="space-y-2">
+      <div>
         {decisions.map((decision) => {
           const confidenceConfig = getConfidenceConfig(decision.confidence);
           const isExpanded = expandedDecision === decision.id;
@@ -65,34 +69,53 @@ export const DecisionTracker = ({ decisions }) => {
           return (
             <div
               key={decision.id}
-              className="bg-white rounded-md border p-3 transition-all duration-200"
+              style={{
+                background: palette.white,
+                borderRadius: '6px',
+                border: `1px solid ${palette.gray.light2}`,
+                padding: spacing[3],
+                marginBottom: spacing[2],
+                transition: 'all 0.2s ease'
+              }}
             >
               {/* Decision Header */}
-              <div className="flex items-start justify-between">
-                <div className="flex items-start space-x-3 flex-1">
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: spacing[3], flex: 1 }}>
                   <Icon 
                     glyph={getDecisionTypeIcon(decision.type)} 
-                    size="small"
-                    className="mt-0.5" 
+                    size={16}
+                    fill={palette.blue.base}
+                    style={{ marginTop: '2px' }}
                   />
 
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-1">
-                      <span className="font-medium text-sm text-gray-800">
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2], marginBottom: spacing[1] }}>
+                      <Body weight="medium" size="small" style={{ 
+                        margin: 0, 
+                        color: palette.gray.dark3 
+                      }}>
                         {formatDecisionType(decision.type)}
-                      </span>
-                      <Badge variant={confidenceConfig.color} className="text-xs">
+                      </Body>
+                      <Badge variant={confidenceConfig.color} style={{ fontSize: '11px' }}>
                         {confidenceConfig.label} ({Math.round(decision.confidence * 100)}%)
                       </Badge>
                     </div>
 
-                    <div className="text-sm text-gray-600 mb-2">
+                    <Body size="small" style={{ 
+                      margin: 0, 
+                      color: palette.gray.dark1,
+                      marginBottom: spacing[2]
+                    }}>
                       {decision.summary}
-                    </div>
+                    </Body>
 
-                    <div className="text-xs text-gray-500">
+                    <Body size="small" style={{ 
+                      margin: 0, 
+                      color: palette.gray.dark1,
+                      fontSize: '11px'
+                    }}>
                       {new Date(decision.timestamp).toLocaleTimeString()}
-                    </div>
+                    </Body>
                   </div>
                 </div>
 
@@ -100,52 +123,94 @@ export const DecisionTracker = ({ decisions }) => {
                   size="xsmall"
                   variant="default"
                   onClick={() => toggleDecisionExpansion(decision.id)}
-                >
-                  <Icon 
-                    glyph={isExpanded ? "ChevronUp" : "ChevronDown"} 
-                    size="small" 
-                  />
-                </Button>
+                  leftGlyph={<Icon glyph={isExpanded ? "ChevronUp" : "ChevronDown"} />}
+                />
               </div>
 
               {/* Confidence Score Bar */}
-              <div className="mt-3 mb-2">
-                <div className="flex items-center justify-between text-xs mb-1">
-                  <span className="text-gray-500">Confidence Level</span>
-                  <span className="font-medium">{Math.round(decision.confidence * 100)}%</span>
+              <div style={{ marginTop: spacing[3], marginBottom: spacing[2] }}>
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between', 
+                  fontSize: '11px', 
+                  marginBottom: spacing[1] 
+                }}>
+                  <Body size="small" style={{ color: palette.gray.dark1, margin: 0 }}>
+                    Confidence Level
+                  </Body>
+                  <Body weight="medium" size="small" style={{ margin: 0 }}>
+                    {Math.round(decision.confidence * 100)}%
+                  </Body>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
+                <div style={{ 
+                  width: '100%', 
+                  background: palette.gray.light2, 
+                  borderRadius: '8px', 
+                  height: '8px' 
+                }}>
                   <div
-                    className={`h-2 rounded-full transition-all duration-300 ${
-                      confidenceConfig.color === 'green' ? 'bg-green-500' :
-                      confidenceConfig.color === 'blue' ? 'bg-blue-500' :
-                      confidenceConfig.color === 'yellow' ? 'bg-yellow-500' :
-                      confidenceConfig.color === 'orange' ? 'bg-orange-500' :
-                      'bg-red-500'
-                    }`}
-                    style={{ width: `${decision.confidence * 100}%` }}
+                    style={{
+                      height: '8px',
+                      borderRadius: '8px',
+                      transition: 'all 0.3s ease',
+                      width: `${decision.confidence * 100}%`,
+                      background: confidenceConfig.color === 'green' ? palette.green.base :
+                                confidenceConfig.color === 'blue' ? palette.blue.base :
+                                confidenceConfig.color === 'yellow' ? palette.yellow.base :
+                                confidenceConfig.color === 'red' ? palette.red.base :
+                                palette.red.base
+                    }}
                   />
                 </div>
               </div>
 
               {/* Expanded Decision Details */}
               {isExpanded && (
-                <div className="mt-3 pt-3 border-t border-gray-100 space-y-3">
+                <div style={{ 
+                  marginTop: spacing[3], 
+                  paddingTop: spacing[3], 
+                  borderTop: `1px solid ${palette.gray.light2}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: spacing[3]
+                }}>
                   {/* Reasoning Chain */}
                   {decision.reasoning && decision.reasoning.length > 0 && (
                     <div>
-                      <div className="text-xs font-medium text-gray-600 mb-2">
+                      <Body size="small" weight="medium" style={{ 
+                        color: palette.gray.dark2, 
+                        margin: `0 0 ${spacing[2]}px 0`,
+                        fontSize: '11px'
+                      }}>
                         Reasoning Chain:
-                      </div>
-                      <div className="space-y-2">
+                      </Body>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[2] }}>
                         {decision.reasoning.map((reason, index) => (
-                          <div key={index} className="flex items-start space-x-2">
-                            <div className="flex-shrink-0 w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center text-xs font-medium text-blue-600 mt-0.5">
+                          <div key={index} style={{ display: 'flex', alignItems: 'flex-start', gap: spacing[2] }}>
+                            <div style={{
+                              flexShrink: 0,
+                              width: '20px',
+                              height: '20px',
+                              background: palette.blue.light3,
+                              borderRadius: '50%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '11px',
+                              fontWeight: 'medium',
+                              color: palette.blue.dark2,
+                              marginTop: '2px'
+                            }}>
                               {index + 1}
                             </div>
-                            <div className="text-sm text-gray-700 flex-1">
+                            <Body size="small" style={{ 
+                              color: palette.gray.dark2, 
+                              margin: 0, 
+                              flex: 1 
+                            }}>
                               {reason}
-                            </div>
+                            </Body>
                           </div>
                         ))}
                       </div>
@@ -153,33 +218,61 @@ export const DecisionTracker = ({ decisions }) => {
                   )}
 
                   {/* Decision Details */}
-                  <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: '1fr 1fr', 
+                    gap: spacing[4], 
+                    fontSize: '11px' 
+                  }}>
                     <div>
-                      <span className="text-gray-500">Decision Type:</span>
-                      <div className="font-medium text-gray-700">
+                      <Body size="small" style={{ color: palette.gray.dark1, margin: 0 }}>
+                        Decision Type:
+                      </Body>
+                      <Body size="small" weight="medium" style={{ 
+                        color: palette.gray.dark2, 
+                        margin: 0 
+                      }}>
                         {formatDecisionType(decision.type)}
-                      </div>
+                      </Body>
                     </div>
                     <div>
-                      <span className="text-gray-500">Timestamp:</span>
-                      <div className="font-mono text-gray-700">
+                      <Body size="small" style={{ color: palette.gray.dark1, margin: 0 }}>
+                        Timestamp:
+                      </Body>
+                      <Body size="small" style={{ 
+                        fontFamily: 'monospace', 
+                        color: palette.gray.dark2, 
+                        margin: 0 
+                      }}>
                         {new Date(decision.timestamp).toLocaleString()}
-                      </div>
+                      </Body>
                     </div>
                   </div>
 
                   {/* Confidence Analysis */}
-                  <div className="bg-gray-50 rounded p-2">
-                    <div className="text-xs font-medium text-gray-600 mb-1">
+                  <div style={{ 
+                    background: palette.gray.light3, 
+                    borderRadius: '4px', 
+                    padding: spacing[2] 
+                  }}>
+                    <Body size="small" weight="medium" style={{ 
+                      color: palette.gray.dark2, 
+                      margin: `0 0 ${spacing[1]}px 0`,
+                      fontSize: '11px'
+                    }}>
                       Confidence Analysis:
-                    </div>
-                    <div className="text-xs text-gray-600">
+                    </Body>
+                    <Body size="small" style={{ 
+                      color: palette.gray.dark2, 
+                      margin: 0,
+                      fontSize: '11px'
+                    }}>
                       The agent expressed <strong>{confidenceConfig.label.toLowerCase()}</strong> confidence 
                       ({Math.round(decision.confidence * 100)}%) in this {formatDecisionType(decision.type).toLowerCase()}.
                       {decision.confidence >= 0.8 && " This indicates high reliability in the assessment."}
                       {decision.confidence < 0.8 && decision.confidence >= 0.6 && " This suggests moderate reliability with some uncertainty."}
                       {decision.confidence < 0.6 && " This indicates lower reliability and may require human review."}
-                    </div>
+                    </Body>
                   </div>
                 </div>
               )}
@@ -189,25 +282,44 @@ export const DecisionTracker = ({ decisions }) => {
       </div>
 
       {/* Decision Summary */}
-      <div className="mt-3 pt-3 border-t border-gray-200">
-        <div className="grid grid-cols-2 gap-4 text-xs">
+      <div style={{ 
+        marginTop: spacing[3], 
+        paddingTop: spacing[3], 
+        borderTop: `1px solid ${palette.gray.light2}` 
+      }}>
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: '1fr 1fr', 
+          gap: spacing[4], 
+          fontSize: '11px' 
+        }}>
           <div>
-            <span className="text-gray-500">Average Confidence:</span>
-            <div className="font-medium text-gray-700">
+            <Body size="small" style={{ color: palette.gray.dark1, margin: 0 }}>
+              Average Confidence:
+            </Body>
+            <Body size="small" weight="medium" style={{ 
+              color: palette.gray.dark2, 
+              margin: 0 
+            }}>
               {decisions.length > 0 
                 ? Math.round((decisions.reduce((sum, d) => sum + d.confidence, 0) / decisions.length) * 100)
                 : 0
               }%
-            </div>
+            </Body>
           </div>
           <div>
-            <span className="text-gray-500">High Confidence:</span>
-            <div className="font-medium text-gray-700">
+            <Body size="small" style={{ color: palette.gray.dark1, margin: 0 }}>
+              High Confidence:
+            </Body>
+            <Body size="small" weight="medium" style={{ 
+              color: palette.gray.dark2, 
+              margin: 0 
+            }}>
               {decisions.filter(d => d.confidence >= 0.7).length} of {decisions.length}
-            </div>
+            </Body>
           </div>
         </div>
       </div>
-    </div>
+    </Card>
   );
 };

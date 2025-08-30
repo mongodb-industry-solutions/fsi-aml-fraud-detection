@@ -64,7 +64,8 @@ class Stage2Analyzer:
         thread_id: str,
         agent_id: str,
         conversation_handler=None,
-        fraud_toolset=None
+        fraud_toolset=None,
+        fraud_tools_instance=None
     ) -> Stage2Result:
         """
         Perform Stage 2 analysis: vector search + AI analysis
@@ -108,7 +109,8 @@ class Stage2Analyzer:
                 thread_id=thread_id,
                 agent_id=agent_id,
                 conversation_handler=conversation_handler,
-                fraud_toolset=fraud_toolset
+                fraud_toolset=fraud_toolset,
+                fraud_tools_instance=fraud_tools_instance
             )
             
             logger.debug(f"AI analysis complete: recommendation={ai_recommendation}")
@@ -180,7 +182,8 @@ class Stage2Analyzer:
         thread_id: str,
         agent_id: str,
         conversation_handler=None,
-        fraud_toolset=None
+        fraud_toolset=None,
+        fraud_tools_instance=None
     ) -> Tuple[str, Optional[DecisionType]]:
         """
         Use Azure AI Foundry agent for sophisticated analysis
@@ -192,7 +195,7 @@ class Stage2Analyzer:
         try:
             # Build comprehensive context for AI analysis
             context = self._build_ai_context(
-                transaction, stage1_result, similar_transactions, similarity_breakdown
+                transaction, stage1_result, similar_transactions, similarity_breakdown, fraud_tools_instance
             )
             
             # Use conversation handler if available, otherwise use agents client
@@ -226,7 +229,8 @@ class Stage2Analyzer:
         transaction: TransactionInput,
         stage1_result: Stage1Result,
         similar_transactions: List[Dict],
-        similarity_breakdown: Dict
+        similarity_breakdown: Dict,
+        fraud_tools_instance=None
     ) -> str:
         """Build comprehensive context for AI analysis"""
         
@@ -267,25 +271,35 @@ Similar Transaction Patterns:
         else:
             context += "\nNo significantly similar transactions found.\n"
         
+        
+        # Build strategic tool selection guidance using the fraud tools instance
+        tool_guidance = ""
+        if fraud_tools_instance:
+            tool_guidance = fraud_tools_instance.build_tool_selection_guidance(transaction, stage1_result)
+        else:
+            tool_guidance = "TOOL SELECTION: Start with analyze_transaction_patterns(), then choose additional tools based on findings."
+        
         context += f"""
 
-ANALYSIS REQUEST:
+STRATEGIC ANALYSIS REQUEST:
 This transaction scored {stage1_result.combined_score:.1f}/100 in our initial analysis, 
 placing it in the edge case category that requires deeper investigation.
 
-Please analyze this transaction considering:
-1. Pattern evolution - could this be a new fraud technique?
-2. Customer behavior context from similar transactions
-3. Risk factors that rule-based systems might miss
-4. Temporal and network patterns
+{tool_guidance}
 
-Based on your analysis, provide:
-1. A clear risk assessment
-2. Your recommendation: APPROVE, INVESTIGATE, ESCALATE, or BLOCK
-3. Specific reasoning for your decision
-4. Key risk factors or reassuring patterns you identified
+ANALYSIS APPROACH:
+1. Start with analyze_transaction_patterns() to understand customer baseline
+2. Based on those results, intelligently select additional tools that will provide meaningful insights
+3. Use findings from each tool to inform whether further analysis is needed
+4. Make your final decision based on the complete picture
 
-Focus on actionable insights that can help prevent fraud while minimizing false positives.
+Based on your strategic analysis, provide:
+1. A clear risk assessment citing specific tool findings
+2. Your recommendation: APPROVE, INVESTIGATE, ESCALATE, or BLOCK  
+3. Explanation of your tool selection strategy and key findings
+4. Specific risk factors or reassuring patterns from your analysis
+
+Focus on efficient, targeted analysis that maximizes insight while minimizing unnecessary tool usage.
 """
         
         return context

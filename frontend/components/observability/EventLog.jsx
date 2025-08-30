@@ -9,6 +9,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import Badge from '@leafygreen-ui/badge';
 import Button from '@leafygreen-ui/button';
 import Icon from '@leafygreen-ui/icon';
+import Card from '@leafygreen-ui/card';
+import { Body, H3 } from '@leafygreen-ui/typography';
+import { palette } from '@leafygreen-ui/palette';
+import { spacing } from '@leafygreen-ui/tokens';
 
 export const EventLog = ({ events, isConnected, onClear }) => {
   const [isAutoScroll, setIsAutoScroll] = useState(true);
@@ -25,29 +29,29 @@ export const EventLog = ({ events, isConnected, onClear }) => {
   const getEventIcon = (eventType) => {
     switch (eventType) {
       case 'agent_run_started':
-        return { icon: 'Play', color: 'text-blue-600' };
+        return { icon: 'Play', color: palette.blue.base };
       case 'agent_run_completed':
-        return { icon: 'Checkmark', color: 'text-green-600' };
+        return { icon: 'Checkmark', color: palette.green.base };
       case 'agent_run_failed':
-        return { icon: 'X', color: 'text-red-600' };
+        return { icon: 'X', color: palette.red.base };
       case 'tool_call_initiated':
-        return { icon: 'Refresh', color: 'text-blue-600' };
+        return { icon: 'Refresh', color: palette.blue.base };
       case 'tool_call_completed':
-        return { icon: 'CheckmarkWithCircle', color: 'text-green-600' };
+        return { icon: 'CheckmarkWithCircle', color: palette.green.base };
       case 'tool_call_failed':
-        return { icon: 'Warning', color: 'text-red-600' };
+        return { icon: 'Warning', color: palette.red.base };
       case 'decision_made':
-        return { icon: 'Bulb', color: 'text-purple-600' };
+        return { icon: 'Bulb', color: palette.purple.base };
       case 'performance_metrics':
-        return { icon: 'ChartLine', color: 'text-orange-600' };
+        return { icon: 'Charts', color: palette.yellow.base };
       case 'status_update':
-        return { icon: 'InfoWithCircle', color: 'text-blue-600' };
+        return { icon: 'InfoWithCircle', color: palette.blue.base };
       case 'error_occurred':
-        return { icon: 'Warning', color: 'text-red-600' };
+        return { icon: 'Warning', color: palette.red.base };
       case 'connection_established':
-        return { icon: 'Connect', color: 'text-green-600' };
+        return { icon: 'Connect', color: palette.green.base };
       default:
-        return { icon: 'Calendar', color: 'text-gray-600' };
+        return { icon: 'Calendar', color: palette.gray.base };
     }
   };
 
@@ -58,33 +62,45 @@ export const EventLog = ({ events, isConnected, onClear }) => {
   const formatEventData = (event) => {
     const { event_type, data } = event;
 
-    switch (event_type) {
-      case 'agent_run_started':
-        return `Started processing: "${data.message?.substring(0, 50)}..."`;
-      
-      case 'agent_run_completed':
-        return `Completed successfully: ${data.response?.length || 0} character response`;
-      
-      case 'tool_call_initiated':
-        return `Initiated ${data.tool_name} with ${Object.keys(data.arguments || {}).length} parameters`;
-      
-      case 'tool_call_completed':
-        return `Completed ${data.tool_name} in ${data.execution_time_ms?.toFixed(0)}ms`;
-      
-      case 'decision_made':
-        return `Made ${data.decision_type} with ${Math.round(data.confidence_score * 100)}% confidence`;
-      
-      case 'performance_metrics':
-        return `Execution time: ${data.total_execution_time_ms?.toFixed(0)}ms`;
-      
-      case 'status_update':
-        return data.message || `Status: ${data.status}`;
-      
-      case 'error_occurred':
-        return `Error: ${data.error_message}`;
-      
-      default:
-        return JSON.stringify(data, null, 2);
+    try {
+      switch (event_type) {
+        case 'agent_run_started':
+          return `Started processing: "${data?.message?.substring(0, 50)}..."`;
+        
+        case 'agent_run_completed':
+          return `Completed successfully: ${data?.response?.length || 0} character response`;
+        
+        case 'tool_call_initiated':
+          return `Initiated ${data?.tool_name} with ${Object.keys(data?.arguments || {}).length} parameters`;
+        
+        case 'tool_call_completed':
+          return `Completed ${data?.tool_name} in ${data?.execution_time_ms?.toFixed(0)}ms`;
+        
+        case 'decision_made':
+          return `Made ${data?.decision_type} with ${Math.round((data?.confidence_score || 0) * 100)}% confidence`;
+        
+        case 'performance_metrics':
+          return `Execution time: ${data?.total_execution_time_ms?.toFixed(0)}ms`;
+        
+        case 'status_update':
+          return data?.message || `Status: ${data?.status}`;
+        
+        case 'error_occurred':
+          return `Error: ${data?.error_message}`;
+        
+        default:
+          // Better formatting for unknown event types
+          if (typeof data === 'object' && data !== null) {
+            const keys = Object.keys(data);
+            if (keys.length === 0) return 'No additional data';
+            if (keys.length === 1) return `${keys[0]}: ${data[keys[0]]}`;
+            return keys.slice(0, 3).map(key => `${key}: ${data[key]}`).join(', ') + 
+                   (keys.length > 3 ? '...' : '');
+          }
+          return String(data);
+      }
+    } catch (error) {
+      return 'Error parsing event data';
     }
   };
 
@@ -107,41 +123,47 @@ export const EventLog = ({ events, isConnected, onClear }) => {
 
   if (!events.length) {
     return (
-      <div className="bg-gray-50 rounded-lg p-3 border">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-sm text-gray-800">Event Log</h3>
-          <Badge variant={isConnected ? 'green' : 'red'} className="text-xs">
+      <Card style={{ background: palette.gray.light3, padding: spacing[3] }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing[3] }}>
+          <H3 style={{ margin: 0, fontSize: '14px', color: palette.gray.dark3 }}>Event Log</H3>
+          <Badge variant={isConnected ? 'green' : 'red'} style={{ fontSize: '11px' }}>
             {isConnected ? 'Live' : 'Disconnected'}
           </Badge>
         </div>
-        <div className="text-center text-gray-500 text-sm py-6">
-          No events yet. Waiting for agent activity...
+        <div style={{ textAlign: 'center', color: palette.gray.dark1, padding: `${spacing[4]}px 0` }}>
+          <Body size="small">No events yet. Waiting for agent activity...</Body>
         </div>
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className="bg-gray-50 rounded-lg p-3 border">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-semibold text-sm text-gray-800">Event Log</h3>
-        <div className="flex items-center space-x-2">
-          <Badge variant="blue" className="text-xs">
+    <Card style={{ background: palette.gray.light3, padding: spacing[3] }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing[3] }}>
+        <H3 style={{ margin: 0, fontSize: '14px', color: palette.gray.dark3 }}>Event Log</H3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2] }}>
+          <Badge variant="blue" style={{ fontSize: '11px' }}>
             {filteredEvents.length} events
           </Badge>
-          <Badge variant={isConnected ? 'green' : 'red'} className="text-xs">
+          <Badge variant={isConnected ? 'green' : 'red'} style={{ fontSize: '11px' }}>
             {isConnected ? 'Live' : 'Disconnected'}
           </Badge>
         </div>
       </div>
 
       {/* Controls */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center space-x-2">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing[3] }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2] }}>
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
-            className="text-xs border border-gray-300 rounded px-2 py-1"
+            style={{ 
+              fontSize: '12px', 
+              border: `1px solid ${palette.gray.light2}`, 
+              borderRadius: '4px', 
+              padding: `${spacing[1]}px ${spacing[2]}px`,
+              background: palette.white
+            }}
           >
             <option value="all">All Events</option>
             <option value="runs">Runs</option>
@@ -153,13 +175,14 @@ export const EventLog = ({ events, isConnected, onClear }) => {
           </select>
         </div>
         
-        <div className="flex items-center space-x-2">
+        <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2] }}>
           <Button
             size="xsmall"
             variant={isAutoScroll ? "primary" : "default"}
             onClick={() => setIsAutoScroll(!isAutoScroll)}
+            leftGlyph={<Icon glyph={isAutoScroll ? "Pause" : "Play"} />}
           >
-            <Icon glyph={isAutoScroll ? "Pause" : "Play"} size="small" />
+            {isAutoScroll ? 'Pause' : 'Play'}
           </Button>
           <Button
             size="xsmall"
@@ -175,48 +198,81 @@ export const EventLog = ({ events, isConnected, onClear }) => {
       {/* Event Log Container */}
       <div
         ref={logContainerRef}
-        className="bg-white rounded border max-h-64 overflow-y-auto"
+        style={{ 
+          background: palette.white, 
+          borderRadius: '4px', 
+          border: `1px solid ${palette.gray.light2}`, 
+          maxHeight: '300px', 
+          overflowY: 'auto' 
+        }}
       >
         {filteredEvents.length === 0 ? (
-          <div className="text-center text-gray-500 text-sm py-4">
-            No events match the current filter
+          <div style={{ textAlign: 'center', color: palette.gray.dark1, padding: spacing[4] }}>
+            <Body size="small">No events match the current filter</Body>
           </div>
         ) : (
-          <div className="divide-y divide-gray-100">
-            {filteredEvents.map((event) => {
+          <div>
+            {filteredEvents.map((event, index) => {
               const eventConfig = getEventIcon(event.event_type);
               
               return (
                 <div
                   key={event.id}
-                  className="p-3 hover:bg-gray-50 transition-colors duration-150"
+                  style={{
+                    padding: spacing[3],
+                    borderBottom: index < filteredEvents.length - 1 ? `1px solid ${palette.gray.light2}` : 'none',
+                    cursor: 'default'
+                  }}
+                  onMouseEnter={(e) => e.target.style.background = palette.gray.light3}
+                  onMouseLeave={(e) => e.target.style.background = 'transparent'}
                 >
-                  <div className="flex items-start space-x-3">
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: spacing[2] }}>
                     <Icon
                       glyph={eventConfig.icon}
-                      size="small"
-                      className={`${eventConfig.color} mt-0.5 flex-shrink-0`}
+                      size={16}
+                      fill={eventConfig.color}
+                      style={{ marginTop: '2px', flexShrink: 0 }}
                     />
                     
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="text-xs font-medium text-gray-800 truncate">
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing[1] }}>
+                        <Body size="small" weight="medium" style={{ 
+                          color: palette.gray.dark3, 
+                          margin: 0,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}>
                           {getEventTypeLabel(event.event_type)}
-                        </div>
-                        <div className="text-xs text-gray-500 flex-shrink-0 ml-2">
+                        </Body>
+                        <Body size="small" style={{ 
+                          color: palette.gray.dark1, 
+                          margin: 0,
+                          flexShrink: 0,
+                          marginLeft: spacing[2]
+                        }}>
                           {event.timestamp ? new Date(event.timestamp).toLocaleTimeString() : 'Unknown'}
-                        </div>
+                        </Body>
                       </div>
                       
-                      <div className="text-xs text-gray-600 break-words">
+                      <Body size="small" style={{ 
+                        color: palette.gray.dark1, 
+                        margin: 0,
+                        wordBreak: 'break-word',
+                        lineHeight: 1.4
+                      }}>
                         {formatEventData(event)}
-                      </div>
+                      </Body>
                       
                       {/* Additional Context */}
                       {event.run_id && (
-                        <div className="text-xs text-gray-400 mt-1 font-mono">
+                        <Body size="small" style={{ 
+                          color: palette.gray.base, 
+                          margin: `${spacing[1]}px 0 0 0`,
+                          fontFamily: 'monospace',
+                          fontSize: '11px'
+                        }}>
                           Run: {event.run_id.substring(0, 8)}...
-                        </div>
+                        </Body>
                       )}
                     </div>
                   </div>
@@ -228,19 +284,34 @@ export const EventLog = ({ events, isConnected, onClear }) => {
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-200 text-xs text-gray-500">
-        <div>
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'space-between', 
+        marginTop: spacing[3], 
+        paddingTop: spacing[3], 
+        borderTop: `1px solid ${palette.gray.light2}`,
+        fontSize: '12px',
+        color: palette.gray.dark1
+      }}>
+        <Body size="small" style={{ margin: 0, color: palette.gray.dark1 }}>
           Showing {filteredEvents.length} of {events.length} events
-        </div>
-        <div className="flex items-center space-x-2">
+        </Body>
+        <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2] }}>
           {isAutoScroll && (
-            <div className="flex items-center space-x-1">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span>Auto-scroll</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+              <div style={{
+                width: '8px',
+                height: '8px',
+                background: palette.green.base,
+                borderRadius: '50%',
+                animation: 'pulse 2s ease-in-out infinite'
+              }} />
+              <Body size="small" style={{ margin: 0, color: palette.gray.dark1 }}>Auto-scroll</Body>
             </div>
           )}
         </div>
       </div>
-    </div>
+    </Card>
   );
 };

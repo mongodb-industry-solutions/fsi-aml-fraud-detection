@@ -10,6 +10,10 @@ import Badge from '@leafygreen-ui/badge';
 import Button from '@leafygreen-ui/button';
 import { Spinner } from '@leafygreen-ui/loading-indicator';
 import Icon from '@leafygreen-ui/icon';
+import Card from '@leafygreen-ui/card';
+import { Body, H3 } from '@leafygreen-ui/typography';
+import { palette } from '@leafygreen-ui/palette';
+import { spacing } from '@leafygreen-ui/tokens';
 
 export const ToolCallProgress = ({ toolCalls, isActive }) => {
   const [expandedTool, setExpandedTool] = useState(null);
@@ -59,8 +63,8 @@ export const ToolCallProgress = ({ toolCalls, isActive }) => {
     return `${(timeMs / 1000).toFixed(1)}s`;
   };
 
-  const toggleToolExpansion = (toolId) => {
-    setExpandedTool(expandedTool === toolId ? null : toolId);
+  const toggleToolExpansion = (uniqueKey) => {
+    setExpandedTool(expandedTool === uniqueKey ? null : uniqueKey);
   };
 
   if (!toolCalls.length) {
@@ -68,78 +72,112 @@ export const ToolCallProgress = ({ toolCalls, isActive }) => {
   }
 
   return (
-    <div className="bg-gray-50 rounded-lg p-3 border">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-semibold text-sm text-gray-800">Tool Calls</h3>
-        <Badge variant="blue" className="text-xs">
+    <Card style={{ background: palette.gray.light3, padding: spacing[3] }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing[3] }}>
+        <H3 style={{ margin: 0, fontSize: '14px', color: palette.gray.dark3 }}>Tool Calls</H3>
+        <Badge variant="blue" style={{ fontSize: '11px' }}>
           {toolCalls.length} tools
         </Badge>
       </div>
 
-      <div className="space-y-2">
-        {toolCalls.map((toolCall) => {
+      <div>
+        {toolCalls.map((toolCall, index) => {
           const statusConfig = getToolStatusConfig(toolCall.status);
-          const isExpanded = expandedTool === toolCall.id;
+          // Create unique key combining tool_call_id with status and index
+          const uniqueKey = `${toolCall.id}-${toolCall.status}-${index}`;
+          const isExpanded = expandedTool === uniqueKey;
 
           return (
             <div
-              key={toolCall.id}
-              className="bg-white rounded-md border p-3 transition-all duration-200"
+              key={uniqueKey}
+              style={{
+                background: palette.white,
+                borderRadius: '6px',
+                border: `1px solid ${palette.gray.light2}`,
+                padding: spacing[3],
+                marginBottom: spacing[2],
+                transition: 'all 0.2s ease'
+              }}
             >
               {/* Tool Header */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3 flex-1">
-                  <div className="flex items-center space-x-2">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: spacing[3], flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2] }}>
                     {statusConfig.showSpinner ? (
                       <Spinner size="small" />
                     ) : (
-                      <Icon glyph={statusConfig.icon} size="small" />
+                      <Icon glyph={statusConfig.icon} size={16} fill={statusConfig.color === 'green' ? palette.green.base : statusConfig.color === 'red' ? palette.red.base : palette.blue.base} />
                     )}
-                    <Badge variant={statusConfig.color} className="text-xs">
+                    <Badge variant={statusConfig.color} style={{ fontSize: '11px' }}>
                       {statusConfig.label}
                     </Badge>
                   </div>
 
-                  <div className="flex-1">
-                    <div className="font-medium text-sm text-gray-800">
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <Body weight="medium" size="small" style={{ 
+                      margin: 0, 
+                      color: palette.gray.dark3,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}>
                       {formatToolName(toolCall.name)}
-                    </div>
-                    <div className="text-xs text-gray-500">
+                    </Body>
+                    <Body size="small" style={{ 
+                      margin: 0, 
+                      color: palette.gray.dark1,
+                      fontSize: '11px'
+                    }}>
                       {toolCall.started_at && 
                         `Started: ${new Date(toolCall.started_at).toLocaleTimeString()}`
                       }
                       {toolCall.execution_time_ms && (
-                        <span className="ml-2">
+                        <span style={{ marginLeft: spacing[1] }}>
                           Duration: {formatExecutionTime(toolCall.execution_time_ms)}
                         </span>
                       )}
-                    </div>
+                    </Body>
                   </div>
                 </div>
 
                 <Button
                   size="xsmall"
                   variant="default"
-                  onClick={() => toggleToolExpansion(toolCall.id)}
-                >
-                  <Icon 
-                    glyph={isExpanded ? "ChevronUp" : "ChevronDown"} 
-                    size="small" 
-                  />
-                </Button>
+                  onClick={() => toggleToolExpansion(uniqueKey)}
+                  leftGlyph={<Icon glyph={isExpanded ? "ChevronUp" : "ChevronDown"} />}
+                />
               </div>
 
               {/* Expanded Tool Details */}
               {isExpanded && (
-                <div className="mt-3 pt-3 border-t border-gray-100 space-y-3">
+                <div style={{ 
+                  marginTop: spacing[3], 
+                  paddingTop: spacing[3], 
+                  borderTop: `1px solid ${palette.gray.light2}` 
+                }}>
                   {/* Arguments */}
                   {toolCall.arguments && (
-                    <div>
-                      <div className="text-xs font-medium text-gray-600 mb-1">
+                    <div style={{ marginBottom: spacing[3] }}>
+                      <Body size="small" weight="medium" style={{ 
+                        color: palette.gray.dark2, 
+                        margin: `0 0 ${spacing[1]}px 0`,
+                        fontSize: '11px'
+                      }}>
                         Arguments:
-                      </div>
-                      <div className="bg-gray-50 rounded p-2 font-mono text-xs overflow-x-auto">
-                        <pre className="whitespace-pre-wrap">
+                      </Body>
+                      <div style={{ 
+                        background: palette.gray.light3, 
+                        borderRadius: '4px', 
+                        padding: spacing[2], 
+                        fontFamily: 'monospace', 
+                        fontSize: '11px', 
+                        overflowX: 'auto' 
+                      }}>
+                        <pre style={{ 
+                          whiteSpace: 'pre-wrap', 
+                          margin: 0, 
+                          color: palette.gray.dark3 
+                        }}>
                           {JSON.stringify(toolCall.arguments, null, 2)}
                         </pre>
                       </div>
@@ -148,12 +186,29 @@ export const ToolCallProgress = ({ toolCalls, isActive }) => {
 
                   {/* Result */}
                   {toolCall.result && toolCall.status === 'completed' && (
-                    <div>
-                      <div className="text-xs font-medium text-gray-600 mb-1">
+                    <div style={{ marginBottom: spacing[3] }}>
+                      <Body size="small" weight="medium" style={{ 
+                        color: palette.gray.dark2, 
+                        margin: `0 0 ${spacing[1]}px 0`,
+                        fontSize: '11px'
+                      }}>
                         Result:
-                      </div>
-                      <div className="bg-green-50 rounded p-2 font-mono text-xs overflow-x-auto max-h-32 overflow-y-auto">
-                        <pre className="whitespace-pre-wrap text-green-800">
+                      </Body>
+                      <div style={{ 
+                        background: palette.green.light3, 
+                        borderRadius: '4px', 
+                        padding: spacing[2], 
+                        fontFamily: 'monospace', 
+                        fontSize: '11px', 
+                        overflowX: 'auto',
+                        maxHeight: '128px',
+                        overflowY: 'auto'
+                      }}>
+                        <pre style={{ 
+                          whiteSpace: 'pre-wrap', 
+                          margin: 0, 
+                          color: palette.green.dark2 
+                        }}>
                           {typeof toolCall.result === 'string' 
                             ? toolCall.result 
                             : JSON.stringify(toolCall.result, null, 2)
@@ -165,32 +220,59 @@ export const ToolCallProgress = ({ toolCalls, isActive }) => {
 
                   {/* Error */}
                   {toolCall.status === 'failed' && toolCall.error && (
-                    <div>
-                      <div className="text-xs font-medium text-red-600 mb-1">
+                    <div style={{ marginBottom: spacing[3] }}>
+                      <Body size="small" weight="medium" style={{ 
+                        color: palette.red.base, 
+                        margin: `0 0 ${spacing[1]}px 0`,
+                        fontSize: '11px'
+                      }}>
                         Error:
-                      </div>
-                      <div className="bg-red-50 rounded p-2 text-xs text-red-700">
+                      </Body>
+                      <div style={{ 
+                        background: palette.red.light3, 
+                        borderRadius: '4px', 
+                        padding: spacing[2], 
+                        fontSize: '11px', 
+                        color: palette.red.dark2 
+                      }}>
                         {toolCall.error}
                       </div>
                     </div>
                   )}
 
                   {/* Timing Details */}
-                  <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: '1fr 1fr', 
+                    gap: spacing[2], 
+                    fontSize: '11px' 
+                  }}>
                     {toolCall.started_at && (
                       <div>
-                        <span className="text-gray-500">Started:</span>
-                        <div className="font-mono text-gray-700">
+                        <Body size="small" style={{ color: palette.gray.dark1, margin: 0 }}>
+                          Started:
+                        </Body>
+                        <Body size="small" style={{ 
+                          fontFamily: 'monospace', 
+                          color: palette.gray.dark2, 
+                          margin: 0 
+                        }}>
                           {new Date(toolCall.started_at).toLocaleString()}
-                        </div>
+                        </Body>
                       </div>
                     )}
                     {toolCall.completed_at && (
                       <div>
-                        <span className="text-gray-500">Completed:</span>
-                        <div className="font-mono text-gray-700">
+                        <Body size="small" style={{ color: palette.gray.dark1, margin: 0 }}>
+                          Completed:
+                        </Body>
+                        <Body size="small" style={{ 
+                          fontFamily: 'monospace', 
+                          color: palette.gray.dark2, 
+                          margin: 0 
+                        }}>
                           {new Date(toolCall.completed_at).toLocaleString()}
-                        </div>
+                        </Body>
                       </div>
                     )}
                   </div>
@@ -202,28 +284,58 @@ export const ToolCallProgress = ({ toolCalls, isActive }) => {
       </div>
 
       {/* Summary */}
-      <div className="mt-3 pt-3 border-t border-gray-200">
-        <div className="grid grid-cols-3 gap-4 text-xs">
-          <div className="text-center">
-            <div className="font-medium text-blue-600">
+      <div style={{ 
+        marginTop: spacing[3], 
+        paddingTop: spacing[3], 
+        borderTop: `1px solid ${palette.gray.light2}` 
+      }}>
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: '1fr 1fr 1fr', 
+          gap: spacing[2], 
+          textAlign: 'center'
+        }}>
+          <div>
+            <Body weight="medium" style={{ 
+              color: palette.blue.base, 
+              margin: 0,
+              fontSize: '18px',
+              lineHeight: 1
+            }}>
               {toolCalls.filter(tc => tc.status === 'initiated').length}
-            </div>
-            <div className="text-gray-500">Running</div>
+            </Body>
+            <Body size="small" style={{ color: palette.gray.dark1, margin: 0, fontSize: '11px' }}>
+              Running
+            </Body>
           </div>
-          <div className="text-center">
-            <div className="font-medium text-green-600">
+          <div>
+            <Body weight="medium" style={{ 
+              color: palette.green.base, 
+              margin: 0,
+              fontSize: '18px',
+              lineHeight: 1
+            }}>
               {toolCalls.filter(tc => tc.status === 'completed').length}
-            </div>
-            <div className="text-gray-500">Completed</div>
+            </Body>
+            <Body size="small" style={{ color: palette.gray.dark1, margin: 0, fontSize: '11px' }}>
+              Completed
+            </Body>
           </div>
-          <div className="text-center">
-            <div className="font-medium text-red-600">
+          <div>
+            <Body weight="medium" style={{ 
+              color: palette.red.base, 
+              margin: 0,
+              fontSize: '18px',
+              lineHeight: 1
+            }}>
               {toolCalls.filter(tc => tc.status === 'failed').length}
-            </div>
-            <div className="text-gray-500">Failed</div>
+            </Body>
+            <Body size="small" style={{ color: palette.gray.dark1, margin: 0, fontSize: '11px' }}>
+              Failed
+            </Body>
           </div>
         </div>
       </div>
-    </div>
+    </Card>
   );
 };

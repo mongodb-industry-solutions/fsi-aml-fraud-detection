@@ -434,7 +434,7 @@ Important: Always include "Recommendation: [DECISION]" explicitly in your respon
             messages = agents_client.messages.list(thread_id=thread_id, order="desc", limit=10)
             
             # Find the last assistant message (final agent response)
-            for message in messages.data:
+            for message in messages:
                 if message.role == "assistant" and message.content:
                     # Get the text content from the message
                     if hasattr(message.content, '__iter__'):

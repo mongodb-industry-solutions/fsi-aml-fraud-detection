@@ -341,7 +341,7 @@ class TwoStageAgentCore:
                         thread_id=thread_id,
                         transaction_id=transaction.transaction_id,
                         transaction_data=transaction_data,
-                        stage1_result=stage1_result.__dict__
+                        stage1_result=stage1_result.to_dict()
                     )
                 
                 # Store historical decision for meta-learning (if vector store available)
@@ -397,8 +397,8 @@ class TwoStageAgentCore:
                         transaction_id=transaction.transaction_id,
                         transaction_data=transaction_data,
                         messages=conversation_messages,
-                        stage1_result=stage1_result.__dict__,
-                        stage2_result=stage2_result.__dict__
+                        stage1_result=stage1_result.to_dict(),
+                        stage2_result=stage2_result.to_dict()
                     )
                 
                 # Make final decision combining Stage 1 and Stage 2 results
@@ -695,8 +695,8 @@ class TwoStageAgentCore:
                 agent_decision=decision_dict,
                 transaction_data=transaction_data,
                 context={
-                    "stage1_analysis": final_decision.stage1_result.__dict__ if final_decision.stage1_result else None,
-                    "stage2_analysis": final_decision.stage2_result.__dict__ if final_decision.stage2_result else None
+                    "stage1_analysis": final_decision.stage1_result.to_dict() if final_decision.stage1_result else None,
+                    "stage2_analysis": final_decision.stage2_result.to_dict() if final_decision.stage2_result else None
                 }
             )
             

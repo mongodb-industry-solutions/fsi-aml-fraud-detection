@@ -141,12 +141,21 @@ const AgentArchitectureGraph = ({
         path.push('final-decision');
       }
       
-      // Add final outcome
-      const decision = agentResults.decision?.toLowerCase();
-      if (decision === 'approve') path.push('outcome-approve');
-      else if (decision === 'investigate') path.push('outcome-investigate');
-      else if (decision === 'escalate') path.push('outcome-escalate');
-      else if (decision === 'block') path.push('outcome-block');
+      // Add final outcome based on stage and decision
+      const decision = agentResults.decision?.toUpperCase();
+      const stage = agentResults.stage_completed;
+      
+      if (stage === 1) {
+        // Stage 1 outcomes (auto-approve/auto-block)
+        if (decision === 'APPROVE') path.push('outcome-auto-approve');
+        else if (decision === 'BLOCK') path.push('outcome-auto-block');
+      } else if (stage === 2) {
+        // Stage 2 outcomes (AI decisions)
+        if (decision === 'APPROVE') path.push('outcome-approve');
+        else if (decision === 'INVESTIGATE') path.push('outcome-investigate');
+        else if (decision === 'ESCALATE') path.push('outcome-escalate');
+        else if (decision === 'BLOCK') path.push('outcome-block');
+      }
       
     } else if (loading) {
       // Analysis in progress - show current stage
@@ -250,7 +259,7 @@ const AgentArchitectureGraph = ({
         confidence: 85,
         stage: 1,
         isActive: activePath.has('outcome-auto-approve'),
-        isCompleted: activePath.has('outcome-auto-approve') && agentResults
+        isCompleted: agentResults?.decision === 'APPROVE' && agentResults?.stage_completed === 1
       }
     },
     
@@ -264,7 +273,7 @@ const AgentArchitectureGraph = ({
         confidence: 90,
         stage: 1,
         isActive: activePath.has('outcome-auto-block'),
-        isCompleted: activePath.has('outcome-auto-block') && agentResults
+        isCompleted: agentResults?.decision === 'BLOCK' && agentResults?.stage_completed === 1
       }
     },
     
@@ -424,7 +433,7 @@ const AgentArchitectureGraph = ({
         confidence: agentResults?.confidence ? Math.round(agentResults.confidence * 100) : 82,
         stage: 2,
         isActive: false, // activePath.has('outcome-approve'),
-        isCompleted: agentResults?.decision === 'APPROVE'
+        isCompleted: agentResults?.decision === 'APPROVE' && agentResults?.stage_completed === 2
       }
     },
     
@@ -438,7 +447,7 @@ const AgentArchitectureGraph = ({
         confidence: agentResults?.confidence ? Math.round(agentResults.confidence * 100) : 70,
         stage: 2,
         isActive: false, // activePath.has('outcome-investigate'),
-        isCompleted: agentResults?.decision === 'INVESTIGATE'
+        isCompleted: agentResults?.decision === 'INVESTIGATE' && agentResults?.stage_completed === 2
       }
     },
     
@@ -452,7 +461,7 @@ const AgentArchitectureGraph = ({
         confidence: agentResults?.confidence ? Math.round(agentResults.confidence * 100) : 85,
         stage: 2,
         isActive: false, // activePath.has('outcome-escalate'),
-        isCompleted: agentResults?.decision === 'ESCALATE'
+        isCompleted: agentResults?.decision === 'ESCALATE' && agentResults?.stage_completed === 2
       }
     },
     
@@ -466,7 +475,7 @@ const AgentArchitectureGraph = ({
         confidence: agentResults?.confidence ? Math.round(agentResults.confidence * 100) : 88,
         stage: 2,
         isActive: false, // activePath.has('outcome-block'),
-        isCompleted: agentResults?.decision === 'BLOCK'
+        isCompleted: agentResults?.decision === 'BLOCK' && agentResults?.stage_completed === 2
       }
     }
   ], [activePath, agentResults, loading, processingStage, stage2Progress, transactionData, isFullscreen]);

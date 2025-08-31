@@ -1231,6 +1231,7 @@ Device: ${transactionData.device_info?.type || 'N/A'}, ${transactionData.device_
                 id="device-type"
                 onChange={value => setCustomDevice({...customDevice, type: value})}
                 value={customDevice.type}
+                aria-label="Select device type"
                 className={styles.narrowInput}
               >
                 <Option value="desktop">Desktop</Option>
@@ -1246,6 +1247,7 @@ Device: ${transactionData.device_info?.type || 'N/A'}, ${transactionData.device_
                 id="device-os"
                 onChange={value => setCustomDevice({...customDevice, os: value})}
                 value={customDevice.os}
+                aria-label="Select operating system"
                 className={styles.narrowInput}
               >
                 <Option value="Windows">Windows</Option>
@@ -1262,6 +1264,7 @@ Device: ${transactionData.device_info?.type || 'N/A'}, ${transactionData.device_
                 id="device-browser"
                 onChange={value => setCustomDevice({...customDevice, browser: value})}
                 value={customDevice.browser}
+                aria-label="Select browser"
                 className={styles.narrowInput}
               >
                 <Option value="Chrome">Chrome</Option>

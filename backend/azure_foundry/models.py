@@ -69,6 +69,7 @@ class Stage2Result:
     similarity_risk_score: float = 0.0  # 0-100
     ai_analysis_summary: str = ""
     ai_recommendation: Optional[DecisionType] = None
+    ai_risk_score: Optional[float] = None  # 0-100, AI's explicit risk assessment
     pattern_insights: List[str] = None
     processing_time_ms: float = 0.0
     

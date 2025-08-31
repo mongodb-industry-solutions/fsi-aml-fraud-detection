@@ -158,20 +158,23 @@ function AgentEvaluationModal({
         console.log('Sending transaction data to agent:', transactionData);
         console.log('🔄 Starting observability in waiting mode...');
         
-        // Call the agent API
+        // Call the agent API to start analysis (only gets thread_id, not final results)
         const response = await axios.post(`${API_BASE_URL}/api/agent/analyze`, transactionData);
-        console.log('Agent analysis response:', response.data);
         
-        // Extract thread ID for live observability
+        // Extract thread ID for live observability (but don't set results yet!)
         if (response.data.thread_id) {
           console.log('🔄 Thread ID available, starting live observability:', response.data.thread_id);
           setThreadId(response.data.thread_id);
+          setProcessingStage('AI analysis in progress...');
+          
+          // Start polling for the final decision after a delay to let conversation complete
+          setTimeout(() => {
+            fetchFinalDecision(response.data.thread_id);
+          }, 5000); // Wait 5 seconds for conversation to progress
+        } else {
+          console.error('❌ No thread ID received from analysis');
+          setError('Failed to start AI analysis - no thread ID received');
         }
-        
-        console.log('Setting agent results:', response.data);
-        setAgentResults(response.data);
-        setProcessingStage('');
-        console.log('Agent results set, should stop loading now');
         
         // Load memory data after analysis completes
         if (response.data.transaction_id) {
@@ -473,6 +476,46 @@ function AgentEvaluationModal({
     return updatedState;
   };
 
+  const fetchFinalDecision = async (threadId) => {
+    try {
+      console.log('🎯 Attempting to fetch final decision from thread:', threadId);
+      
+      const decisionResponse = await axios.get(`${API_BASE_URL}/api/agent/decision/${threadId}`);
+      console.log('✅ Final decision extracted:', decisionResponse.data);
+      
+      // Set the actual AI results (not calculated ones)
+      setAgentResults({
+        transaction_id: transactionData.transaction_id,
+        decision: decisionResponse.data.decision,
+        risk_level: decisionResponse.data.risk_level, 
+        risk_score: decisionResponse.data.risk_score,
+        thread_id: threadId,
+        reasoning: `AI Analysis: ${decisionResponse.data.ai_response_preview}`,
+        confidence: 0.95, // High confidence since this is direct from AI
+        stage_completed: 2,
+        processing_time_ms: 0,
+        extraction_source: decisionResponse.data.extraction_source
+      });
+      
+      setProcessingStage('');
+      setLoading(false);
+      console.log('✅ Final AI decision set successfully');
+      
+    } catch (error) {
+      console.error('❌ Failed to fetch final decision:', error);
+      
+      // Retry after a delay if conversation might still be completing
+      if (error.response?.status === 404) {
+        console.log('🔄 Decision not ready yet, retrying in 3 seconds...');
+        setTimeout(() => {
+          fetchFinalDecision(threadId);
+        }, 3000);
+      } else {
+        setError(`Failed to extract final AI decision: ${error.response?.data?.detail || error.message}`);
+        setLoading(false);
+      }
+    }
+  };
 
   const clearObservabilityHistory = async () => {
     try {

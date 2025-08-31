@@ -9,7 +9,7 @@ import Badge from '@leafygreen-ui/badge';
 import Icon from '@leafygreen-ui/icon';
 
 const ToolNode = ({ data }) => {
-  const { label, description, priority, color, isActive, isCompleted, isBuiltIn } = data;
+  const { label, description, priority, color, isActive, isCompleted, isBuiltIn, isMLNode } = data;
 
   const getToolColor = () => {
     const colorMap = {
@@ -215,9 +215,11 @@ const ToolNode = ({ data }) => {
       </div>
 
       {/* Handles */}
+      {/* ML nodes get left handle, others get top handle */}
       <Handle
         type="target"
-        position={Position.Top}
+        position={isMLNode ? Position.Left : Position.Top}
+        id={isMLNode ? "left" : undefined}
         style={{
           background: getToolColor(),
           width: '8px',
@@ -227,7 +229,7 @@ const ToolNode = ({ data }) => {
       />
       
       {/* Only show output handle if this tool can trigger others */}
-      {(label.includes('patterns') || isBuiltIn) && (
+      {(label.includes('patterns') || isBuiltIn || isMLNode) && (
         <Handle
           type="source"
           position={Position.Bottom}

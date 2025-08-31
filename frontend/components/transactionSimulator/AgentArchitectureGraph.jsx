@@ -68,12 +68,14 @@ const AgentArchitectureGraph = ({
   useEffect(() => {
     const handleEscape = (event) => {
       if (event.key === 'Escape' && isFullscreen) {
+        event.preventDefault();
+        event.stopPropagation();
         setIsFullscreen(false);
       }
     };
 
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
+    document.addEventListener('keydown', handleEscape, true); // Use capture phase
+    return () => document.removeEventListener('keydown', handleEscape, true);
   }, [isFullscreen]);
 
   // Refit view when fullscreen state changes
@@ -358,7 +360,7 @@ const AgentArchitectureGraph = ({
       type: 'agent',
       position: getNodePosition(1200, 710),
       data: { 
-        label: 'SuspiciousReportsAgent',
+        label: 'Report Agent',
         model: 'GPT-4-mini',
         description: 'Historical SAR analysis',
         isActive: false, // activePath.has('connected-agent'),
@@ -473,37 +475,36 @@ const AgentArchitectureGraph = ({
   const initialEdges = useMemo(() => [
     // Main flow
     { id: 'input-stage1', source: 'input', target: 'stage1', animated: activePath.has('stage1') },
-    { id: 'stage1-ml', source: 'stage1', target: 'ml-decision', animated: activePath.has('ml-decision'), sourceHandle: 'right' },
+    { id: 'stage1-ml', source: 'stage1', target: 'ml-decision', animated: activePath.has('ml-decision'), sourceHandle: 'right', targetHandle: 'left' },
     { id: 'stage1-decision', source: 'stage1', target: 'stage1-decision', animated: activePath.has('stage1-decision') },
-    { id: 'ml-decision', source: 'ml-decision', target: 'stage1-decision', animated: activePath.has('stage1-decision') },
     
     // Stage 1 outcomes
-    { id: 'decision-auto-approve', source: 'stage1-decision', target: 'outcome-auto-approve', label: '< 25', style: { opacity: activePath.has('outcome-auto-approve') ? 1 : 0.3 } },
-    { id: 'decision-auto-block', source: 'stage1-decision', target: 'outcome-auto-block', label: '> 85', style: { opacity: activePath.has('outcome-auto-block') ? 1 : 0.3 } },
+    { id: 'decision-auto-approve', source: 'stage1-decision', target: 'outcome-auto-approve', label: '< 25', style: { opacity: activePath.has('outcome-auto-approve') ? 1 : 0.3, fontSize: '16px', fontWeight: 'bold' } },
+    { id: 'decision-auto-block', source: 'stage1-decision', target: 'outcome-auto-block', label: '> 85', style: { opacity: activePath.has('outcome-auto-block') ? 1 : 0.3, fontSize: '16px', fontWeight: 'bold' } },
     
     // Stage 2 flow
-    { id: 'decision-stage2', source: 'stage1-decision', target: 'stage2', label: '25-85', animated: activePath.has('stage2') },
+    { id: 'decision-stage2', source: 'stage1-decision', target: 'stage2', label: '25-85', animated: activePath.has('stage2'), style: { fontSize: '16px', fontWeight: 'bold' } },
     { id: 'stage2-agent', source: 'stage2', target: 'primary-agent', animated: activePath.has('primary-agent') },
     
     // Tool connections
-    { id: 'agent-patterns', source: 'primary-agent', target: 'patterns-tool', animated: activePath.has('patterns-tool') },
-    { id: 'agent-similarity', source: 'primary-agent', target: 'similarity-tool', style: { opacity: activePath.has('similarity-tool') ? 1 : 0.3 } },
-    { id: 'agent-network', source: 'primary-agent', target: 'network-tool', style: { opacity: activePath.has('network-tool') ? 1 : 0.3 } },
-    { id: 'agent-sanctions', source: 'primary-agent', target: 'sanctions-tool', style: { opacity: activePath.has('sanctions-tool') ? 1 : 0.3 } },
+    { id: 'agent-patterns', source: 'primary-agent', target: 'patterns-tool', animated: true },
+    { id: 'agent-similarity', source: 'primary-agent', target: 'similarity-tool', animated: true },
+    { id: 'agent-network', source: 'primary-agent', target: 'network-tool', animated: true },
+    { id: 'agent-sanctions', source: 'primary-agent', target: 'sanctions-tool', animated: true },
     
     // Connected agent
-    { id: 'agent-connected', source: 'primary-agent', target: 'connected-agent', style: { opacity: activePath.has('connected-agent') ? 1 : 0.3 } },
-    { id: 'connected-file', source: 'connected-agent', target: 'file-search-tool', style: { opacity: activePath.has('file-search-tool') ? 1 : 0.3 } },
-    { id: 'connected-code', source: 'connected-agent', target: 'code-interpreter-tool', style: { opacity: activePath.has('code-interpreter-tool') ? 1 : 0.3 } },
+    { id: 'agent-connected', source: 'primary-agent', target: 'connected-agent', animated: true },
+    { id: 'connected-file', source: 'connected-agent', target: 'file-search-tool', animated: true },
+    { id: 'connected-code', source: 'connected-agent', target: 'code-interpreter-tool', animated: true },
     
     // Final decision
-    { id: 'tools-decision', source: 'patterns-tool', target: 'final-decision', style: { opacity: activePath.has('final-decision') ? 1 : 0.3 } },
+    { id: 'agent-decision', source: 'primary-agent', target: 'final-decision', animated: true },
     
     // Final outcomes
-    { id: 'final-approve', source: 'final-decision', target: 'outcome-approve', label: '< 40', style: { opacity: activePath.has('outcome-approve') ? 1 : 0.3 } },
-    { id: 'final-investigate', source: 'final-decision', target: 'outcome-investigate', label: '40-65', style: { opacity: activePath.has('outcome-investigate') ? 1 : 0.3 } },
-    { id: 'final-escalate', source: 'final-decision', target: 'outcome-escalate', label: '65-85', style: { opacity: activePath.has('outcome-escalate') ? 1 : 0.3 } },
-    { id: 'final-block', source: 'final-decision', target: 'outcome-block', label: '≥ 85', style: { opacity: activePath.has('outcome-block') ? 1 : 0.3 } }
+    { id: 'final-approve', source: 'final-decision', target: 'outcome-approve', label: '< 40', style: { opacity: activePath.has('outcome-approve') ? 1 : 0.3, fontSize: '16px', fontWeight: 'bold' }, animated: activePath.has('outcome-approve') },
+    { id: 'final-investigate', source: 'final-decision', target: 'outcome-investigate', label: '40-65', style: { opacity: activePath.has('outcome-investigate') ? 1 : 0.3, fontSize: '16px', fontWeight: 'bold' }, animated: activePath.has('outcome-investigate') },
+    { id: 'final-escalate', source: 'final-decision', target: 'outcome-escalate', label: '65-85', style: { opacity: activePath.has('outcome-escalate') ? 1 : 0.3, fontSize: '16px', fontWeight: 'bold' }, animated: activePath.has('outcome-escalate') },
+    { id: 'final-block', source: 'final-decision', target: 'outcome-block', label: '≥ 85', style: { opacity: activePath.has('outcome-block') ? 1 : 0.3, fontSize: '16px', fontWeight: 'bold' }, animated: activePath.has('outcome-block') }
   ], [activePath]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
@@ -536,13 +537,16 @@ const AgentArchitectureGraph = ({
     return (
       <Card style={{ 
         marginBottom: spacing[3],
+        padding: `${spacing[3]}px ${spacing[3]}px`,
         background: `linear-gradient(135deg, ${getDecisionColor(agentResults.decision)}15, ${palette.white})`,
-        border: `2px solid ${getDecisionColor(agentResults.decision)}`
+        border: `2px solid ${getDecisionColor(agentResults.decision)}`,
+        display: 'flex',
+        alignItems: 'center'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: spacing[3] }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2], width: '100%' }}>
           <div style={{
-            width: '48px',
-            height: '48px',
+            width: '36px',
+            height: '36px',
             borderRadius: '50%',
             background: getDecisionColor(agentResults.decision),
             display: 'flex',
@@ -552,7 +556,7 @@ const AgentArchitectureGraph = ({
             <Icon 
               glyph={getDecisionIcon(agentResults.decision)}
               fill={palette.white}
-              size={24}
+              size={18}
             />
           </div>
           <div style={{ flex: 1 }}>
@@ -562,10 +566,7 @@ const AgentArchitectureGraph = ({
                 Stage {agentResults.stage_completed} Complete
               </Badge>
             </H2>
-            <Body style={{ margin: 0, color: palette.gray.dark1 }}>
-              Risk Score: {Math.round(agentResults.risk_score)}% • 
-              Confidence: {Math.round((agentResults.confidence || 0.8) * 100)}%
-            </Body>
+
           </div>
         </div>
       </Card>
@@ -600,10 +601,13 @@ const AgentArchitectureGraph = ({
       {/* Architecture Header with Fullscreen Button */}
       <Card style={{ 
         marginBottom: spacing[3], 
+        padding: `${spacing[3]}px ${spacing[3]}px`,
         background: `linear-gradient(135deg, ${palette.blue.light3}, ${palette.white})`,
-        border: `2px solid ${palette.blue.base}`
+        border: `2px solid ${palette.blue.base}`,
+        display: 'flex',
+        alignItems: 'center'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2] }}>
             <Icon glyph="Diagram" fill={palette.blue.dark2} size={24} />
             <H3 style={{ margin: 0, color: palette.blue.dark2 }}>
@@ -675,14 +679,16 @@ const AgentArchitectureGraph = ({
           
           {/* Graph Container */}
           <div style={{ 
-            height: '100%',
+            height: '85vh',
             width: '100%',
             border: `1px solid ${palette.gray.light2}`,
             borderRadius: '8px',
             overflow: 'hidden',
-            background: palette.white
+            background: palette.white,
+            position: 'relative'
           }}>
             <ReactFlow
+              key={`agent-flow-fullscreen-${renderKey}`}
               nodes={nodes}
               edges={edges}
               onNodesChange={onNodesChange}
@@ -699,6 +705,7 @@ const AgentArchitectureGraph = ({
               minZoom={0.2}
               maxZoom={2.0}
               attributionPosition="bottom-left"
+              style={{ width: '100%', height: '100%' }}
             >
               <Background 
                 variant="dots" 
@@ -723,34 +730,36 @@ const AgentArchitectureGraph = ({
       </Modal>
 
       {/* Regular Decision Tree Graph */}
-      <div style={{ 
-        height: '800px',
-        width: '100%',
-        border: `1px solid ${palette.gray.light2}`,
-        borderRadius: '12px',
-        overflow: 'hidden',
-        background: palette.white,
-        display: isFullscreen ? 'none' : 'block'
-      }}>
-          <ReactFlow
-            key={`regular-flow-${renderKey}`}
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            nodeTypes={nodeTypes}
-            onInit={setReactFlowInstance}
-            fitView
-            fitViewOptions={{ 
-              padding: 0.1, 
-              minZoom: 0.3, 
-              maxZoom: 1.2,
-              duration: 300
-            }}
-            minZoom={0.3}
-            maxZoom={1.5}
-            attributionPosition="bottom-left"
-          >
+      {!isFullscreen && (
+        <div style={{ 
+          height: '800px',
+          width: '100%',
+          border: `1px solid ${palette.gray.light2}`,
+          borderRadius: '12px',
+          overflow: 'hidden',
+          background: palette.white,
+          position: 'relative'
+        }}>
+            <ReactFlow
+              key={`agent-flow-regular-${renderKey}`}
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              nodeTypes={nodeTypes}
+              onInit={setReactFlowInstance}
+              fitView
+              fitViewOptions={{ 
+                padding: 0.1, 
+                minZoom: 0.3, 
+                maxZoom: 1.2,
+                duration: 300
+              }}
+              minZoom={0.3}
+              maxZoom={1.5}
+              attributionPosition="bottom-left"
+              style={{ width: '100%', height: '100%' }}
+            >
           <Background 
             variant="dots" 
             gap={20} 
@@ -782,7 +791,8 @@ const AgentArchitectureGraph = ({
             }}
           />
           </ReactFlow>
-      </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -91,7 +91,7 @@ const AdvancedInvestigationPanel = ({ results, centerEntityId, RiskPropagationCo
                   alignItems: 'center',
                   gap: spacing[2]
                 }}>
-                  <Icon glyph="Lightbulb" size={16} fill={palette.green.base} />
+                  <Icon glyph="Bulb" size={16} fill={palette.green.base} />
                   <Body style={{ fontSize: '13px', color: palette.green.dark2 }}>
                     {insight}
                   </Body>

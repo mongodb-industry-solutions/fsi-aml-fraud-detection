@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import ReactFlow, {
   Background,
   Controls,
@@ -82,19 +82,33 @@ const MemoryArchitectureGraph = ({
     }
   }, [isFullscreen, reactFlowFitView]);
 
-  // Node types mapping
-  const nodeTypes = {
+  // Handle ESC key to exit fullscreen
+  useEffect(() => {
+    const handleEscape = (event) => {
+      if (event.key === 'Escape' && isFullscreen) {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsFullscreen(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape, true); // Use capture phase
+    return () => document.removeEventListener('keydown', handleEscape, true);
+  }, [isFullscreen]);
+
+  // Node types mapping - memoized to prevent React Flow reinitialization
+  const nodeTypes = useMemo(() => ({
     memoryInput: MemoryInputNode,
     memoryStore: MemoryStoreNode,
     vectorSearch: VectorSearchNode,
     learning: LearningNode,
     insight: InsightNode
-  };
+  }), []);
 
   const getNodePosition = (x, y) => ({ x, y });
 
-  // Define simplified vertical memory flow - centered and well-spaced
-  const initialNodes = [
+  // Define simplified vertical memory flow - centered and well-spaced - memoized
+  const initialNodes = useMemo(() => [
     // Input: New Transaction
     {
       id: 'transaction-input',
@@ -184,10 +198,10 @@ const MemoryArchitectureGraph = ({
         isCompleted: true
       }
     }
-  ];
+  ], []);
 
-  // Define edges matching the layout in the image
-  const initialEdges = [
+  // Define edges matching the layout in the image - memoized
+  const initialEdges = useMemo(() => [
     // Vertical flow from input through memory stores
     { 
       id: 'input-azure', 
@@ -238,7 +252,7 @@ const MemoryArchitectureGraph = ({
       label: 'Generate insights',
       style: { stroke: palette.blue.dark1, strokeWidth: 2 }
     }
-  ];
+  ], []);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -326,19 +340,6 @@ const MemoryArchitectureGraph = ({
             </Body>
             <Body size="small" style={{ color: palette.gray.dark1 }}>Patterns</Body>
           </div>
-          
-          <div style={{ 
-            textAlign: 'center', 
-            padding: spacing[2], 
-            background: palette.white, 
-            borderRadius: '8px',
-            border: `1px solid ${palette.blue.light1}`
-          }}>
-            <Body weight="bold" style={{ color: palette.blue.dark2, fontSize: '20px' }}>
-              {overview?.active_threads || 0}
-            </Body>
-            <Body size="small" style={{ color: palette.gray.dark1 }}>Active Threads</Body>
-          </div>
         </div>
       </Card>
 
@@ -412,6 +413,7 @@ const MemoryArchitectureGraph = ({
             background: palette.white
           }}>
             <ReactFlow
+              key={`memory-flow-fullscreen-${renderKey}`}
               nodes={nodes}
               edges={edges}
               onNodesChange={onNodesChange}
@@ -461,7 +463,7 @@ const MemoryArchitectureGraph = ({
         display: isFullscreen ? 'none' : 'block'
       }}>
         <ReactFlow
-          key={`regular-memory-flow-${renderKey}`}
+          key={`memory-flow-regular-${renderKey}`}
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}
@@ -514,7 +516,7 @@ const MemoryArchitectureGraph = ({
         {/* Agent Memory Collection */}
         <Card style={{ marginBottom: spacing[3] }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2], marginBottom: spacing[3] }}>
-            <Icon glyph="Chat" fill={palette.green.base} size={20} />
+            <Icon glyph="Note" fill={palette.green.base} size={20} />
             <H3 style={{ margin: 0, color: palette.green.dark2 }}>
               agent_memory Collection ({conversations?.length || 0} documents)
             </H3>

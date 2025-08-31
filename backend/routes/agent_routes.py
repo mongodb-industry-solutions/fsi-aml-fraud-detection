@@ -165,6 +165,28 @@ async def analyze_transactions_batch(
         logger.error(f"Batch analysis failed: {e}")
         raise HTTPException(status_code=500, detail=f"Batch analysis error: {str(e)}")
 
+@router.get("/decision/{thread_id}", summary="Get AI Decision from Completed Thread")
+async def get_ai_decision_from_thread(
+    thread_id: str,
+    service: AgentService = Depends(get_agent_service)
+):
+    """
+    Extract AI decision and risk score from completed conversation thread
+    
+    This endpoint reads the final agent response from the thread conversation
+    and extracts the AI's explicit decision and risk score recommendations.
+    """
+    try:
+        result = await service.extract_decision_from_thread(thread_id)
+        return result
+        
+    except ValueError as e:
+        logger.error(f"Invalid thread or missing AI response: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to extract decision from thread: {e}")
+        raise HTTPException(status_code=500, detail=f"Decision extraction error: {str(e)}")
+
 @router.post("/test", summary="Test Agent with Sample Transaction")
 async def test_agent(service: AgentService = Depends(get_agent_service)):
     """Test the agent with a sample transaction"""

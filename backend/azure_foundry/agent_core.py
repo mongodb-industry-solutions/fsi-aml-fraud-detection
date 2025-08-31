@@ -538,30 +538,17 @@ class TwoStageAgentCore:
             return RiskLevel.LOW
     
     def _calculate_final_risk_score(self, stage1_result, stage2_result) -> float:
-        """Calculate final risk score combining both stages"""
-        stage1_score = getattr(stage1_result, 'combined_score', None) or 0.0
+        """Use AI's explicit risk score - no calculated fallbacks"""
         
-        # Adjust based on Stage 2 findings
-        stage2_adjustment = 0
-        similarity_risk = getattr(stage2_result, 'similarity_risk_score', None) or 0.0
-        if similarity_risk > 60:
-            stage2_adjustment += 15
-        elif similarity_risk > 40:
-            stage2_adjustment += 8
+        # REQUIRED: Use AI's explicit risk score (no calculated fallback)
+        ai_risk_score = getattr(stage2_result, 'ai_risk_score', None)
+        if ai_risk_score is not None:
+            logger.info(f"🤖 Using AI's explicit risk score: {ai_risk_score}")
+            return float(ai_risk_score)
         
-        similar_count = getattr(stage2_result, 'similar_transactions_count', None) or 0
-        if similar_count > 10:
-            stage2_adjustment += 5
-        
-        # AI analysis can add or subtract points
-        ai_summary = getattr(stage2_result, 'ai_analysis_summary', '') or ''
-        if "high risk" in ai_summary.lower():
-            stage2_adjustment += 10
-        elif "low risk" in ai_summary.lower():
-            stage2_adjustment -= 8
-        
-        final_score = min(100, max(0, stage1_score + stage2_adjustment))
-        return final_score
+        # ERROR: AI risk score missing - this should not happen in Stage 2
+        logger.error("❌ AI risk score not available in Stage 2 result - this indicates extraction failure")
+        raise ValueError("AI risk score extraction failed - cannot complete Stage 2 analysis")
     
     def _build_stage1_reasoning(self, stage1_result) -> str:
         """Build reasoning for Stage 1 only decisions"""

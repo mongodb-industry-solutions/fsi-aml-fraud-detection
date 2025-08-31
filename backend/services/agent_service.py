@@ -85,6 +85,133 @@ class AgentService:
             logger.error(f"Transaction analysis failed: {e}")
             raise
     
+    async def extract_decision_from_thread(self, thread_id: str) -> Dict[str, Any]:
+        """Extract AI decision and risk score from completed conversation thread"""
+        if not self._initialized or not self.agent:
+            raise RuntimeError("Agent service not initialized. Call initialize() first.")
+        
+        try:
+            # Get conversation messages from the thread
+            messages = self.agent.conversation_handler.agents_client.messages.list(
+                thread_id=thread_id, 
+                order="desc", 
+                limit=10
+            )
+            
+            # Find the last assistant message (final AI response)
+            ai_response = None
+            for message in messages:
+                if message.role == "assistant" and message.content:
+                    # Extract text content from message
+                    if hasattr(message.content, '__iter__'):
+                        for content_block in message.content:
+                            if hasattr(content_block, 'text') and hasattr(content_block.text, 'value'):
+                                ai_response = content_block.text.value
+                                break
+                    elif hasattr(message.content, 'text'):
+                        ai_response = message.content.text.value if hasattr(message.content.text, 'value') else str(message.content.text)
+                    else:
+                        ai_response = str(message.content)
+                    
+                    if ai_response:
+                        break
+            
+            if not ai_response:
+                raise ValueError(f"No AI response found in thread {thread_id}")
+            
+            logger.info(f"🔍 Extracting decision from AI response: {len(ai_response)} characters")
+            logger.info(f"🔍 AI response preview: {ai_response[:300]}...")
+            
+            # Extract decision and risk score using the same methods from stage2_analyzer
+            decision = self._extract_ai_decision(ai_response)
+            risk_score = self._extract_ai_risk_score(ai_response)
+            
+            logger.info(f"✅ Extracted: decision={decision}, risk_score={risk_score}")
+            
+            if not decision:
+                raise ValueError("Could not extract decision from AI response")
+            if risk_score is None:
+                raise ValueError("Could not extract risk score from AI response")
+            
+            # Calculate risk level from score
+            if risk_score >= 80:
+                risk_level = "CRITICAL"
+            elif risk_score >= 60:
+                risk_level = "HIGH"
+            elif risk_score >= 40:
+                risk_level = "MEDIUM"
+            else:
+                risk_level = "LOW"
+            
+            return {
+                "decision": decision.value if hasattr(decision, 'value') else str(decision),
+                "risk_score": float(risk_score),
+                "risk_level": risk_level,
+                "ai_response_preview": ai_response[:500],
+                "thread_id": thread_id,
+                "extraction_source": "completed_conversation"
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to extract decision from thread {thread_id}: {e}")
+            raise
+    
+    def _extract_ai_decision(self, ai_response: str):
+        """Extract AI decision from response text"""
+        import re
+        from azure_foundry.models import DecisionType
+        
+        if not ai_response:
+            return None
+            
+        # Look for explicit decision patterns
+        decision_patterns = [
+            r"decision:?\s*(approve|investigate|escalate|block)",
+            r"recommendation:?\s*(approve|investigate|escalate|block)",
+            r"final decision:?\s*(approve|investigate|escalate|block)",
+        ]
+        
+        for pattern in decision_patterns:
+            match = re.search(pattern, ai_response, re.IGNORECASE)
+            if match:
+                decision_text = match.group(1).upper()
+                try:
+                    return DecisionType(decision_text)
+                except ValueError:
+                    continue
+        
+        logger.warning(f"Could not extract decision from AI response")
+        return None
+    
+    def _extract_ai_risk_score(self, ai_response: str):
+        """Extract AI risk score from response text"""
+        import re
+        
+        if not ai_response:
+            return None
+            
+        # Look for risk score patterns
+        risk_patterns = [
+            r"risk score:?\s*(\d+(?:\.\d+)?)/100",
+            r"risk score:?\s*(\d+(?:\.\d+)?)\s*(?:/100)?",
+            r"risk:?\s*(\d+(?:\.\d+)?)/100",
+            r"score:?\s*(\d+(?:\.\d+)?)/100",
+        ]
+        
+        for pattern in risk_patterns:
+            match = re.search(pattern, ai_response, re.IGNORECASE)
+            if match:
+                try:
+                    score = float(match.group(1))
+                    # Ensure score is in 0-100 range
+                    if 0 <= score <= 100:
+                        return score
+                except ValueError:
+                    continue
+        
+        logger.warning(f"Could not extract risk score from AI response")
+        return None
+    
     async def get_agent_status(self) -> Dict[str, Any]:
         """Get current agent status and metrics"""
         if not self._initialized or not self.agent:

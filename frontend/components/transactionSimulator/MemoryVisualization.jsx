@@ -189,7 +189,7 @@ const MemoryVisualization = ({ overview, conversations, decisions, patterns }) =
             transition: 'all 0.2s ease',
             ':hover': { transform: 'translateY(-2px)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }
           }}>
-            <Icon glyph="Chat" fill={palette.green.dark2} size={24} style={{ marginBottom: spacing[1] }} />
+            <Icon glyph="Note" fill={palette.green.dark2} size={24} style={{ marginBottom: spacing[1] }} />
             <H3 style={{ margin: 0, color: palette.green.dark2, fontSize: '28px' }}>{overview.total_memories}</H3>
             <Body size="small" style={{ color: palette.green.dark1, fontWeight: 'bold' }}>agent_memory</Body>
             <Body size="xsmall" style={{ color: palette.gray.dark1, marginTop: spacing[1] }}>Conversations & Context</Body>
@@ -243,7 +243,7 @@ const MemoryVisualization = ({ overview, conversations, decisions, patterns }) =
       {/* Agent Memory Collection - Expandable Cards */}
       <Card style={{ marginBottom: spacing[3] }}>
         <H3 style={{ marginBottom: spacing[3], display: 'flex', alignItems: 'center', gap: spacing[2] }}>
-          <Icon glyph="Chat" fill={palette.green.base} size={20} />
+          <Icon glyph="Note" fill={palette.green.base} size={20} />
           agent_memory Collection ({conversations.length} documents)
           <Badge variant="green" style={{ fontSize: '10px' }}>CONVERSATIONS & CONTEXT</Badge>
         </H3>
@@ -259,7 +259,7 @@ const MemoryVisualization = ({ overview, conversations, decisions, patterns }) =
                 key={index}
                 title={
                   <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2] }}>
-                    <Icon glyph="Chat" fill={palette.green.base} size={16} />
+                    <Icon glyph="Note" fill={palette.green.base} size={16} />
                     <span style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
                       <span style={{ color: palette.green.base, fontSize: '16px' }}>{'{'}</span>
                       <span style={{ fontSize: '13px', fontWeight: 'medium' }}>
@@ -478,7 +478,7 @@ const MemoryVisualization = ({ overview, conversations, decisions, patterns }) =
             border: `2px solid ${palette.green.light1}`
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2], marginBottom: spacing[2] }}>
-              <Icon glyph="Chat" fill={palette.green.base} size={20} />
+              <Icon glyph="Note" fill={palette.green.base} size={20} />
               <Body weight="bold" style={{ color: palette.green.dark2 }}>3. Context Building</Body>
             </div>
             <Body size="small" style={{ color: palette.gray.dark2, lineHeight: 1.4 }}>

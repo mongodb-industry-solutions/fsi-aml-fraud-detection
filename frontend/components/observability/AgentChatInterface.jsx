@@ -17,10 +17,71 @@ import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 import Banner from '@leafygreen-ui/banner';
 
-// Simple markdown renderer for chat messages
+// Enhanced markdown renderer with POML support for chat messages
 const renderMarkdown = (text) => {
   if (!text) return text;
   
+  // Check if this is POML content
+  const isPOML = text.includes('<poml>') && text.includes('</poml>');
+  
+  if (isPOML) {
+    return text
+      // POML root tag
+      .replace(/<poml>/g, '<div style="background: linear-gradient(135deg, #FFF9E6, #FFFBF0); border: 2px solid #F59E0B; border-radius: 8px; padding: 16px; margin: 8px 0; font-family: monospace;">')
+      .replace(/<\/poml>/g, '</div>')
+      
+      // Agent tag
+      .replace(/<agent name="([^"]+)">/g, '<div style="background: #EBF8FF; border-left: 4px solid #3B82F6; padding: 12px; margin: 8px 0; border-radius: 4px;"><div style="font-weight: bold; color: #1E40AF; margin-bottom: 8px; font-size: 14px;">🤖 Agent: $1</div>')
+      .replace(/<\/agent>/g, '</div>')
+      
+      // Role section
+      .replace(/<role>/g, '<div style="background: #F0FDF4; border-left: 3px solid #10B981; padding: 10px; margin: 6px 0; border-radius: 4px;"><div style="font-weight: bold; color: #059669; margin-bottom: 6px; font-size: 13px;">📋 Role</div><div style="color: #065F46; line-height: 1.4;">')
+      .replace(/<\/role>/g, '</div></div>')
+      
+      // Task section
+      .replace(/<task>/g, '<div style="background: #FEF3C7; border-left: 3px solid #F59E0B; padding: 10px; margin: 6px 0; border-radius: 4px;"><div style="font-weight: bold; color: #D97706; margin-bottom: 6px; font-size: 13px;">🎯 Task</div><div style="color: #92400E; line-height: 1.4;">')
+      .replace(/<\/task>/g, '</div></div>')
+      
+      // Capabilities section
+      .replace(/<capabilities>/g, '<div style="background: #EDE9FE; border-left: 3px solid #8B5CF6; padding: 10px; margin: 6px 0; border-radius: 4px;"><div style="font-weight: bold; color: #7C3AED; margin-bottom: 6px; font-size: 13px;">⚡ Capabilities</div><ul style="margin: 0; padding-left: 16px; color: #5B21B6;">')
+      .replace(/<\/capabilities>/g, '</ul></div>')
+      
+      // Decision Framework section
+      .replace(/<decisionFramework>/g, '<div style="background: #FEE2E2; border-left: 3px solid #EF4444; padding: 10px; margin: 6px 0; border-radius: 4px;"><div style="font-weight: bold; color: #DC2626; margin-bottom: 6px; font-size: 13px;">⚖️ Decision Framework</div><div style="color: #991B1B;">')
+      .replace(/<\/decisionFramework>/g, '</div></div>')
+      
+      // Guidelines section
+      .replace(/<guidelines>/g, '<div style="background: #F0F9FF; border-left: 3px solid #0EA5E9; padding: 10px; margin: 6px 0; border-radius: 4px;"><div style="font-weight: bold; color: #0284C7; margin-bottom: 6px; font-size: 13px;">📖 Guidelines</div><ul style="margin: 0; padding-left: 16px; color: #0C4A6E;">')
+      .replace(/<\/guidelines>/g, '</ul></div>')
+      
+      // Response Template section
+      .replace(/<responseTemplate>/g, '<div style="background: #F3E8FF; border-left: 3px solid #A855F7; padding: 10px; margin: 6px 0; border-radius: 4px;"><div style="font-weight: bold; color: #9333EA; margin-bottom: 6px; font-size: 13px;">📝 Response Template</div><div style="color: #6B21A8; font-family: monospace; background: #FAF5FF; padding: 8px; border-radius: 4px; white-space: pre-line;">')
+      .replace(/<\/responseTemplate>/g, '</div></div>')
+      
+      // Example section
+      .replace(/<example>/g, '<div style="background: #ECFDF5; border-left: 3px solid #22C55E; padding: 10px; margin: 6px 0; border-radius: 4px;"><div style="font-weight: bold; color: #16A34A; margin-bottom: 6px; font-size: 13px;">💡 Example</div>')
+      .replace(/<\/example>/g, '</div>')
+      
+      // Input/Output within examples
+      .replace(/<input>/g, '<div style="background: #FEF7FF; border: 1px solid #D8B4FE; padding: 8px; margin: 4px 0; border-radius: 4px;"><div style="font-weight: bold; color: #7C3AED; font-size: 12px; margin-bottom: 4px;">Input:</div><div style="color: #5B21B6; font-size: 12px; line-height: 1.3;">')
+      .replace(/<\/input>/g, '</div></div>')
+      
+      .replace(/<output>/g, '<div style="background: #F0FDF4; border: 1px solid #BBF7D0; padding: 8px; margin: 4px 0; border-radius: 4px;"><div style="font-weight: bold; color: #16A34A; font-size: 12px; margin-bottom: 4px;">Output:</div><div style="color: #15803D; font-size: 12px; line-height: 1.3; font-family: monospace;">')
+      .replace(/<\/output>/g, '</div></div>')
+      
+      // Items within lists
+      .replace(/<item>/g, '<li style="margin: 2px 0; line-height: 1.3;">')
+      .replace(/<\/item>/g, '</li>')
+      
+      // Options within decision framework
+      .replace(/<option name="([^"]+)">/g, '<div style="background: #FFF1F2; border: 1px solid #FECACA; padding: 6px; margin: 3px 0; border-radius: 3px;"><span style="font-weight: bold; color: #DC2626;">$1:</span> ')
+      .replace(/<\/option>/g, '</div>')
+      
+      // Line breaks
+      .replace(/\n/g, '<br />');
+  }
+  
+  // Regular markdown processing for non-POML content
   return text
     // Headers: #### then ### then ##
     .replace(/^#### (.*$)/gm, '<h4 style="font-size: 16px; font-weight: bold; margin: 12px 0 8px 0; color: #1f2937;">$1</h4>')
@@ -521,16 +582,16 @@ const AgentChatInterface = ({ threadId, backendUrl, agentDecision }) => {
                   <div style={{ padding: spacing[3] }}>
                     <Body size="small" style={{ 
                       margin: 0, 
-                      whiteSpace: 'pre-wrap', 
+                      whiteSpace: message.type === 'system' ? 'normal' : 'pre-wrap', 
                       lineHeight: 1.5,
                       wordBreak: 'break-word',
                       color: message.type === 'user' 
                         ? palette.blue.dark2 
                         : message.type === 'system'
-                        ? palette.yellow.dark2
+                        ? palette.gray.dark3
                         : palette.gray.dark3,
-                      fontFamily: message.isOriginalPrompt ? 'monospace' : 'inherit',
-                      fontSize: message.isOriginalPrompt ? '11px' : '13px'
+                      fontFamily: message.isOriginalPrompt ? 'monospace' : message.type === 'system' ? 'inherit' : 'inherit',
+                      fontSize: message.isOriginalPrompt ? '11px' : message.type === 'system' ? '12px' : '13px'
                     }}>
                       <div dangerouslySetInnerHTML={{ __html: renderMarkdown(displayContent) }} />
                     </Body>

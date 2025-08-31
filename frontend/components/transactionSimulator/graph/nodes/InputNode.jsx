@@ -57,10 +57,10 @@ const InputNode = ({ data }) => {
       {transactionData && (
         <div style={{ marginBottom: spacing[2] }}>
           <Body size="small" style={{ color: palette.gray.dark2, marginBottom: spacing[1] }}>
-            ${transactionData.amount?.toLocaleString() || 'N/A'} • {transactionData.merchant?.category || 'Unknown'}
+            {transactionData.customer?.name || 'Customer'}
           </Body>
           <Body size="small" style={{ color: palette.gray.dark1 }}>
-            {transactionData.location?.country || 'Unknown Location'}
+            ${transactionData.amount?.toLocaleString() || 'N/A'} • {transactionData.merchant?.category || 'Unknown'}
           </Body>
         </div>
       )}

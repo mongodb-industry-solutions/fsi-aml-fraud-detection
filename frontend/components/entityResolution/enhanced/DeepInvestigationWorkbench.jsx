@@ -148,7 +148,7 @@ function DeepInvestigationWorkbench({ investigation, workflowData, onReset }) {
                       <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2], marginBottom: spacing[2] }}>
                         <Icon 
                           glyph={finding.severity === 'high' ? 'Warning' : 
-                                 finding.severity === 'medium' ? 'InfoWithCircle' : 'Lightbulb'} 
+                                 finding.severity === 'medium' ? 'InfoWithCircle' : 'Bulb'} 
                           style={{ 
                             color: finding.severity === 'high' ? palette.red.base : 
                                    finding.severity === 'medium' ? palette.yellow.dark2 : palette.blue.base
@@ -203,7 +203,7 @@ function DeepInvestigationWorkbench({ investigation, workflowData, onReset }) {
               alignItems: 'center',
               gap: spacing[2]
             }}>
-              <Icon glyph="Lightbulb" style={{ color: palette.yellow.dark2 }} />
+              <Icon glyph="Bulb" style={{ color: palette.yellow.dark2 }} />
               Actionable Insights
             </H3>
             

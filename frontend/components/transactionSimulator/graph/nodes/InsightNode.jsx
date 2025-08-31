@@ -44,7 +44,7 @@ const InsightNode = ({ data }) => {
           justifyContent: 'center',
           boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
         }}>
-          <Icon glyph="Lightbulb" fill={palette.white} size={18} />
+          <Icon glyph="Bulb" fill={palette.white} size={18} />
         </div>
         <div style={{ flex: 1 }}>
           <Overline style={{ 
@@ -126,7 +126,7 @@ const InsightNode = ({ data }) => {
         padding: spacing[2]
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
-          <Icon glyph="ChartLine" fill={palette.blue.dark1} size={14} />
+          <Icon glyph="Charts" fill={palette.blue.dark1} size={14} />
           <Body size="xsmall" style={{ color: palette.blue.dark2, fontWeight: 'medium' }}>
             Confidence:
           </Body>

@@ -30,7 +30,7 @@ export const DecisionTracker = ({ decisions }) => {
       case 'fraud_assessment':
         return 'Shield';
       case 'risk_scoring':
-        return 'ChartLine';
+        return 'Charts';
       case 'tool_selection':
         return 'Settings';
       default:

@@ -103,7 +103,7 @@ class Stage2Analyzer:
             # ============================================================
             # AI ANALYSIS using Azure AI Foundry Agent
             # ============================================================
-            ai_analysis, ai_recommendation = await self._ai_analysis(
+            ai_analysis, ai_recommendation, ai_risk_score = await self._ai_analysis(
                 transaction=transaction,
                 stage1_result=stage1_result,
                 similar_transactions=similar_transactions,
@@ -127,6 +127,7 @@ class Stage2Analyzer:
                 similarity_risk_score=(similarity_risk or 0.0) * 100,  # Convert to 0-100 scale, handle None
                 ai_analysis_summary=ai_analysis,
                 ai_recommendation=ai_recommendation,
+                ai_risk_score=ai_risk_score,  # AI's explicit risk assessment (0-100)
                 pattern_insights=self._extract_pattern_insights(similar_transactions),
                 processing_time_ms=(datetime.now() - start_time).total_seconds() * 1000
             )
@@ -252,22 +253,40 @@ class Stage2Analyzer:
                     content=ai_response[:500]  # Limit length
                 )
             
-            # Extract recommendation from AI response
+            # Read the FINAL agent response from the completed thread
+            if conversation_handler:
+                final_ai_response = self._get_final_agent_response_from_thread(
+                    thread_id, 
+                    conversation_handler.agents_client
+                )
+                if final_ai_response and final_ai_response != ai_response:
+                    logger.info(f"📝 Using final thread response instead of initial response")
+                    logger.info(f"📝 Initial response length: {len(ai_response)}")
+                    logger.info(f"📝 Final thread response length: {len(final_ai_response)}")
+                    ai_response = final_ai_response
+            
+            # Extract recommendation and risk score from AI response
             ai_recommendation = self._extract_ai_recommendation(ai_response)
+            ai_risk_score = self._extract_ai_risk_score(ai_response)
             
             # Log the extraction for debugging with more detail
             logger.info(f"🔍 AI Response Decision Extraction: Extracted '{ai_recommendation}' from response")
+            logger.info(f"🔍 AI Response Risk Score Extraction: Extracted '{ai_risk_score}' from response")
             logger.info(f"🔍 AI Response preview (first 300 chars): {ai_response[:300]}...")
             if not ai_recommendation:
                 logger.warning(f"❌ Could not extract clear decision from AI response. Full response: {ai_response}")
             else:
                 logger.info(f"✅ Successfully extracted AI recommendation: {ai_recommendation}")
+            if not ai_risk_score:
+                logger.warning(f"❌ Could not extract AI risk score from response")
+            else:
+                logger.info(f"✅ Successfully extracted AI risk score: {ai_risk_score}")
             
-            return ai_response, ai_recommendation
+            return ai_response, ai_recommendation, ai_risk_score
             
         except Exception as e:
             logger.error(f"AI analysis failed: {e}")
-            return f"AI analysis failed: {str(e)}", None
+            return f"AI analysis failed: {str(e)}", None, None
     
     def _build_ai_context(
         self,
@@ -408,6 +427,60 @@ Important: Always include "Recommendation: [DECISION]" explicitly in your respon
             logger.error(f"AI conversation failed: {e}")
             return f"AI analysis failed: {str(e)}"
     
+    def _get_final_agent_response_from_thread(self, thread_id: str, agents_client) -> Optional[str]:
+        """Get the final agent response from completed thread conversation"""
+        try:
+            # Get all messages from the thread after conversation completes
+            messages = agents_client.messages.list(thread_id=thread_id, order="desc", limit=10)
+            
+            # Find the last assistant message (final agent response)
+            for message in messages.data:
+                if message.role == "assistant" and message.content:
+                    # Get the text content from the message
+                    if hasattr(message.content, '__iter__'):
+                        for content_block in message.content:
+                            if hasattr(content_block, 'text') and hasattr(content_block.text, 'value'):
+                                final_response = content_block.text.value
+                                logger.info(f"📨 Found final agent response: {len(final_response)} characters")
+                                return final_response
+                    elif hasattr(message.content, 'text'):
+                        final_response = message.content.text.value if hasattr(message.content.text, 'value') else str(message.content.text)
+                        logger.info(f"📨 Found final agent response: {len(final_response)} characters")
+                        return final_response
+                    else:
+                        final_response = str(message.content)
+                        logger.info(f"📨 Found final agent response (string): {len(final_response)} characters")
+                        return final_response
+            
+            logger.warning("❌ No final assistant message found in thread")
+            return None
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to get final agent response from thread: {e}")
+            return None
+    
+    def _extract_ai_risk_score(self, ai_response: str) -> Optional[float]:
+        """Extract AI's risk score from response"""
+        if not ai_response:
+            return None
+            
+        import re
+        
+        # Look for "Risk Score: X/100" or "Risk Score: X"
+        risk_patterns = [
+            r"risk score:?\s*(\d+(?:\.\d+)?)/100",
+            r"risk score:?\s*(\d+(?:\.\d+)?)\s*(?:/100)?",
+            r"score:?\s*(\d+(?:\.\d+)?)/100",
+        ]
+        
+        for pattern in risk_patterns:
+            match = re.search(pattern, ai_response.lower())
+            if match:
+                score = float(match.group(1))
+                return score if score <= 100 else score  # Handle both 0-100 and 0-1 scales
+                
+        return None
+
     def _extract_ai_recommendation(self, ai_response: str) -> Optional[DecisionType]:
         """Extract decision recommendation from AI response"""
         if not ai_response:

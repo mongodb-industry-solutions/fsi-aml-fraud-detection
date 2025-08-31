@@ -22,6 +22,10 @@ const renderMarkdown = (text) => {
   if (!text) return text;
   
   return text
+    // Headers: #### then ### then ##
+    .replace(/^#### (.*$)/gm, '<h4 style="font-size: 16px; font-weight: bold; margin: 12px 0 8px 0; color: #1f2937;">$1</h4>')
+    .replace(/^### (.*$)/gm, '<h3 style="font-size: 18px; font-weight: bold; margin: 16px 0 12px 0; color: #1f2937;">$1</h3>')
+    .replace(/^## (.*$)/gm, '<h2 style="font-size: 20px; font-weight: bold; margin: 20px 0 16px 0; color: #1f2937;">$1</h2>')
     // Bold text: **text** or __text__
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/__(.*?)__/g, '<strong>$1</strong>')
@@ -71,12 +75,154 @@ const AgentChatInterface = ({ threadId, backendUrl, agentDecision }) => {
                 isDetailedResponse: msg.role === 'assistant' // Mark assistant messages as detailed responses
               }));
             
-            setMessages(formattedMessages);
+            // Add system prompt as the first message
+            const systemPrompt = {
+              id: 'system-prompt',
+              type: 'system',
+              content: `<poml>
+  <agent name="PrimaryFraudAgent">
+    <role>
+      You are an advanced AI agent specializing in financial fraud detection. 
+      Your mission is to identify fraud patterns that rule-based systems miss, 
+      providing clear, evidence-based risk assessments.
+    </role>
+
+    <task>
+      - Analyze transactions using historical, behavioral, and contextual data.  
+      - Detect subtle or emerging fraud typologies.  
+      - Assign a risk score (0–100) and classify outcome.  
+      - Deliver actionable recommendations that balance fraud prevention with minimizing false positives.  
+    </task>
+
+    <capabilities>
+      <item>Historical transaction pattern analysis</item>
+      <item>Customer behavior profiling</item>
+      <item>Network & relationship analysis</item>
+      <item>Sanctions, PEP, and watchlist screening</item>
+    </capabilities>
+
+    <decisionFramework>
+      <option name="APPROVE">0–39: Low risk. Normal behavior. High confidence.</option>
+      <option name="INVESTIGATE">40–65: Moderate risk. Manual review recommended.</option>
+      <option name="ESCALATE">66–85: High risk. Urgent review needed.</option>
+      <option name="BLOCK">86–100: Critical risk. Immediate action required.</option>
+    </decisionFramework>
+
+    <guidelines>
+      <item>Always state your decision clearly.</item>
+      <item>Support with concrete risk factors and evidence.</item>
+      <item>Reference historical or behavioral context.</item>
+      <item>Be concise but thorough: short narrative + key points.</item>
+      <item>Focus on edge cases where rules are inconclusive.</item>
+    </guidelines>
+
+    <responseTemplate>
+      - Decision: (APPROVE / INVESTIGATE / ESCALATE / BLOCK)  
+      - Risk Score: (0–100)  
+      - Key Risk Factors: (bullet points citing concrete evidence)  
+      - Assessment Summary: (2–3 sentences explaining reasoning)  
+      - Recommendation: (specific next action)  
+    </responseTemplate>
+
+    <example>
+      <input>
+        Transaction: $18,500 transfer from a new device to an overseas account in a high-risk jurisdiction.  
+        Customer History: Typically transacts <$1,000, all local merchants. No prior international transfers.  
+      </input>
+      <output>
+        - Decision: ESCALATE  
+        - Risk Score: 78  
+        - Key Risk Factors:  
+          • First-time international transfer  
+          • High-risk jurisdiction  
+          • Unusual transaction amount vs. historical pattern  
+          • New device, raising account takeover risk  
+        - Assessment Summary: Transaction deviates significantly from historical profile. High-value transfer, unusual geography, and device change increase suspicion.  
+        - Recommendation: Escalate to fraud operations team for urgent review.  
+      </output>
+    </example>
+  </agent>
+</poml>`,
+              timestamp: new Date().toISOString()
+            };
+            
+            setMessages([systemPrompt, ...formattedMessages]);
           } else {
             console.warn('Failed to fetch thread messages, falling back to summary');
             // Fallback to summary if API fails
             if (agentDecision) {
+              const systemPrompt = {
+                id: 'system-prompt',
+                type: 'system',
+                content: `<poml>
+  <agent name="PrimaryFraudAgent">
+    <role>
+      You are an advanced AI agent specializing in financial fraud detection. 
+      Your mission is to identify fraud patterns that rule-based systems miss, 
+      providing clear, evidence-based risk assessments.
+    </role>
+
+    <task>
+      - Analyze transactions using historical, behavioral, and contextual data.  
+      - Detect subtle or emerging fraud typologies.  
+      - Assign a risk score (0–100) and classify outcome.  
+      - Deliver actionable recommendations that balance fraud prevention with minimizing false positives.  
+    </task>
+
+    <capabilities>
+      <item>Historical transaction pattern analysis</item>
+      <item>Customer behavior profiling</item>
+      <item>Network & relationship analysis</item>
+      <item>Sanctions, PEP, and watchlist screening</item>
+    </capabilities>
+
+    <decisionFramework>
+      <option name="APPROVE">0–39: Low risk. Normal behavior. High confidence.</option>
+      <option name="INVESTIGATE">40–65: Moderate risk. Manual review recommended.</option>
+      <option name="ESCALATE">66–85: High risk. Urgent review needed.</option>
+      <option name="BLOCK">86–100: Critical risk. Immediate action required.</option>
+    </decisionFramework>
+
+    <guidelines>
+      <item>Always state your decision clearly.</item>
+      <item>Support with concrete risk factors and evidence.</item>
+      <item>Reference historical or behavioral context.</item>
+      <item>Be concise but thorough: short narrative + key points.</item>
+      <item>Focus on edge cases where rules are inconclusive.</item>
+    </guidelines>
+
+    <responseTemplate>
+      - Decision: (APPROVE / INVESTIGATE / ESCALATE / BLOCK)  
+      - Risk Score: (0–100)  
+      - Key Risk Factors: (bullet points citing concrete evidence)  
+      - Assessment Summary: (2–3 sentences explaining reasoning)  
+      - Recommendation: (specific next action)  
+    </responseTemplate>
+
+    <example>
+      <input>
+        Transaction: $18,500 transfer from a new device to an overseas account in a high-risk jurisdiction.  
+        Customer History: Typically transacts <$1,000, all local merchants. No prior international transfers.  
+      </input>
+      <output>
+        - Decision: ESCALATE  
+        - Risk Score: 78  
+        - Key Risk Factors:  
+          • First-time international transfer  
+          • High-risk jurisdiction  
+          • Unusual transaction amount vs. historical pattern  
+          • New device, raising account takeover risk  
+        - Assessment Summary: Transaction deviates significantly from historical profile. High-value transfer, unusual geography, and device change increase suspicion.  
+        - Recommendation: Escalate to fraud operations team for urgent review.  
+      </output>
+    </example>
+  </agent>
+</poml>`,
+                timestamp: new Date().toISOString()
+              };
+
               setMessages([
+                systemPrompt,
                 {
                   id: 'fallback',
                   type: 'assistant',
@@ -91,7 +237,78 @@ const AgentChatInterface = ({ threadId, backendUrl, agentDecision }) => {
           console.error('Error fetching thread messages:', error);
           // Fallback to summary on error
           if (agentDecision) {
+            const systemPrompt = {
+              id: 'system-prompt',
+              type: 'system',
+              content: `<poml>
+  <agent name="PrimaryFraudAgent">
+    <role>
+      You are an advanced AI agent specializing in financial fraud detection. 
+      Your mission is to identify fraud patterns that rule-based systems miss, 
+      providing clear, evidence-based risk assessments.
+    </role>
+
+    <task>
+      - Analyze transactions using historical, behavioral, and contextual data.  
+      - Detect subtle or emerging fraud typologies.  
+      - Assign a risk score (0–100) and classify outcome.  
+      - Deliver actionable recommendations that balance fraud prevention with minimizing false positives.  
+    </task>
+
+    <capabilities>
+      <item>Historical transaction pattern analysis</item>
+      <item>Customer behavior profiling</item>
+      <item>Network & relationship analysis</item>
+      <item>Sanctions, PEP, and watchlist screening</item>
+    </capabilities>
+
+    <decisionFramework>
+      <option name="APPROVE">0–39: Low risk. Normal behavior. High confidence.</option>
+      <option name="INVESTIGATE">40–65: Moderate risk. Manual review recommended.</option>
+      <option name="ESCALATE">66–85: High risk. Urgent review needed.</option>
+      <option name="BLOCK">86–100: Critical risk. Immediate action required.</option>
+    </decisionFramework>
+
+    <guidelines>
+      <item>Always state your decision clearly.</item>
+      <item>Support with concrete risk factors and evidence.</item>
+      <item>Reference historical or behavioral context.</item>
+      <item>Be concise but thorough: short narrative + key points.</item>
+      <item>Focus on edge cases where rules are inconclusive.</item>
+    </guidelines>
+
+    <responseTemplate>
+      - Decision: (APPROVE / INVESTIGATE / ESCALATE / BLOCK)  
+      - Risk Score: (0–100)  
+      - Key Risk Factors: (bullet points citing concrete evidence)  
+      - Assessment Summary: (2–3 sentences explaining reasoning)  
+      - Recommendation: (specific next action)  
+    </responseTemplate>
+
+    <example>
+      <input>
+        Transaction: $18,500 transfer from a new device to an overseas account in a high-risk jurisdiction.  
+        Customer History: Typically transacts <$1,000, all local merchants. No prior international transfers.  
+      </input>
+      <output>
+        - Decision: ESCALATE  
+        - Risk Score: 78  
+        - Key Risk Factors:  
+          • First-time international transfer  
+          • High-risk jurisdiction  
+          • Unusual transaction amount vs. historical pattern  
+          • New device, raising account takeover risk  
+        - Assessment Summary: Transaction deviates significantly from historical profile. High-value transfer, unusual geography, and device change increase suspicion.  
+        - Recommendation: Escalate to fraud operations team for urgent review.  
+      </output>
+    </example>
+  </agent>
+</poml>`,
+              timestamp: new Date().toISOString()
+            };
+
             setMessages([
+              systemPrompt,
               {
                 id: 'error-fallback',
                 type: 'assistant',
@@ -188,7 +405,9 @@ const AgentChatInterface = ({ threadId, backendUrl, agentDecision }) => {
   };
 
   const getMessageTypeLabel = (message) => {
-    if (message.isOriginalPrompt) {
+    if (message.type === 'system') {
+      return 'System Prompt';
+    } else if (message.isOriginalPrompt) {
       return 'Original Analysis Prompt';
     } else if (message.isDetailedResponse) {
       return 'AI Analysis Response';
@@ -226,16 +445,18 @@ const AgentChatInterface = ({ threadId, backendUrl, agentDecision }) => {
         <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2] }}>
           <Icon glyph="Support" size={18} fill={palette.blue.base} />
           <Body weight="medium" size="small" style={{ margin: 0, color: palette.gray.dark3 }}>
-            Chat with Agent
+            Chat with Fraud Detection Agent
           </Body>
         </div>
         <Body size="small" style={{ 
           margin: 0, 
           color: palette.gray.dark1, 
           fontFamily: 'monospace',
-          fontSize: '11px'
+          fontSize: '10px',
+          wordBreak: 'break-all',
+          maxWidth: '200px'
         }}>
-          Thread: {threadId.substring(0, 12)}...
+          Thread: {threadId}
         </Body>
       </div>
 
@@ -258,7 +479,7 @@ const AgentChatInterface = ({ threadId, backendUrl, agentDecision }) => {
               key={message.id}
               style={{
                 display: 'flex',
-                justifyContent: message.type === 'user' ? 'flex-end' : 'flex-start',
+                justifyContent: message.type === 'user' ? 'flex-end' : message.type === 'system' ? 'center' : 'flex-start',
                 marginBottom: spacing[4]
               }}
             >
@@ -272,10 +493,10 @@ const AgentChatInterface = ({ threadId, backendUrl, agentDecision }) => {
                 {messageTypeLabel && (
                   <div style={{ 
                     marginBottom: spacing[1],
-                    textAlign: message.type === 'user' ? 'right' : 'left'
+                    textAlign: message.type === 'user' ? 'right' : message.type === 'system' ? 'center' : 'left'
                   }}>
                     <Badge 
-                      variant={message.isOriginalPrompt ? 'blue' : message.isDetailedResponse ? 'green' : 'gray'}
+                      variant={message.type === 'system' ? 'yellow' : message.isOriginalPrompt ? 'blue' : message.isDetailedResponse ? 'green' : 'gray'}
                       style={{ fontSize: '10px' }}
                     >
                       {messageTypeLabel}
@@ -287,9 +508,13 @@ const AgentChatInterface = ({ threadId, backendUrl, agentDecision }) => {
                 <Card style={{
                   background: message.type === 'user' 
                     ? palette.blue.light3
+                    : message.type === 'system'
+                    ? palette.yellow.light3
                     : palette.white,
                   border: message.type === 'user' 
                     ? `1px solid ${palette.blue.light2}`
+                    : message.type === 'system'
+                    ? `1px solid ${palette.yellow.light2}`
                     : `1px solid ${palette.gray.light2}`,
                   boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                 }}>
@@ -301,6 +526,8 @@ const AgentChatInterface = ({ threadId, backendUrl, agentDecision }) => {
                       wordBreak: 'break-word',
                       color: message.type === 'user' 
                         ? palette.blue.dark2 
+                        : message.type === 'system'
+                        ? palette.yellow.dark2
                         : palette.gray.dark3,
                       fontFamily: message.isOriginalPrompt ? 'monospace' : 'inherit',
                       fontSize: message.isOriginalPrompt ? '11px' : '13px'
@@ -335,6 +562,8 @@ const AgentChatInterface = ({ threadId, backendUrl, agentDecision }) => {
                       opacity: 0.8,
                       color: message.type === 'user' 
                         ? palette.blue.dark1 
+                        : message.type === 'system'
+                        ? palette.yellow.dark1
                         : palette.gray.dark1,
                       display: 'flex',
                       justifyContent: 'space-between',
@@ -390,7 +619,7 @@ const AgentChatInterface = ({ threadId, backendUrl, agentDecision }) => {
         background: palette.gray.light3
       }}>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: spacing[2] }}>
-          <div style={{ flex: 1 }}>
+          <div style={{ width: '95%' }}>
             <TextInput
               aria-label="Chat message"
               placeholder="Ask the agent about its decision..."

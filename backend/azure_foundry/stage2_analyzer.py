@@ -35,7 +35,6 @@ class Stage2Analyzer:
         self.agents_client = agents_client
         self.config = config
         self.fraud_service = None
-        self.enhanced_memory = None  # Will be set by agent_core
         
         logger.info("Initializing Stage2Analyzer")
     
@@ -67,8 +66,8 @@ class Stage2Analyzer:
         conversation_handler=None,
         fraud_toolset=None,
         fraud_tools_instance=None,
-        enhanced_memory=None,
-        meta_context=None
+        memory_store=None,
+        similar_decisions=None
     ) -> Stage2Result:
         """
         Perform Stage 2 analysis: vector search + AI analysis
@@ -114,8 +113,8 @@ class Stage2Analyzer:
                 conversation_handler=conversation_handler,
                 fraud_toolset=fraud_toolset,
                 fraud_tools_instance=fraud_tools_instance,
-                enhanced_memory=enhanced_memory,
-                meta_context=meta_context
+                memory_store=memory_store,
+                similar_decisions=similar_decisions
             )
             
             logger.debug(f"AI analysis complete: recommendation={ai_recommendation}")
@@ -125,7 +124,7 @@ class Stage2Analyzer:
             # ============================================================
             result = Stage2Result(
                 similar_transactions_count=len(similar_transactions),
-                similarity_risk_score=similarity_risk * 100,  # Convert to 0-100 scale
+                similarity_risk_score=(similarity_risk or 0.0) * 100,  # Convert to 0-100 scale, handle None
                 ai_analysis_summary=ai_analysis,
                 ai_recommendation=ai_recommendation,
                 pattern_insights=self._extract_pattern_insights(similar_transactions),
@@ -189,8 +188,8 @@ class Stage2Analyzer:
         conversation_handler=None,
         fraud_toolset=None,
         fraud_tools_instance=None,
-        enhanced_memory=None,
-        meta_context=None
+        memory_store=None,
+        similar_decisions=None
     ) -> Tuple[str, Optional[DecisionType]]:
         """
         Use Azure AI Foundry agent for sophisticated analysis
@@ -202,17 +201,15 @@ class Stage2Analyzer:
         try:
             # Build comprehensive context for AI analysis
             context = self._build_ai_context(
-                transaction, stage1_result, fraud_tools_instance, meta_context
+                transaction, stage1_result, fraud_tools_instance, similar_decisions
             )
             
-            # Store the prompt for meta-learning
-            if enhanced_memory:
-                await enhanced_memory.store_conversation_message(
-                    thread_id=thread_id,
+            # Store the prompt in memory if available
+            if memory_store:
+                await memory_store.add_message_to_memory(
                     transaction_id=transaction.transaction_id,
                     role="user",
-                    content=context,
-                    metadata={"stage": "stage2_analysis", "prompt_type": "ai_investigation"}
+                    content=context[:500]  # Limit length
                 )
             
             # Use conversation handler if available, otherwise use agents client
@@ -232,35 +229,39 @@ class Stage2Analyzer:
                 )
                 ai_response = await self._run_ai_conversation(thread_id, agent_id, self.agents_client)
                 
-                # Store fallback conversation if enhanced memory provided
-                if enhanced_memory:
-                    await enhanced_memory.store_conversation_message(
-                        thread_id=thread_id,
+                # Store fallback conversation if memory store provided
+                if memory_store:
+                    await memory_store.add_message_to_memory(
                         transaction_id=transaction.transaction_id,
                         role="user",
-                        content=context,
-                        metadata={"stage": "stage2_analysis", "prompt_type": "ai_investigation", "fallback": True}
+                        content=context[:500],
+                        tools_used=["ai_analysis"]
                     )
-                    await enhanced_memory.store_conversation_message(
-                        thread_id=thread_id,
+                    await memory_store.add_message_to_memory(
                         transaction_id=transaction.transaction_id,
                         role="assistant",
-                        content=ai_response,
-                        metadata={"stage": "stage2_analysis", "response_type": "ai_investigation", "fallback": True}
+                        content=ai_response[:500],
+                        tools_used=["ai_analysis"]
                     )
             
-            # Store the AI response for meta-learning
-            if enhanced_memory:
-                await enhanced_memory.store_conversation_message(
-                    thread_id=thread_id,
+            # Store the AI response in memory if available
+            if memory_store:
+                await memory_store.add_message_to_memory(
                     transaction_id=transaction.transaction_id,
                     role="assistant",
-                    content=ai_response,
-                    metadata={"stage": "stage2_analysis", "response_type": "ai_investigation"}
+                    content=ai_response[:500]  # Limit length
                 )
             
             # Extract recommendation from AI response
             ai_recommendation = self._extract_ai_recommendation(ai_response)
+            
+            # Log the extraction for debugging with more detail
+            logger.info(f"🔍 AI Response Decision Extraction: Extracted '{ai_recommendation}' from response")
+            logger.info(f"🔍 AI Response preview (first 300 chars): {ai_response[:300]}...")
+            if not ai_recommendation:
+                logger.warning(f"❌ Could not extract clear decision from AI response. Full response: {ai_response}")
+            else:
+                logger.info(f"✅ Successfully extracted AI recommendation: {ai_recommendation}")
             
             return ai_response, ai_recommendation
             
@@ -273,113 +274,80 @@ class Stage2Analyzer:
         transaction: TransactionInput,
         stage1_result: Stage1Result,
         fraud_tools_instance=None,
-        meta_context=None
+        similar_decisions=None
     ) -> str:
         """Build comprehensive context for AI analysis"""
         
         context = f"""
 TRANSACTION ANALYSIS REQUEST - STAGE 2 INVESTIGATION
 
-Current Transaction Details:
-- ID: {transaction.transaction_id}
-- Customer: {transaction.customer_id}
-- Amount: ${transaction.amount:,.2f} {transaction.currency}
-- Merchant Category: {transaction.merchant_category}
-- Location: {transaction.location_country}
-- Timestamp: {transaction.timestamp.isoformat()}
+Current Transaction:
+- ID: {transaction.transaction_id} | Amount: ${transaction.amount:,.2f} {transaction.currency}
+- Customer: {transaction.customer_id} | Category: {transaction.merchant_category}
+- Location: {transaction.location_country} | Time: {transaction.timestamp.isoformat()}
 
-Stage 1 Analysis Results:
-- Combined Risk Score: {stage1_result.combined_score:.1f}/100
-- Rules Score: {stage1_result.rule_score:.1f}/100
-- Basic ML Score: {stage1_result.basic_ml_score or 'N/A'}
-- Rule Flags: {stage1_result.rule_flags if stage1_result.rule_flags else 'None'}
-- Processing Time: {stage1_result.processing_time_ms:.1f}ms
+Stage 1 Results:
+- Risk Score: {stage1_result.combined_score:.1f}/100 (Rules: {stage1_result.rule_score:.1f}, ML: {stage1_result.basic_ml_score or 'N/A'})
+- Flags: {stage1_result.rule_flags if stage1_result.rule_flags else 'None'}
+
+AVAILABLE TOOLS:
+1. analyze_transaction_patterns() - Customer behavioral analysis
+2. search_similar_transactions() - Vector similarity search
+3. calculate_network_risk() - Network/fraud ring analysis  
+4. check_sanctions_lists() - PEP/sanctions screening
+5. SuspiciousReportsAgent - Historical SAR analysis
+
+TOOL SELECTION STRATEGY - CREATE YOUR OWN:
+Analyze the transaction data and Stage 1 risk score to create a focused tool selection strategy.
+
+FIRST: Share your tool selection strategy and reasoning:
+- Which tools will you use based on this transaction's characteristics?
+- Why are these tools most relevant for this risk score ({stage1_result.combined_score:.1f}/100)?
+- What specific fraud patterns are you looking for?
+
+CHAIN OF THOUGHT:
+1. Risk Assessment: Given the Stage 1 score, what level of investigation is needed?
+2. Transaction Profile: What stands out about this transaction (amount, location, category, timing)?
+3. Tool Priority: Which tools provide the most value for this specific case?
+
+Be concise in your strategy explanation.
 """
         
-        # Add meta-learning context if available
-        if meta_context and meta_context.get("similar_decisions"):
-            context += f"""\n
-META-LEARNING CONTEXT:
-Found {len(meta_context['similar_decisions'])} similar past decisions:
+        # Add memory context AFTER tool selection strategy  
+        if similar_decisions and len(similar_decisions) > 0:
+            context += f"""
+
+MEMORY CONTEXT:
+Found {len(similar_decisions)} similar past decisions:
 """
-            for i, decision in enumerate(meta_context['similar_decisions'][:3], 1):
-                context += f"""\n{i}. Transaction from {decision.get('created_at', 'Unknown date')}
-   - Decision: {decision.get('decision')}
-   - Risk Score: {decision.get('risk_score', 0):.1f}/100
-   - Confidence: {decision.get('confidence', 0):.2%}
-   - Reasoning: {decision.get('reasoning', 'N/A')[:100]}...
+            for i, decision in enumerate(similar_decisions[:2], 1):
+                effectiveness = decision.get('outcome', {}).get('effectiveness_score', 'Unknown')
+                if isinstance(effectiveness, (int, float)):
+                    effectiveness = f"{effectiveness:.0%}"
+                
+                context += f"""
+{i}. Decision: {decision.get('decision', {}).get('action', 'Unknown')} | Score: {decision.get('decision', {}).get('risk_score', 0):.0f}/100 | Effectiveness: {effectiveness}
 """
             
-            if meta_context.get("statistics"):
-                context += f"""\n
-Historical Statistics:
-- Most Common Decision: {meta_context['statistics'].get('most_common_decision', 'N/A')}
-- Average Risk Score: {meta_context['statistics'].get('avg_risk_score', 0):.1f}/100
-"""
-        
-        if meta_context and meta_context.get("relevant_patterns"):
-            context += f"""\n
-Learned Patterns ({len(meta_context['relevant_patterns'])} relevant):
-"""
-            for pattern in meta_context['relevant_patterns'][:2]:
-                context += f"""\n- Pattern Type: {pattern.get('pattern_type')}
-  Effectiveness: {pattern.get('effectiveness_score', 0):.2%}
-  Usage Count: {pattern.get('usage_count', 0)}
-"""
-        
-        # Build strategic tool selection guidance using the fraud tools instance
-        tool_guidance = ""
-        if fraud_tools_instance:
-            tool_guidance = fraud_tools_instance.build_tool_selection_guidance(transaction, stage1_result)
-        else:
-            tool_guidance = "TOOL SELECTION: Start with analyze_transaction_patterns(), then choose additional tools based on findings."
+            # Show average effectiveness
+            valid_scores = [d.get('outcome', {}).get('effectiveness_score') for d in similar_decisions 
+                          if isinstance(d.get('outcome', {}).get('effectiveness_score'), (int, float))]
+            if valid_scores:
+                avg_effectiveness = sum(valid_scores) / len(valid_scores)
+                context += f"Average effectiveness: {avg_effectiveness:.0%}\n"
         
         context += f"""
-
-STRATEGIC ANALYSIS REQUEST:
-This transaction scored {stage1_result.combined_score:.1f}/100 in our initial analysis, 
-placing it in the edge case category that requires deeper investigation.
-
-AVAILABLE ANALYSIS TOOLS:
-1. analyze_transaction_patterns() - Customer behavioral analysis
-2. search_similar_transactions() - Vector similarity search for patterns
-3. calculate_network_risk() - Network analysis for connected fraud rings  
-4. check_sanctions_lists() - PEP/sanctions screening
-5. SuspiciousReportsAgent - Connected agent for historical SAR analysis
-
-TOOL SELECTION STRATEGY:
-{tool_guidance}
-
-CONNECTED AGENT GUIDANCE:
-Use SuspiciousReportsAgent when:
-- High-value transactions ($10K+) with unusual patterns
-- Multiple risk flags from Stage 1 (3+ flags)
-- Transactions to high-risk jurisdictions
-- Complex fraud patterns that may match historical SARs
-- Network analysis reveals suspicious connections
-
-When calling SuspiciousReportsAgent, provide:
-- Transaction details (amount, location, merchant category)
-- Customer profile and risk flags
-- Stage 1 analysis summary
-- Any tool findings that suggest historical pattern matches
-
-ANALYSIS APPROACH:
-1. Start with analyze_transaction_patterns() to establish customer baseline
-2. Use search_similar_transactions() if patterns seem anomalous
-3. Call SuspiciousReportsAgent if multiple red flags or complex patterns emerge
-4. Use network/sanctions tools for high-risk scenarios
-5. Make final decision based on comprehensive analysis
-
 RESPONSE FORMAT:
-Based on your strategic analysis, provide:
-1. A clear risk assessment citing specific tool findings
-2. Your recommendation: APPROVE, INVESTIGATE, ESCALATE, or BLOCK  
-3. Explanation of your tool selection strategy and key findings
-4. Specific risk factors or reassuring patterns from your analysis
-5. If you used SuspiciousReportsAgent, integrate its historical insights
+1. Tool Selection Strategy & Execution (your Chain of Thought analysis)
+2. Risk Assessment with tool findings
+3. **REQUIRED DECISION**: You MUST include one of these exact phrases in your response:
+   - "Recommendation: APPROVE" (for low-risk, legitimate transactions)
+   - "Recommendation: INVESTIGATE" (for medium-risk requiring more review)
+   - "Recommendation: ESCALATE" (for high-risk requiring senior review)
+   - "Recommendation: BLOCK" (for confirmed fraud or very high risk)
+4. Key reasoning for your decision
 
-Focus on efficient, targeted analysis that maximizes insight while minimizing unnecessary tool usage.
+Important: Always include "Recommendation: [DECISION]" explicitly in your response.
 """
         
         return context
@@ -447,26 +415,51 @@ Focus on efficient, targeted analysis that maximizes insight while minimizing un
         
         response_lower = ai_response.lower()
         
-        # Look for explicit recommendations
-        if "recommend: block" in response_lower or "recommendation: block" in response_lower:
+        # Look for explicit recommendations with various formats
+        # BLOCK patterns
+        if any(pattern in response_lower for pattern in [
+            "recommend: block", "recommendation: block", "recommendation:** block",
+            "decision: block", "**block**", "reject this transaction",
+            "should be blocked", "recommend blocking", "block this transaction",
+            "high risk - block", "fraudulent", "deny this transaction"
+        ]):
             return DecisionType.BLOCK
-        elif "recommend: approve" in response_lower or "recommendation: approve" in response_lower:
+            
+        # APPROVE patterns
+        elif any(pattern in response_lower for pattern in [
+            "recommend: approve", "recommendation: approve", "recommendation:** approve",
+            "decision: approve", "**approve**", "approve this transaction",
+            "should be approved", "appears legitimate", "low risk - approve",
+            "safe to proceed", "legitimate transaction", "can be approved"
+        ]):
             return DecisionType.APPROVE
-        elif "recommend: escalate" in response_lower or "recommendation: escalate" in response_lower:
+            
+        # ESCALATE patterns
+        elif any(pattern in response_lower for pattern in [
+            "recommend: escalate", "recommendation: escalate", "recommendation:** escalate",
+            "decision: escalate", "**escalate**", "requires escalation",
+            "escalate immediately", "escalate for review", "needs senior review",
+            "manual review required", "escalate to compliance"
+        ]):
             return DecisionType.ESCALATE
-        elif "recommend: investigate" in response_lower or "recommendation: investigate" in response_lower:
+            
+        # INVESTIGATE patterns
+        elif any(pattern in response_lower for pattern in [
+            "recommend: investigate", "recommendation: investigate", "recommendation:** investigate",
+            "decision: investigate", "**investigate**", "needs investigation",
+            "further investigation", "requires investigation", "investigate further",
+            "additional review needed", "more analysis required"
+        ]):
             return DecisionType.INVESTIGATE
         
-        # Look for decision keywords in context
-        if "should be blocked" in response_lower or "recommend blocking" in response_lower:
+        # Final fallback based on risk language
+        if "high risk" in response_lower or "very suspicious" in response_lower:
             return DecisionType.BLOCK
-        elif "should be approved" in response_lower or "appears legitimate" in response_lower:
+        elif "low risk" in response_lower or "no concerns" in response_lower:
             return DecisionType.APPROVE
-        elif "requires escalation" in response_lower or "escalate immediately" in response_lower:
-            return DecisionType.ESCALATE
-        elif "needs investigation" in response_lower or "further investigation" in response_lower:
+        elif "medium risk" in response_lower or "moderate risk" in response_lower:
             return DecisionType.INVESTIGATE
-        
+            
         return None  # No clear recommendation found
     
     def _extract_pattern_insights(self, similar_transactions: List[Dict]) -> List[str]:

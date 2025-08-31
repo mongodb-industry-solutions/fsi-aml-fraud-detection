@@ -128,7 +128,8 @@ function TransactionSimulator() {
           // Set initial amount based on customer's average
           if (response.data[0].behavioral_profile && 
               response.data[0].behavioral_profile.transaction_patterns) {
-            setAmount(Math.round(response.data[0].behavioral_profile.transaction_patterns.avg_transaction_amount));
+            const avgAmount = response.data[0].behavioral_profile.transaction_patterns.avg_transaction_amount || 50;
+            setAmount(Math.round(avgAmount));
           }
           
           // Set initial merchant category from customer's common categories
@@ -155,7 +156,8 @@ function TransactionSimulator() {
     // Update amount based on selected customer's average
     if (customer.behavioral_profile && 
         customer.behavioral_profile.transaction_patterns) {
-      setAmount(Math.round(customer.behavioral_profile.transaction_patterns.avg_transaction_amount));
+      const avgAmount = customer.behavioral_profile.transaction_patterns.avg_transaction_amount || 50;
+      setAmount(Math.round(avgAmount));
     }
     
     // Update merchant category from customer's common categories
@@ -295,7 +297,7 @@ function TransactionSimulator() {
       customer_id: selectedCustomer._id,
       transaction_id: `tx-${Date.now()}`,
       timestamp: new Date().toISOString(),
-      amount: parseFloat(amount),
+      amount: parseFloat(amount) || 50,
       currency: 'USD',
       merchant: {
         name: generatedMerchantName,

@@ -74,13 +74,13 @@ export const EventLog = ({ events, isConnected, onClear }) => {
           return `Initiated ${data?.tool_name} with ${Object.keys(data?.arguments || {}).length} parameters`;
         
         case 'tool_call_completed':
-          return `Completed ${data?.tool_name} in ${data?.execution_time_ms?.toFixed(0)}ms`;
+          return `Completed ${data?.tool_name}`;
         
         case 'decision_made':
           return `Made ${data?.decision_type} with ${Math.round((data?.confidence_score || 0) * 100)}% confidence`;
         
         case 'performance_metrics':
-          return `Execution time: ${data?.total_execution_time_ms?.toFixed(0)}ms`;
+          return `Performance metrics updated`;
         
         case 'status_update':
           return data?.message || `Status: ${data?.status}`;
@@ -235,7 +235,7 @@ export const EventLog = ({ events, isConnected, onClear }) => {
                     />
                     
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing[1] }}>
+                      <div style={{ marginBottom: spacing[1] }}>
                         <Body size="small" weight="medium" style={{ 
                           color: palette.gray.dark3, 
                           margin: 0,
@@ -243,14 +243,6 @@ export const EventLog = ({ events, isConnected, onClear }) => {
                           textOverflow: 'ellipsis'
                         }}>
                           {getEventTypeLabel(event.event_type)}
-                        </Body>
-                        <Body size="small" style={{ 
-                          color: palette.gray.dark1, 
-                          margin: 0,
-                          flexShrink: 0,
-                          marginLeft: spacing[2]
-                        }}>
-                          {event.timestamp ? new Date(event.timestamp).toLocaleTimeString() : 'Unknown'}
                         </Body>
                       </div>
                       

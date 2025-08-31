@@ -82,8 +82,12 @@ class Stage1Analyzer:
                     None, self.fraud_service.evaluate_transaction, transaction_data
                 )
             
-            rule_score = rule_assessment.get('score', 50.0)
-            rule_flags = rule_assessment.get('flags', [])
+            # Handle case where fraud service returns None
+            if rule_assessment is None:
+                rule_assessment = {'score': 50.0, 'flags': []}
+            
+            rule_score = rule_assessment.get('score', 50.0) or 50.0
+            rule_flags = rule_assessment.get('flags', []) or []
             
             logger.debug(f"Rules analysis: score={rule_score}, flags={rule_flags}")
             
@@ -177,9 +181,13 @@ class Stage1Analyzer:
         - Customer behavior (if available)
         """
         try:
-            base_score = rule_assessment.get('score', 50.0)
-            amount = transaction.amount
-            category = transaction.merchant_category
+            # Handle case where rule_assessment might be None
+            if rule_assessment is None:
+                rule_assessment = {'score': 50.0}
+                
+            base_score = rule_assessment.get('score', 50.0) or 50.0
+            amount = transaction.amount or 0
+            category = transaction.merchant_category or 'unknown'
             
             # Amount-based risk adjustment
             amount_adjustment = 0

@@ -18,7 +18,7 @@ from .config import get_demo_agent_config, get_agent_instructions
 from .conversation import NativeConversationHandler
 # Moved to function level to avoid circular import
 from .memory import create_mongodb_vector_store
-from .memory.enhanced_memory_store import EnhancedMemoryStore
+from .memory.simple_memory_store import SimpleMemoryStore
 
 logger = logging.getLogger(__name__)
 
@@ -62,8 +62,8 @@ class TwoStageAgentCore:
         self.fraud_toolset = None  # List of FunctionTool objects for agent creation
         self.fraud_tools_instance = None  # FraudDetectionTools instance for guidance methods
         
-        # Enhanced memory store for comprehensive meta-learning
-        self.enhanced_memory = None
+        # Simple memory store for agent learning (3 collections)
+        self.memory_store = None
         
         # Thread management for conversation memory (now backed by MongoDB)
         self.thread_cache: Dict[str, str] = {}  # transaction_id -> thread_id (local cache)
@@ -125,6 +125,11 @@ class TwoStageAgentCore:
         )
         await self.stage2_analyzer.initialize()
         
+        # Initialize simple memory store for agent learning
+        self.memory_store = SimpleMemoryStore(self.db_client)
+        await self.memory_store.initialize()
+        logger.info("✅ Simple Memory Store initialized (3 collections: memory, decisions, patterns)")
+        
         logger.info("✅ Stage analyzers initialized")
     
     async def _init_native_enhancements(self):
@@ -145,10 +150,8 @@ class TwoStageAgentCore:
             # Setup vector indexes for learning patterns
             await self.mongodb_vector_store.setup_vector_indexes()
             
-            # Initialize enhanced memory store for comprehensive meta-learning
-            self.enhanced_memory = EnhancedMemoryStore(self.db_client)
-            await self.enhanced_memory.initialize()
-            logger.info("✅ Enhanced memory store initialized for meta-learning")            
+            # Initialize simple memory store for comprehensive meta-learning
+            # Note: This is handled in the main __init__ method above            
             
             # Create fraud detection tools instance and toolset
             from azure_foundry.tools.native_tools import FraudDetectionTools
@@ -266,28 +269,25 @@ class TwoStageAgentCore:
         
         logger.info(f"🔍 Analyzing transaction {transaction.transaction_id} (${transaction.amount:,.2f})")
         
-        # Log analysis start event
-        if self.enhanced_memory:
-            await self.enhanced_memory.store_event_log(
-                transaction_id=transaction.transaction_id,
-                event_type="analysis_start",
-                event_data={
-                    "amount": transaction.amount,
-                    "merchant_category": transaction.merchant_category,
-                    "customer_id": transaction.customer_id
-                }
+        # Retrieve similar decisions for meta-learning
+        similar_decisions = []
+        if self.memory_store:
+            similar_decisions = await self.memory_store.get_similar_decisions(
+                transaction_data, limit=3
             )
-        
-        # Retrieve meta-learning context for better decision making
-        meta_context = None
-        if self.enhanced_memory:
-            meta_context = await self.enhanced_memory.get_meta_learning_context(
-                transaction_data, transaction.customer_id
-            )
-            if meta_context["similar_decisions"]:
-                logger.info(f"Found {len(meta_context['similar_decisions'])} similar past decisions")
-                if meta_context["statistics"]:
-                    logger.info(f"Most common decision: {meta_context['statistics'].get('most_common_decision')}")
+            if similar_decisions:
+                logger.info(f"Found {len(similar_decisions)} similar past decisions for meta-learning")
+                # Safe calculation of average effectiveness 
+                effectiveness_scores = []
+                for d in similar_decisions:
+                    score = d.get("outcome", {}).get("effectiveness_score", 0.5)
+                    if score is not None:
+                        effectiveness_scores.append(float(score))
+                    else:
+                        effectiveness_scores.append(0.5)
+                
+                avg_effectiveness = sum(effectiveness_scores) / len(effectiveness_scores) if effectiveness_scores else 0.5
+                logger.info(f"Average effectiveness of similar decisions: {avg_effectiveness:.2%}")
         
         try:
             # ============================================================
@@ -301,16 +301,7 @@ class TwoStageAgentCore:
             )
             
             # Log Stage 1 completion event
-            if self.enhanced_memory:
-                await self.enhanced_memory.store_event_log(
-                    transaction_id=transaction.transaction_id,
-                    event_type="stage1_complete",
-                    event_data={
-                        "score": stage1_result.combined_score,
-                        "needs_stage2": stage1_result.needs_stage2,
-                        "rule_flags": stage1_result.rule_flags
-                    }
-                )
+            # Memory storage will be handled at the end of the complete analysis
             
             # Check if Stage 1 decision is sufficient
             if not stage1_result.needs_stage2:
@@ -344,10 +335,19 @@ class TwoStageAgentCore:
                     transaction.customer_id
                 )
                 
+                # Store initial memory with Stage 1 results
+                if self.memory_store:
+                    await self.memory_store.store_memory(
+                        thread_id=thread_id,
+                        transaction_id=transaction.transaction_id,
+                        transaction_data=transaction_data,
+                        stage1_result=stage1_result.__dict__
+                    )
+                
                 # Store historical decision for meta-learning (if vector store available)
                 await self._store_learning_context(transaction, transaction_data, stage1_result)
                 
-                # Run Stage 2 analysis with enhanced patterns
+                # Run Stage 2 analysis with memory store
                 stage2_result = await self.stage2_analyzer.analyze(
                     transaction=transaction,
                     transaction_data=transaction_data,
@@ -357,8 +357,8 @@ class TwoStageAgentCore:
                     conversation_handler=self.conversation_handler,  # Pass native handler
                     fraud_toolset=self.fraud_toolset,  # CRITICAL: Pass fraud tools for reused agents
                     fraud_tools_instance=self.fraud_tools_instance,  # Pass instance for tool selection guidance
-                    enhanced_memory=self.enhanced_memory,  # Pass enhanced memory for storing prompts/responses
-                    meta_context=meta_context  # Pass meta-learning context for better decisions
+                    memory_store=self.memory_store,  # Pass simple memory store
+                    similar_decisions=similar_decisions  # Pass similar decisions for context
                 )
                 
                 logger.info(
@@ -366,26 +366,39 @@ class TwoStageAgentCore:
                     f"Similar transactions: {stage2_result.similar_transactions_count}"
                 )
                 
-                # Log Stage 2 completion event
-                if self.enhanced_memory:
-                    await self.enhanced_memory.store_event_log(
-                        transaction_id=transaction.transaction_id,
-                        event_type="stage2_complete",
-                        event_data={
-                            "ai_recommendation": stage2_result.ai_recommendation.value if stage2_result.ai_recommendation else None,
-                            "similarity_risk_score": stage2_result.similarity_risk_score,
-                            "similar_transactions_count": stage2_result.similar_transactions_count,
-                            "ai_analysis_summary": stage2_result.ai_analysis_summary[:200] if stage2_result.ai_analysis_summary else None
-                        },
-                        thread_id=thread_id
-                    )
+                # Update memory with Stage 2 results and conversation
+                if self.memory_store:
+                    # Get conversation messages from Azure
+                    conversation_messages = []
+                    try:
+                        messages = self.agents_client.messages.list(thread_id=thread_id, limit=10)
+                        for msg in messages:
+                            content_text = ""
+                            if hasattr(msg, 'content') and msg.content:
+                                for content_block in msg.content:
+                                    if hasattr(content_block, 'text') and content_block.text:
+                                        if hasattr(content_block.text, 'value'):
+                                            content_text += content_block.text.value
+                                        else:
+                                            content_text += str(content_block.text)
+                            
+                            if content_text:
+                                conversation_messages.append({
+                                    "role": msg.role,
+                                    "content": content_text[:500],  # Limit for storage
+                                    "timestamp": datetime.utcnow().isoformat()
+                                })
+                    except Exception as e:
+                        logger.warning(f"Could not retrieve conversation messages: {e}")
                     
-                    # Sync conversation messages from Azure to MongoDB
-                    await self.enhanced_memory.sync_thread_messages_from_azure(
+                    # Update memory with complete information
+                    await self.memory_store.store_memory(
                         thread_id=thread_id,
                         transaction_id=transaction.transaction_id,
-                        agents_client=self.agents_client,
-                        limit=20
+                        transaction_data=transaction_data,
+                        messages=conversation_messages,
+                        stage1_result=stage1_result.__dict__,
+                        stage2_result=stage2_result.__dict__
                     )
                 
                 # Make final decision combining Stage 1 and Stage 2 results
@@ -412,29 +425,33 @@ class TwoStageAgentCore:
             # Store final decision for meta-learning (if vector store available)
             await self._store_final_decision(final_decision, transaction_data)
             
-            # Store comprehensive decision with enhanced memory
-            if self.enhanced_memory:
-                await self.enhanced_memory.store_decision_with_context(
-                    transaction_id=transaction.transaction_id,
-                    decision=final_decision.__dict__,
-                    transaction_data=transaction_data,
-                    stage1_result=stage1_result.__dict__ if stage1_result else None,
-                    stage2_result=stage2_result.__dict__ if hasattr(final_decision, 'stage2_result') and final_decision.stage2_result else None,
-                    thread_id=final_decision.thread_id if hasattr(final_decision, 'thread_id') and final_decision.thread_id else None
-                )
+            # Store decision for learning
+            if self.memory_store:
+                # Get memory ID for linking
+                memory = await self.memory_store.get_memory(transaction_id=transaction.transaction_id)
+                memory_id = memory["memory_id"] if memory else None
                 
-                # Log analysis complete event
-                await self.enhanced_memory.store_event_log(
+                # Extract features for similarity matching
+                features = {
+                    "amount": transaction.amount,
+                    "merchant_risk": transaction_data.get("merchant", {}).get("category", "unknown"),
+                    "customer_age_days": transaction_data.get("customer_age_days", 0),
+                    "unusual_location": transaction_data.get("location", {}).get("unusual", False),
+                    "pattern_match_score": (stage1_result.combined_score or 0) / 100 if stage1_result else 0.5
+                }
+                
+                # Store decision
+                await self.memory_store.store_decision(
                     transaction_id=transaction.transaction_id,
-                    event_type="analysis_complete",
-                    event_data={
+                    memory_id=memory_id,
+                    decision={
                         "decision": final_decision.decision.value,
                         "confidence": final_decision.confidence,
                         "risk_score": final_decision.risk_score,
-                        "stage_completed": final_decision.stage_completed,
-                        "processing_time_ms": final_decision.total_processing_time_ms
+                        "reasoning": final_decision.reasoning or "No detailed reasoning provided"
                     },
-                    thread_id=final_decision.thread_id if hasattr(final_decision, 'thread_id') and final_decision.thread_id else None
+                    features=features,
+                    thread_id=thread_id
                 )
             
             # Update overall metrics
@@ -476,9 +493,15 @@ class TwoStageAgentCore:
     
     def _make_stage2_decision(self, stage1_result, stage2_result) -> Tuple[DecisionType, float]:
         """Make final decision based on both Stage 1 and Stage 2 results"""
+        
+        # DEBUG: Log AI recommendation extraction
+        logger.info(f"🔍 DEBUG: AI recommendation from stage2_result: {stage2_result.ai_recommendation}")
+        logger.info(f"🔍 DEBUG: AI analysis summary preview: {getattr(stage2_result, 'ai_analysis_summary', 'NO SUMMARY')[:200]}...")
+        
         # If AI has a strong recommendation, respect it
         if stage2_result.ai_recommendation:
             ai_rec = stage2_result.ai_recommendation
+            logger.info(f"✅ DEBUG: Using AI recommendation: {ai_rec}")
             
             # High confidence for AI recommendations
             if ai_rec == DecisionType.BLOCK:
@@ -487,9 +510,12 @@ class TwoStageAgentCore:
                 return DecisionType.APPROVE, 0.82
             elif ai_rec == DecisionType.ESCALATE:
                 return DecisionType.ESCALATE, 0.85
+            elif ai_rec == DecisionType.INVESTIGATE:
+                return DecisionType.INVESTIGATE, 0.75
         
         # Fall back to combined score-based decision
         final_score = self._calculate_final_risk_score(stage1_result, stage2_result)
+        logger.info(f"⚠️ DEBUG: No AI recommendation, using score-based decision. Final score: {final_score}")
         
         if final_score > 80:
             return DecisionType.BLOCK, 0.85
@@ -513,22 +539,25 @@ class TwoStageAgentCore:
     
     def _calculate_final_risk_score(self, stage1_result, stage2_result) -> float:
         """Calculate final risk score combining both stages"""
-        stage1_score = stage1_result.combined_score
+        stage1_score = getattr(stage1_result, 'combined_score', None) or 0.0
         
         # Adjust based on Stage 2 findings
         stage2_adjustment = 0
-        if stage2_result.similarity_risk_score > 60:
+        similarity_risk = getattr(stage2_result, 'similarity_risk_score', None) or 0.0
+        if similarity_risk > 60:
             stage2_adjustment += 15
-        elif stage2_result.similarity_risk_score > 40:
+        elif similarity_risk > 40:
             stage2_adjustment += 8
         
-        if stage2_result.similar_transactions_count > 10:
+        similar_count = getattr(stage2_result, 'similar_transactions_count', None) or 0
+        if similar_count > 10:
             stage2_adjustment += 5
         
         # AI analysis can add or subtract points
-        if "high risk" in stage2_result.ai_analysis_summary.lower():
+        ai_summary = getattr(stage2_result, 'ai_analysis_summary', '') or ''
+        if "high risk" in ai_summary.lower():
             stage2_adjustment += 10
-        elif "low risk" in stage2_result.ai_analysis_summary.lower():
+        elif "low risk" in ai_summary.lower():
             stage2_adjustment -= 8
         
         final_score = min(100, max(0, stage1_score + stage2_adjustment))
@@ -536,15 +565,20 @@ class TwoStageAgentCore:
     
     def _build_stage1_reasoning(self, stage1_result) -> str:
         """Build reasoning for Stage 1 only decisions"""
-        reasoning = f"Stage 1 Analysis: Combined score {stage1_result.combined_score:.1f}/100"
-        reasoning += f" (Rules: {stage1_result.rule_score:.1f}"
+        combined_score = getattr(stage1_result, 'combined_score', 0) or 0
+        rule_score = getattr(stage1_result, 'rule_score', 0) or 0
+        basic_ml_score = getattr(stage1_result, 'basic_ml_score', None)
         
-        if stage1_result.basic_ml_score:
-            reasoning += f", ML: {stage1_result.basic_ml_score:.1f}"
+        reasoning = f"Stage 1 Analysis: Combined score {combined_score:.1f}/100"
+        reasoning += f" (Rules: {rule_score:.1f}"
+        
+        if basic_ml_score is not None:
+            reasoning += f", ML: {basic_ml_score:.1f}"
         reasoning += ")"
         
-        if stage1_result.rule_flags:
-            reasoning += f". Rule flags: {', '.join(stage1_result.rule_flags)}"
+        rule_flags = getattr(stage1_result, 'rule_flags', []) or []
+        if rule_flags:
+            reasoning += f". Rule flags: {', '.join(rule_flags)}"
         else:
             reasoning += ". No rule violations detected"
         
@@ -554,15 +588,21 @@ class TwoStageAgentCore:
         """Build comprehensive reasoning for Stage 2 decisions"""
         reasoning = self._build_stage1_reasoning(stage1_result)
         
-        reasoning += f". Stage 2: Found {stage2_result.similar_transactions_count} similar transactions"
-        reasoning += f" with {stage2_result.similarity_risk_score:.1f}/100 similarity risk"
+        similar_count = getattr(stage2_result, 'similar_transactions_count', 0) or 0
+        similarity_risk = getattr(stage2_result, 'similarity_risk_score', 0) or 0
         
-        if stage2_result.ai_recommendation:
-            reasoning += f". AI recommends: {stage2_result.ai_recommendation.value}"
+        reasoning += f". Stage 2: Found {similar_count} similar transactions"
+        reasoning += f" with {similarity_risk:.1f}/100 similarity risk"
         
-        if stage2_result.ai_analysis_summary:
+        ai_recommendation = getattr(stage2_result, 'ai_recommendation', None)
+        if ai_recommendation:
+            recommendation_value = getattr(ai_recommendation, 'value', str(ai_recommendation))
+            reasoning += f". AI recommends: {recommendation_value}"
+        
+        ai_summary = getattr(stage2_result, 'ai_analysis_summary', '') or ''
+        if ai_summary:
             # Add first sentence of AI analysis
-            summary = stage2_result.ai_analysis_summary.split('.')[0][:100]
+            summary = ai_summary.split('.')[0][:100]
             reasoning += f". AI insight: {summary}"
         
         return reasoning
@@ -587,14 +627,8 @@ class TwoStageAgentCore:
         if transaction_id in self.thread_cache:
             return self.thread_cache[transaction_id]
         
-        # Check MongoDB for existing thread
-        if self.enhanced_memory:
-            existing_thread_id = await self.enhanced_memory.get_or_create_thread(
-                transaction_id, customer_id
-            )
-            if existing_thread_id:
-                self.thread_cache[transaction_id] = existing_thread_id
-                return existing_thread_id
+        # Create new thread ID for simplified memory store
+        # Note: Simplified memory store doesn't need pre-existing thread management
         
         try:
             # Create new thread using correct API method
@@ -604,14 +638,7 @@ class TwoStageAgentCore:
             # Cache it locally
             self.thread_cache[transaction_id] = thread_id
             
-            # Persist to MongoDB
-            if self.enhanced_memory:
-                await self.enhanced_memory.store_thread(
-                    transaction_id=transaction_id,
-                    thread_id=thread_id,
-                    customer_id=customer_id,
-                    metadata={"agent_name": self.agent_name}
-                )
+            # Note: Thread persistence handled by store_memory method in SimpleMemoryStore
             
             logger.debug(f"Created new thread {thread_id} for transaction {transaction_id}")
             return thread_id
@@ -710,7 +737,7 @@ class TwoStageAgentCore:
                 "conversation_handler": self.conversation_handler is not None,
                 "mongodb_vector_store": self.mongodb_vector_store is not None,
                 "fraud_toolset": self.fraud_toolset is not None,
-                "enhanced_memory": self.enhanced_memory is not None
+                "memory_store": self.memory_store is not None
             }
         }
     

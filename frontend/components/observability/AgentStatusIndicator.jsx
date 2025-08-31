@@ -132,10 +132,10 @@ export const AgentStatusIndicator = ({
                 fontFamily: 'monospace', 
                 color: palette.gray.dark3, 
                 margin: 0,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
+                wordBreak: 'break-all',
+                fontSize: '10px'
               }}>
-                {currentRun.run_id?.substring(0, 12)}...
+                {currentRun.run_id}
               </Body>
             </div>
             <div>
@@ -146,65 +146,13 @@ export const AgentStatusIndicator = ({
                 fontFamily: 'monospace', 
                 color: palette.gray.dark3, 
                 margin: 0,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
+                wordBreak: 'break-all',
+                fontSize: '10px'
               }}>
-                {currentRun.agent_id?.substring(0, 12)}...
+                {currentRun.agent_id}
               </Body>
             </div>
           </div>
-          
-          {currentRun.started_at && (
-            <div style={{ marginTop: spacing[2] }}>
-              <Body size="small" style={{ 
-                color: palette.gray.dark1, 
-                margin: 0,
-                fontSize: '11px'
-              }}>
-                Started: {new Date(currentRun.started_at).toLocaleTimeString()}
-              </Body>
-            </div>
-          )}
-          
-          {currentRun.completed_at && (
-            <Body size="small" style={{ 
-              color: palette.gray.dark1, 
-              margin: 0,
-              fontSize: '11px'
-            }}>
-              Completed: {new Date(currentRun.completed_at).toLocaleTimeString()}
-            </Body>
-          )}
-
-          {/* Show response preview if completed */}
-          {currentRun.status === 'completed' && currentRun.response && (
-            <div style={{ 
-              marginTop: spacing[2], 
-              padding: spacing[2], 
-              background: palette.green.light3, 
-              borderRadius: '4px' 
-            }}>
-              <Body size="small" weight="medium" style={{ 
-                color: palette.green.dark2, 
-                margin: `0 0 ${spacing[1]}px 0`,
-                fontSize: '11px'
-              }}>
-                Response Preview:
-              </Body>
-              <Body size="small" style={{ 
-                color: palette.green.dark1, 
-                margin: 0,
-                fontSize: '11px',
-                overflow: 'hidden',
-                display: '-webkit-box',
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: 'vertical'
-              }}>
-                {currentRun.response.substring(0, 100)}
-                {currentRun.response.length > 100 ? '...' : ''}
-              </Body>
-            </div>
-          )}
 
           {/* Show error if failed */}
           {currentRun.status === 'failed' && currentRun.error && (

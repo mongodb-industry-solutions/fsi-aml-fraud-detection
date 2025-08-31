@@ -50,11 +50,12 @@ class Stage1Result:
     processing_time_ms: float = 0.0
     
     def __post_init__(self):
-        # Calculate combined score
+        # Calculate combined score with safety checks
+        rule_score = self.rule_score or 0.0
         if self.basic_ml_score is not None:
-            self.combined_score = (self.rule_score * 0.6) + (self.basic_ml_score * 0.4)
+            self.combined_score = (rule_score * 0.6) + (self.basic_ml_score * 0.4)
         else:
-            self.combined_score = self.rule_score
+            self.combined_score = rule_score
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for storage/API responses"""

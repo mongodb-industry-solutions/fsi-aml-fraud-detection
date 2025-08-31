@@ -14,7 +14,7 @@ from routes.fraud_pattern import router as fraud_pattern_router
 from routes.model_management import router as model_management_router
 from routes.agent_routes import router as agent_router
 from routes.observability import router as observability_router
-from routes.memory_routes import router as memory_router
+from routes.simplified_memory_routes import router as memory_router
 # Entity resolution router removed - using enhanced system
 
 # Setup logging

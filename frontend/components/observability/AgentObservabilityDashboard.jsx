@@ -11,6 +11,7 @@ import Button from '@leafygreen-ui/button';
 import Card from '@leafygreen-ui/card';
 import { Spinner } from '@leafygreen-ui/loading-indicator';
 import Icon from '@leafygreen-ui/icon';
+import { spacing } from '@leafygreen-ui/tokens';
 import { AgentStatusIndicator } from './AgentStatusIndicator';
 import { ToolCallProgress } from './ToolCallProgress';
 import { DecisionTracker } from './DecisionTracker';
@@ -53,29 +54,6 @@ const AgentObservabilityDashboard = ({
 
   return (
     <div className={containerClasses} style={isEmbedded ? {} : { zIndex: 1100 }}>
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50 rounded-t-lg">
-        <div className="flex items-center space-x-2">
-          <Icon glyph="Visibility" size="small" />
-          <span className="font-semibold text-sm">Agent Observability</span>
-          <Badge 
-            variant={isConnected ? 'green' : 'red'} 
-            className="text-xs"
-          >
-            {isConnected ? 'Live' : 'Disconnected'}
-          </Badge>
-        </div>
-        
-        {!isEmbedded && onClose && (
-          <Button
-            size="xsmall"
-            variant="default"
-            onClick={onClose}
-          >
-            <Icon glyph="X" size="small" />
-          </Button>
-        )}
-      </div>
 
       {/* Connection Error */}
       {connectionError && (
@@ -87,90 +65,65 @@ const AgentObservabilityDashboard = ({
         </div>
       )}
 
-      <div className="p-4 space-y-4 max-h-[80vh] overflow-y-auto">
+      <div style={{ padding: spacing[4], maxHeight: '80vh', overflowY: 'auto' }}>
         {/* Waiting for Analysis State */}
         {isWaitingForAnalysis ? (
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
-            <div className="text-sm font-semibold text-gray-700 mb-2">
-              🔄 Analysis Starting...
-            </div>
-            <div className="text-xs text-gray-500 mb-4">
-              Agent is initializing. Live observability will begin once thread is created.
-            </div>
-            <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
-              <div className="text-xs text-blue-700">
-                <strong>What you'll see:</strong><br/>
-                • Real-time tool call execution<br/>
-                • Decision-making process<br/>
-                • Performance metrics<br/>
-                • Centralized state management (Phase 2)
-              </div>
-            </div>
           </div>
         ) : (
           <>
             {/* Agent Status */}
-            <AgentStatusIndicator 
-              status={agentStatus}
-              currentRun={currentRun}
-              isConnected={isConnected}
-            />
+            <div style={{ marginBottom: spacing[4] }}>
+              <AgentStatusIndicator 
+                status={agentStatus}
+                currentRun={currentRun}
+                isConnected={isConnected}
+              />
+            </div>
 
             {/* Connected Agent Status (Phase 3A) */}
-            <ConnectedAgentStatus connectedAgents={connectedAgents} />
+            <div style={{ marginBottom: spacing[4] }}>
+              <ConnectedAgentStatus connectedAgents={connectedAgents} />
+            </div>
+
+            {/* Event Log */}
+            <div style={{ marginBottom: spacing[4] }}>
+              <EventLog 
+                events={events}
+                isConnected={isConnected}
+                onClear={null}
+              />
+            </div>
 
             {/* Tool Call Progress */}
             {toolCalls.length > 0 && (
-              <ToolCallProgress 
-                toolCalls={toolCalls}
-                isActive={agentStatus === 'running'}
-              />
+              <div style={{ marginBottom: spacing[4] }}>
+                <ToolCallProgress 
+                  toolCalls={toolCalls}
+                  isActive={agentStatus === 'running'}
+                />
+              </div>
             )}
 
             {/* Decision Tracker */}
             {decisions.length > 0 && (
-              <DecisionTracker decisions={decisions} />
+              <div style={{ marginBottom: spacing[4] }}>
+                <DecisionTracker decisions={decisions} />
+              </div>
             )}
 
             {/* Performance Metrics */}
             {Object.keys(performanceMetrics).length > 0 && (
-              <PerformanceMetrics metrics={performanceMetrics} />
+              <div style={{ marginBottom: spacing[4] }}>
+                <PerformanceMetrics metrics={performanceMetrics} />
+              </div>
             )}
 
-            {/* Event Log */}
-            <EventLog 
-              events={events}
-              isConnected={isConnected}
-              onClear={onClearHistory}
-            />
-
-            {/* Controls */}
-            <div className="flex justify-between items-center pt-3 border-t border-gray-200">
-              <div className="text-xs text-gray-500">
-                Thread: {threadId ? `${threadId.substring(0, 8)}...` : 'None'}
-              </div>
-              <div className="flex space-x-2">
-                <Button
-                  size="xsmall"
-                  variant="default"
-                  onClick={onClearHistory}
-                  disabled={!isConnected || !onClearHistory}
-                >
-                  Clear
-                </Button>
-              </div>
-            </div>
           </>
         )}
       </div>
 
-      {/* Phase 2 Debug Info */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="p-2 bg-gray-100 border-t text-xs text-gray-600">
-          Phase 2: Pure Presentational | Events: {events.length} | Tools: {toolCalls.length} | Status: {agentStatus}
-        </div>
-      )}
     </div>
   );
 };

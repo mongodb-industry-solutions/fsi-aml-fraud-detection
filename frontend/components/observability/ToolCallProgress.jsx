@@ -128,14 +128,7 @@ export const ToolCallProgress = ({ toolCalls, isActive }) => {
                       color: palette.gray.dark1,
                       fontSize: '11px'
                     }}>
-                      {toolCall.started_at && 
-                        `Started: ${new Date(toolCall.started_at).toLocaleTimeString()}`
-                      }
-                      {toolCall.execution_time_ms && (
-                        <span style={{ marginLeft: spacing[1] }}>
-                          Duration: {formatExecutionTime(toolCall.execution_time_ms)}
-                        </span>
-                      )}
+                      {/* Duration removed */}
                     </Body>
                   </div>
                 </div>
@@ -240,42 +233,6 @@ export const ToolCallProgress = ({ toolCalls, isActive }) => {
                     </div>
                   )}
 
-                  {/* Timing Details */}
-                  <div style={{ 
-                    display: 'grid', 
-                    gridTemplateColumns: '1fr 1fr', 
-                    gap: spacing[2], 
-                    fontSize: '11px' 
-                  }}>
-                    {toolCall.started_at && (
-                      <div>
-                        <Body size="small" style={{ color: palette.gray.dark1, margin: 0 }}>
-                          Started:
-                        </Body>
-                        <Body size="small" style={{ 
-                          fontFamily: 'monospace', 
-                          color: palette.gray.dark2, 
-                          margin: 0 
-                        }}>
-                          {new Date(toolCall.started_at).toLocaleString()}
-                        </Body>
-                      </div>
-                    )}
-                    {toolCall.completed_at && (
-                      <div>
-                        <Body size="small" style={{ color: palette.gray.dark1, margin: 0 }}>
-                          Completed:
-                        </Body>
-                        <Body size="small" style={{ 
-                          fontFamily: 'monospace', 
-                          color: palette.gray.dark2, 
-                          margin: 0 
-                        }}>
-                          {new Date(toolCall.completed_at).toLocaleString()}
-                        </Body>
-                      </div>
-                    )}
-                  </div>
                 </div>
               )}
             </div>

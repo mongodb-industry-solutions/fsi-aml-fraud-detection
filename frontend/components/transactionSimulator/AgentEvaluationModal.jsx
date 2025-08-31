@@ -16,6 +16,8 @@ import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 import AgentObservabilityDashboard from '../observability/AgentObservabilityDashboard';
 import AgentChatInterface from '../observability/AgentChatInterface';
+import AgentArchitectureGraph from './AgentArchitectureGraph';
+import MemoryArchitectureGraph from './MemoryArchitectureGraph';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -33,6 +35,16 @@ function AgentEvaluationModal({
   const [processingStage, setProcessingStage] = useState('');
   const [observabilityActive, setObservabilityActive] = useState(false);
   const [threadId, setThreadId] = useState(null);
+  const [memoryData, setMemoryData] = useState(null);
+  const [memoryLoading, setMemoryLoading] = useState(false);
+
+  // Reload memory data when threadId becomes available
+  useEffect(() => {
+    if (threadId && agentResults?.transaction_id) {
+      console.log('ThreadId available, reloading memory data with threadId:', threadId);
+      loadMemoryData(agentResults.transaction_id);
+    }
+  }, [threadId, agentResults?.transaction_id]);
   
   // Phase 2: Centralized Observability State (moved from AgentObservabilityDashboard)
   const [observabilityState, setObservabilityState] = useState({
@@ -59,6 +71,7 @@ function AgentEvaluationModal({
       setActiveTab(0);
       setObservabilityActive(false);
       setThreadId(null);
+      setMemoryData(null);
       // Reset observability state
       lastEventIdRef.current = null; // Reset ref
       setObservabilityState({
@@ -71,8 +84,56 @@ function AgentEvaluationModal({
         performanceMetrics: {},
         connectionError: null,
         lastEventId: null,
-        processedEventIds: new Set()
+        processedEventIds: new Set(),
+        connectedAgents: []  // Phase 3A: Connected agent tracking
       });
+    }
+  }, [open]);
+
+  // Complete cleanup when modal closes
+  useEffect(() => {
+    if (!open) {
+      console.log('🧹 Modal closing - performing complete cleanup');
+      
+      // Stop any active polling immediately
+      if (pollingIntervalRef.current) {
+        console.log('🛑 Stopping polling on modal close');
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      
+      // Reset all state completely
+      setAgentResults(null);
+      setActiveTab(0);
+      setProcessingStage('');
+      setObservabilityActive(false);
+      setThreadId(null);
+      setMemoryData(null);
+      setMemoryLoading(false);
+      
+      // Reset parent loading and error states
+      setLoading(false);
+      setError('');
+      
+      // Reset refs
+      lastEventIdRef.current = null;
+      
+      // Complete observability state reset
+      setObservabilityState({
+        isConnected: false,
+        events: [],
+        agentStatus: 'idle',
+        currentRun: null,
+        toolCalls: [],
+        decisions: [],
+        performanceMetrics: {},
+        connectionError: null,
+        lastEventId: null,
+        processedEventIds: new Set(),
+        connectedAgents: []
+      });
+      
+      console.log('✅ Modal cleanup complete');
     }
   }, [open]);
 
@@ -111,10 +172,23 @@ function AgentEvaluationModal({
         setAgentResults(response.data);
         setProcessingStage('');
         console.log('Agent results set, should stop loading now');
+        
+        // Load memory data after analysis completes
+        if (response.data.transaction_id) {
+          loadMemoryData(response.data.transaction_id);
+        }
       } catch (err) {
         console.error('Error with agent evaluation:', err);
         console.error('Error details:', err.response?.data || err.message);
+        
+        // Handle specific error cases
+        if (err.response?.status === 503) {
+          setError('Agent service is not available. Please ensure the backend is running and the agent is initialized.');
+        } else if (err.response?.status === 500) {
+          setError(`Agent analysis failed: ${err.response?.data?.detail || 'Internal server error'}`);
+        } else {
         setError(`Failed to evaluate transaction with agent: ${err.response?.data?.detail || err.message}`);
+        }
         setProcessingStage('');
         // Keep observability active even on error to show any events that occurred
       } finally {
@@ -123,7 +197,7 @@ function AgentEvaluationModal({
     };
 
     performAnalysis();
-  }, [open, transactionData]);
+  }, [open]);
 
   // Phase 2: Centralized Observability Polling (moved from AgentObservabilityDashboard)
   useEffect(() => {
@@ -168,7 +242,11 @@ function AgentEvaluationModal({
       console.log('🛑 Stopping centralized HTTP polling');
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
-      setObservabilityState(prev => ({ ...prev, isConnected: false }));
+      setObservabilityState(prev => ({ 
+        ...prev, 
+        isConnected: false,
+        connectionError: null 
+      }));
     }
   };
 
@@ -417,6 +495,99 @@ function AgentEvaluationModal({
     }
   };
 
+  // Load memory data using simplified 3-collection system
+  const loadMemoryData = async (transactionId) => {
+    setMemoryLoading(true);
+    try {
+      console.log('Loading memory data for transaction:', transactionId, 'threadId:', threadId);
+      
+      // Fetch simplified memory data in parallel
+      const [overviewResponse, conversationsResponse, decisionsResponse, patternsResponse] = await Promise.all([
+        axios.get(`${API_BASE_URL}/api/memory/overview`),
+        // Fetch conversations for specific threadId if available
+        threadId ? axios.get(`${API_BASE_URL}/api/memory/conversations?thread_id=${threadId}&limit=20`) : Promise.resolve({data: []}),
+        // Always fetch recent decisions for display, but also include current thread decisions
+        axios.get(`${API_BASE_URL}/api/memory/decisions?limit=5`),
+        axios.get(`${API_BASE_URL}/api/memory/patterns?limit=5`)
+      ]);
+
+      console.log('Memory API responses:', {
+        overview: overviewResponse.data,
+        conversations: conversationsResponse.data,
+        decisions: decisionsResponse.data,
+        patterns: patternsResponse.data
+      });
+
+      setMemoryData({
+        overview: overviewResponse.data,
+        conversations: Array.isArray(conversationsResponse.data) ? conversationsResponse.data : [],
+        decisions: Array.isArray(decisionsResponse.data) ? decisionsResponse.data : [],
+        patterns: Array.isArray(patternsResponse.data) ? patternsResponse.data : [],
+        transactionId
+      });
+    } catch (error) {
+      console.error('Failed to load memory data:', error);
+      setMemoryData({
+        overview: { total_memories: 0, total_decisions: 0, total_patterns: 0, active_threads: 0 },
+        conversations: [],
+        decisions: [],
+        patterns: [],
+        transactionId,
+        error: 'Failed to load memory data'
+      });
+    } finally {
+      setMemoryLoading(false);
+    }
+  };
+
+  // Render memory data tab content
+  const renderMemoryContent = () => {
+    if (memoryLoading) {
+      return (
+        <div style={{ textAlign: 'center', padding: spacing[4] }}>
+          <Spinner size={24} />
+          <Body style={{ marginTop: spacing[2], color: palette.gray.dark1 }}>
+            Loading memory data...
+          </Body>
+        </div>
+      );
+    }
+
+    if (!memoryData) {
+      return (
+        <div style={{ textAlign: 'center', padding: spacing[4] }}>
+          <Body style={{ color: palette.gray.dark1 }}>
+            Memory data will be available after transaction analysis.
+          </Body>
+        </div>
+      );
+    }
+
+    const { overview, conversations, decisions, patterns, error } = memoryData;
+
+    if (error) {
+      return (
+        <Card style={{ background: palette.red.light3, border: `1px solid ${palette.red.light1}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2] }}>
+            <Icon glyph="Warning" fill={palette.red.base} size={20} />
+            <Body style={{ color: palette.red.dark2 }}>{error}</Body>
+          </div>
+        </Card>
+      );
+    }
+
+    return (
+      <MemoryArchitectureGraph
+        loading={memoryLoading}
+        memoryData={memoryData}
+        overview={overview}
+        conversations={conversations}
+        decisions={decisions}
+        patterns={patterns}
+      />
+    );
+  };
+
   // Render risk level badge
   const renderRiskLevelBadge = (level) => {
     const colorMap = {
@@ -490,10 +661,16 @@ function AgentEvaluationModal({
         color: palette.green.dark1, 
         badge: 'green' 
       };
-      if (agentResults?.decision === 'REJECT') return { 
+      if (agentResults?.decision === 'BLOCK') return { 
         iconGlyph: 'X', 
         text: 'High Risk Detected', 
         color: palette.red.base, 
+        badge: 'red' 
+      };
+      if (agentResults?.decision === 'ESCALATE') return { 
+        iconGlyph: 'Warning', 
+        text: 'Escalation Required', 
+        color: palette.red.dark1, 
         badge: 'red' 
       };
       if (agentResults?.decision === 'INVESTIGATE') return { 
@@ -543,7 +720,7 @@ function AgentEvaluationModal({
                 {loading 
                   ? `Two-stage fraud detection in progress • ${processingStage || 'Initializing...'}`
                   : agentResults
-                    ? `Analysis completed in ${agentResults.processing_time_ms}ms • Risk Score: ${Math.round(agentResults.risk_score)}%`
+                    ? `Analysis completed • Risk Score: ${Math.round(agentResults.risk_score)}%`
                     : 'Ready to analyze transaction'
                 }
               </Body>
@@ -559,8 +736,19 @@ function AgentEvaluationModal({
               </div>
             )}
             {threadId && (
-              <Badge variant="lightgray" style={{ fontFamily: 'monospace', fontSize: '10px' }}>
-                {threadId.substring(0, 8)}...
+              <Badge 
+                variant="lightgray" 
+                style={{ 
+                  fontFamily: 'monospace', 
+                  fontSize: '8px',
+                  maxWidth: '120px',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}
+                title={threadId}
+              >
+                {threadId}
               </Badge>
             )}
           </div>
@@ -572,898 +760,39 @@ function AgentEvaluationModal({
   // Render enhanced tabs with modern design
   const renderTabsContent = () => {
     return (
-      <div>
-        {/* Agent Header */}
-        {renderAgentHeader()}
-        
-        {/* Enhanced Tabs */}
-        <div style={{ padding: spacing[3] }}>
-          <Tabs
-            selected={activeTab}
-            setSelected={setActiveTab}
-            aria-label="Agent analysis tabs"
-          >
-            <Tab name={loading ? "Live Analysis" : "Agent Decision"}>
+      <div style={{ padding: spacing[3] }}>
+        <Tabs
+          selected={activeTab}
+          setSelected={setActiveTab}
+          aria-label="Agent analysis tabs"
+        >
+          <Tab name="Agent Architecture">
             <div style={{ marginTop: spacing[3] }}>
-              {loading ? (
-                // Enhanced loading state with stage progression
-                <div>
-                  {/* Two-stage pipeline visualization */}
-                  <Card style={{ marginBottom: spacing[3], background: palette.blue.light3 }}>
-                    <H3 style={{ color: palette.blue.dark2, marginBottom: spacing[3], display: 'flex', alignItems: 'center', gap: spacing[2] }}>
-                      <Icon glyph="Diagram" fill={palette.blue.base} size={20} />
-                      Two-Stage Fraud Detection Pipeline
-                    </H3>
-                    
-                    <div style={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between', 
-                      alignItems: 'center',
-                      gap: spacing[3]
-                    }}>
-                      <div style={{ 
-                        background: palette.white, 
-                        padding: spacing[3], 
-                        borderRadius: '12px',
-                        border: `2px solid ${palette.blue.base}`,
-                        flex: 1,
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2], marginBottom: spacing[2] }}>
-                          <div style={{ fontSize: '18px' }}>🏛️</div>
-                          <Body weight="bold" style={{ color: palette.blue.dark2 }}>
-                            Stage 1: ML Detection
-                          </Body>
-                          <Badge variant="blue" style={{ fontSize: '10px' }}>
-                            RULES ENGINE
-                          </Badge>
-                        </div>
-                        <Body size="small" style={{ color: palette.blue.dark1, lineHeight: 1.4 }}>
-                          Historical pattern matching, velocity analysis, and risk scoring using machine learning models
-                        </Body>
-                      </div>
-                      
-                      <div style={{ display: 'flex', alignItems: 'center', fontSize: '20px' }}>
-                        <Icon glyph="ArrowRight" fill={palette.blue.base} />
-                      </div>
-                      
-                      <div style={{ 
-                        background: palette.white, 
-                        padding: spacing[3], 
-                        borderRadius: '12px',
-                        border: `2px solid ${palette.purple.base}`,
-                        flex: 1,
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2], marginBottom: spacing[2] }}>
-                          <Icon glyph="Bulb" fill={palette.purple.base} size={20} />
-                          <Body weight="bold" style={{ color: palette.purple.dark2 }}>
-                            Stage 2: AI Agent Analysis
-                          </Body>
-                          <Badge variant="darkgray" style={{ fontSize: '10px' }}>
-                            VECTOR SEARCH
-                          </Badge>
-                        </div>
-                        <Body size="small" style={{ color: palette.purple.dark1, lineHeight: 1.4 }}>
-                          Semantic similarity search and agent-powered reasoning with comprehensive tool usage
-                        </Body>
-                      </div>
-                    </div>
-                  </Card>
-                  
-                  {/* Live guidance */}
-                  <Card style={{ background: `linear-gradient(135deg, ${palette.green.light3}, ${palette.white})` }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2], marginBottom: spacing[2] }}>
-                      <Icon glyph="ActivityFeed" fill={palette.green.base} size={20} />
-                      <Body weight="bold" style={{ color: palette.green.dark2 }}>
-                        Live Agent Observability Available
-                      </Body>
-                    </div>
-                    <Body style={{ color: palette.green.dark1, marginBottom: spacing[2] }}>
-                      Switch to the <strong>Real-time Observability</strong> tab to monitor agent execution in real-time
-                    </Body>
-                    <div style={{ display: 'flex', gap: spacing[2], flexWrap: 'wrap' }}>
-                      <Badge variant="green" style={{ fontSize: '11px' }}>Tool Execution</Badge>
-                      <Badge variant="green" style={{ fontSize: '11px' }}>Decision Process</Badge>
-                      <Badge variant="green" style={{ fontSize: '11px' }}>Performance Metrics</Badge>
-                      <Badge variant="green" style={{ fontSize: '11px' }}>Event Timeline</Badge>
-                    </div>
-                  </Card>
-                  
-                  {/* Simulated Status Display */}
-                  <Card style={{ 
-                    marginBottom: spacing[3], 
-                    background: `linear-gradient(135deg, ${palette.blue.light3}, ${palette.white})`,
-                    border: `2px solid ${palette.blue.base}`
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2], marginBottom: spacing[3] }}>
-                      <Icon glyph="ActivityFeed" fill={palette.blue.base} size={20} />
-                      <H3 style={{ margin: 0, color: palette.blue.dark2 }}>
-                        Live Analysis Progress
-                      </H3>
-                      <Badge variant="blue" style={{ fontSize: '11px' }}>
-                        SIMULATED STATUS
-                      </Badge>
-                    </div>
-                    
-                    {/* Stage Progress Indicators */}
-                    <div style={{ marginBottom: spacing[3] }}>
-                      <div style={{ display: 'flex', alignItems: 'center', marginBottom: spacing[2] }}>
-                        <div style={{
-                          width: '24px',
-                          height: '24px',
-                          borderRadius: '50%',
-                          background: palette.green.base,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          marginRight: spacing[2]
-                        }}>
-                          <Icon glyph="Checkmark" fill={palette.white} size={16} />
-                        </div>
-                        <Body weight="medium" style={{ color: palette.green.dark2, flex: 1 }}>
-                          Stage 1: Rules + Basic ML Analysis
-                        </Body>
-                        <Badge variant="green" style={{ fontSize: '10px' }}>COMPLETED</Badge>
-                      </div>
-                      
-                      <div style={{ display: 'flex', alignItems: 'center', marginBottom: spacing[2] }}>
-                        <div style={{
-                          width: '24px',
-                          height: '24px',
-                          borderRadius: '50%',
-                          background: palette.yellow.base,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          marginRight: spacing[2],
-                          animation: 'pulse 2s infinite'
-                        }}>
-                          <div style={{
-                            width: '8px',
-                            height: '8px',
-                            borderRadius: '50%',
-                            background: palette.white,
-                            animation: 'pulse 1s infinite'
-                          }} />
-                        </div>
-                        <Body weight="medium" style={{ color: palette.yellow.dark2, flex: 1 }}>
-                          Stage 2: AI Agent Analysis in Progress
-                        </Body>
-                        <Badge variant="yellow" style={{ fontSize: '10px' }}>IN PROGRESS</Badge>
-                      </div>
-                      
-                      <div style={{ marginLeft: spacing[4], paddingLeft: spacing[2], borderLeft: `2px solid ${palette.gray.light1}` }}>
-                        <div style={{ display: 'flex', alignItems: 'center', marginBottom: spacing[1] }}>
-                          <Icon glyph="Target" fill={palette.blue.base} size={16} />
-                          <Body size="small" style={{ color: palette.blue.dark1, marginLeft: spacing[1] }}>
-                            Analyzing transaction patterns...
-                          </Body>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', marginBottom: spacing[1] }}>
-                          <Icon glyph="MagnifyingGlass" fill={palette.purple.base} size={16} />
-                          <Body size="small" style={{ color: palette.purple.dark1, marginLeft: spacing[1] }}>
-                            Searching similar transactions...
-                          </Body>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', marginBottom: spacing[1] }}>
-                          <Icon glyph="Connect" fill={palette.purple.base} size={16} />
-                          <Body size="small" style={{ color: palette.purple.dark1, marginLeft: spacing[1] }}>
-                            Evaluating connected agent requirements...
-                          </Body>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Current Activity */}
-                    <div style={{ 
-                      background: `linear-gradient(135deg, ${palette.gray.light3}, ${palette.white})`,
-                      padding: spacing[2],
-                      borderRadius: '8px',
-                      border: `1px solid ${palette.gray.light1}`
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2] }}>
-                        <div style={{
-                          width: '16px',
-                          height: '16px',
-                          borderRadius: '50%',
-                          background: palette.blue.base,
-                          animation: 'pulse 1s infinite'
-                        }} />
-                        <Body size="small" weight="medium" style={{ color: palette.blue.dark2 }}>
-                          Azure AI Agent processing transaction...
-                        </Body>
-                      </div>
-                      <Body size="small" style={{ color: palette.gray.dark1, marginTop: spacing[1] }}>
-                        The AI agent is analyzing the transaction using strategic tool selection. 
-                        This process typically takes 2-5 seconds depending on complexity.
-                      </Body>
-                    </div>
-                  </Card>
-                </div>
-              ) : agentResults ? (
-                // Enhanced results display
-                <div>
-                  {/* Decision Summary Card */}
-                  <Card style={{ 
-                    marginBottom: spacing[3], 
-                    background: `linear-gradient(135deg, ${
-                      agentResults.decision === 'APPROVE' ? palette.green.light3 :
-                      agentResults.decision === 'REJECT' ? palette.red.light3 :
-                      palette.yellow.light3
-                    }, ${palette.white})`
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: spacing[3], marginBottom: spacing[3] }}>
-                      <div style={{
-                        width: '48px',
-                        height: '48px',
-                        borderRadius: '50%',
-                        background: agentResults.decision === 'APPROVE' ? palette.green.base :
-                                   agentResults.decision === 'REJECT' ? palette.red.base : palette.yellow.base,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}>
-                        <Icon 
-                          glyph={agentResults.decision === 'APPROVE' ? 'Checkmark' :
-                                agentResults.decision === 'REJECT' ? 'X' : 'Warning'}
-                          fill={palette.white}
-                          size={24}
-                        />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <H2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: spacing[2] }}>
-                          Agent Decision
-                          {renderDecisionBadge(agentResults.decision)}
-                          {renderRiskLevelBadge(agentResults.risk_level)}
-                        </H2>
-                        <Body style={{ margin: 0, color: palette.gray.dark1 }}>
-                          {agentResults.decision === 'APPROVE' ? 'Transaction approved - Low risk detected' :
-                           agentResults.decision === 'REJECT' ? 'Transaction rejected - High fraud risk' :
-                           'Manual review required - Suspicious patterns detected'}
-                        </Body>
-                      </div>
-                    </div>
-                  </Card>
-                  
-                  {/* Performance Metrics Grid */}
-                  <div style={{ 
-                    display: 'grid', 
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', 
-                    gap: spacing[2],
-                    marginBottom: spacing[3]
-                  }}>
-                    <Card style={{ textAlign: 'center', background: palette.blue.light3 }}>
-                      <Icon glyph="Target" fill={palette.blue.base} size={28} style={{ marginBottom: spacing[1] }} />
-                      <H3 style={{ margin: 0, color: palette.blue.dark2, fontSize: '24px' }}>
-                        {Math.round(agentResults.risk_score)}%
-                      </H3>
-                      <Body size="small" style={{ color: palette.blue.dark1, fontWeight: 'bold' }}>
-                        Risk Score
-                      </Body>
-                    </Card>
-                    
-                    <Card style={{ textAlign: 'center', background: palette.green.light3 }}>
-                      <Icon glyph="ChartLine" fill={palette.green.base} size={28} style={{ marginBottom: spacing[1] }} />
-                      <H3 style={{ margin: 0, color: palette.green.dark2, fontSize: '24px' }}>
-                        {(agentResults.confidence * 100).toFixed(1)}%
-                      </H3>
-                      <Body size="small" style={{ color: palette.green.dark1, fontWeight: 'bold' }}>
-                        Confidence
-                      </Body>
-                    </Card>
-                    
-                    <Card style={{ textAlign: 'center', background: palette.purple.light3 }}>
-                      <Icon glyph="Clock" fill={palette.purple.base} size={28} style={{ marginBottom: spacing[1] }} />
-                      <H3 style={{ margin: 0, color: palette.purple.dark2, fontSize: '24px' }}>
-                        {agentResults.processing_time_ms}ms
-                      </H3>
-                      <Body size="small" style={{ color: palette.purple.dark1, fontWeight: 'bold' }}>
-                        Processing Time
-                      </Body>
-                    </Card>
-                    
-                    <Card style={{ textAlign: 'center', background: palette.yellow.light3 }}>
-                      <Icon glyph="Building" fill={palette.yellow.base} size={28} style={{ marginBottom: spacing[1] }} />
-                      <H3 style={{ margin: 0, color: palette.yellow.dark2, fontSize: '24px' }}>
-                        {agentResults.stage_completed}
-                      </H3>
-                      <Body size="small" style={{ color: palette.yellow.dark1, fontWeight: 'bold' }}>
-                        Stage Completed
-                      </Body>
-                    </Card>
-                  </div>
-                  
-                  {/* Agent Reasoning */}
-                  <Card style={{ background: palette.gray.light3 }}>
-                    <H3 style={{ color: palette.gray.dark3, marginBottom: spacing[2], display: 'flex', alignItems: 'center', gap: spacing[2] }}>
-                      <Icon glyph="Bulb" fill={palette.gray.base} size={20} />
-                      Agent Reasoning
-                    </H3>
-                    <div style={{ 
-                      background: palette.white,
-                      padding: spacing[3],
-                      borderRadius: '8px',
-                      borderLeft: `4px solid ${
-                        agentResults.decision === 'APPROVE' ? palette.green.base :
-                        agentResults.decision === 'REJECT' ? palette.red.base :
-                        palette.yellow.base
-                      }`
-                    }}>
-                      <Body style={{ lineHeight: 1.6, color: palette.gray.dark2 }}>
-                        {agentResults.reasoning || 'No detailed reasoning provided by the agent.'}
-                      </Body>
-                    </div>
-                  </Card>
-                </div>
-              ) : (
-                // No results yet - this shouldn't show since we handle loading above
-                <div style={{ textAlign: 'center', padding: spacing[4] }}>
-                  <Body style={{ color: palette.gray.dark1 }}>
-                    Analysis will appear here once completed.
-                  </Body>
-                </div>
-              )}
-            </div>
-          </Tab>
-
-          <Tab name="Technical Deep-Dive">
-            <div style={{ marginTop: spacing[3] }}>
-              {/* Enhanced technical architecture header */}
-              <Card style={{ 
-                marginBottom: spacing[3], 
-                background: `linear-gradient(135deg, ${palette.gray.light3}, ${palette.white})`,
-                border: `2px solid ${palette.gray.base}`
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2], marginBottom: spacing[2] }}>
-                  <Icon glyph="Settings" fill={palette.gray.dark2} size={24} />
-                  <H3 style={{ margin: 0, color: palette.gray.dark3 }}>
-                    Technical Architecture Deep-Dive
-                  </H3>
-                  <Badge variant="lightgray" style={{ fontSize: '11px' }}>
-                    TWO-STAGE PIPELINE
-                  </Badge>
-                </div>
-                <Body style={{ color: palette.gray.dark1 }}>
-                  Comprehensive technical overview of the multi-stage fraud detection architecture and agent capabilities
-                </Body>
-              </Card>
-
-              {/* Enhanced stage flow visualization */}
-              <Card style={{ marginBottom: spacing[4] }}>
-                <H3 style={{ marginBottom: spacing[3], display: 'flex', alignItems: 'center', gap: spacing[2] }}>
-                  <Icon glyph="Diagram" fill={palette.blue.base} />
-                  Processing Pipeline
-                </H3>
-
-                {/* Stage flow visualization */}
-                <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  alignItems: 'center',
-                  marginBottom: spacing[4],
-                  flexWrap: 'wrap'
-                }}>
-                  <div style={{ 
-                    background: `linear-gradient(135deg, ${palette.blue.light2}, ${palette.blue.light3})`,
-                    padding: spacing[3], 
-                    borderRadius: '12px',
-                    flex: '1 1 280px',
-                    margin: spacing[1],
-                    border: `2px solid ${palette.blue.base}`,
-                    boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: spacing[2] }}>
-                      <div style={{
-                        width: '36px',
-                        height: '36px',
-                        borderRadius: '50%',
-                        background: palette.blue.base,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginRight: spacing[2]
-                      }}>
-                        <Icon glyph="University" fill={palette.white} size={18} />
-                      </div>
-                      <div>
-                        <Body weight="bold" style={{ color: palette.blue.dark2, margin: 0 }}>
-                          Stage 1: Rules + Basic ML
-                        </Body>
-                        <Body size="small" style={{ color: palette.blue.dark1, margin: 0 }}>
-                          Fast triage (70-80% of transactions)
-                        </Body>
-                      </div>
-                    </div>
-                    <Body size="small" style={{ color: palette.blue.dark1, lineHeight: 1.4 }}>
-                      Rules-based analysis combined with basic ML scoring for immediate approve/block decisions. Edge cases (25-85 risk score) proceed to Stage 2.
-                    </Body>
-                    <div style={{ marginTop: spacing[2], paddingTop: spacing[2], borderTop: `1px solid ${palette.blue.light1}` }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Body size="small" weight="medium" style={{ color: palette.blue.dark2 }}>Processing Time</Body>
-                        <Badge variant="blue" style={{ fontSize: '10px' }}>~200ms</Badge>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center', padding: `0 ${spacing[2]}px` }}>
-                    <Icon glyph="ArrowRight" fill={palette.gray.dark1} size={20} />
-                  </div>
-                  
-                  <div style={{ 
-                    background: `linear-gradient(135deg, ${palette.purple.light2}, ${palette.purple.light3})`,
-                    padding: spacing[3], 
-                    borderRadius: '12px',
-                    flex: '1 1 280px',
-                    margin: spacing[1],
-                    border: `2px solid ${palette.purple.base}`,
-                    boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: spacing[2] }}>
-                      <div style={{
-                        width: '36px',
-                        height: '36px',
-                        borderRadius: '50%',
-                        background: palette.purple.base,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginRight: spacing[2]
-                      }}>
-                        <Icon glyph="Diagram" fill={palette.white} size={18} />
-                      </div>
-                      <div>
-                        <Body weight="bold" style={{ color: palette.purple.dark2, margin: 0 }}>
-                          Stage 2: AI Agent Analysis
-                        </Body>
-                        <Body size="small" style={{ color: palette.purple.dark1, margin: 0 }}>
-                          Deep investigation (20-30% of transactions)
-                        </Body>
-                      </div>
-                    </div>
-                    <Body size="small" style={{ color: palette.purple.dark1, lineHeight: 1.4 }}>
-                      Azure AI Foundry agent with strategic tool selection: transaction patterns, vector search, network analysis, sanctions checks, and connected SAR analysis.
-                    </Body>
-                    <div style={{ marginTop: spacing[2], paddingTop: spacing[2], borderTop: `1px solid ${palette.purple.light1}` }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Body size="small" weight="medium" style={{ color: palette.purple.dark2 }}>Processing Time</Body>
-                        <Badge variant="lightgray" style={{ fontSize: '10px' }}>~2-5s</Badge>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-              </Card>
-
-              {/* Enhanced agent capabilities grid */}
-              <Card style={{ marginBottom: spacing[4] }}>
-                <H3 style={{ marginBottom: spacing[3], display: 'flex', alignItems: 'center', gap: spacing[2] }}>
-                  <Icon glyph="Beaker" fill={palette.green.base} />
-                  Agent Capabilities Matrix
-                </H3>
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
-                  gap: spacing[3]
-                }}>
-                  <div style={{ 
-                    background: `linear-gradient(135deg, ${palette.green.light3}, ${palette.green.light2})`,
-                    padding: spacing[3],
-                    borderRadius: '8px',
-                    borderLeft: `4px solid ${palette.green.base}`,
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: spacing[2] }}>
-                      <Icon glyph="Target" fill={palette.green.base} size={20} />
-                      <Body weight="bold" style={{ color: palette.green.dark2, marginLeft: spacing[1] }}>
-                        Real-time Decision Making
-                      </Body>
-                    </div>
-                    <Body size="small" style={{ color: palette.green.dark1, lineHeight: 1.4, marginBottom: spacing[2] }}>
-                      Instant transaction approval/rejection based on multi-stage analysis with confidence scoring
-                    </Body>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Body size="small" weight="medium" style={{ color: palette.green.dark2 }}>Response Time</Body>
-                      <Badge variant="green" style={{ fontSize: '10px' }}>Sub-second</Badge>
-                    </div>
-                  </div>
-                  
-                  <div style={{ 
-                    background: `linear-gradient(135deg, ${palette.yellow.light3}, ${palette.yellow.light2})`,
-                    padding: spacing[3],
-                    borderRadius: '8px',
-                    borderLeft: `4px solid ${palette.yellow.base}`,
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: spacing[2] }}>
-                      <Icon glyph="Charts" fill={palette.yellow.base} size={20} />
-                      <Body weight="bold" style={{ color: palette.yellow.dark2, marginLeft: spacing[1] }}>
-                        Risk Quantification
-                      </Body>
-                    </div>
-                    <Body size="small" style={{ color: palette.yellow.dark1, lineHeight: 1.4, marginBottom: spacing[2] }}>
-                      Precise risk scoring with confidence levels and detailed reasoning chains
-                    </Body>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Body size="small" weight="medium" style={{ color: palette.yellow.dark2 }}>Accuracy</Body>
-                      <Badge variant="yellow" style={{ fontSize: '10px' }}>94.7%</Badge>
-                    </div>
-                  </div>
-                  
-                  <div style={{ 
-                    background: `linear-gradient(135deg, ${palette.blue.light3}, ${palette.blue.light2})`,
-                    padding: spacing[3],
-                    borderRadius: '8px',
-                    borderLeft: `4px solid ${palette.blue.base}`,
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: spacing[2] }}>
-                      <Icon glyph="MagnifyingGlass" fill={palette.blue.base} size={20} />
-                      <Body weight="bold" style={{ color: palette.blue.dark2, marginLeft: spacing[1] }}>
-                        Pattern Recognition
-                      </Body>
-                    </div>
-                    <Body size="small" style={{ color: palette.blue.dark1, lineHeight: 1.4, marginBottom: spacing[2] }}>
-                      Advanced vector similarity matching against comprehensive fraud pattern database
-                    </Body>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Body size="small" weight="medium" style={{ color: palette.blue.dark2 }}>Pattern DB</Body>
-                      <Badge variant="blue" style={{ fontSize: '10px' }}>50K+ patterns</Badge>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-
-              {/* Connected Agent Architecture (Phase 3A) */}
-              <Card style={{ marginBottom: spacing[4] }}>
-                <H3 style={{ marginBottom: spacing[3], display: 'flex', alignItems: 'center', gap: spacing[2] }}>
-                  <Icon glyph="Connect" fill={palette.purple.base} />
-                  Connected Agent Architecture
-                  <Badge variant="lightgray" style={{ fontSize: '11px' }}>PHASE 3A</Badge>
-                </H3>
-                <Body style={{ color: palette.gray.dark1, marginBottom: spacing[3] }}>
-                  Multi-agent collaboration for complex fraud investigations using specialized connected agents.
-                </Body>
-                
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
-                  gap: spacing[3]
-                }}>
-                  {/* Main Agent */}
-                  <div style={{ 
-                    background: `linear-gradient(135deg, ${palette.blue.light3}, ${palette.blue.light2})`,
-                    padding: spacing[3],
-                    borderRadius: '8px',
-                    border: `2px solid ${palette.blue.base}`,
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: spacing[2] }}>
-                      <Icon glyph="Diagram" fill={palette.blue.base} size={20} />
-                      <Body weight="bold" style={{ color: palette.blue.dark2, marginLeft: spacing[1] }}>
-                        Primary Fraud Agent
-                      </Body>
-                    </div>
-                    <Body size="small" style={{ color: palette.blue.dark1, lineHeight: 1.4, marginBottom: spacing[2] }}>
-                      Orchestrates analysis with strategic tool selection using 4 custom functions plus Connected Agent capability
-                    </Body>
-                    <div style={{ paddingTop: spacing[1], borderTop: `1px solid ${palette.blue.light1}` }}>
-                      <Body size="small" weight="medium" style={{ color: palette.blue.dark2 }}>Function Tools: 4 + Connected Agents</Body>
-                    </div>
-                  </div>
-
-                  {/* Connected Agent */}
-                  <div style={{ 
-                    background: `linear-gradient(135deg, ${palette.purple.light3}, ${palette.purple.light2})`,
-                    padding: spacing[3],
-                    borderRadius: '8px',
-                    border: `2px solid ${palette.purple.base}`,
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: spacing[2] }}>
-                      <Icon glyph="File" fill={palette.purple.base} size={20} />
-                      <Body weight="bold" style={{ color: palette.purple.dark2, marginLeft: spacing[1] }}>
-                        SuspiciousReportsAgent
-                      </Body>
-                    </div>
-                    <Body size="small" style={{ color: palette.purple.dark1, lineHeight: 1.4, marginBottom: spacing[2] }}>
-                      Specialized SAR (Suspicious Activity Reports) analysis with file access and code interpreter capabilities
-                    </Body>
-                    <div style={{ paddingTop: spacing[1], borderTop: `1px solid ${palette.purple.light1}` }}>
-                      <Body size="small" weight="medium" style={{ color: palette.purple.dark2 }}>Tools: File Reader + Code Interpreter</Body>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Agent Communication Flow */}
-                <div style={{ 
-                  marginTop: spacing[4], 
-                  padding: spacing[3], 
-                  background: palette.gray.light3, 
-                  borderRadius: '8px',
-                  border: `1px solid ${palette.gray.light1}`
-                }}>
-                  <Body weight="bold" style={{ color: palette.gray.dark2, marginBottom: spacing[2] }}>
-                    Multi-Thread Communication Flow
-                  </Body>
-                  <Body size="small" style={{ color: palette.gray.dark1, lineHeight: 1.5 }}>
-                    1. Primary agent analyzes transaction and identifies complex patterns<br/>
-                    2. Creates dedicated thread for SuspiciousReportsAgent when criteria met<br/>
-                    3. Passes transaction context and preliminary findings<br/>
-                    4. SAR agent performs historical analysis and returns insights<br/>
-                    5. Primary agent integrates findings for final decision
-                  </Body>
-                </div>
-              </Card>
-
-              {/* Agent Tools Detail */}
-              <Card style={{ marginBottom: spacing[4] }}>
-                <H3 style={{ marginBottom: spacing[3], display: 'flex', alignItems: 'center', gap: spacing[2] }}>
-                  <Icon glyph="Wrench" fill={palette.green.base} />
-                  Agent Tools & Capabilities
-                </H3>
-                
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', 
-                  gap: spacing[4]
-                }}>
-                  {/* Primary Agent Tools */}
-                  <div>
-                    <div style={{ 
-                      background: `linear-gradient(135deg, ${palette.blue.light3}, ${palette.blue.light2})`,
-                      padding: spacing[3],
-                      borderRadius: '8px',
-                      border: `2px solid ${palette.blue.base}`,
-                      marginBottom: spacing[3]
-                    }}>
-                      <Body weight="bold" style={{ color: palette.blue.dark2, marginBottom: spacing[2] }}>
-                        🏛️ Primary Fraud Agent - Function Tools
-                      </Body>
-                    </div>
-                    
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[2] }}>
-                      <div style={{ 
-                        background: palette.gray.light3, 
-                        padding: spacing[2], 
-                        borderRadius: '6px',
-                        borderLeft: `3px solid ${palette.green.base}`
-                      }}>
-                        <Body size="small" weight="bold" style={{ color: palette.gray.dark2 }}>
-                          analyze_transaction_patterns()
-                        </Body>
-                        <Body size="small" style={{ color: palette.gray.dark1 }}>
-                          Customer behavioral analysis and anomaly detection
-                        </Body>
-                      </div>
-                      
-                      <div style={{ 
-                        background: palette.gray.light3, 
-                        padding: spacing[2], 
-                        borderRadius: '6px',
-                        borderLeft: `3px solid ${palette.blue.base}`
-                      }}>
-                        <Body size="small" weight="bold" style={{ color: palette.gray.dark2 }}>
-                          search_similar_transactions()
-                        </Body>
-                        <Body size="small" style={{ color: palette.gray.dark1 }}>
-                          Vector similarity search against historical fraud patterns
-                        </Body>
-                      </div>
-                      
-                      <div style={{ 
-                        background: palette.gray.light3, 
-                        padding: spacing[2], 
-                        borderRadius: '6px',
-                        borderLeft: `3px solid ${palette.red.base}`
-                      }}>
-                        <Body size="small" weight="bold" style={{ color: palette.gray.dark2 }}>
-                          calculate_network_risk()
-                        </Body>
-                        <Body size="small" style={{ color: palette.gray.dark1 }}>
-                          Network analysis for fraud rings and suspicious connections
-                        </Body>
-                      </div>
-                      
-                      <div style={{ 
-                        background: palette.gray.light3, 
-                        padding: spacing[2], 
-                        borderRadius: '6px',
-                        borderLeft: `3px solid ${palette.yellow.base}`
-                      }}>
-                        <Body size="small" weight="bold" style={{ color: palette.gray.dark2 }}>
-                          check_sanctions_lists()
-                        </Body>
-                        <Body size="small" style={{ color: palette.gray.dark1 }}>
-                          PEP and sanctions screening for regulatory compliance
-                        </Body>
-                      </div>
-                      
-                      <div style={{ 
-                        background: palette.gray.light3, 
-                        padding: spacing[2], 
-                        borderRadius: '6px',
-                        borderLeft: `3px solid ${palette.purple.base}`
-                      }}>
-                        <Body size="small" weight="bold" style={{ color: palette.gray.dark2 }}>
-                          ConnectedAgentTool
-                        </Body>
-                        <Body size="small" style={{ color: palette.gray.dark1 }}>
-                          Ability to create and communicate with specialized connected agents
-                        </Body>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Connected Agent Tools */}
-                  <div>
-                    <div style={{ 
-                      background: `linear-gradient(135deg, ${palette.purple.light3}, ${palette.purple.light2})`,
-                      padding: spacing[3],
-                      borderRadius: '8px',
-                      border: `2px solid ${palette.purple.base}`,
-                      marginBottom: spacing[3]
-                    }}>
-                      <Body weight="bold" style={{ color: palette.purple.dark2, marginBottom: spacing[2] }}>
-                        📄 SuspiciousReportsAgent - Built-in Tools
-                      </Body>
-                    </div>
-                    
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[2] }}>
-                      <div style={{ 
-                        background: palette.gray.light3, 
-                        padding: spacing[2], 
-                        borderRadius: '6px',
-                        borderLeft: `3px solid ${palette.purple.base}`
-                      }}>
-                        <Body size="small" weight="bold" style={{ color: palette.gray.dark2 }}>
-                          File Reader
-                        </Body>
-                        <Body size="small" style={{ color: palette.gray.dark1 }}>
-                          Access to historical SAR files and regulatory documents for pattern analysis
-                        </Body>
-                      </div>
-                      
-                      <div style={{ 
-                        background: palette.gray.light3, 
-                        padding: spacing[2], 
-                        borderRadius: '6px',
-                        borderLeft: `3px solid ${palette.purple.base}`
-                      }}>
-                        <Body size="small" weight="bold" style={{ color: palette.gray.dark2 }}>
-                          Code Interpreter
-                        </Body>
-                        <Body size="small" style={{ color: palette.gray.dark1 }}>
-                          Advanced data analysis and statistical computations for complex pattern matching
-                        </Body>
-                      </div>
-                      
-                      <div style={{ 
-                        background: `linear-gradient(135deg, ${palette.purple.light2}, ${palette.purple.light1})`, 
-                        padding: spacing[2], 
-                        borderRadius: '6px',
-                        border: `1px solid ${palette.purple.base}`
-                      }}>
-                        <Body size="small" weight="bold" style={{ color: palette.purple.dark2, marginBottom: spacing[1] }}>
-                          Specialization: Historical SAR Analysis
-                        </Body>
-                        <Body size="small" style={{ color: palette.purple.dark1 }}>
-                          Reviews historical suspicious activity reports to identify patterns and provide contextual analysis for current transactions
-                        </Body>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-
-              {/* Tool Strategy Guide */}
-              <Card style={{ marginBottom: spacing[4] }}>
-                <H3 style={{ marginBottom: spacing[3], display: 'flex', alignItems: 'center', gap: spacing[2] }}>
-                  <Icon glyph="Bulb" fill={palette.yellow.base} />
-                  Strategic Tool Selection
-                </H3>
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
-                  gap: spacing[3]
-                }}>
-                  <div style={{ 
-                    background: `linear-gradient(135deg, ${palette.green.light3}, ${palette.green.light2})`,
-                    padding: spacing[3],
-                    borderRadius: '8px',
-                    borderLeft: `4px solid ${palette.green.base}`,
-                  }}>
-                    <Body weight="bold" style={{ color: palette.green.dark2, marginBottom: spacing[1] }}>
-                      analyze_transaction_patterns()
-                    </Body>
-                    <Body size="small" style={{ color: palette.green.dark1, lineHeight: 1.4 }}>
-                      Always used first - establishes customer behavioral baseline and identifies anomalies
-                    </Body>
-                  </div>
-                  
-                  <div style={{ 
-                    background: `linear-gradient(135deg, ${palette.blue.light3}, ${palette.blue.light2})`,
-                    padding: spacing[3],
-                    borderRadius: '8px',
-                    borderLeft: `4px solid ${palette.blue.base}`,
-                  }}>
-                    <Body weight="bold" style={{ color: palette.blue.dark2, marginBottom: spacing[1] }}>
-                      search_similar_transactions()
-                    </Body>
-                    <Body size="small" style={{ color: palette.blue.dark1, lineHeight: 1.4 }}>
-                      Vector similarity search - used when patterns appear anomalous for historical context
-                    </Body>
-                  </div>
-
-                  <div style={{ 
-                    background: `linear-gradient(135deg, ${palette.purple.light3}, ${palette.purple.light2})`,
-                    padding: spacing[3],
-                    borderRadius: '8px',
-                    borderLeft: `4px solid ${palette.purple.base}`,
-                  }}>
-                    <Body weight="bold" style={{ color: palette.purple.dark2, marginBottom: spacing[1] }}>
-                      SuspiciousReportsAgent
-                    </Body>
-                    <Body size="small" style={{ color: palette.purple.dark1, lineHeight: 1.4 }}>
-                      Called for high-value transactions ($10K+), multiple risk flags, or complex patterns
-                    </Body>
-                  </div>
-
-                  <div style={{ 
-                    background: `linear-gradient(135deg, ${palette.red.light3}, ${palette.red.light2})`,
-                    padding: spacing[3],
-                    borderRadius: '8px',
-                    borderLeft: `4px solid ${palette.red.base}`,
-                  }}>
-                    <Body weight="bold" style={{ color: palette.red.dark2, marginBottom: spacing[1] }}>
-                      calculate_network_risk()
-                    </Body>
-                    <Body size="small" style={{ color: palette.red.dark1, lineHeight: 1.4 }}>
-                      Network analysis for fraud rings and suspicious entity connections
-                    </Body>
-                  </div>
-
-                  <div style={{ 
-                    background: `linear-gradient(135deg, ${palette.yellow.light3}, ${palette.yellow.light2})`,
-                    padding: spacing[3],
-                    borderRadius: '8px',
-                    borderLeft: `4px solid ${palette.yellow.base}`,
-                  }}>
-                    <Body weight="bold" style={{ color: palette.yellow.dark2, marginBottom: spacing[1] }}>
-                      check_sanctions_lists()
-                    </Body>
-                    <Body size="small" style={{ color: palette.yellow.dark1, lineHeight: 1.4 }}>
-                      PEP and sanctions screening for compliance requirements
-                    </Body>
-                  </div>
-                </div>
-              </Card>
+              {/* Interactive Decision Tree Graph - Always Visible */}
+              <AgentArchitectureGraph
+                loading={loading}
+                agentResults={agentResults}
+                processingStage={processingStage}
+                stage1Result={null}
+                stage2Progress={null}
+                transactionData={transactionData}
+              />
 
             </div>
           </Tab>
 
-          <Tab name="Real-time Observability">
+          <Tab name="Chat with Fraud Detection Agent">
             <div style={{ marginTop: spacing[3] }}>
-              {/* Enhanced observability header */}
-              <Card style={{ 
-                marginBottom: spacing[3], 
-                background: `linear-gradient(135deg, ${palette.blue.light3}, ${palette.white})`,
-                border: `2px solid ${palette.blue.base}`
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2], marginBottom: spacing[2] }}>
-                  <Icon glyph="ActivityFeed" fill={palette.blue.dark2} size={24} />
-                  <H3 style={{ margin: 0, color: palette.blue.dark2 }}>
-                    Live Agent Observability Dashboard
-                  </H3>
-                  <Badge variant="blue" style={{ fontSize: '11px' }}>
-                    PHASE 2 ARCHITECTURE
-                  </Badge>
-                </div>
-                <Body style={{ color: palette.blue.dark1 }}>
-                  Real-time monitoring of agent execution with centralized state management and event streaming
-                </Body>
-              </Card>
-              
+              <AgentChatInterface
+                threadId={threadId}
+                backendUrl={API_BASE_URL}
+                agentDecision={agentResults}
+              />
+            </div>
+          </Tab>
+
+          <Tab name="Observability">
+            <div style={{ marginTop: spacing[3] }}>
               {/* Phase 2: Pure Presentational Dashboard */}
               <AgentObservabilityDashboard
                 observabilityState={observabilityState}
@@ -1475,58 +804,12 @@ function AgentEvaluationModal({
             </div>
           </Tab>
 
-          <Tab name="Chat with Agent">
+          <Tab name="Memory & Learning">
             <div style={{ marginTop: spacing[3] }}>
-              {/* Enhanced chat interface header */}
-              <Card style={{ 
-                marginBottom: spacing[3], 
-                background: `linear-gradient(135deg, ${palette.green.light3}, ${palette.white})`,
-                border: `2px solid ${palette.green.base}`
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2], marginBottom: spacing[2] }}>
-                  <Icon glyph="Support" fill={palette.green.dark2} size={24} />
-                  <H3 style={{ margin: 0, color: palette.green.dark2 }}>
-                    Interactive Agent Conversation
-                  </H3>
-                  <Badge variant="green" style={{ fontSize: '11px' }}>
-                    {threadId ? 'CONNECTED' : 'INITIALIZING'}
-                  </Badge>
-                </div>
-                <Body style={{ color: palette.green.dark1 }}>
-                  Chat directly with the fraud detection agent to explore decisions, ask questions, and get detailed explanations
-                </Body>
-              </Card>
-              
-              {/* Agent status indicator */}
-              {threadId && (
-                <Card style={{ marginBottom: spacing[3], background: palette.gray.light3 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2] }}>
-                      <div style={{
-                        width: '12px',
-                        height: '12px',
-                        borderRadius: '50%',
-                        background: palette.green.base,
-                        animation: 'pulse 2s ease-in-out infinite'
-                      }} />
-                      <Body size="small" weight="medium" style={{ color: palette.gray.dark2 }}>
-                        Agent Ready - Thread ID: {threadId.slice(0, 12)}...
-                      </Body>
-                    </div>
-                    <Badge variant="green" style={{ fontSize: '10px' }}>ACTIVE</Badge>
-                  </div>
-                </Card>
-              )}
-              
-              <AgentChatInterface
-                threadId={threadId}
-                backendUrl={API_BASE_URL}
-                agentDecision={agentResults}
-              />
+              {renderMemoryContent()}
             </div>
           </Tab>
         </Tabs>
-        </div>
       </div>
     );
   };
@@ -1537,7 +820,7 @@ function AgentEvaluationModal({
       setOpen={setOpen}
       size="large"
       title="AI Agent Fraud Analysis"
-      contentStyle={{ zIndex: 1002 }}
+      key="agent-evaluation-modal"
     >
       {/* Error display */}
       {error && (
@@ -1570,43 +853,6 @@ function AgentEvaluationModal({
         </div>
         
         <div style={{ display: 'flex', gap: spacing[2] }}>
-          {/* Observability Toggle */}
-          {threadId && (
-            <Button 
-              variant={observabilityActive ? "primary" : "default"}
-              onClick={() => setObservabilityActive(!observabilityActive)}
-              leftGlyph={
-                <Icon 
-                  glyph={observabilityActive ? "Visibility" : "EyeClosed"} 
-                  fill={observabilityActive ? palette.white : palette.blue.base} 
-                />
-              }
-              style={{
-                backgroundColor: observabilityActive ? palette.blue.base : 'transparent',
-                color: observabilityActive ? palette.white : palette.blue.base,
-                border: `1px solid ${palette.blue.base}`
-              }}
-            >
-              {observabilityActive ? 'Hide Monitor' : 'Show Monitor'}
-            </Button>
-          )}
-          
-          {!loading && agentResults && (
-            <Button 
-              variant="default"
-              onClick={() => {
-                setAgentResults(null);
-                setActiveTab(0);
-                setProcessingStage('');
-                // Keep observability active for re-analysis
-                // performAnalysis will be triggered by the useEffect
-              }}
-              leftGlyph={<Icon glyph="Refresh" />}
-            >
-              Re-analyze
-            </Button>
-          )}
-          
           <Button 
             variant="primary"
             onClick={() => setOpen(false)} 

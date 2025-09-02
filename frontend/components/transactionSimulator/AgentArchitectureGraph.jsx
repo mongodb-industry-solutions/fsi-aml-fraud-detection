@@ -482,38 +482,200 @@ const AgentArchitectureGraph = ({
 
   // Define edges (connections between nodes)
   const initialEdges = useMemo(() => [
-    // Main flow
-    { id: 'input-stage1', source: 'input', target: 'stage1', animated: activePath.has('stage1') },
-    { id: 'stage1-ml', source: 'stage1', target: 'ml-decision', animated: activePath.has('ml-decision'), sourceHandle: 'right', targetHandle: 'left' },
-    { id: 'stage1-decision', source: 'stage1', target: 'stage1-decision', animated: activePath.has('stage1-decision') },
+    // Main flow - add darker styling
+    { 
+      id: 'input-stage1', 
+      source: 'input', 
+      target: 'stage1', 
+      animated: activePath.has('stage1'),
+      style: { stroke: palette.gray.dark1, strokeWidth: 2 }
+    },
+    { 
+      id: 'stage1-ml', 
+      source: 'stage1', 
+      target: 'ml-decision', 
+      animated: activePath.has('ml-decision'), 
+      sourceHandle: 'right', 
+      targetHandle: 'left',
+      style: { stroke: palette.gray.dark1, strokeWidth: 2 }
+    },
+    { 
+      id: 'stage1-decision', 
+      source: 'stage1', 
+      target: 'stage1-decision', 
+      animated: activePath.has('stage1-decision'),
+      style: { stroke: palette.gray.dark1, strokeWidth: 2 }
+    },
     
-    // Stage 1 outcomes
-    { id: 'decision-auto-approve', source: 'stage1-decision', target: 'outcome-auto-approve', label: '< 25', style: { opacity: activePath.has('outcome-auto-approve') ? 1 : 0.3, fontSize: '16px', fontWeight: 'bold' } },
-    { id: 'decision-auto-block', source: 'stage1-decision', target: 'outcome-auto-block', label: '> 85', style: { opacity: activePath.has('outcome-auto-block') ? 1 : 0.3, fontSize: '16px', fontWeight: 'bold' } },
+    // Stage 1 outcomes - make decision paths more visible
+    { 
+      id: 'decision-auto-approve', 
+      source: 'stage1-decision', 
+      target: 'outcome-auto-approve', 
+      label: '< 25', 
+      style: { 
+        opacity: activePath.has('outcome-auto-approve') ? 1 : 0.7, 
+        fontSize: '16px', 
+        fontWeight: 'bold',
+        stroke: palette.green.base,
+        strokeWidth: 2
+      } 
+    },
+    { 
+      id: 'decision-auto-block', 
+      source: 'stage1-decision', 
+      target: 'outcome-auto-block', 
+      label: '> 85', 
+      style: { 
+        opacity: activePath.has('outcome-auto-block') ? 1 : 0.7, 
+        fontSize: '16px', 
+        fontWeight: 'bold',
+        stroke: palette.red.base,
+        strokeWidth: 2
+      } 
+    },
     
     // Stage 2 flow
-    { id: 'decision-stage2', source: 'stage1-decision', target: 'stage2', label: '25-85', animated: activePath.has('stage2'), style: { fontSize: '16px', fontWeight: 'bold' } },
-    { id: 'stage2-agent', source: 'stage2', target: 'primary-agent', animated: activePath.has('primary-agent') },
+    { 
+      id: 'decision-stage2', 
+      source: 'stage1-decision', 
+      target: 'stage2', 
+      label: '25-85', 
+      animated: activePath.has('stage2'), 
+      style: { 
+        fontSize: '16px', 
+        fontWeight: 'bold',
+        stroke: palette.blue.base,
+        strokeWidth: 2
+      } 
+    },
+    { 
+      id: 'stage2-agent', 
+      source: 'stage2', 
+      target: 'primary-agent', 
+      animated: activePath.has('primary-agent'),
+      style: { stroke: palette.gray.dark1, strokeWidth: 2 }
+    },
     
-    // Tool connections
-    { id: 'agent-patterns', source: 'primary-agent', target: 'patterns-tool', animated: true },
-    { id: 'agent-similarity', source: 'primary-agent', target: 'similarity-tool', animated: true },
-    { id: 'agent-network', source: 'primary-agent', target: 'network-tool', animated: true },
-    { id: 'agent-sanctions', source: 'primary-agent', target: 'sanctions-tool', animated: true },
+    // Tool connections - make these more visible
+    { 
+      id: 'agent-patterns', 
+      source: 'primary-agent', 
+      target: 'patterns-tool', 
+      animated: true,
+      style: { stroke: palette.purple.base, strokeWidth: 2 }
+    },
+    { 
+      id: 'agent-similarity', 
+      source: 'primary-agent', 
+      target: 'similarity-tool', 
+      animated: true,
+      style: { stroke: palette.blue.base, strokeWidth: 2 }
+    },
+    { 
+      id: 'agent-network', 
+      source: 'primary-agent', 
+      target: 'network-tool', 
+      animated: true,
+      style: { stroke: palette.yellow.dark1, strokeWidth: 2 }
+    },
+    { 
+      id: 'agent-sanctions', 
+      source: 'primary-agent', 
+      target: 'sanctions-tool', 
+      animated: true,
+      style: { stroke: palette.yellow.base, strokeWidth: 2 }
+    },
     
     // Connected agent
-    { id: 'agent-connected', source: 'primary-agent', target: 'connected-agent', animated: true },
-    { id: 'connected-file', source: 'connected-agent', target: 'file-search-tool', animated: true },
-    { id: 'connected-code', source: 'connected-agent', target: 'code-interpreter-tool', animated: true },
+    { 
+      id: 'agent-connected', 
+      source: 'primary-agent', 
+      target: 'connected-agent', 
+      animated: true,
+      style: { stroke: palette.purple.base, strokeWidth: 2 }
+    },
+    { 
+      id: 'connected-file', 
+      source: 'connected-agent', 
+      target: 'file-search-tool', 
+      animated: true,
+      style: { stroke: palette.purple.base, strokeWidth: 2 }
+    },
+    { 
+      id: 'connected-code', 
+      source: 'connected-agent', 
+      target: 'code-interpreter-tool', 
+      animated: true,
+      style: { stroke: palette.purple.base, strokeWidth: 2 }
+    },
     
     // Final decision
-    { id: 'agent-decision', source: 'primary-agent', target: 'final-decision', animated: true },
+    { 
+      id: 'agent-decision', 
+      source: 'primary-agent', 
+      target: 'final-decision', 
+      animated: true,
+      style: { stroke: palette.gray.dark1, strokeWidth: 2 }
+    },
     
-    // Final outcomes
-    { id: 'final-approve', source: 'final-decision', target: 'outcome-approve', label: '< 40', style: { opacity: activePath.has('outcome-approve') ? 1 : 0.3, fontSize: '16px', fontWeight: 'bold' }, animated: activePath.has('outcome-approve') },
-    { id: 'final-investigate', source: 'final-decision', target: 'outcome-investigate', label: '40-65', style: { opacity: activePath.has('outcome-investigate') ? 1 : 0.3, fontSize: '16px', fontWeight: 'bold' }, animated: activePath.has('outcome-investigate') },
-    { id: 'final-escalate', source: 'final-decision', target: 'outcome-escalate', label: '65-85', style: { opacity: activePath.has('outcome-escalate') ? 1 : 0.3, fontSize: '16px', fontWeight: 'bold' }, animated: activePath.has('outcome-escalate') },
-    { id: 'final-block', source: 'final-decision', target: 'outcome-block', label: '≥ 85', style: { opacity: activePath.has('outcome-block') ? 1 : 0.3, fontSize: '16px', fontWeight: 'bold' }, animated: activePath.has('outcome-block') }
+    // Final outcomes - color-coded by decision type
+    { 
+      id: 'final-approve', 
+      source: 'final-decision', 
+      target: 'outcome-approve', 
+      label: '< 40', 
+      style: { 
+        opacity: activePath.has('outcome-approve') ? 1 : 0.7, 
+        fontSize: '16px', 
+        fontWeight: 'bold',
+        stroke: palette.green.base,
+        strokeWidth: 2
+      }, 
+      animated: activePath.has('outcome-approve') 
+    },
+    { 
+      id: 'final-investigate', 
+      source: 'final-decision', 
+      target: 'outcome-investigate', 
+      label: '40-65', 
+      style: { 
+        opacity: activePath.has('outcome-investigate') ? 1 : 0.7, 
+        fontSize: '16px', 
+        fontWeight: 'bold',
+        stroke: palette.yellow.base,
+        strokeWidth: 2
+      }, 
+      animated: activePath.has('outcome-investigate') 
+    },
+    { 
+      id: 'final-escalate', 
+      source: 'final-decision', 
+      target: 'outcome-escalate', 
+      label: '65-85', 
+      style: { 
+        opacity: activePath.has('outcome-escalate') ? 1 : 0.7, 
+        fontSize: '16px', 
+        fontWeight: 'bold',
+        stroke: palette.red.light1,
+        strokeWidth: 2
+      }, 
+      animated: activePath.has('outcome-escalate') 
+    },
+    { 
+      id: 'final-block', 
+      source: 'final-decision', 
+      target: 'outcome-block', 
+      label: '≥ 85', 
+      style: { 
+        opacity: activePath.has('outcome-block') ? 1 : 0.7, 
+        fontSize: '16px', 
+        fontWeight: 'bold',
+        stroke: palette.red.base,
+        strokeWidth: 2
+      }, 
+      animated: activePath.has('outcome-block') 
+    }
   ], [activePath]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);

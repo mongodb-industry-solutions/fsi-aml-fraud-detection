@@ -1,13 +1,19 @@
+# IMPORTANT: Import and configure logging FIRST
+from logging_setup import setup_logging, get_logger
+setup_logging()  # Configure logging
+
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import APIRouter
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 import os
-import logging
 from datetime import datetime
 
-# Import routes
+# Get logger for this module
+logger = get_logger(__name__)
+
+# Import routes (after logging is configured)
 from routes.customer import router as customer_router
 from routes.transaction import router as transaction_router
 from routes.fraud_pattern import router as fraud_pattern_router
@@ -17,12 +23,7 @@ from routes.observability import router as observability_router
 from routes.simplified_memory_routes import router as memory_router
 # Entity resolution router removed - using enhanced system
 
-# Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger(__name__)
+# Logger is already defined above with get_logger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -30,7 +31,6 @@ load_dotenv()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Handle application startup and shutdown"""
-    # Startup
     logger.info("🚀 Starting ThreatSight 360 API with Azure AI Agent...")
     
     # Import here to avoid circular imports during startup
@@ -100,8 +100,7 @@ async def root():
 # Test endpoint for CORS
 @app.get("/test-cors/", tags=["Health"])
 async def test_cors():
-    import logging
-    logger = logging.getLogger(__name__)
+    # Use the module logger defined at the top
     
     try:
         from pymongo import MongoClient

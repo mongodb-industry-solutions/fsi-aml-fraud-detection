@@ -3,15 +3,15 @@ Azure AI Foundry Agent Service Integration
 Manages the TwoStageAgentCore lifecycle within FastAPI
 """
 
-import logging
 import os
 from typing import Dict, Any, Optional
 from contextlib import asynccontextmanager
 
 from azure_foundry.agent_core import TwoStageAgentCore
 from db.mongo_db import MongoDBAccess
+from logging_setup import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class AgentService:
     """Singleton service for managing the TwoStageAgentCore agent"""

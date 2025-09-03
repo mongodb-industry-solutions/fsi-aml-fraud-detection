@@ -3,6 +3,10 @@ Real-time Observability Event Streamer
 Manages real-time streaming of agent observability data via WebSocket connections
 """
 
+# IMPORTANT: Import and configure logging FIRST
+from logging_setup import setup_logging, get_logger
+setup_logging()  # Configure logging
+
 import asyncio
 import json
 import logging
@@ -11,7 +15,7 @@ from datetime import datetime, timezone
 from dataclasses import dataclass, asdict
 from enum import Enum
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class EventType(Enum):
     """Types of observability events that can be streamed"""

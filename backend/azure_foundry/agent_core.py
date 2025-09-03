@@ -3,7 +3,11 @@ Core Azure AI Foundry Two-Stage Agent
 Simplified implementation optimized for demo purposes
 """
 
-import logging
+# IMPORTANT: Import and configure logging FIRST
+from logging_setup import setup_logging, get_logger
+setup_logging()  # Configure logging
+
+
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Tuple
 
@@ -20,7 +24,7 @@ from .conversation import NativeConversationHandler
 from .memory import create_mongodb_vector_store
 from .memory.simple_memory_store import SimpleMemoryStore
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class TwoStageAgentCore:

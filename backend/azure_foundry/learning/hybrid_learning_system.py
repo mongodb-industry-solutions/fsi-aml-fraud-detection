@@ -11,6 +11,10 @@ Key Principles:
 - Complements rather than replaces Azure's native capabilities
 """
 
+# IMPORTANT: Import and configure logging FIRST
+from logging_setup import setup_logging, get_logger
+setup_logging()  # Configure logging
+
 import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
@@ -19,7 +23,7 @@ from dataclasses import dataclass
 from azure.ai.agents import AgentsClient
 from azure.core.exceptions import HttpResponseError
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass

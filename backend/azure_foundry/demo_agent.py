@@ -3,6 +3,11 @@ Demo script for Azure AI Foundry Two-Stage Agent
 Simple test runner for demonstration purposes
 """
 
+# IMPORTANT: Import and configure logging FIRST
+from logging_setup import setup_logging, get_logger
+setup_logging()  # Configure logging
+
+
 import asyncio
 import json
 import os
@@ -19,7 +24,7 @@ from db.mongo_db import MongoDBAccess
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 async def run_demo():

@@ -4,6 +4,10 @@ Seed script to populate the ThreatSight 360 database with sample data.
 This script will create sample customer profiles, fraud patterns, and sample transactions.
 """
 
+# IMPORTANT: Import and configure logging FIRST
+from logging_setup import setup_logging, get_logger
+setup_logging()  # Configure logging
+
 import os
 import json
 import logging
@@ -19,9 +23,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from bedrock.embeddings import get_embedding
 
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Load environment variables
 load_dotenv()

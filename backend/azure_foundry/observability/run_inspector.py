@@ -3,6 +3,10 @@ Azure AI Foundry Run Step Inspector
 Provides detailed monitoring and analysis of agent run steps and tool calls
 """
 
+# IMPORTANT: Import and configure logging FIRST
+from logging_setup import setup_logging, get_logger
+setup_logging()  # Configure logging
+
 import time
 import json
 import logging
@@ -12,7 +16,7 @@ from dataclasses import dataclass, asdict
 
 from .telemetry_config import create_span
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 @dataclass
 class ToolCallDetail:

@@ -3,6 +3,10 @@ Stage 2 Analyzer: Vector Search + AI Analysis
 Deep investigation for edge cases that need sophisticated analysis
 """
 
+# IMPORTANT: Import and configure logging FIRST
+from logging_setup import setup_logging, get_logger
+setup_logging()  # Configure logging
+
 import asyncio
 import json
 import logging

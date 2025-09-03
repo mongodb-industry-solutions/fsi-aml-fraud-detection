@@ -4,6 +4,11 @@ Step-by-step agent debugging script
 Test each component individually to find where the agent gets stuck
 """
 
+# IMPORTANT: Import and configure logging FIRST
+from logging_setup import setup_logging, get_logger
+setup_logging()  # Configure logging
+
+
 import asyncio
 import os
 import sys
@@ -21,7 +26,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 async def test_step_1_agent_initialization():
     """Step 1: Test if agent service initializes properly"""

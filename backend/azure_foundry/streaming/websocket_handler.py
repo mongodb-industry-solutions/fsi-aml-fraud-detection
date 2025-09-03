@@ -3,13 +3,17 @@ WebSocket Handler for Real-time Agent Observability
 Manages WebSocket connections and routes for streaming agent data to frontend
 """
 
+# IMPORTANT: Import and configure logging FIRST
+from logging_setup import setup_logging, get_logger
+setup_logging()  # Configure logging
+
 import json
 import logging
 from typing import Dict, Any
 from fastapi import WebSocket, WebSocketDisconnect
 from .observability_streamer import observability_streamer, ObservabilityEvent, EventType
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class WebSocketObservabilityHandler:
     """

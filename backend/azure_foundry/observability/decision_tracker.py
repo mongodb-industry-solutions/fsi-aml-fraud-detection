@@ -3,6 +3,10 @@ Azure AI Foundry Decision Tracker
 Tracks agent decision-making patterns, reasoning, and outcomes for fraud detection analysis
 """
 
+# IMPORTANT: Import and configure logging FIRST
+from logging_setup import setup_logging, get_logger
+setup_logging()  # Configure logging
+
 import json
 import logging
 from typing import Dict, Any, List, Optional, Tuple
@@ -12,7 +16,7 @@ from enum import Enum
 
 from .telemetry_config import create_span
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class DecisionType(Enum):
     """Types of decisions an agent can make"""

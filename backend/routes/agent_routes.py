@@ -2,14 +2,17 @@
 FastAPI routes for Azure AI Foundry Agent integration
 """
 
-import logging
+# IMPORTANT: Import and configure logging FIRST
+from logging_setup import setup_logging, get_logger
+setup_logging()  # Configure logging
+
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 
 from services.agent_service import agent_service, get_agent_service, AgentService
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api/agent", tags=["AI Agent"])
 

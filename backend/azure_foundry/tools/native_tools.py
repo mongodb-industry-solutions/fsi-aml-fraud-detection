@@ -8,6 +8,10 @@ Following native Azure patterns from documentation analysis:
 - Focus on business logic, not tool mechanics
 """
 
+# IMPORTANT: Import and configure logging FIRST
+from logging_setup import setup_logging, get_logger
+setup_logging()  # Configure logging
+
 import logging
 import json
 import asyncio
@@ -18,7 +22,7 @@ from azure.ai.agents.models import FunctionTool
 from db.mongo_db import MongoDBAccess
 # Import moved to function level to avoid circular import
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class FraudDetectionTools:

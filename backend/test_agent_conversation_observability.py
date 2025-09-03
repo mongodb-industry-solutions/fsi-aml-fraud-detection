@@ -4,6 +4,10 @@ Test Azure AI Foundry Agent Conversation with Full Observability
 Tests a realistic agent conversation scenario with comprehensive monitoring
 """
 
+# IMPORTANT: Import and configure logging FIRST
+from logging_setup import setup_logging, get_logger
+setup_logging()  # Configure logging
+
 import asyncio
 import os
 import sys
@@ -14,12 +18,7 @@ from typing import Dict, Any
 # Add the backend directory to Python path
 sys.path.insert(0, '/Users/mehar.grewal/Desktop/Work/Coding/Finance/Fraud Detection Demo Mar 25/fsi-aml-fraud-detection/backend')
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 async def test_conversation_with_observability():
     """Test a complete conversation flow with observability enabled"""

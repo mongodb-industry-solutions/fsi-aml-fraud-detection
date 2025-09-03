@@ -3,6 +3,10 @@ Azure AI Foundry Agent Observer
 Provides high-level monitoring and observability for agent operations and tool calls
 """
 
+# IMPORTANT: Import and configure logging FIRST
+from logging_setup import setup_logging, get_logger
+setup_logging()  # Configure logging
+
 import time
 import json
 import logging
@@ -13,7 +17,7 @@ from dataclasses import dataclass, asdict
 from .telemetry_config import create_span
 from .run_inspector import RunStepInspector, RunInspectionResult
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 @dataclass
 class AgentMetrics:

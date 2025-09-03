@@ -2,11 +2,15 @@
 OpenTelemetry Configuration for Azure AI Foundry Agent Observability
 """
 
+# IMPORTANT: Import and configure logging FIRST
+from logging_setup import setup_logging, get_logger
+setup_logging()  # Configure logging
+
 import os
 import logging
 from typing import Optional
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 def configure_observability(
     connection_string: Optional[str] = None,

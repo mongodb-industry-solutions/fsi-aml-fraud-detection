@@ -5,6 +5,10 @@ Uses Azure's built-in conversation patterns instead of custom polling loops
 Based on Azure AI Foundry documentation patterns from research files.
 """
 
+# IMPORTANT: Import and configure logging FIRST
+from logging_setup import setup_logging, get_logger
+setup_logging()  # Configure logging
+
 import logging
 from typing import Dict, Any, AsyncGenerator, Optional
 from datetime import datetime
@@ -15,8 +19,7 @@ from azure.core.exceptions import HttpResponseError
 # Import observability for event emission (safe - no WebSocket broadcasting)
 from ..streaming.observability_streamer import observability_streamer
 
-logger = logging.getLogger(__name__)
-
+logger = get_logger(__name__)
 
 class NativeConversationHandler:
     """

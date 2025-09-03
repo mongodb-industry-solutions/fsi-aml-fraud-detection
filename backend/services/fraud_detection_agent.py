@@ -1,3 +1,7 @@
+# IMPORTANT: Import and configure logging FIRST
+from logging_setup import setup_logging, get_logger
+setup_logging()  # Configure logging
+
 import json
 import os
 import asyncio
@@ -25,7 +29,7 @@ logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(l
 logging.getLogger("azure.identity").setLevel(logging.WARNING)
 logging.getLogger("azure.ai.agents").setLevel(logging.WARNING)
 # Set up logging
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 load_dotenv()

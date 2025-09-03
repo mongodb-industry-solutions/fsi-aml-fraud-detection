@@ -3,6 +3,10 @@ Stage 1 Analyzer: Rules + Basic ML Analysis
 Fast triage for the majority of transactions
 """
 
+# IMPORTANT: Import and configure logging FIRST
+from logging_setup import setup_logging, get_logger
+setup_logging()  # Configure logging
+
 import asyncio
 import logging
 from datetime import datetime
@@ -13,7 +17,7 @@ from .models import (
     Stage1Error
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class Stage1Analyzer:

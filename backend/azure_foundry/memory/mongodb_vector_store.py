@@ -5,11 +5,15 @@ This is now a simple adapter that integrates with the existing FraudDetectionSer
 instead of duplicating MongoDB connection and collection management code.
 """
 
+# IMPORTANT: Import and configure logging FIRST
+from logging_setup import setup_logging, get_logger
+setup_logging()  # Configure logging
+
 import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class MongoDBAtlasIntegration:

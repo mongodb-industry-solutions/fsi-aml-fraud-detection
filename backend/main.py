@@ -21,9 +21,6 @@ from routes.model_management import router as model_management_router
 from routes.agent_routes import router as agent_router
 from routes.observability import router as observability_router
 from routes.simplified_memory_routes import router as memory_router
-# Entity resolution router removed - using enhanced system
-
-# Logger is already defined above with get_logger(__name__)
 
 # Load environment variables
 load_dotenv()

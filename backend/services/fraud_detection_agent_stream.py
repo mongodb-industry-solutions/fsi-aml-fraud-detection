@@ -1,3 +1,7 @@
+# IMPORTANT: Import and configure logging FIRST
+from logging_setup import setup_logging, get_logger
+setup_logging()  # Configure logging
+
 import json
 import os
 import asyncio
@@ -19,14 +23,9 @@ from azure_foundry.embeddings import get_embedding
 from services.fraud_detection import FraudDetectionService
 from db.mongo_db import MongoDBAccess
 
-# Configure logging to suppress Azure SDK verbose output
-logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.WARNING)
-logging.getLogger("azure.identity").setLevel(logging.WARNING)
-logging.getLogger("azure.ai.agents").setLevel(logging.WARNING)
-
-# Set up logging
-logger = logging.getLogger(__name__)
 load_dotenv()
+
+logger = get_logger(__name__)
 
 class FraudDetectionAgentStream:
     """Azure AI Foundry Agent for fraud detection with streaming support"""

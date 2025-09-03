@@ -3,7 +3,10 @@ FastAPI Routes for Real-time Agent Observability
 WebSocket endpoints and REST API for streaming agent monitoring data
 """
 
-import logging
+# IMPORTANT: Import and configure logging FIRST
+from logging_setup import setup_logging, get_logger
+setup_logging()  # Configure logging
+
 from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException, Depends, Query
 from fastapi.responses import JSONResponse
@@ -11,7 +14,7 @@ from fastapi.responses import JSONResponse
 from azure_foundry.streaming.websocket_handler import websocket_handler
 from azure_foundry.streaming.observability_streamer import observability_streamer
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/observability", tags=["Agent Observability"])
 

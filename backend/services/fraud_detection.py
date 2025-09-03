@@ -1,3 +1,7 @@
+# IMPORTANT: Import and configure logging FIRST
+from logging_setup import setup_logging, get_logger
+setup_logging()  # Configure logging
+
 import logging
 import os
 from typing import Dict, List, Any, Tuple, Optional
@@ -10,7 +14,7 @@ from db.mongo_db import MongoDBAccess
 from azure_foundry.embeddings import get_embedding
 
 # Set up logging
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Load constants from environment variables
 AMOUNT_THRESHOLD_MULTIPLIER = float(os.getenv("AMOUNT_THRESHOLD_MULTIPLIER", 3.0))  # How many std devs above average is suspicious

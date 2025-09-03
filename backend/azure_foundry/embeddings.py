@@ -1,3 +1,7 @@
+# IMPORTANT: Import and configure logging FIRST
+from logging_setup import setup_logging, get_logger
+setup_logging()  # Configure logging
+
 import os
 import logging
 from typing import Optional, List
@@ -10,7 +14,7 @@ load_dotenv()
 
 # Set up logging
 logging.basicConfig(level=logging.WARNING)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class AzureFoundryEmbeddings:
     """A class to generate text embeddings using Azure AI Foundry models."""

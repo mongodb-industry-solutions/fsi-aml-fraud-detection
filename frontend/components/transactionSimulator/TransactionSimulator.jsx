@@ -333,42 +333,43 @@ Device: ${transactionData.device_info?.type || 'N/A'}, ${transactionData.device_
     return text;
   };
 
-  const handleSubmitTransaction = async () => {
-    const transactionData = prepareTransactionData();
-    if (!transactionData) {
-      setError('Cannot create transaction: No customer selected');
-      return;
-    }
-    
-    setLoading(true);
-    setError('');
-    
-    try {
-      // Log the transaction data for debugging
-      console.log('Transaction data being sent:', JSON.stringify(transactionData));
-      
-      // Call the API to evaluate the transaction
-      const response = await axios.post(`${API_BASE_URL}/transactions/evaluate`, transactionData);
-      console.log('Transaction evaluation response:', JSON.stringify(response.data));
-      
-      // Extract similar transactions and similarity risk score
-      const similarTransData = response.data.similar_transactions || [];
-      const simRiskScore = response.data.similarity_risk_score || 0;
-      
-      // Update state with similar transactions data
-      setSimilarTransactions(similarTransData);
-      setSimilarityRiskScore(simRiskScore);
-      
-      setResults(response.data);
-      setShowResultsModal(true);
-    } catch (err) {
-      console.error('Error evaluating transaction:', err);
-      console.error('Error details:', err.response?.data || err.message);
-      setError('Failed to evaluate transaction. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // REMOVED: Submit transaction for evaluation
+  // const handleSubmitTransaction = async () => {
+  //   const transactionData = prepareTransactionData();
+  //   if (!transactionData) {
+  //     setError('Cannot create transaction: No customer selected');
+  //     return;
+  //   }
+  //   
+  //   setLoading(true);
+  //   setError('');
+  //   
+  //   try {
+  //     // Log the transaction data for debugging
+  //     console.log('Transaction data being sent:', JSON.stringify(transactionData));
+  //     
+  //     // Call the API to evaluate the transaction
+  //     const response = await axios.post(`${API_BASE_URL}/transactions/evaluate`, transactionData);
+  //     console.log('Transaction evaluation response:', JSON.stringify(response.data));
+  //     
+  //     // Extract similar transactions and similarity risk score
+  //     const similarTransData = response.data.similar_transactions || [];
+  //     const simRiskScore = response.data.similarity_risk_score || 0;
+  //     
+  //     // Update state with similar transactions data
+  //     setSimilarTransactions(similarTransData);
+  //     setSimilarityRiskScore(simRiskScore);
+  //     
+  //     setResults(response.data);
+  //     setShowResultsModal(true);
+  //   } catch (err) {
+  //     console.error('Error evaluating transaction:', err);
+  //     console.error('Error details:', err.response?.data || err.message);
+  //     setError('Failed to evaluate transaction. Please try again.');
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
 
   // Handle agent evaluation
   const handleAgentEvaluation = () => {
@@ -1314,9 +1315,10 @@ Device: ${transactionData.device_info?.type || 'N/A'}, ${transactionData.device_
             boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
           }}
         >
-          {agentLoading ? 'Agent Processing...' : 'Evaluate with Agent'}
+          {agentLoading ? 'Agent Processing...' : 'Evaluate Transaction'}
         </Button>
         
+        {/* REMOVED: Evaluate Transaction button
         <Button
           variant="primary"
           disabled={loading || !selectedCustomer}
@@ -1330,6 +1332,7 @@ Device: ${transactionData.device_info?.type || 'N/A'}, ${transactionData.device_
         >
           {loading ? 'Evaluating...' : 'Evaluate Transaction'}
         </Button>
+        */}
       </div>
       
       {/* Error Display */}

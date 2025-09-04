@@ -1,0 +1,9 @@
+After risk scoring, if the decision is ESCALATE, or BLOCK,  
+invoke the SuspiciousReportsAgent.  
+Provide case details and request:  
+- Relevant past SARs or investigations  
+- Common typologies or patterns  
+- Match strength (High/Moderate/Weak)  
+- Contextual insights and recommendations  
+
+Require output in the SuspiciousReportsAgent response template for integration into the final decision.

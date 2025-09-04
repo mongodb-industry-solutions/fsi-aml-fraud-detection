@@ -121,7 +121,23 @@ const AgentArchitectureGraph = ({
       // Analysis completed - show actual path taken
       path.push('stage1-decision');
       
-      if (agentResults.stage_completed === 2) {
+      // Add final outcome based on stage and decision
+      const decision = agentResults.decision?.toUpperCase();
+      const stage = agentResults.stage_completed;
+      
+      console.log('🔍 Decision Path Debug:', { decision, stage, agentResults }); // Debug log
+      
+      if (stage === 1) {
+        // Stage 1 outcomes (auto-approve/auto-block)
+        if (decision === 'APPROVE') {
+          path.push('outcome-auto-approve');
+          console.log('✅ Added outcome-auto-approve to path');
+        } else if (decision === 'BLOCK') {
+          path.push('outcome-auto-block');
+          console.log('✅ Added outcome-auto-block to path');
+        }
+      } else if (stage === 2) {
+        // For Stage 2, include the full AI analysis path
         path.push('stage2', 'primary-agent', 'patterns-tool');
         
         // Add tools based on what was likely used
@@ -139,17 +155,7 @@ const AgentArchitectureGraph = ({
         }
         
         path.push('final-decision');
-      }
-      
-      // Add final outcome based on stage and decision
-      const decision = agentResults.decision?.toUpperCase();
-      const stage = agentResults.stage_completed;
-      
-      if (stage === 1) {
-        // Stage 1 outcomes (auto-approve/auto-block)
-        if (decision === 'APPROVE') path.push('outcome-auto-approve');
-        else if (decision === 'BLOCK') path.push('outcome-auto-block');
-      } else if (stage === 2) {
+        
         // Stage 2 outcomes (AI decisions)
         if (decision === 'APPROVE') path.push('outcome-approve');
         else if (decision === 'INVESTIGATE') path.push('outcome-investigate');
@@ -712,8 +718,10 @@ const AgentArchitectureGraph = ({
         background: `linear-gradient(135deg, ${getDecisionColor(agentResults.decision)}15, ${palette.white})`,
         border: `2px solid ${getDecisionColor(agentResults.decision)}`,
         display: 'flex',
-        alignItems: 'center'
+        flexDirection: 'column',
+        gap: spacing[2]
       }}>
+        {/* Decision Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2], width: '100%' }}>
           <div style={{
             width: '36px',
@@ -732,13 +740,89 @@ const AgentArchitectureGraph = ({
           </div>
           <div style={{ flex: 1 }}>
             <H2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: spacing[2] }}>
-              Agent Decision: {agentResults.decision}
-              <Badge variant="lightgray" style={{ fontSize: '12px' }}>
-                Stage {agentResults.stage_completed} Complete
+              {agentResults.decision === 'ANALYZING' || agentResults.needs_stage2 ? 'Stage 1 Analysis' : 
+               agentResults.stage_completed === 1 ? 'Stage 1 Decision' : 'Agent Decision'}: 
+              {agentResults.decision === 'ANALYZING' ? 'Complete' : agentResults.decision}
+              <Badge 
+                variant={agentResults.needs_stage2 ? "yellow" : "lightgray"} 
+                style={{ fontSize: '12px' }}
+              >
+                {agentResults.needs_stage2 ? 'Stage 2 in Progress' : `Stage ${agentResults.stage_completed} Complete`}
               </Badge>
             </H2>
-
+            {(agentResults.stage_completed === 1 && !agentResults.needs_stage2) && (
+              <Body style={{ margin: 0, color: palette.gray.dark1, fontSize: '14px' }}>
+                Agent not instantiated
+              </Body>
+            )}
+            {agentResults.needs_stage2 && (
+              <Body style={{ margin: 0, color: palette.blue.dark1, fontSize: '14px' }}>
+                Proceeding to AI agent analysis...
+              </Body>
+            )}
           </div>
+        </div>
+        
+        {/* Stage 1 Results Display */}
+        <div style={{ 
+          display: 'flex', 
+          gap: spacing[3], 
+          padding: spacing[2],
+          background: palette.gray.light3,
+          borderRadius: '6px',
+          flexWrap: 'wrap'
+        }}>
+          <div>
+            <Body weight="medium" style={{ fontSize: '12px', color: palette.gray.dark1, marginBottom: spacing[1]/2 }}>
+              Rules Risk Score
+            </Body>
+            <Body weight="bold" style={{ fontSize: '16px', color: palette.blue.dark2 }}>
+              {agentResults.stage1_rules_score !== null && agentResults.stage1_rules_score !== undefined 
+                ? agentResults.stage1_rules_score.toFixed(1) 
+                : 'N/A'}
+            </Body>
+          </div>
+          <div>
+            <Body weight="medium" style={{ fontSize: '12px', color: palette.gray.dark1, marginBottom: spacing[1]/2 }}>
+              ML Risk Score  
+            </Body>
+            <Body weight="bold" style={{ fontSize: '16px', color: palette.purple.dark2 }}>
+              {agentResults.stage1_ml_score !== null && agentResults.stage1_ml_score !== undefined 
+                ? agentResults.stage1_ml_score.toFixed(1) 
+                : 'N/A'}
+            </Body>
+          </div>
+          <div>
+            <Body weight="medium" style={{ fontSize: '12px', color: palette.gray.dark1, marginBottom: spacing[1]/2 }}>
+              Combined Score
+            </Body>
+            <Body weight="bold" style={{ fontSize: '16px', color: palette.green.dark2 }}>
+              {agentResults.stage1_combined_score !== null && agentResults.stage1_combined_score !== undefined 
+                ? agentResults.stage1_combined_score.toFixed(1) 
+                : agentResults.risk_score?.toFixed(1) || 'N/A'}
+            </Body>
+          </div>
+          {agentResults.stage1_rule_flags && agentResults.stage1_rule_flags.length > 0 && (
+            <div>
+              <Body weight="medium" style={{ fontSize: '12px', color: palette.gray.dark1, marginBottom: spacing[1]/2 }}>
+                Risk Flags
+              </Body>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing[1]/2 }}>
+                {agentResults.stage1_rule_flags.map((flag, index) => (
+                  <Badge 
+                    key={index}
+                    variant="yellow" 
+                    style={{ 
+                      fontSize: '10px',
+                      textTransform: 'capitalize'
+                    }}
+                  >
+                    {flag.replace(/_/g, ' ')}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </Card>
     );

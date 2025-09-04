@@ -326,6 +326,14 @@ class TwoStageAgentCore:
                 
                 # Update metrics
                 self.metrics.stage1_decisions += 1
+                
+                logger.info(
+                    f"✅ Stage 1 decision complete: {transaction.transaction_id} → {final_decision.decision.value} "
+                    f"(Score: {final_decision.risk_score:.1f}, {final_decision.total_processing_time_ms:.0f}ms)"
+                )
+                
+                # Return immediately - do not proceed to Stage 2
+                return final_decision
             
             else:
                 # ============================================================
@@ -444,7 +452,9 @@ class TwoStageAgentCore:
                     "pattern_match_score": (stage1_result.combined_score or 0) / 100 if stage1_result else 0.5
                 }
                 
-                # Store decision
+                # Store decision - thread_id only available for Stage 2 decisions
+                decision_thread_id = getattr(final_decision, 'thread_id', None)
+                
                 await self.memory_store.store_decision(
                     transaction_id=transaction.transaction_id,
                     memory_id=memory_id,
@@ -455,7 +465,7 @@ class TwoStageAgentCore:
                         "reasoning": final_decision.reasoning or "No detailed reasoning provided"
                     },
                     features=features,
-                    thread_id=thread_id
+                    thread_id=decision_thread_id
                 )
             
             # Update overall metrics
@@ -471,15 +481,85 @@ class TwoStageAgentCore:
         except Exception as e:
             logger.error(f"❌ Error analyzing transaction {transaction.transaction_id}: {e}")
             
+            # Return error decision - for analysis failures, block the transaction for safety
+            return AgentDecision(
+                transaction_id=transaction.transaction_id,
+                decision=DecisionType.BLOCK,
+                confidence=0.3,
+                risk_score=85.0,  # High score to reflect system error
+                risk_level=RiskLevel.HIGH,
+                stage_completed=1,
+                reasoning=f"System error during analysis - blocking for safety: {str(e)}",
+                total_processing_time_ms=(datetime.now() - start_time).total_seconds() * 1000
+            )
+    
+    async def analyze_stage1_only(self, transaction_data: Dict[str, Any]) -> AgentDecision:
+        """
+        Analyze transaction Stage 1 only and return results immediately
+        
+        Returns:
+            AgentDecision with Stage 1 results and needs_stage2 flag
+        """
+        start_time = datetime.now()
+        
+        # Convert to standardized input
+        transaction = TransactionInput(
+            transaction_id=str(transaction_data.get('transaction_id', transaction_data.get('_id', 'unknown'))),
+            customer_id=str(transaction_data.get('customer_id', 'unknown')),
+            amount=float(transaction_data.get('amount', 0)),
+            currency=transaction_data.get('currency', 'USD'),
+            merchant_category=transaction_data.get('merchant', {}).get('category', 'unknown'),
+            location_country=transaction_data.get('location', {}).get('country', 'US')
+        )
+        
+        logger.info(f"🔍 Stage 1 Analysis: {transaction.transaction_id} (${transaction.amount:,.2f})")
+        
+        try:
+            # ============================================================
+            # STAGE 1: RULES + BASIC ML ANALYSIS
+            # ============================================================
+            stage1_result = await self.stage1_analyzer.analyze(transaction, transaction_data)
+            
+            logger.info(
+                f"Stage 1 complete - Score: {stage1_result.combined_score:.1f}, "
+                f"Needs Stage 2: {stage1_result.needs_stage2}"
+            )
+            
+            # Create decision based on Stage 1 results
+            if not stage1_result.needs_stage2:
+                # Stage 1 sufficient - make final decision
+                decision_type, confidence = self._make_stage1_decision(stage1_result)
+            else:
+                # Stage 2 needed - return interim decision
+                decision_type = DecisionType.INVESTIGATE
+                confidence = 0.5
+            
+            decision = AgentDecision(
+                transaction_id=transaction.transaction_id,
+                decision=decision_type if not stage1_result.needs_stage2 else None,  # No final decision if Stage 2 needed
+                confidence=confidence,
+                risk_score=stage1_result.combined_score,
+                risk_level=self._calculate_risk_level(stage1_result.combined_score),
+                stage_completed=1,
+                stage1_result=stage1_result,
+                reasoning=self._build_stage1_reasoning(stage1_result),
+                total_processing_time_ms=(datetime.now() - start_time).total_seconds() * 1000
+            )
+            
+            return decision
+            
+        except Exception as e:
+            logger.error(f"❌ Error in Stage 1 analysis {transaction.transaction_id}: {e}")
+            
             # Return error decision
             return AgentDecision(
                 transaction_id=transaction.transaction_id,
-                decision=DecisionType.ESCALATE,
+                decision=DecisionType.BLOCK,
                 confidence=0.3,
-                risk_score=75.0,
-                risk_level=self._calculate_risk_level(75.0),
+                risk_score=85.0,
+                risk_level=RiskLevel.HIGH,
                 stage_completed=1,
-                reasoning=f"Analysis failed: {str(e)}",
+                reasoning=f"Stage 1 error - blocking for safety: {str(e)}",
                 total_processing_time_ms=(datetime.now() - start_time).total_seconds() * 1000
             )
     

@@ -158,22 +158,55 @@ function AgentEvaluationModal({
         console.log('Sending transaction data to agent:', transactionData);
         console.log('🔄 Starting observability in waiting mode...');
         
-        // Call the agent API to start analysis (only gets thread_id, not final results)
-        const response = await axios.post(`${API_BASE_URL}/api/agent/analyze`, transactionData);
+        // Call the clean transaction analysis API
+        const response = await axios.post(`${API_BASE_URL}/api/transaction/analyze`, transactionData);
         
-        // Extract thread ID for live observability (but don't set results yet!)
-        if (response.data.thread_id) {
-          console.log('🔄 Thread ID available, starting live observability:', response.data.thread_id);
+        console.log('🔍 Analysis Response Debug:', response.data);
+        console.log('🔍 Stage 1 Result Detail:', response.data.stage1_result);
+        
+        // ALWAYS show Stage 1 results immediately (clean architecture)
+        setAgentResults({
+          transaction_id: response.data.transaction_id,
+          decision: response.data.decision || 'ANALYZING', // May be null if Stage 2 needed
+          risk_level: response.data.risk_level,
+          risk_score: response.data.risk_score,
+          thread_id: response.data.thread_id, // Will be null for Stage 1 final decisions
+          reasoning: response.data.reasoning,
+          confidence: response.data.confidence,
+          stage_completed: response.data.stage_completed,
+          processing_time_ms: response.data.processing_time_ms,
+          stage1_rules_score: response.data.stage1_result?.rule_score,
+          stage1_ml_score: response.data.stage1_result?.ml_score,  // Clean API uses ml_score not basic_ml_score
+          stage1_combined_score: response.data.stage1_result?.combined_score,
+          stage1_rule_flags: response.data.stage1_result?.rule_flags || [],
+          needs_stage2: response.data.stage1_result?.needs_stage2 || false
+        });
+        
+        console.log('🔍 Set agentResults with scores:', {
+          rules: response.data.stage1_result?.rule_score,
+          ml: response.data.stage1_result?.ml_score,
+          combined: response.data.stage1_result?.combined_score,
+          needs_stage2: response.data.stage1_result?.needs_stage2
+        });
+        
+        // Check if Stage 2 is needed
+        if (response.data.thread_id && response.data.stage1_result?.needs_stage2) {
+          // Stage 1 complete, Stage 2 needed - continue with AI analysis
+          console.log('🔄 Stage 1 complete, proceeding to Stage 2. Thread ID:', response.data.thread_id);
           setThreadId(response.data.thread_id);
-          setProcessingStage('AI analysis in progress...');
+          setProcessingStage('Instantiating AI agent...');
           
-          // Start polling for the final decision after a delay to let conversation complete
+          // Start polling for the final decision after a delay
           setTimeout(() => {
+            setProcessingStage('AI analysis in progress...');
             fetchFinalDecision(response.data.thread_id);
-          }, 5000); // Wait 5 seconds for conversation to progress
+          }, 3000); // Wait 3 seconds to show "instantiating" message
+          
         } else {
-          console.error('❌ No thread ID received from analysis');
-          setError('Failed to start AI analysis - no thread ID received');
+          // Stage 1 decision final - no Stage 2 needed
+          setProcessingStage('');
+          setLoading(false);
+          console.log('✅ Stage 1 decision complete - no Stage 2 needed');
         }
         
         // Load memory data after analysis completes
@@ -483,7 +516,7 @@ function AgentEvaluationModal({
       const decisionResponse = await axios.get(`${API_BASE_URL}/api/agent/decision/${threadId}`);
       console.log('✅ Final decision extracted:', decisionResponse.data);
       
-      // Set the actual AI results (not calculated ones)
+      // Set the actual AI results (Stage 2 completed)
       setAgentResults({
         transaction_id: transactionData.transaction_id,
         decision: decisionResponse.data.decision,
@@ -494,7 +527,12 @@ function AgentEvaluationModal({
         confidence: 0.95, // High confidence since this is direct from AI
         stage_completed: 2,
         processing_time_ms: 0,
-        extraction_source: decisionResponse.data.extraction_source
+        extraction_source: decisionResponse.data.extraction_source,
+        // Note: Stage 1 details will be fetched separately if needed for Stage 2 results
+        stage1_rules_score: null, // Will be populated if backend provides it
+        stage1_ml_score: null,
+        stage1_combined_score: null,
+        stage1_rule_flags: []
       });
       
       setProcessingStage('');

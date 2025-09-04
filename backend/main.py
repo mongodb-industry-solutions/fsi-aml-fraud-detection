@@ -21,6 +21,7 @@ from routes.model_management import router as model_management_router
 from routes.agent_routes import router as agent_router
 from routes.observability import router as observability_router
 from routes.simplified_memory_routes import router as memory_router
+from routes.transaction_routes import router as transaction_analysis_router
 
 # Load environment variables
 load_dotenv()
@@ -156,6 +157,7 @@ app.include_router(model_management_router)
 app.include_router(agent_router)
 app.include_router(observability_router)
 app.include_router(memory_router)
+app.include_router(transaction_analysis_router)  # Clean Stage 1/2 separation
 # Entity resolution router removed - using enhanced system
 
 # if __name__ == "__main__":

@@ -514,8 +514,8 @@ Important: Always include "Recommendation: [DECISION]" explicitly in your respon
         # ESCALATE patterns
         elif any(pattern in response_lower for pattern in [
             "recommend: escalate", "recommendation: escalate", "recommendation:** escalate",
-            "decision: escalate", "**escalate**", "requires escalation",
-            "escalate immediately", "escalate for review", "needs senior review",
+            "decision: escalate", "**decision**: escalate", "decision**: escalate", "**escalate**", 
+            "requires escalation", "escalate immediately", "escalate for review", "needs senior review",
             "manual review required", "escalate to compliance"
         ]):
             return DecisionType.ESCALATE

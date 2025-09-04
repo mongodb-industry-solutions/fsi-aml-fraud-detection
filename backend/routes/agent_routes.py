@@ -174,21 +174,58 @@ async def get_ai_decision_from_thread(
     service: AgentService = Depends(get_agent_service)
 ):
     """
-    Extract AI decision and risk score from completed conversation thread
+    Get AI decision and risk score from completed Stage 2 analysis
     
-    This endpoint reads the final agent response from the thread conversation
-    and extracts the AI's explicit decision and risk score recommendations.
+    This endpoint retrieves the final decision from the memory store
+    where it was saved after Stage 2 analysis completion.
     """
     try:
-        result = await service.extract_decision_from_thread(thread_id)
-        return result
+        if not service._initialized or not service.agent or not service.agent.memory_store:
+            raise HTTPException(status_code=503, detail="Agent service not properly initialized")
+        
+        # Get decision from the decisions collection by thread_id
+        # Query the decisions collection directly
+        decision_doc = await service.agent.memory_store.decisions_collection.find_one(
+            {"thread_id": thread_id},
+            sort=[("created_at", -1)]  # Get the most recent decision for this thread
+        )
+        
+        if not decision_doc:
+            raise ValueError(f"No decision found for thread {thread_id} - analysis may still be in progress")
+        
+        # Extract the final decision from the decision document
+        final_decision = decision_doc.get("decision")
+        if not final_decision:
+            raise ValueError(f"Decision document found but no decision data for thread {thread_id}")
+        
+        # Calculate risk level from score
+        risk_score = final_decision.get("risk_score", 0)
+        if risk_score >= 80:
+            risk_level = "CRITICAL"
+        elif risk_score >= 60:
+            risk_level = "HIGH"
+        elif risk_score >= 40:
+            risk_level = "MEDIUM"
+        else:
+            risk_level = "LOW"
+        
+        return {
+            "decision": final_decision.get("action"),  # ✅ Fixed: decision value is stored in "action" field
+            "risk_score": float(risk_score),
+            "risk_level": risk_level,
+            "confidence": final_decision.get("confidence", 0),
+            "reasoning": ". ".join(final_decision.get("reasoning", [])) if isinstance(final_decision.get("reasoning"), list) else final_decision.get("reasoning", ""),
+            "thread_id": thread_id,
+            "extraction_source": "memory_store",
+            "stage_completed": 2  # This is from Stage 2 analysis
+        }
         
     except ValueError as e:
         logger.error(f"Invalid thread or missing AI response: {e}")
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        logger.error(f"Failed to extract decision from thread: {e}")
-        raise HTTPException(status_code=500, detail=f"Decision extraction error: {str(e)}")
+        logger.error(f"Failed to get decision from thread: {e}")
+        raise HTTPException(status_code=500, detail=f"Decision retrieval error: {str(e)}")
 
 @router.post("/test", summary="Test Agent with Sample Transaction")
 async def test_agent(service: AgentService = Depends(get_agent_service)):

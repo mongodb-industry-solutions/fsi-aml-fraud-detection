@@ -65,152 +65,78 @@ class AgentService:
             raise RuntimeError("Agent service not initialized. Call initialize() first.")
         
         try:
-            # Run the agent analysis
-            decision = await self.agent.analyze_transaction(transaction_data)
+            # First, get Stage 1 results immediately
+            stage1_decision = await self.agent.analyze_stage1_only(transaction_data)
             
-            # Convert to API-friendly format
-            return {
-                "transaction_id": decision.transaction_id,
-                "decision": decision.decision.value,
-                "risk_level": decision.risk_level.value,
-                "risk_score": decision.risk_score,
-                "confidence": decision.confidence,
-                "stage_completed": decision.stage_completed,
-                "reasoning": decision.reasoning,
-                "processing_time_ms": decision.total_processing_time_ms,
-                "thread_id": getattr(decision, 'thread_id', None)
+            # Convert Stage 1 to API-friendly format
+            result = {
+                "transaction_id": stage1_decision.transaction_id,
+                "decision": stage1_decision.decision.value if stage1_decision.decision else "PENDING",
+                "risk_level": stage1_decision.risk_level.value if stage1_decision.risk_level else "LOW",
+                "risk_score": stage1_decision.risk_score,
+                "confidence": stage1_decision.confidence,
+                "stage_completed": 1,
+                "reasoning": stage1_decision.reasoning,
+                "processing_time_ms": stage1_decision.total_processing_time_ms,
+                "thread_id": None
             }
+            
+            # Include Stage 1 details
+            if stage1_decision.stage1_result:
+                result["stage1_result"] = {
+                    "rule_score": stage1_decision.stage1_result.rule_score,
+                    "basic_ml_score": stage1_decision.stage1_result.basic_ml_score,
+                    "combined_score": stage1_decision.stage1_result.combined_score,
+                    "rule_flags": stage1_decision.stage1_result.rule_flags,
+                    "needs_stage2": stage1_decision.stage1_result.needs_stage2,
+                    "processing_time_ms": stage1_decision.stage1_result.processing_time_ms
+                }
+                
+                # If Stage 2 is needed, continue processing asynchronously
+                if stage1_decision.stage1_result.needs_stage2:
+                    # Create thread for Stage 2 processing
+                    thread_id = await self.agent._get_or_create_thread(
+                        stage1_decision.transaction_id, 
+                        transaction_data.get('customer_id')
+                    )
+                    result["thread_id"] = thread_id
+                    result["stage_completed"] = 1  # Still Stage 1 for now
+                    result["reasoning"] += " - AI analysis in progress"
+                    
+                    logger.info(f"✅ Stage 1 complete, Stage 2 thread created: {thread_id}")
+                    
+                    # Trigger Stage 2 processing asynchronously (don't await)
+                    import asyncio
+                    asyncio.create_task(self._run_stage2_async(transaction_data, thread_id))
+                    
+                else:
+                    # Stage 1 was sufficient - final decision
+                    result["stage_completed"] = 1
+                    logger.info(f"✅ Stage 1 complete - no Stage 2 needed")
+            
+            return result
             
         except Exception as e:
             logger.error(f"Transaction analysis failed: {e}")
             raise
     
-    async def extract_decision_from_thread(self, thread_id: str) -> Dict[str, Any]:
-        """Extract AI decision and risk score from completed conversation thread"""
-        if not self._initialized or not self.agent:
-            raise RuntimeError("Agent service not initialized. Call initialize() first.")
-        
+    async def _run_stage2_async(self, transaction_data: Dict[str, Any], thread_id: str):
+        """Run Stage 2 analysis asynchronously and store results in thread"""
         try:
-            # Get conversation messages from the thread
-            messages = self.agent.conversation_handler.agents_client.messages.list(
-                thread_id=thread_id, 
-                order="desc", 
-                limit=10
-            )
+            logger.info(f"🔄 Starting async Stage 2 processing for thread {thread_id}")
             
-            # Find the last assistant message (final AI response)
-            ai_response = None
-            for message in messages:
-                if message.role == "assistant" and message.content:
-                    # Extract text content from message
-                    if hasattr(message.content, '__iter__'):
-                        for content_block in message.content:
-                            if hasattr(content_block, 'text') and hasattr(content_block.text, 'value'):
-                                ai_response = content_block.text.value
-                                break
-                    elif hasattr(message.content, 'text'):
-                        ai_response = message.content.text.value if hasattr(message.content.text, 'value') else str(message.content.text)
-                    else:
-                        ai_response = str(message.content)
-                    
-                    if ai_response:
-                        break
+            # Run the full agent analysis (which will do Stage 1 + Stage 2)
+            # But we'll only use the Stage 2 results since Stage 1 was already returned
+            full_decision = await self.agent.analyze_transaction(transaction_data)
             
-            if not ai_response:
-                raise ValueError(f"No AI response found in thread {thread_id}")
+            logger.info(f"✅ Stage 2 processing complete for thread {thread_id}")
             
-            logger.info(f"🔍 Extracting decision from AI response: {len(ai_response)} characters")
-            logger.info(f"🔍 AI response preview: {ai_response[:300]}...")
-            
-            # Extract decision and risk score using the same methods from stage2_analyzer
-            decision = self._extract_ai_decision(ai_response)
-            risk_score = self._extract_ai_risk_score(ai_response)
-            
-            logger.info(f"✅ Extracted: decision={decision}, risk_score={risk_score}")
-            
-            if not decision:
-                raise ValueError("Could not extract decision from AI response")
-            if risk_score is None:
-                raise ValueError("Could not extract risk score from AI response")
-            
-            # Calculate risk level from score
-            if risk_score >= 80:
-                risk_level = "CRITICAL"
-            elif risk_score >= 60:
-                risk_level = "HIGH"
-            elif risk_score >= 40:
-                risk_level = "MEDIUM"
-            else:
-                risk_level = "LOW"
-            
-            return {
-                "decision": decision.value if hasattr(decision, 'value') else str(decision),
-                "risk_score": float(risk_score),
-                "risk_level": risk_level,
-                "ai_response_preview": ai_response[:500],
-                "thread_id": thread_id,
-                "extraction_source": "completed_conversation"
-            }
+            # The conversation should now be complete in the thread
+            # Frontend can poll /api/agent/decision/{thread_id} to get results
             
         except Exception as e:
-            logger.error(f"Failed to extract decision from thread {thread_id}: {e}")
-            raise
+            logger.error(f"❌ Stage 2 async processing failed for thread {thread_id}: {e}")
     
-    def _extract_ai_decision(self, ai_response: str):
-        """Extract AI decision from response text"""
-        import re
-        from azure_foundry.models import DecisionType
-        
-        if not ai_response:
-            return None
-            
-        # Look for explicit decision patterns
-        decision_patterns = [
-            r"decision:?\s*(approve|investigate|escalate|block)",
-            r"recommendation:?\s*(approve|investigate|escalate|block)",
-            r"final decision:?\s*(approve|investigate|escalate|block)",
-        ]
-        
-        for pattern in decision_patterns:
-            match = re.search(pattern, ai_response, re.IGNORECASE)
-            if match:
-                decision_text = match.group(1).upper()
-                try:
-                    return DecisionType(decision_text)
-                except ValueError:
-                    continue
-        
-        logger.warning(f"Could not extract decision from AI response")
-        return None
-    
-    def _extract_ai_risk_score(self, ai_response: str):
-        """Extract AI risk score from response text"""
-        import re
-        
-        if not ai_response:
-            return None
-            
-        # Look for risk score patterns
-        risk_patterns = [
-            r"risk score:?\s*(\d+(?:\.\d+)?)/100",
-            r"risk score:?\s*(\d+(?:\.\d+)?)\s*(?:/100)?",
-            r"risk:?\s*(\d+(?:\.\d+)?)/100",
-            r"score:?\s*(\d+(?:\.\d+)?)/100",
-        ]
-        
-        for pattern in risk_patterns:
-            match = re.search(pattern, ai_response, re.IGNORECASE)
-            if match:
-                try:
-                    score = float(match.group(1))
-                    # Ensure score is in 0-100 range
-                    if 0 <= score <= 100:
-                        return score
-                except ValueError:
-                    continue
-        
-        logger.warning(f"Could not extract risk score from AI response")
-        return None
     
     async def get_agent_status(self) -> Dict[str, Any]:
         """Get current agent status and metrics"""

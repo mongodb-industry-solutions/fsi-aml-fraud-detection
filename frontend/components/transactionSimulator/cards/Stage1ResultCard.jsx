@@ -127,7 +127,7 @@ const Stage1ResultCard = ({
             alignItems: 'center',
             justifyContent: 'center'
           }}>
-            <Icon glyph="Shield" fill={palette.white} size={16} />
+            <Icon glyph="Save" fill={palette.white} size={16} />
           </div>
           <H3 style={{ margin: 0, color: palette.green.dark2 }}>
             Stage 1 - Rules & ML Analysis

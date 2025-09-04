@@ -17,6 +17,7 @@ import Icon from '@leafygreen-ui/icon';
 import Badge from '@leafygreen-ui/badge';
 import Button from '@leafygreen-ui/button';
 import Modal from '@leafygreen-ui/modal';
+import ExpandableCard from '@leafygreen-ui/expandable-card';
 import { Body, H3, H2 } from '@leafygreen-ui/typography';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
@@ -46,6 +47,7 @@ const AgentArchitectureGraph = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
   const [renderKey, setRenderKey] = useState(0);
+  const [isDecisionTreeExpanded, setIsDecisionTreeExpanded] = useState(false);
 
   const toggleFullscreen = useCallback(() => {
     setIsFullscreen(prev => !prev);
@@ -688,145 +690,7 @@ const AgentArchitectureGraph = ({
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
   // Decision Summary Component (shown when analysis is complete)
-  const DecisionSummary = () => {
-    if (!agentResults) return null;
-    
-    const getDecisionColor = (decision) => {
-      switch (decision?.toLowerCase()) {
-        case 'approve': return palette.green.base;
-        case 'investigate': return palette.yellow.base;
-        case 'escalate': return palette.red.base;
-        case 'block': return palette.red.base;
-        default: return palette.gray.base;
-      }
-    };
-
-    const getDecisionIcon = (decision) => {
-      switch (decision?.toLowerCase()) {
-        case 'approve': return 'Checkmark';
-        case 'investigate': return 'MagnifyingGlass';
-        case 'escalate': return 'Warning';
-        case 'block': return 'X';
-        default: return 'Clock';
-      }
-    };
-
-    return (
-      <Card style={{ 
-        marginBottom: spacing[3],
-        padding: `${spacing[3]}px ${spacing[3]}px`,
-        background: `linear-gradient(135deg, ${getDecisionColor(agentResults.decision)}15, ${palette.white})`,
-        border: `2px solid ${getDecisionColor(agentResults.decision)}`,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: spacing[2]
-      }}>
-        {/* Decision Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2], width: '100%' }}>
-          <div style={{
-            width: '36px',
-            height: '36px',
-            borderRadius: '50%',
-            background: getDecisionColor(agentResults.decision),
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}>
-            <Icon 
-              glyph={getDecisionIcon(agentResults.decision)}
-              fill={palette.white}
-              size={18}
-            />
-          </div>
-          <div style={{ flex: 1 }}>
-            <H2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: spacing[2] }}>
-              {agentResults.decision === 'ANALYZING' || agentResults.needs_stage2 ? 'Stage 1 Analysis' : 
-               agentResults.stage_completed === 1 ? 'Stage 1 Decision' : 'Agent Decision'}: 
-              {agentResults.decision === 'ANALYZING' ? 'Complete' : agentResults.decision}
-              <Badge 
-                variant={agentResults.needs_stage2 ? "yellow" : "lightgray"} 
-                style={{ fontSize: '12px' }}
-              >
-                {agentResults.needs_stage2 ? 'Stage 2 in Progress' : `Stage ${agentResults.stage_completed} Complete`}
-              </Badge>
-            </H2>
-            {(agentResults.stage_completed === 1 && !agentResults.needs_stage2) && (
-              <Body style={{ margin: 0, color: palette.gray.dark1, fontSize: '14px' }}>
-                Agent not instantiated
-              </Body>
-            )}
-            {agentResults.needs_stage2 && (
-              <Body style={{ margin: 0, color: palette.blue.dark1, fontSize: '14px' }}>
-                Proceeding to AI agent analysis...
-              </Body>
-            )}
-          </div>
-        </div>
-        
-        {/* Stage 1 Results Display */}
-        <div style={{ 
-          display: 'flex', 
-          gap: spacing[3], 
-          padding: spacing[2],
-          background: palette.gray.light3,
-          borderRadius: '6px',
-          flexWrap: 'wrap'
-        }}>
-          <div>
-            <Body weight="medium" style={{ fontSize: '12px', color: palette.gray.dark1, marginBottom: spacing[1]/2 }}>
-              Rules Risk Score
-            </Body>
-            <Body weight="bold" style={{ fontSize: '16px', color: palette.blue.dark2 }}>
-              {agentResults.stage1_rules_score !== null && agentResults.stage1_rules_score !== undefined 
-                ? agentResults.stage1_rules_score.toFixed(1) 
-                : 'N/A'}
-            </Body>
-          </div>
-          <div>
-            <Body weight="medium" style={{ fontSize: '12px', color: palette.gray.dark1, marginBottom: spacing[1]/2 }}>
-              ML Risk Score  
-            </Body>
-            <Body weight="bold" style={{ fontSize: '16px', color: palette.purple.dark2 }}>
-              {agentResults.stage1_ml_score !== null && agentResults.stage1_ml_score !== undefined 
-                ? agentResults.stage1_ml_score.toFixed(1) 
-                : 'N/A'}
-            </Body>
-          </div>
-          <div>
-            <Body weight="medium" style={{ fontSize: '12px', color: palette.gray.dark1, marginBottom: spacing[1]/2 }}>
-              Combined Score
-            </Body>
-            <Body weight="bold" style={{ fontSize: '16px', color: palette.green.dark2 }}>
-              {agentResults.stage1_combined_score !== null && agentResults.stage1_combined_score !== undefined 
-                ? agentResults.stage1_combined_score.toFixed(1) 
-                : agentResults.risk_score?.toFixed(1) || 'N/A'}
-            </Body>
-          </div>
-          {agentResults.stage1_rule_flags && agentResults.stage1_rule_flags.length > 0 && (
-            <div>
-              <Body weight="medium" style={{ fontSize: '12px', color: palette.gray.dark1, marginBottom: spacing[1]/2 }}>
-                Risk Flags
-              </Body>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing[1]/2 }}>
-                {agentResults.stage1_rule_flags.map((flag, index) => (
-                  <Badge 
-                    key={index}
-                    variant="yellow" 
-                    style={{ 
-                      fontSize: '10px',
-                      textTransform: 'capitalize'
-                    }}
-                  >
-                    {flag.replace(/_/g, ' ')}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </Card>
-    );
-  };
+  // DecisionSummary component removed - now using separate Stage1ResultCard and Stage2ResultCard components
 
   return (
     <div>
@@ -851,44 +715,116 @@ const AgentArchitectureGraph = ({
       }} />
       
       {/* Decision Summary (when complete) */}
-      <DecisionSummary />
+      {/* Decision summary now handled by Stage1ResultCard and Stage2ResultCard components */}
       
-      {/* Architecture Header with Fullscreen Button */}
-      <Card style={{ 
-        marginBottom: spacing[3], 
-        padding: `${spacing[3]}px ${spacing[3]}px`,
-        background: `linear-gradient(135deg, ${palette.blue.light3}, ${palette.white})`,
-        border: `2px solid ${palette.blue.base}`,
-        display: 'flex',
-        alignItems: 'center'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2] }}>
-            <Icon glyph="Diagram" fill={palette.blue.dark2} size={24} />
-            <H3 style={{ margin: 0, color: palette.blue.dark2 }}>
-              Fraud Detection Decision Tree
-            </H3>
+      {/* Expandable Decision Tree Card */}
+      <ExpandableCard
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2] }}>
+              <Icon glyph="Diagram" fill={palette.blue.dark2} size={24} />
+              <H3 style={{ margin: 0, color: palette.blue.dark2 }}>
+                Fraud Detection Decision Tree
+              </H3>
+            </div>
+            <div style={{ display: 'flex', gap: spacing[2], marginLeft: spacing[4] }}>
+              <Button 
+                size="small"
+                variant="default"
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevent card toggle
+                  fitViewManually();
+                }}
+                leftGlyph={<Icon glyph="Refresh" />}
+              >
+                Fit Layout
+              </Button>
+              <Button 
+                size="small"
+                variant="default"
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevent card toggle
+                  toggleFullscreen();
+                }}
+                leftGlyph={<Icon glyph={isFullscreen ? "XWithCircle" : "NavExpand"} />}
+              >
+                {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+              </Button>
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: spacing[2] }}>
-            <Button 
-              size="small"
-              variant="default"
-              onClick={fitViewManually}
-              leftGlyph={<Icon glyph="Refresh" />}
+        }
+        defaultOpen={false}
+        onClick={() => setIsDecisionTreeExpanded(!isDecisionTreeExpanded)}
+        style={{
+          marginBottom: spacing[3],
+          background: `linear-gradient(135deg, ${palette.blue.light3}, ${palette.white})`,
+          border: `2px solid ${palette.blue.base}`
+        }}
+      >
+        {/* ReactFlow Decision Tree Container */}
+        {!isFullscreen && (
+          <div style={{ 
+            height: '800px',
+            width: '100%',
+            border: `1px solid ${palette.gray.light2}`,
+            borderRadius: '12px',
+            overflow: 'hidden',
+            background: palette.white,
+            position: 'relative'
+          }}>
+            <ReactFlow
+              key={`agent-flow-regular-${renderKey}`}
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              nodeTypes={nodeTypes}
+              onInit={setReactFlowInstance}
+              fitView
+              fitViewOptions={{ 
+                padding: 0.1, 
+                minZoom: 0.3, 
+                maxZoom: 1.2,
+                duration: 300
+              }}
+              minZoom={0.3}
+              maxZoom={1.5}
+              attributionPosition="bottom-left"
+              style={{ width: '100%', height: '100%' }}
             >
-              Fit Layout
-            </Button>
-            <Button 
-              size="small"
-              variant="default"
-              onClick={toggleFullscreen}
-              leftGlyph={<Icon glyph={isFullscreen ? "XWithCircle" : "NavExpand"} />}
-            >
-              {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-            </Button>
+              <Background 
+                variant="dots" 
+                gap={20} 
+                size={1}
+                color={palette.gray.light2}
+              />
+              
+              <Controls 
+                style={{
+                  button: {
+                    backgroundColor: palette.white,
+                    border: `1px solid ${palette.gray.light2}`,
+                    borderRadius: '6px'
+                  }
+                }}
+              />
+              
+              <MiniMap
+                nodeStrokeColor={() => palette.gray.base}
+                nodeColor={() => palette.blue.light2}
+                nodeBorderRadius={8}
+                pannable
+                zoomable
+                style={{
+                  backgroundColor: palette.gray.light3,
+                  border: `1px solid ${palette.gray.light2}`,
+                  borderRadius: '8px'
+                }}
+              />
+            </ReactFlow>
           </div>
-        </div>
-      </Card>
+        )}
+      </ExpandableCard>
 
       {/* Fullscreen Modal */}
       <Modal 
@@ -984,70 +920,7 @@ const AgentArchitectureGraph = ({
         </div>
       </Modal>
 
-      {/* Regular Decision Tree Graph */}
-      {!isFullscreen && (
-        <div style={{ 
-          height: '800px',
-          width: '100%',
-          border: `1px solid ${palette.gray.light2}`,
-          borderRadius: '12px',
-          overflow: 'hidden',
-          background: palette.white,
-          position: 'relative'
-        }}>
-            <ReactFlow
-              key={`agent-flow-regular-${renderKey}`}
-              nodes={nodes}
-              edges={edges}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              nodeTypes={nodeTypes}
-              onInit={setReactFlowInstance}
-              fitView
-              fitViewOptions={{ 
-                padding: 0.1, 
-                minZoom: 0.3, 
-                maxZoom: 1.2,
-                duration: 300
-              }}
-              minZoom={0.3}
-              maxZoom={1.5}
-              attributionPosition="bottom-left"
-              style={{ width: '100%', height: '100%' }}
-            >
-          <Background 
-            variant="dots" 
-            gap={20} 
-            size={1}
-            color={palette.gray.light2}
-          />
-          
-          <Controls 
-            style={{
-              button: {
-                backgroundColor: palette.white,
-                border: `1px solid ${palette.gray.light2}`,
-                borderRadius: '6px'
-              }
-            }}
-          />
-          
-          
-          <MiniMap
-            nodeStrokeColor={() => palette.gray.base}
-            nodeColor={() => palette.blue.light2}
-            nodeBorderRadius={8}
-            pannable
-            zoomable
-            style={{
-              backgroundColor: palette.gray.light3,
-              border: `1px solid ${palette.gray.light2}`,
-              borderRadius: '8px'
-            }}
-          />
-          </ReactFlow>
-        </div>
-      )}
+      {/* ReactFlow is now inside the ExpandableCard above */}
     </div>
   );
 };

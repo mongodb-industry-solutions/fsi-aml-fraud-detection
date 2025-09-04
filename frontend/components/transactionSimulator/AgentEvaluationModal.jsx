@@ -18,6 +18,8 @@ import AgentObservabilityDashboard from '../observability/AgentObservabilityDash
 import AgentChatInterface from '../observability/AgentChatInterface';
 import AgentArchitectureGraph from './AgentArchitectureGraph';
 import MemoryArchitectureGraph from './MemoryArchitectureGraph';
+import Stage1ResultCard from './cards/Stage1ResultCard';
+import Stage2ResultCard from './cards/Stage2ResultCard';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -849,7 +851,34 @@ function AgentEvaluationModal({
         >
           <Tab name="Agent Architecture">
             <div style={{ marginTop: spacing[3] }}>
-              {/* Interactive Decision Tree Graph - Always Visible */}
+              {/* Stage Analysis Cards */}
+              <div style={{ marginBottom: spacing[4] }}>
+                {/* Stage 1 Card - Always Visible */}
+                <Stage1ResultCard 
+                  stage1Data={{
+                    rules_score: agentResults?.stage1_rules_score,
+                    ml_score: agentResults?.stage1_ml_score,
+                    combined_score: agentResults?.stage1_combined_score,
+                    rule_flags: agentResults?.stage1_rule_flags || [],
+                    needs_stage2: agentResults?.needs_stage2,
+                    processing_time_ms: agentResults?.stage1_result?.processing_time_ms
+                  }}
+                  loading={loading && (processingStage.includes('Stage 1') || processingStage.includes('Initializing'))}
+                />
+                
+                {/* Stage 2 Card - Conditional */}
+                <Stage2ResultCard
+                  stage2Data={{
+                    risk_score: (agentResults?.stage_completed === 2) ? agentResults?.risk_score : null,
+                    decision: (agentResults?.stage_completed === 2) ? agentResults?.decision : null,
+                    thread_id: threadId
+                  }}
+                  loading={loading && processingStage.includes('Stage 2') && agentResults?.stage_completed !== 2}
+                  visible={agentResults?.needs_stage2 || agentResults?.stage_completed === 2}
+                />
+              </div>
+
+              {/* Interactive Decision Tree Graph */}
               <AgentArchitectureGraph
                 loading={loading}
                 agentResults={agentResults}

@@ -364,13 +364,13 @@ RESPONSE FORMAT:
 1. Tool Selection Strategy & Execution (your Chain of Thought analysis)
 2. Risk Assessment with tool findings
 3. **REQUIRED DECISION**: You MUST include one of these exact phrases in your response:
-   - "Recommendation: APPROVE" (for low-risk, legitimate transactions)
-   - "Recommendation: INVESTIGATE" (for medium-risk requiring more review)
-   - "Recommendation: ESCALATE" (for high-risk requiring senior review)
-   - "Recommendation: BLOCK" (for confirmed fraud or very high risk)
+   - "Decision: APPROVE" (for low-risk, legitimate transactions)
+   - "Decision: INVESTIGATE" (for medium-risk requiring more review)
+   - "Decision: ESCALATE" (for high-risk requiring senior review)
+   - "Decision: BLOCK" (for confirmed fraud or very high risk)
 4. Key reasoning for your decision
 
-Important: Always include "Recommendation: [DECISION]" explicitly in your response.
+Important: Always include "Decision: [DECISION]" explicitly in your response.
 """
         
         return context
@@ -464,79 +464,112 @@ Important: Always include "Recommendation: [DECISION]" explicitly in your respon
             return None
     
     def _extract_ai_risk_score(self, ai_response: str) -> Optional[float]:
-        """Extract AI's risk score from response"""
+        """Extract AI's risk score from response - expects exact format: 'Risk Score: XX/100'"""
         if not ai_response:
             return None
             
         import re
         
-        # Look for "Risk Score: X/100" or "Risk Score: X"
-        risk_patterns = [
-            r"risk score:?\s*(\d+(?:\.\d+)?)/100",
-            r"risk score:?\s*(\d+(?:\.\d+)?)\s*(?:/100)?",
-            r"score:?\s*(\d+(?:\.\d+)?)/100",
-        ]
+        logger.info(f"🔍 RISK SCORE EXTRACTION: Analyzing {len(ai_response)} characters of AI response")
+        logger.info(f"🔍 AI Response snippet (last 500 chars): ...{ai_response[-500:]}")
         
-        for pattern in risk_patterns:
-            match = re.search(pattern, ai_response.lower())
-            if match:
-                score = float(match.group(1))
-                return score if score <= 100 else score  # Handle both 0-100 and 0-1 scales
-                
+        # Pattern 1 (Most Specific): "Risk Score: 40/100" - Preferred format with /100
+        risk_pattern_with_100 = r'(?:\*{0,4}|\#{0,4})\s*Risk Score\s*(?:\*{0,4}):\s*(?:\*{0,4})\s*(\d+(?:\.\d+)?)/100\s*(?:\*{0,4})'
+        
+        # Find ALL matches and take the LAST one (final decision, not tool sub-scores)
+        matches = list(re.finditer(risk_pattern_with_100, ai_response, re.IGNORECASE))
+        if matches:
+            match = matches[-1]  # Get the LAST occurrence
+            matched_text = match.group(0)
+            score = float(match.group(1))
+            logger.info(f"🔍 PATTERN 1: Risk score with /100 found {len(matches)} matches, using LAST match: '{matched_text}' -> extracted score: {score}")
+            if 0 <= score <= 100:
+                return score
+            else:
+                logger.warning(f"Risk score out of range (0-100): {score}")
+                return None
+        
+        # Pattern 2 (Current AI Format): "**Risk Score: 50**" - Bold markdown without /100
+        risk_pattern_bold = r'\*{0,4}Risk Score\*{0,4}:\s*(\d+(?:\.\d+)?)\*{0,4}'
+        
+        # Find ALL matches and take the LAST one (final decision, not tool sub-scores)
+        matches_bold = list(re.finditer(risk_pattern_bold, ai_response, re.IGNORECASE))
+        if matches_bold:
+            match = matches_bold[-1]  # Get the LAST occurrence
+            matched_text = match.group(0)
+            score = float(match.group(1))
+            logger.info(f"🔍 PATTERN 2: Bold risk score found {len(matches_bold)} matches, using LAST match: '{matched_text}' -> extracted score: {score}")
+            if 0 <= score <= 100:
+                return score
+            else:
+                logger.warning(f"Risk score out of range (0-100): {score}")
+                return None
+        
+        # Pattern 3 (Bullet Point Fallback): "- Risk Score: 58" - Bullet point format without /100
+        risk_pattern_bullet = r'-\s*\*{0,2}Risk Score\*{0,2}:\s*(\d+(?:\.\d+)?)\s*(?!\/100)'
+        
+        # Find ALL matches and take the LAST one (final decision, not tool sub-scores)
+        matches_bullet = list(re.finditer(risk_pattern_bullet, ai_response, re.IGNORECASE))
+        if matches_bullet:
+            match = matches_bullet[-1]  # Get the LAST occurrence
+            matched_text = match.group(0)
+            score = float(match.group(1))
+            logger.info(f"🔍 PATTERN 3: Bullet risk score found {len(matches_bullet)} matches, using LAST match: '{matched_text}' -> extracted score: {score}")
+            if 0 <= score <= 100:
+                logger.info(f"Using bullet point risk score pattern, found: {score}")
+                return score
+            else:
+                logger.warning(f"Fallback risk score out of range (0-100): {score}")
+                return None
+        
+        logger.warning(f"No risk score found in any supported format: 'Risk Score: XX/100', '**Risk Score: XX**', or '- Risk Score: XX'")
         return None
 
     def _extract_ai_recommendation(self, ai_response: str) -> Optional[DecisionType]:
-        """Extract decision recommendation from AI response"""
+        """Extract decision recommendation from AI response - expects exact format: 'Decision: BLOCK/APPROVE/INVESTIGATE/ESCALATE'"""
         if not ai_response:
             return None
         
-        response_lower = ai_response.lower()
+        import re
         
-        # Look for explicit recommendations with various formats
-        # BLOCK patterns
-        if any(pattern in response_lower for pattern in [
-            "recommend: block", "recommendation: block", "recommendation:** block",
-            "decision: block", "**block**", "reject this transaction",
-            "should be blocked", "recommend blocking", "block this transaction",
-            "high risk - block", "fraudulent", "deny this transaction"
-        ]):
-            return DecisionType.BLOCK
-            
-        # APPROVE patterns
-        elif any(pattern in response_lower for pattern in [
-            "recommend: approve", "recommendation: approve", "recommendation:** approve",
-            "decision: approve", "**approve**", "approve this transaction",
-            "should be approved", "appears legitimate", "low risk - approve",
-            "safe to proceed", "legitimate transaction", "can be approved"
-        ]):
-            return DecisionType.APPROVE
-            
-        # ESCALATE patterns
-        elif any(pattern in response_lower for pattern in [
-            "recommend: escalate", "recommendation: escalate", "recommendation:** escalate",
-            "decision: escalate", "**decision**: escalate", "decision**: escalate", "**escalate**", 
-            "requires escalation", "escalate immediately", "escalate for review", "needs senior review",
-            "manual review required", "escalate to compliance"
-        ]):
-            return DecisionType.ESCALATE
-            
-        # INVESTIGATE patterns
-        elif any(pattern in response_lower for pattern in [
-            "recommend: investigate", "recommendation: investigate", "recommendation:** investigate",
-            "decision: investigate", "**investigate**", "needs investigation",
-            "further investigation", "requires investigation", "investigate further",
-            "additional review needed", "more analysis required"
-        ]):
-            return DecisionType.INVESTIGATE
+        logger.info(f"🔍 DECISION EXTRACTION: Analyzing {len(ai_response)} characters of AI response")
+        logger.info(f"🔍 AI Response snippet (last 500 chars): ...{ai_response[-500:]}")
         
-        # Final fallback based on risk language
-        if "high risk" in response_lower or "very suspicious" in response_lower:
-            return DecisionType.BLOCK
-        elif "low risk" in response_lower or "no concerns" in response_lower:
-            return DecisionType.APPROVE
-        elif "medium risk" in response_lower or "moderate risk" in response_lower:
-            return DecisionType.INVESTIGATE
-            
+        # Primary pattern: "Decision: BLOCK" (with potential markdown formatting)
+        # Pattern handles: Decision: BLOCK, **Decision**: BLOCK, #### Decision: BLOCK, etc.
+        decision_pattern_primary = r'(?:\*{0,4}|\#{0,4})\s*Decision\s*(?:\*{0,4}):\s*(?:\*{0,4})\s*(APPROVE|INVESTIGATE|ESCALATE|BLOCK)\s*(?:\*{0,4})'
+        
+        # Find ALL matches and take the LAST one (final decision)
+        matches = list(re.finditer(decision_pattern_primary, ai_response, re.IGNORECASE))
+        if matches:
+            match = matches[-1]  # Get the LAST occurrence
+            matched_text = match.group(0)
+            decision_text = match.group(1).upper()
+            logger.info(f"🔍 PRIMARY: Decision pattern found {len(matches)} matches, using LAST match: '{matched_text}' -> extracted decision: {decision_text}")
+            try:
+                return DecisionType(decision_text)
+            except ValueError:
+                logger.warning(f"Invalid decision type extracted: {decision_text}")
+                return None
+        
+        # Fallback pattern: "Recommendation: INVESTIGATE" or "### Recommendation: INVESTIGATE"
+        decision_pattern_fallback = r'(?:\*{0,4}|\#{0,4})\s*Recommendation\s*(?:\*{0,4}):\s*(?:\*{0,4})\s*(APPROVE|INVESTIGATE|ESCALATE|BLOCK)\s*(?:\*{0,4})'
+        
+        # Find ALL matches and take the LAST one (final decision)
+        matches_fallback = list(re.finditer(decision_pattern_fallback, ai_response, re.IGNORECASE))
+        if matches_fallback:
+            match = matches_fallback[-1]  # Get the LAST occurrence
+            matched_text = match.group(0)
+            decision_text = match.group(1).upper()
+            logger.info(f"🔍 FALLBACK: Decision pattern found {len(matches_fallback)} matches, using LAST match: '{matched_text}' -> extracted decision: {decision_text}")
+            try:
+                logger.info(f"Using fallback decision pattern, found: {decision_text}")
+                return DecisionType(decision_text)
+            except ValueError:
+                logger.warning(f"Invalid decision type extracted from fallback: {decision_text}")
+                return None
+        
+        logger.warning(f"No decision found in expected format 'Decision: BLOCK/APPROVE/INVESTIGATE/ESCALATE'")
         return None  # No clear recommendation found
     
     def _extract_pattern_insights(self, similar_transactions: List[Dict]) -> List[str]:

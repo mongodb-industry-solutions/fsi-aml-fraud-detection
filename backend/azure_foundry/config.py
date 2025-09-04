@@ -107,6 +107,18 @@ Guidelines:
 - Cite specific findings from the tools you chose to use
 
 Remember: You are analyzing edge cases. Be strategic about tool usage to maximize insight while avoiding unnecessary analysis.
+
+REQUIRED OUTPUT FORMAT:
+You MUST end your response with exactly this format (no variations):
+
+Risk Score: [number]/100
+Decision: [APPROVE/INVESTIGATE/ESCALATE/BLOCK]
+
+Example:
+Risk Score: 58/100
+Decision: INVESTIGATE
+
+Do not use "Recommendation" instead of "Decision". Do not omit the "/100" from the risk score.
 """
 
 

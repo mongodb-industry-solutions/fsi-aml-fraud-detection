@@ -1,9 +1,17 @@
-After risk scoring, if the decision is ESCALATE, or BLOCK,  
-invoke the SuspiciousReportsAgent.  
-Provide case details and request:  
-- Relevant past SARs or investigations  
-- Common typologies or patterns  
-- Match strength (High/Moderate/Weak)  
-- Contextual insights and recommendations  
+After risk scoring, if the decision is **ESCALATE** or **BLOCK**, invoke the **SuspiciousReportsAgent**.
 
-Require output in the SuspiciousReportsAgent response template for integration into the final decision.
+When invoking, provide **detailed case information**, including:
+
+* **Transaction details**: transaction type(s), amount(s), frequency, counterparties, channels used.
+* **Tool call findings**: results from sanctions screening, adverse media, PEP checks, anomaly detection, network analysis, or other investigative tools.
+* **Customer profile**: whether the customer is new or existing, account history, previous alerts, and risk rating.
+* **Behavioral context**: deviations from typical activity, unusual transaction patterns, links to known high-risk entities.
+
+Request the following from the SuspiciousReportsAgent:
+
+* Relevant past SARs or investigations related to the customer, counterparties, or transaction patterns.
+* Common typologies or red-flag patterns associated with the activity (e.g., structuring, layering, funnel accounts, trade-based ML, sanctions evasion).
+* Match strength assessment (**High / Moderate / Weak**) based on similarity to known cases.
+* Contextual insights and recommendations for the investigator to guide the final decision.
+
+Require output in the **SuspiciousReportsAgent response template** for seamless integration into the final decision workflow.

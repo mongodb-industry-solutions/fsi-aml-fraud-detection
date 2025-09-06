@@ -237,21 +237,6 @@ const Stage1ResultCard = ({
           </div>
         )}
 
-        {/* Processing Time */}
-        {processing_time_ms && (
-          <div style={{ 
-            textAlign: 'right', 
-            marginTop: spacing[2] 
-          }}>
-            <Body style={{ 
-              fontSize: '11px', 
-              color: palette.gray.base,
-              fontFamily: 'monospace'
-            }}>
-              Processing time: {processing_time_ms.toFixed(0)}ms
-            </Body>
-          </div>
-        )}
       </div>
     </Card>
   );

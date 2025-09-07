@@ -1,17 +1,16 @@
-After risk scoring, if the decision is **ESCALATE** or **BLOCK**, invoke the **SuspiciousReportsAgent**.
+After risk scoring, if decision is **ESCALATE** or **BLOCK**, invoke **SuspiciousReportsAgent** with case info:
 
-When invoking, provide **detailed case information**, including:
+* **Transactions**: type, amount, frequency, counterparties, channels.
+* **Tool findings**: sanctions, PEP, adverse media, anomaly/network checks.
+* **Customer**: new/existing, history, prior alerts, risk rating.
+* **Behavior**: deviations, unusual patterns, high-risk links.
 
-* **Transaction details**: transaction type(s), amount(s), frequency, counterparties, channels used.
-* **Tool call findings**: results from sanctions screening, adverse media, PEP checks, anomaly detection, network analysis, or other investigative tools.
-* **Customer profile**: whether the customer is new or existing, account history, previous alerts, and risk rating.
-* **Behavioral context**: deviations from typical activity, unusual transaction patterns, links to known high-risk entities.
+Request from agent:
 
-Request the following from the SuspiciousReportsAgent:
+* Relevant past SARs/investigations.
+* Applicable AML/Fraud policy docs or regulatory guidance.
+* Typologies/red flags (structuring, layering, funneling, TBML, sanctions evasion).
+* Match strength (**High/Moderate/Weak**) with justification.
+* Contextual insights + policy-aligned recommendations.
 
-* Relevant past SARs or investigations related to the customer, counterparties, or transaction patterns.
-* Common typologies or red-flag patterns associated with the activity (e.g., structuring, layering, funnel accounts, trade-based ML, sanctions evasion).
-* Match strength assessment (**High / Moderate / Weak**) based on similarity to known cases.
-* Contextual insights and recommendations for the investigator to guide the final decision.
-
-Require output in the **SuspiciousReportsAgent response template** for seamless integration into the final decision workflow.
+Output must follow **SuspiciousReportsAgent response template** for integration.

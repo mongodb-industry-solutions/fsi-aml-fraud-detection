@@ -187,7 +187,7 @@ class TwoStageAgentCore:
         try:
             # Get the existing agent ID from config or environment variable
             import os
-            EXISTING_AGENT_ID = os.getenv("AZURE_AGENT_ID", "asst_Q6FO8w2G1h81QnSI5giqHX9M")
+            EXISTING_AGENT_ID = os.getenv("AZURE_AGENT_ID")
             
             try:
                 # First, try to get the existing agent

@@ -582,7 +582,8 @@ def create_connected_agent_toolset() -> List:
         )
         
         # Add the suspicious reports file doc agent
-        connected_agent_id = "asst_fQA3rCdyVoarTaifTSrlehuZ"
+        import os
+        connected_agent_id = os.getenv("CONNECTED_AGENT_ID")
         try:
             portal_agent = client.agents.get_agent(connected_agent_id)
             

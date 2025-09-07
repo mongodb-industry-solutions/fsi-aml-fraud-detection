@@ -39,6 +39,9 @@ function AgentEvaluationModal({
   const [threadId, setThreadId] = useState(null);
   const [memoryData, setMemoryData] = useState(null);
   const [memoryLoading, setMemoryLoading] = useState(false);
+  
+  // Separate Stage 1 state that never gets overwritten
+  const [stage1Results, setStage1Results] = useState(null);
 
   // Reload memory data when threadId becomes available
   useEffect(() => {
@@ -74,6 +77,7 @@ function AgentEvaluationModal({
       setObservabilityActive(false);
       setThreadId(null);
       setMemoryData(null);
+      setStage1Results(null);
       // Reset observability state
       lastEventIdRef.current = null; // Reset ref
       setObservabilityState({
@@ -112,6 +116,7 @@ function AgentEvaluationModal({
       setThreadId(null);
       setMemoryData(null);
       setMemoryLoading(false);
+      setStage1Results(null);
       
       // Reset parent loading and error states
       setLoading(false);
@@ -166,6 +171,15 @@ function AgentEvaluationModal({
         console.log('🔍 Analysis Response Debug:', response.data);
         console.log('🔍 Stage 1 Result Detail:', response.data.stage1_result);
         
+        // Store Stage 1 results separately - these NEVER get overwritten
+        setStage1Results({
+          rules_score: response.data.stage1_result?.rule_score,
+          ml_score: response.data.stage1_result?.ml_score,  // Clean API uses ml_score not basic_ml_score
+          combined_score: response.data.stage1_result?.combined_score,
+          rule_flags: response.data.stage1_result?.rule_flags || [],
+          needs_stage2: response.data.stage1_result?.needs_stage2 || false
+        });
+        
         // ALWAYS show Stage 1 results immediately (clean architecture)
         setAgentResults({
           transaction_id: response.data.transaction_id,
@@ -177,14 +191,10 @@ function AgentEvaluationModal({
           confidence: response.data.confidence,
           stage_completed: response.data.stage_completed,
           processing_time_ms: response.data.processing_time_ms,
-          stage1_rules_score: response.data.stage1_result?.rule_score,
-          stage1_ml_score: response.data.stage1_result?.ml_score,  // Clean API uses ml_score not basic_ml_score
-          stage1_combined_score: response.data.stage1_result?.combined_score,
-          stage1_rule_flags: response.data.stage1_result?.rule_flags || [],
           needs_stage2: response.data.stage1_result?.needs_stage2 || false
         });
         
-        console.log('🔍 Set agentResults with scores:', {
+        console.log('🔍 Set Stage 1 results:', {
           rules: response.data.stage1_result?.rule_score,
           ml: response.data.stage1_result?.ml_score,
           combined: response.data.stage1_result?.combined_score,
@@ -518,7 +528,7 @@ function AgentEvaluationModal({
       const decisionResponse = await axios.get(`${API_BASE_URL}/api/agent/decision/${threadId}`);
       console.log('✅ Final decision extracted:', decisionResponse.data);
       
-      // Set the actual AI results (Stage 2 completed)
+      // Set the actual AI results (Stage 2 completed) - Stage 1 results preserved separately
       setAgentResults({
         transaction_id: transactionData.transaction_id,
         decision: decisionResponse.data.decision,
@@ -530,11 +540,7 @@ function AgentEvaluationModal({
         stage_completed: 2,
         processing_time_ms: 0,
         extraction_source: decisionResponse.data.extraction_source,
-        // Note: Stage 1 details will be fetched separately if needed for Stage 2 results
-        stage1_rules_score: null, // Will be populated if backend provides it
-        stage1_ml_score: null,
-        stage1_combined_score: null,
-        stage1_rule_flags: []
+        needs_stage2: true // Stage 2 was executed
       });
       
       setProcessingStage('');
@@ -853,16 +859,9 @@ function AgentEvaluationModal({
             <div style={{ marginTop: spacing[3] }}>
               {/* Stage Analysis Cards */}
               <div style={{ marginBottom: spacing[4] }}>
-                {/* Stage 1 Card - Always Visible */}
+                {/* Stage 1 Card - Always Visible, uses separate stage1Results state */}
                 <Stage1ResultCard 
-                  stage1Data={{
-                    rules_score: agentResults?.stage1_rules_score,
-                    ml_score: agentResults?.stage1_ml_score,
-                    combined_score: agentResults?.stage1_combined_score,
-                    rule_flags: agentResults?.stage1_rule_flags || [],
-                    needs_stage2: agentResults?.needs_stage2,
-                    processing_time_ms: agentResults?.stage1_result?.processing_time_ms
-                  }}
+                  stage1Data={stage1Results || {}}
                   loading={loading && (processingStage.includes('Stage 1') || processingStage.includes('Initializing'))}
                 />
                 
@@ -874,7 +873,7 @@ function AgentEvaluationModal({
                     thread_id: threadId
                   }}
                   loading={loading && processingStage.includes('Stage 2') && agentResults?.stage_completed !== 2}
-                  visible={agentResults?.needs_stage2 || agentResults?.stage_completed === 2}
+                  visible={stage1Results?.needs_stage2 || agentResults?.stage_completed === 2}
                 />
               </div>
 

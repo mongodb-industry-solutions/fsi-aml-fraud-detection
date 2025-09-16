@@ -88,11 +88,11 @@ Before you begin working with this project, ensure that you have the following p
 
 - **Poetry**: Both backend services use Poetry for dependency management. Install it by following the instructions on the [Poetry website](https://python-poetry.org/docs/#installation).
 
-- **MongoDB Atlas Account**: This project uses MongoDB Atlas for data storage, Atlas Search, and vector search capabilities. If you don't have an account, you can sign up for free at [MongoDB Atlas](https://www.mongodb.com/cloud/atlas/register). Once you have an account, follow these steps to set up a minimum free tier cluster:
+- **MongoDB Atlas Account**: This project uses MongoDB Atlas for data storage, Atlas Search, and vector search capabilities. If you don't have an account, you can sign up for free at [MongoDB Atlas](https://www.mongodb.com/cloud/atlas/register). Once you have an account, follow these steps to set up a M10 tier cluster:
 
   - Log in to your MongoDB Atlas account.
   - Create a new project or use an existing one, and then click "create a new database".
-  - Choose the free tier option (M0).
+  - Choose the M10 tier option.
   - Configure the cluster settings according to your preferences and then click "finish and close" on the bottom right.
   - Finally, add your IP to the network access list so you can access your cluster remotely.
 

@@ -14,7 +14,7 @@ from services.fraud_detection import FraudDetectionService
 logger = logging.getLogger(__name__)
 
 # Environment variables
-MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
+MONGODB_URI = os.getenv("MONGODB_URI")
 DB_NAME = os.getenv("DB_NAME", "fsi-threatsight360")
 TRANSACTION_COLLECTION = "transactions"
 

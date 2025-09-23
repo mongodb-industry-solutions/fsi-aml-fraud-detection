@@ -481,31 +481,59 @@ class AIVectorSearch:
         self.llm_model = llm_model
     
     def _create_bedrock_client(self):
-        """Create a properly configured bedrock client with region handling"""
+        """Create a properly configured bedrock client with SSO and region handling"""
         try:
             import os
-            
-            # Get region from environment variables (same pattern as working code)
+            from dotenv import load_dotenv
+
+            # Ensure .env file is loaded
+            load_dotenv()
+
+            # Get region from environment variables
             region = os.environ.get("AWS_REGION", os.environ.get("AWS_DEFAULT_REGION", "us-east-1"))
-            
-            # Support AWS profiles for CLI-based authentication
+
+            # Check if we should use SSO/default credentials
+            use_sso = os.environ.get("AWS_USE_SSO", "false").lower() in ("true", "1", "yes")
+
             session_kwargs = {"region_name": region}
+
+            # Support AWS profiles for CLI-based authentication
             profile_name = os.environ.get("AWS_PROFILE")
-            
             if profile_name:
                 session_kwargs["profile_name"] = profile_name
-            
-            # Create session first, then client (same pattern as working code)
+
+            # Create session first, then client
             session = boto3.Session(**session_kwargs)
-            
-            bedrock_client = session.client(
-                service_name='bedrock-runtime',
-                region_name=region
-            )
-            
+
+            # Use default credential chain when SSO is enabled
+            if use_sso:
+                logger.info(f"Using default credential chain (SSO, Instance Profile, etc.) for region: {region}")
+                bedrock_client = session.client(
+                    service_name='bedrock-runtime',
+                    region_name=region
+                    # Don't pass explicit credentials - let AWS SDK handle credential resolution
+                )
+            else:
+                # Fall back to explicit credentials if available
+                aws_access_key = os.environ.get("AWS_ACCESS_KEY_ID")
+                aws_secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
+
+                client_kwargs = {"region_name": region}
+                if aws_access_key and aws_secret_key:
+                    client_kwargs["aws_access_key_id"] = aws_access_key
+                    client_kwargs["aws_secret_access_key"] = aws_secret_key
+                    logger.info(f"Using explicit credentials for region: {region}")
+                else:
+                    logger.info(f"Using default credential chain for region: {region}")
+
+                bedrock_client = session.client(
+                    service_name='bedrock-runtime',
+                    **client_kwargs
+                )
+
             logger.info(f"Bedrock client created successfully for region: {region}")
             return bedrock_client
-            
+
         except Exception as e:
             logger.warning(f"Could not create Bedrock client: {e}. AI features will be disabled.")
             return None

@@ -23,22 +23,25 @@ logger = logging.getLogger(__name__)
 def get_repository_factory() -> RepositoryFactory:
     """
     Get or create repository factory instance
-    
+
     Uses LRU cache to ensure singleton behavior for repository factory,
     providing consistent database connections and repository instances.
-    
+
     Returns:
         RepositoryFactory: Configured repository factory
     """
     try:
+        # Get properly configured bedrock client with SSO support
+        bedrock_client = get_bedrock_client()._get_bedrock_client()
+
         factory = RepositoryFactory(
             connection_string=os.getenv("MONGODB_URI"),
             database_name=os.getenv("DB_NAME", "fsi-threatsight360"),
-            # Bedrock client will be added when needed for AI features
+            bedrock_client=bedrock_client
         )
-        logger.info("Repository factory initialized successfully")
+        logger.info("Repository factory initialized successfully with SSO-enabled Bedrock client")
         return factory
-        
+
     except Exception as e:
         logger.error(f"Failed to initialize repository factory: {e}")
         raise
@@ -197,7 +200,30 @@ async def get_network_analysis_service(
 def get_bedrock_client():
     """Get AWS Bedrock client (cached singleton)"""
     from bedrock.client import BedrockClient
-    return BedrockClient()
+    import os
+
+    # Ensure .env file is loaded
+    from dotenv import load_dotenv
+    load_dotenv()
+
+    # Check if we should use SSO/default credentials
+    use_sso = os.getenv("AWS_USE_SSO", "false").lower() in ("true", "1", "yes")
+    region_name = os.getenv("AWS_REGION", "us-east-1")
+
+    if use_sso:
+        return BedrockClient(
+            region_name=region_name,
+            use_default_credentials=True
+        )
+    else:
+        # Fall back to explicit credentials for backward compatibility
+        aws_access_key = os.getenv("AWS_ACCESS_KEY_ID")
+        aws_secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
+        return BedrockClient(
+            aws_access_key=aws_access_key,
+            aws_secret_key=aws_secret_key,
+            region_name=region_name
+        )
 
 
 async def get_streaming_classification_service(

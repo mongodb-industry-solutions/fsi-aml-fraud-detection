@@ -1,0 +1,27 @@
+FROM python:3.10-slim-buster
+
+ENV GET_POETRY_IGNORE_DEPRECATION=1
+
+# Set working directory
+WORKDIR /app
+
+# Install Poetry
+RUN pip install poetry==1.8.4
+
+# Configure Poetry to not create virtual environment (use system Python in container)
+RUN poetry config virtualenvs.create false
+
+# Copy dependency files
+COPY aml-backend/pyproject.toml aml-backend/poetry.lock ./
+
+# Install dependencies
+RUN poetry install --no-interaction --no-cache --only=main
+
+# Copy application code
+COPY ./aml-backend/ .
+
+# Expose port
+EXPOSE 8000
+
+# Run the application
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

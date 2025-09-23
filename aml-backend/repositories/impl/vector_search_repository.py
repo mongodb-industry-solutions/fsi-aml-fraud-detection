@@ -278,30 +278,14 @@ class VectorSearchRepository(VectorSearchRepositoryInterface):
     # ==================== EMBEDDING GENERATION ====================
     
     async def generate_embedding_from_text(self, text: str) -> List[float]:
-        """Generate embedding from text using configured embedding model"""
+        """Generate embedding from text using direct bedrock.embeddings (same as backend)"""
         try:
             logger.info(f"Generating embedding for text: {text[:50]}...")
-            
-            # Use AI search capabilities from mongodb_core_lib
-            if hasattr(self.ai_search, 'generate_embedding'):
-                logger.debug("Using AI search generate_embedding method")
-                return await self.ai_search.generate_embedding(text)
-            
-            # Fallback: Use bedrock client directly if available
-            if hasattr(self.repo, 'bedrock_client') and self.repo.bedrock_client:
-                logger.debug("Using bedrock client directly")
-                import json
-                
-                response = self.repo.bedrock_client.invoke_model(
-                    modelId='amazon.titan-embed-text-v1',
-                    body=json.dumps({"inputText": text})
-                )
-                result = json.loads(response['body'].read())
-                return result['embedding']
-            
-            logger.error("No embedding generation capability available - neither ai_search nor bedrock_client")
-            return []
-            
+
+            # Use direct bedrock.embeddings path (same as working backend)
+            from bedrock.embeddings import get_embedding
+            return await get_embedding(text)
+
         except Exception as e:
             logger.error(f"Failed to generate embedding from text: {e}")
             return []

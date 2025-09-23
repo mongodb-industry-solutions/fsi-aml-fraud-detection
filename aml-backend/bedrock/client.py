@@ -20,11 +20,13 @@ class BedrockClient:
     log: logging.Logger = logging.getLogger("BedrockClient")
     
     def __init__(self, aws_access_key: Optional[str] = None, aws_secret_key: Optional[str] = None,
-                 assumed_role: Optional[str] = None, region_name: Optional[str] = "us-east-1") -> None:
+                 assumed_role: Optional[str] = None, region_name: Optional[str] = "us-east-1",
+                 use_default_credentials: Optional[bool] = False) -> None:
         self.region_name = region_name
         self.assumed_role = assumed_role
         self.aws_access_key = aws_access_key
         self.aws_secret_key = aws_secret_key
+        self.use_default_credentials = use_default_credentials
     
     def _get_bedrock_client(
             self,
@@ -66,10 +68,13 @@ class BedrockClient:
             client_kwargs["aws_secret_access_key"] = response["Credentials"]["SecretAccessKey"]
             client_kwargs["aws_session_token"] = response["Credentials"]["SessionToken"]
         
-        if self.aws_access_key and self.aws_secret_key:
+        if not self.use_default_credentials and self.aws_access_key and self.aws_secret_key:
             self.log.info(f"Using Specified Access Key and Secret Key")
             client_kwargs["aws_access_key_id"] = self.aws_access_key
             client_kwargs["aws_secret_access_key"] = self.aws_secret_key
+        elif self.use_default_credentials:
+            self.log.info(f"Using default credential chain (SSO, Instance Profile, etc.)")
+            # Don't pass any explicit credentials - let AWS SDK handle credential resolution
         
         service_name = 'bedrock-runtime' if runtime else 'bedrock'
         

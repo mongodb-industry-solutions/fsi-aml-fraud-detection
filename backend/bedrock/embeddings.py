@@ -22,8 +22,10 @@ class BedrockTitanEmbeddings(BedrockClient):
     log: logging.Logger = logging.getLogger("BedrockTitanEmbeddings")
 
     def __init__(self, aws_access_key: Optional[str] = None, aws_secret_key: Optional[str] = None,
-                 region_name: Optional[str] = "eu-west-3", model_id: Optional[str] = "amazon.titan-embed-text-v1") -> None:
-        super().__init__(aws_access_key=aws_access_key, aws_secret_key=aws_secret_key, region_name=region_name)
+                 region_name: Optional[str] = "eu-west-3", model_id: Optional[str] = "amazon.titan-embed-text-v1",
+                 use_default_credentials: Optional[bool] = False) -> None:
+        super().__init__(aws_access_key=aws_access_key, aws_secret_key=aws_secret_key,
+                        region_name=region_name, use_default_credentials=use_default_credentials)
         """
         Initialize the BedrockTitanEmbeddings class.
         
@@ -95,24 +97,36 @@ def get_embedding_model():
     """
     Get or create a singleton instance of the BedrockTitanEmbeddings class.
     This helps avoid creating new clients for each API call.
-    
+
     Returns:
         BedrockTitanEmbeddings: The embedding model instance.
     """
     global _embedding_model
-    
+
     if _embedding_model is None:
-        aws_access_key = os.getenv("AWS_ACCESS_KEY_ID")
-        aws_secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
-        region_name = os.getenv("AWS_REGION")
-        
-        _embedding_model = BedrockTitanEmbeddings(
-            model_id="amazon.titan-embed-text-v1",
-            region_name=region_name,
-            aws_access_key=aws_access_key,
-            aws_secret_key=aws_secret_key
-        )
-    
+        # Check if we should use default credentials (SSO, IAM roles, etc.)
+        use_sso = os.getenv("AWS_USE_SSO", "false").lower() in ("true", "1", "yes")
+        region_name = os.getenv("AWS_REGION", "eu-west-3")
+
+        if use_sso:
+            # Use default credential chain - don't pass explicit credentials
+            _embedding_model = BedrockTitanEmbeddings(
+                model_id="amazon.titan-embed-text-v1",
+                region_name=region_name,
+                use_default_credentials=True
+            )
+        else:
+            # Fall back to explicit credentials for backward compatibility
+            aws_access_key = os.getenv("AWS_ACCESS_KEY_ID")
+            aws_secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
+
+            _embedding_model = BedrockTitanEmbeddings(
+                model_id="amazon.titan-embed-text-v1",
+                region_name=region_name,
+                aws_access_key=aws_access_key,
+                aws_secret_key=aws_secret_key
+            )
+
     return _embedding_model
 
 
@@ -157,18 +171,26 @@ async def get_batch_embeddings(texts: List[str]) -> List[List[float]]:
 
 if __name__ == '__main__':
     import asyncio
-    
+
     # Example usage
-    aws_access_key = os.getenv("AWS_ACCESS_KEY_ID")
-    aws_secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
-    region_name = os.getenv("AWS_REGION")
+    use_sso = os.getenv("AWS_USE_SSO", "false").lower() in ("true", "1", "yes")
+    region_name = os.getenv("AWS_REGION", "eu-west-3")
 
     # Direct usage of the class
-    embeddings_client = BedrockTitanEmbeddings(
-        region_name=region_name,
-        aws_access_key=aws_access_key,
-        aws_secret_key=aws_secret_key
-    )
+    if use_sso:
+        embeddings_client = BedrockTitanEmbeddings(
+            region_name=region_name,
+            use_default_credentials=True
+        )
+    else:
+        aws_access_key = os.getenv("AWS_ACCESS_KEY_ID")
+        aws_secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
+
+        embeddings_client = BedrockTitanEmbeddings(
+            region_name=region_name,
+            aws_access_key=aws_access_key,
+            aws_secret_key=aws_secret_key
+        )
 
     # Test direct prediction
     sample_text = "This is a sample text for fraud detection in financial transactions."

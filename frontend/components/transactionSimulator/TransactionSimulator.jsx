@@ -941,6 +941,8 @@ Device: ${transactionData.device_info?.type || 'N/A'}, ${transactionData.device_
                 <div style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', zIndex: 0 }}>$</div>
                 <TextInput
                   id="amount"
+                  label="Transaction Amount"
+
                   onChange={e => setAmount(parseFloat(e.target.value) || 0)}
                   value={amount.toString()}
                   type={TextInputType.Number}

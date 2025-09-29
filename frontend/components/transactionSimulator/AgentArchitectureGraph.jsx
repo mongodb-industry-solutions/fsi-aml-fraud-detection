@@ -718,7 +718,7 @@ const AgentArchitectureGraph = ({
       {/* Decision summary now handled by Stage1ResultCard and Stage2ResultCard components */}
       
       {/* Expandable Decision Tree Card */}
-      <ExpandableCard
+      {/* <ExpandableCard
         title={
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2] }}>
@@ -761,7 +761,6 @@ const AgentArchitectureGraph = ({
           border: `2px solid ${palette.blue.base}`
         }}
       >
-        {/* ReactFlow Decision Tree Container */}
         {!isFullscreen && (
           <div style={{ 
             height: '800px',
@@ -824,7 +823,7 @@ const AgentArchitectureGraph = ({
             </ReactFlow>
           </div>
         )}
-      </ExpandableCard>
+      </ExpandableCard> */}
 
       {/* Fullscreen Modal */}
       <Modal 

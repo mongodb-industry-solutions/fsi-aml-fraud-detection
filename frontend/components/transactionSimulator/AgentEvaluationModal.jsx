@@ -855,7 +855,7 @@ function AgentEvaluationModal({
           setSelected={setActiveTab}
           aria-label="Agent analysis tabs"
         >
-          <Tab name="Agent Architecture">
+          <Tab name="Agent Analysis">
             <div style={{ marginTop: spacing[3] }}>
               {/* Stage Analysis Cards */}
               <div style={{ marginBottom: spacing[4] }}>

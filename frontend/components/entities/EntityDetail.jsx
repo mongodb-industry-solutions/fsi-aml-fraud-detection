@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Card from '@leafygreen-ui/card';
 import Button from '@leafygreen-ui/button';
 import Banner from '@leafygreen-ui/banner';
+import Badge from '@leafygreen-ui/badge';
 import { Table, TableBody, TableHead, HeaderRow, HeaderCell, Row, Cell } from '@leafygreen-ui/table';
 import { Body, H1, H2, H3, Subtitle, BackLink, Label } from '@leafygreen-ui/typography';
 import { Tabs, Tab } from '@leafygreen-ui/tabs';
@@ -551,448 +552,933 @@ function ComprehensiveOverviewTab({ entity }) {
   const primaryAddress = amlUtils.getPrimaryAddress(entity.addresses);
   const primaryIdentifier = amlUtils.getPrimaryIdentifier(entity.identifiers);
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[4] }}>
-      {/* Basic Entity Information */}
-      <Card style={{ padding: spacing[4] }}>
-        <H3 style={{ marginBottom: spacing[3] }}>Basic Information</H3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: spacing[3] }}>
+  // Helper component for Time Pattern Visualization
+  const TimePatternVisualization = ({ peakHours, dayPreferences }) => {
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const dayAbbr = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[3] }}>
+        {/* Peak Hours Timeline */}
+        {peakHours && Array.isArray(peakHours) && (
           <div>
-            <Label>Entity ID</Label>
-            <Body weight="medium">{entity.entityId}</Body>
-          </div>
-          <div>
-            <Label>Entity Type</Label>
-            <Body weight="medium">{amlUtils.formatEntityType(entity.entityType)}</Body>
-          </div>
-          <div>
-            <Label>Status</Label>
-            <Body weight="medium" style={{ 
-              color: amlUtils.getEntityStatusColor(entity.status) === 'green' ? palette.green.dark2 : 
-                     amlUtils.getEntityStatusColor(entity.status) === 'red' ? palette.red.base :
-                     amlUtils.getEntityStatusColor(entity.status) === 'yellow' ? palette.yellow.base : palette.gray.dark1
+            <Label style={{ marginBottom: spacing[2] }}>Peak Activity Hours</Label>
+            <div style={{ 
+              display: 'flex', 
+              gap: '2px', 
+              marginBottom: spacing[1],
+              flexWrap: 'wrap'
             }}>
-              {amlUtils.formatEntityStatus(entity.status)}
-            </Body>
-          </div>
-          {entity.scenarioKey && (
-            <div>
-              <Label>Demo Scenario</Label>
-              <Body weight="medium" style={{ color: palette.blue.base }}>
-                {amlUtils.formatScenarioKey(entity.scenarioKey)}
-              </Body>
-            </div>
-          )}
-          <div>
-            <Label>Source System</Label>
-            <Body weight="medium">{entity.sourceSystem || 'N/A'}</Body>
-          </div>
-          <div>
-            <Label>Created At</Label>
-            <Body weight="medium">{amlUtils.formatDate(entity.createdAt)}</Body>
-          </div>
-          <div>
-            <Label>Last Updated</Label>
-            <Body weight="medium">{amlUtils.formatDate(entity.updatedAt)}</Body>
-          </div>
-        </div>
-      </Card>
-
-      {/* Personal Information */}
-      <Card style={{ padding: spacing[4] }}>
-        <H3 style={{ marginBottom: spacing[3] }}>Personal Information</H3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: spacing[3] }}>
-          <div>
-            <Label>Full Name</Label>
-            <Body weight="medium">{entity.name?.full || 'N/A'}</Body>
-          </div>
-          {entity.name?.structured && (
-            <>
-              <div>
-                <Label>First Name</Label>
-                <Body weight="medium">{entity.name.structured.first || 'N/A'}</Body>
-              </div>
-              <div>
-                <Label>Last Name</Label>
-                <Body weight="medium">{entity.name.structured.last || 'N/A'}</Body>
-              </div>
-            </>
-          )}
-          {entity.dateOfBirth && (
-            <div>
-              <Label>Date of Birth</Label>
-              <Body weight="medium">{amlUtils.formatDate(entity.dateOfBirth)}</Body>
-            </div>
-          )}
-          {entity.placeOfBirth && (
-            <div>
-              <Label>Place of Birth</Label>
-              <Body weight="medium">{entity.placeOfBirth}</Body>
-            </div>
-          )}
-          {entity.gender && (
-            <div>
-              <Label>Gender</Label>
-              <Body weight="medium">{entity.gender}</Body>
-            </div>
-          )}
-          {entity.nationality && (
-            <div>
-              <Label>Nationality</Label>
-              <Body weight="medium">
-                {Array.isArray(entity.nationality) ? entity.nationality.join(', ') : entity.nationality}
-              </Body>
-            </div>
-          )}
-          {entity.residency && (
-            <div>
-              <Label>Residency</Label>
-              <Body weight="medium">{entity.residency}</Body>
-            </div>
-          )}
-        </div>
-        
-        {entity.name?.aliases && entity.name.aliases.length > 0 && (
-          <div style={{ marginTop: spacing[3] }}>
-            <Label>Known Aliases</Label>
-            <Body weight="medium">{entity.name.aliases.join(', ')}</Body>
-          </div>
-        )}
-        
-        {entity.name?.nameComponents && entity.name.nameComponents.length > 0 && (
-          <div style={{ marginTop: spacing[2] }}>
-            <Label>Name Components (for search)</Label>
-            <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>
-              {entity.name.nameComponents.join(', ')}
-            </Body>
-          </div>
-        )}
-      </Card>
-
-      {/* Addresses */}
-      {entity.addresses && entity.addresses.length > 0 && (
-        <Card style={{ padding: spacing[4] }}>
-          <H3 style={{ marginBottom: spacing[3] }}>Addresses</H3>
-          
-          {/* MongoDB Advantage for Address Storage */}
-          <div
-            style={{
-              padding: spacing[2],
-              background: palette.blue.light3,
-              borderRadius: '4px',
-              marginBottom: spacing[3]
-            }}
-          >
-            <Body style={{ fontSize: '12px', color: palette.blue.dark2 }}>
-              💡 <strong>MongoDB Advantage:</strong> Arrays of addresses and
-              contacts stored naturally as nested documents. PostgreSQL would
-              require separate tables with foreign keys, making queries complex
-              and slower.
-            </Body>
-          </div>
-          {entity.addresses.map((address, index) => (
-            <div key={index} style={{ 
-              marginBottom: index < entity.addresses.length - 1 ? spacing[3] : 0,
-              padding: spacing[3],
-              background: palette.gray.light3,
-              borderRadius: '6px'
-            }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: spacing[2] }}>
-                <div>
-                  <Label>Type</Label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
-                    <Body weight="medium">{address.type || 'Unknown'}</Body>
-                  </div>
-                </div>
-                <div>
-                  <Label>Primary Address</Label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
-                    {address.primary ? (
-                      <>
-                        <Body weight="medium" style={{ color: palette.green.dark2 }}>Primary</Body>
-                      </>
-                    ) : (
-                      <Body weight="medium" style={{ color: palette.gray.dark1 }}>Secondary</Body>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <Label>Verification Status</Label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
-                    {address.verified ? (
-                      <>
-                        <Icon glyph="CheckmarkWithCircle" size={16} fill={palette.green.base} />
-                        <span style={{
-                          padding: '2px 8px',
-                          backgroundColor: palette.green.light2,
-                          color: palette.green.dark2,
-                          borderRadius: '12px',
-                          fontSize: '12px',
-                          fontWeight: '600'
-                        }}>
-                          Verified
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <Icon glyph="Warning" size={16} fill={palette.red.base} />
-                        <span style={{
-                          padding: '2px 8px',
-                          backgroundColor: palette.red.light2,
-                          color: palette.red.dark2,
-                          borderRadius: '12px',
-                          fontSize: '12px',
-                          fontWeight: '600'
-                        }}>
-                          Unverified
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div style={{ marginTop: spacing[2] }}>
-                <Label>Full Address</Label>
-                <Body weight="medium">{address.full || 'N/A'}</Body>
-              </div>
-              {/* Additional Address Details */}
-              <div style={{ marginTop: spacing[3], display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: spacing[2] }}>
-                {address.validFrom && (
-                  <div>
-                    <Label>Valid From</Label>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
-                      <Icon glyph="Calendar" size={14} fill={palette.gray.base} />
-                      <Body style={{ fontSize: '12px' }}>{amlUtils.formatDate(address.validFrom)}</Body>
-                    </div>
-                  </div>
-                )}
-                {address.validTo && (
-                  <div>
-                    <Label>Valid To</Label>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
-                      <Icon glyph="Calendar" size={14} fill={palette.gray.base} />
-                      <Body style={{ fontSize: '12px' }}>{amlUtils.formatDate(address.validTo)}</Body>
-                    </div>
-                  </div>
-                )}
-                {address.verificationMethod && (
-                  <div>
-                    <Label>Verification Method</Label>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
-                      <Icon glyph="Dashboard" size={14} fill={palette.blue.base} />
-                      <Body style={{ fontSize: '12px', color: palette.blue.dark1 }}>
-                        {address.verificationMethod.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                      </Body>
-                    </div>
-                  </div>
-                )}
-              </div>
-              {address.coordinates && (
-                <div style={{ marginTop: spacing[2] }}>
-                  <Label>Geographic Coordinates</Label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
-                    <Body style={{ fontSize: '12px', fontFamily: 'monospace', color: palette.gray.dark1 }}>
-                      {address.coordinates[1].toFixed(6)}, {address.coordinates[0].toFixed(6)}
+              {Array.from({ length: 24 }, (_, hour) => {
+                const isPeak = peakHours.includes(hour);
+                return (
+                  <div
+                    key={hour}
+                    style={{
+                      flex: '1 1 calc(4.16% - 2px)',
+                      minWidth: '30px',
+                      height: '40px',
+                      backgroundColor: isPeak ? palette.blue.dark2 : palette.gray.light2,
+                      borderRadius: '4px',
+                      display: 'flex',
+                      alignItems: 'flex-end',
+                      justifyContent: 'center',
+                      paddingBottom: '4px',
+                      transition: 'background-color 0.2s'
+                    }}
+                    title={`Hour ${hour}: ${isPeak ? 'Peak' : 'Low'}`}
+                  >
+                    <Body style={{ 
+                      fontSize: '10px', 
+                      color: isPeak ? palette.white : palette.gray.dark1,
+                      fontWeight: isPeak ? 600 : 400
+                    }}>
+                      {hour}
                     </Body>
                   </div>
+                );
+              })}
+            </div>
+            <Body style={{ fontSize: '11px', color: palette.gray.dark1 }}>
+              Peak hours: {peakHours.join(', ')}
+            </Body>
+          </div>
+        )}
+
+        {/* Day of Week Preferences */}
+        {dayPreferences && (
+          <div>
+            <Label style={{ marginBottom: spacing[2] }}>Day of Week Activity Preferences</Label>
+            <div style={{ 
+              display: 'flex', 
+              gap: spacing[2], 
+              alignItems: 'flex-end',
+              height: '120px'
+            }}>
+              {days.map((day, index) => {
+                const value = dayPreferences[day] || 0;
+                const percentage = (value * 100).toFixed(1);
+                const height = Math.max(value * 100, 5); // Minimum 5px height
+                return (
+                  <div key={day} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <div
+                      style={{
+                        width: '100%',
+                        height: `${height}px`,
+                        backgroundColor: palette.blue.base,
+                        borderRadius: '4px 4px 0 0',
+                        minHeight: '5px',
+                        transition: 'height 0.3s',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        justifyContent: 'center',
+                        paddingTop: '4px'
+                      }}
+                      title={`${day}: ${percentage}%`}
+                    >
+                      {height > 20 && (
+                        <Body style={{ fontSize: '10px', color: palette.white, fontWeight: 600 }}>
+                          {percentage}%
+                        </Body>
+                      )}
+                    </div>
+                    <Body style={{ fontSize: '11px', marginTop: spacing[1], color: palette.gray.dark1 }}>
+                      {dayAbbr[index]}
+                    </Body>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Helper component for Frequency Pattern Display
+  const FrequencyPatternDisplay = ({ transactionFrequency, loginFrequency, sessionDuration }) => {
+    const getFrequencyBadgeVariant = (freq, type) => {
+      if (!freq) return 'lightgray';
+      const lower = freq.toLowerCase();
+      if (type === 'transaction') {
+        if (lower.includes('low')) return 'gray';
+        if (lower.includes('moderate') || lower.includes('medium')) return 'yellow';
+        if (lower.includes('high')) return 'red';
+      } else if (type === 'login') {
+        if (lower.includes('daily')) return 'green';
+        if (lower.includes('weekly')) return 'yellow';
+        if (lower.includes('monthly')) return 'gray';
+      }
+      return 'lightgray';
+    };
+
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: spacing[3] }}>
+        {transactionFrequency && (
+          <div>
+            <Label>Transaction Frequency</Label>
+            <div style={{ marginTop: spacing[1], display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+              <Icon glyph="Refresh" size={16} fill={palette.gray.base} />
+              <Badge variant={getFrequencyBadgeVariant(transactionFrequency, 'transaction')}>
+                {transactionFrequency}
+              </Badge>
+            </div>
+          </div>
+        )}
+        {loginFrequency && (
+          <div>
+            <Label>Login Frequency</Label>
+            <div style={{ marginTop: spacing[1], display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+              <Icon glyph="Clock" size={16} fill={palette.gray.base} />
+              <Badge variant={getFrequencyBadgeVariant(loginFrequency, 'login')}>
+                {loginFrequency}
+              </Badge>
+            </div>
+          </div>
+        )}
+        {sessionDuration !== undefined && sessionDuration !== null && (
+          <div>
+            <Label>Avg Session Duration</Label>
+            <Body weight="medium" style={{ marginTop: spacing[1] }}>
+              {typeof sessionDuration === 'number' 
+                ? `${sessionDuration.toFixed(1)} minutes`
+                : sessionDuration}
+            </Body>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[4] }}>
+      {/* Section 1: Identifier Information */}
+      <div style={{ marginTop: spacing[4] }}>
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: spacing[2], 
+          marginBottom: spacing[3],
+          paddingBottom: spacing[2],
+          borderBottom: `2px solid ${palette.blue.light2}`
+        }}>
+          <Icon glyph="Person" size={20} fill={palette.blue.base} />
+          <H2 style={{ margin: 0, color: palette.blue.dark2 }}>Identifier Information</H2>
+        </div>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[3] }}>
+          {/* Basic Entity Information */}
+          <Card style={{ padding: spacing[4] }}>
+            <H3 style={{ marginBottom: spacing[3] }}>Basic Information</H3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: spacing[3] }}>
+              <div>
+                <Label>Entity ID</Label>
+                <Body weight="medium">{entity.entityId}</Body>
+              </div>
+              <div>
+                <Label>Entity Type</Label>
+                <Body weight="medium">{amlUtils.formatEntityType(entity.entityType)}</Body>
+              </div>
+              <div>
+                <Label>Status</Label>
+                <Body weight="medium" style={{ 
+                  color: amlUtils.getEntityStatusColor(entity.status) === 'green' ? palette.green.dark2 : 
+                         amlUtils.getEntityStatusColor(entity.status) === 'red' ? palette.red.base :
+                         amlUtils.getEntityStatusColor(entity.status) === 'yellow' ? palette.yellow.base : palette.gray.dark1
+                }}>
+                  {amlUtils.formatEntityStatus(entity.status)}
+                </Body>
+              </div>
+              {entity.scenarioKey && (
+                <div>
+                  <Label>Demo Scenario</Label>
+                  <Body weight="medium" style={{ color: palette.blue.base }}>
+                    {amlUtils.formatScenarioKey(entity.scenarioKey)}
+                  </Body>
+                </div>
+              )}
+              <div>
+                <Label>Source System</Label>
+                <Body weight="medium">{entity.sourceSystem || 'N/A'}</Body>
+              </div>
+              <div>
+                <Label>Created At</Label>
+                <Body weight="medium">{amlUtils.formatDate(entity.createdAt)}</Body>
+              </div>
+              <div>
+                <Label>Last Updated</Label>
+                <Body weight="medium">{amlUtils.formatDate(entity.updatedAt)}</Body>
+              </div>
+            </div>
+          </Card>
+
+          {/* Personal Information */}
+          <Card style={{ padding: spacing[4] }}>
+            <H3 style={{ marginBottom: spacing[3] }}>Personal Information</H3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: spacing[3] }}>
+              <div>
+                <Label>Full Name</Label>
+                <Body weight="medium">{entity.name?.full || 'N/A'}</Body>
+              </div>
+              {entity.name?.structured && (
+                <>
+                  <div>
+                    <Label>First Name</Label>
+                    <Body weight="medium">{entity.name.structured.first || 'N/A'}</Body>
+                  </div>
+                  <div>
+                    <Label>Last Name</Label>
+                    <Body weight="medium">{entity.name.structured.last || 'N/A'}</Body>
+                  </div>
+                </>
+              )}
+              {entity.dateOfBirth && (
+                <div>
+                  <Label>Date of Birth</Label>
+                  <Body weight="medium">{amlUtils.formatDate(entity.dateOfBirth)}</Body>
+                </div>
+              )}
+              {entity.placeOfBirth && (
+                <div>
+                  <Label>Place of Birth</Label>
+                  <Body weight="medium">{entity.placeOfBirth}</Body>
+                </div>
+              )}
+              {entity.gender && (
+                <div>
+                  <Label>Gender</Label>
+                  <Body weight="medium">{entity.gender}</Body>
+                </div>
+              )}
+              {entity.nationality && (
+                <div>
+                  <Label>Nationality</Label>
+                  <Body weight="medium">
+                    {Array.isArray(entity.nationality) ? entity.nationality.join(', ') : entity.nationality}
+                  </Body>
+                </div>
+              )}
+              {entity.residency && (
+                <div>
+                  <Label>Residency</Label>
+                  <Body weight="medium">{entity.residency}</Body>
                 </div>
               )}
             </div>
-          ))}
-        </Card>
-      )}
-
-      {/* Contact Information */}
-      {entity.contactInfo && entity.contactInfo.length > 0 && (
-        <Card style={{ padding: spacing[4] }}>
-          <H3 style={{ marginBottom: spacing[3] }}>Contact Information</H3>
-          {entity.contactInfo.map((contact, index) => (
-            <div key={index} style={{ 
-              display: 'grid', 
-              gridTemplateColumns: '1fr 2fr 1fr 1fr', 
-              gap: spacing[2],
-              marginBottom: index < entity.contactInfo.length - 1 ? spacing[2] : 0,
-              padding: spacing[2],
-              background: palette.gray.light3,
-              borderRadius: '4px'
-            }}>
-              <div>
-                <Label>Type</Label>
-                <Body weight="medium">{amlUtils.formatContactType(contact.type)}</Body>
+            
+            {entity.name?.aliases && entity.name.aliases.length > 0 && (
+              <div style={{ marginTop: spacing[3] }}>
+                <Label>Known Aliases</Label>
+                <Body weight="medium">{entity.name.aliases.join(', ')}</Body>
               </div>
-              <div>
-                <Label>Value</Label>
-                <Body weight="medium">{contact.value}</Body>
-              </div>
-              <div>
-                <Label>Primary</Label>
-                <Body weight="medium" style={{ 
-                  color: contact.primary ? palette.green.dark2 : palette.gray.dark1 
-                }}>
-                  {contact.primary ? 'Yes' : 'No'}
+            )}
+            
+            {entity.name?.nameComponents && entity.name.nameComponents.length > 0 && (
+              <div style={{ marginTop: spacing[2] }}>
+                <Label>Name Components (for search)</Label>
+                <Body style={{ fontSize: '12px', color: palette.gray.dark1 }}>
+                  {entity.name.nameComponents.join(', ')}
                 </Body>
               </div>
-              <div>
-                <Label>Verification Status</Label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
-                  {contact.verified ? (
-                    <>
-                      <Icon glyph="CheckmarkWithCircle" size={14} fill={palette.green.base} />
-                      <span style={{
-                        padding: '1px 6px',
-                        backgroundColor: palette.green.light2,
-                        color: palette.green.dark2,
-                        borderRadius: '10px',
-                        fontSize: '11px',
-                        fontWeight: '600'
-                      }}>
-                        Verified
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <Icon glyph="Warning" size={14} fill={palette.red.base} />
-                      <span style={{
-                        padding: '1px 6px',
-                        backgroundColor: palette.red.light2,
-                        color: palette.red.dark2,
-                        borderRadius: '10px',
-                        fontSize: '11px',
-                        fontWeight: '600'
-                      }}>
-                        Unverified
-                      </span>
-                    </>
+            )}
+          </Card>
+
+          {/* Addresses */}
+          {entity.addresses && entity.addresses.length > 0 && (
+            <Card style={{ padding: spacing[4] }}>
+              <H3 style={{ marginBottom: spacing[3] }}>Addresses</H3>
+              
+              {/* MongoDB Advantage for Address Storage */}
+              <div
+                style={{
+                  padding: spacing[2],
+                  background: palette.blue.light3,
+                  borderRadius: '4px',
+                  marginBottom: spacing[3]
+                }}
+              >
+                <Body style={{ fontSize: '12px', color: palette.blue.dark2 }}>
+                  💡 <strong>MongoDB Advantage:</strong> Arrays of addresses and
+                  contacts stored naturally as nested documents. PostgreSQL would
+                  require separate tables with foreign keys, making queries complex
+                  and slower.
+                </Body>
+              </div>
+              {entity.addresses.map((address, index) => (
+                <div key={index} style={{ 
+                  marginBottom: index < entity.addresses.length - 1 ? spacing[3] : 0,
+                  padding: spacing[3],
+                  background: palette.gray.light3,
+                  borderRadius: '6px'
+                }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: spacing[2] }}>
+                    <div>
+                      <Label>Type</Label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+                        <Body weight="medium">{address.type || 'Unknown'}</Body>
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Primary Address</Label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+                        {address.primary ? (
+                          <>
+                            <Body weight="medium" style={{ color: palette.green.dark2 }}>Primary</Body>
+                          </>
+                        ) : (
+                          <Body weight="medium" style={{ color: palette.gray.dark1 }}>Secondary</Body>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Verification Status</Label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+                        {address.verified ? (
+                          <>
+                            <Icon glyph="CheckmarkWithCircle" size={16} fill={palette.green.base} />
+                            <span style={{
+                              padding: '2px 8px',
+                              backgroundColor: palette.green.light2,
+                              color: palette.green.dark2,
+                              borderRadius: '12px',
+                              fontSize: '12px',
+                              fontWeight: '600'
+                            }}>
+                              Verified
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <Icon glyph="Warning" size={16} fill={palette.red.base} />
+                            <span style={{
+                              padding: '2px 8px',
+                              backgroundColor: palette.red.light2,
+                              color: palette.red.dark2,
+                              borderRadius: '12px',
+                              fontSize: '12px',
+                              fontWeight: '600'
+                            }}>
+                              Unverified
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: spacing[2] }}>
+                    <Label>Full Address</Label>
+                    <Body weight="medium">{address.full || 'N/A'}</Body>
+                  </div>
+                  {/* Additional Address Details */}
+                  <div style={{ marginTop: spacing[3], display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: spacing[2] }}>
+                    {address.validFrom && (
+                      <div>
+                        <Label>Valid From</Label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+                          <Icon glyph="Calendar" size={14} fill={palette.gray.base} />
+                          <Body style={{ fontSize: '12px' }}>{amlUtils.formatDate(address.validFrom)}</Body>
+                        </div>
+                      </div>
+                    )}
+                    {address.validTo && (
+                      <div>
+                        <Label>Valid To</Label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+                          <Icon glyph="Calendar" size={14} fill={palette.gray.base} />
+                          <Body style={{ fontSize: '12px' }}>{amlUtils.formatDate(address.validTo)}</Body>
+                        </div>
+                      </div>
+                    )}
+                    {address.verificationMethod && (
+                      <div>
+                        <Label>Verification Method</Label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+                          <Icon glyph="Dashboard" size={14} fill={palette.blue.base} />
+                          <Body style={{ fontSize: '12px', color: palette.blue.dark1 }}>
+                            {address.verificationMethod.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                          </Body>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {address.coordinates && (
+                    <div style={{ marginTop: spacing[2] }}>
+                      <Label>Geographic Coordinates</Label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+                        <Body style={{ fontSize: '12px', fontFamily: 'monospace', color: palette.gray.dark1 }}>
+                          {address.coordinates[1].toFixed(6)}, {address.coordinates[0].toFixed(6)}
+                        </Body>
+                      </div>
+                    </div>
                   )}
                 </div>
-              </div>
-            </div>
-          ))}
-        </Card>
-      )}
-
-      {/* Identifiers */}
-      {entity.identifiers && entity.identifiers.length > 0 && (
-        <Card style={{ padding: spacing[4] }}>
-          <H3 style={{ marginBottom: spacing[3] }}>Identifiers</H3>
-          <Table>
-            <TableHead>
-              <HeaderRow>
-                <HeaderCell>Type</HeaderCell>
-                <HeaderCell>Value</HeaderCell>
-                <HeaderCell>Country</HeaderCell>
-                <HeaderCell>Issue Date</HeaderCell>
-                <HeaderCell>Expiry Date</HeaderCell>
-                <HeaderCell>Verified</HeaderCell>
-              </HeaderRow>
-            </TableHead>
-            <TableBody>
-              {entity.identifiers.map((identifier, index) => (
-                <Row key={index}>
-                  <Cell>
-                    <Body weight="medium">{identifier.type?.toUpperCase() || 'Unknown'}</Body>
-                  </Cell>
-                  <Cell>
-                    <Body weight="medium">{identifier.value || 'N/A'}</Body>
-                  </Cell>
-                  <Cell>
-                    <Body>{identifier.country || 'N/A'}</Body>
-                  </Cell>
-                  <Cell>
-                    <Body>{amlUtils.formatDate(identifier.issueDate)}</Body>
-                  </Cell>
-                  <Cell>
-                    <Body>{amlUtils.formatDate(identifier.expiryDate)}</Body>
-                  </Cell>
-                  <Cell>
-                    <Body style={{ 
-                      color: identifier.verified ? palette.green.dark2 : palette.red.base 
-                    }}>
-                      {identifier.verified ? 'Yes' : 'No'}
-                    </Body>
-                  </Cell>
-                </Row>
               ))}
-            </TableBody>
-          </Table>
-        </Card>
-      )}
-
-      {/* Customer Information */}
-      {entity.customerInfo && (
-        <Card style={{ padding: spacing[4] }}>
-          <H3 style={{ marginBottom: spacing[3] }}>Customer Information</H3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: spacing[3] }}>
-            {entity.customerInfo.customerSince && (
-              <div>
-                <Label>Customer Since</Label>
-                <Body weight="medium">{amlUtils.formatDate(entity.customerInfo.customerSince)}</Body>
-              </div>
-            )}
-            {entity.customerInfo.employmentStatus && (
-              <div>
-                <Label>Employment Status</Label>
-                <Body weight="medium">{entity.customerInfo.employmentStatus}</Body>
-              </div>
-            )}
-            {entity.customerInfo.monthlyIncomeUSD && (
-              <div>
-                <Label>Monthly Income (USD)</Label>
-                <Body weight="medium">${entity.customerInfo.monthlyIncomeUSD.toLocaleString()}</Body>
-              </div>
-            )}
-          </div>
-          
-          {entity.customerInfo.segments && entity.customerInfo.segments.length > 0 && (
-            <div style={{ marginTop: spacing[3] }}>
-              <Label>Customer Segments</Label>
-              <div style={{ display: 'flex', gap: spacing[1], marginTop: spacing[1] }}>
-                {entity.customerInfo.segments.map((segment, index) => (
-                  <span key={index} style={{
-                    padding: '4px 8px',
-                    background: palette.blue.light2,
-                    color: palette.blue.dark2,
-                    borderRadius: '12px',
-                    fontSize: '12px',
-                    fontWeight: 500
-                  }}>
-                    {segment.replace(/_/g, ' ')}
-                  </span>
-                ))}
-              </div>
-            </div>
+            </Card>
           )}
-          
-          {entity.customerInfo.products && entity.customerInfo.products.length > 0 && (
-            <div style={{ marginTop: spacing[3] }}>
-              <Label>Products</Label>
-              <div style={{ display: 'flex', gap: spacing[1], marginTop: spacing[1] }}>
-                {entity.customerInfo.products.map((product, index) => (
-                  <span key={index} style={{
-                    padding: '4px 8px',
-                    background: palette.green.light2,
-                    color: palette.green.dark2,
-                    borderRadius: '12px',
-                    fontSize: '12px',
-                    fontWeight: 500
-                  }}>
-                    {product.replace(/_/g, ' ')}
-                  </span>
-                ))}
-              </div>
-            </div>
+
+          {/* Contact Information */}
+          {entity.contactInfo && entity.contactInfo.length > 0 && (
+            <Card style={{ padding: spacing[4] }}>
+              <H3 style={{ marginBottom: spacing[3] }}>Contact Information</H3>
+              {entity.contactInfo.map((contact, index) => (
+                <div key={index} style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: '1fr 2fr 1fr 1fr', 
+                  gap: spacing[2],
+                  marginBottom: index < entity.contactInfo.length - 1 ? spacing[2] : 0,
+                  padding: spacing[2],
+                  background: palette.gray.light3,
+                  borderRadius: '4px'
+                }}>
+                  <div>
+                    <Label>Type</Label>
+                    <Body weight="medium">{amlUtils.formatContactType(contact.type)}</Body>
+                  </div>
+                  <div>
+                    <Label>Value</Label>
+                    <Body weight="medium">{contact.value}</Body>
+                  </div>
+                  <div>
+                    <Label>Primary</Label>
+                    <Body weight="medium" style={{ 
+                      color: contact.primary ? palette.green.dark2 : palette.gray.dark1 
+                    }}>
+                      {contact.primary ? 'Yes' : 'No'}
+                    </Body>
+                  </div>
+                  <div>
+                    <Label>Verification Status</Label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1] }}>
+                      {contact.verified ? (
+                        <>
+                          <Icon glyph="CheckmarkWithCircle" size={14} fill={palette.green.base} />
+                          <span style={{
+                            padding: '1px 6px',
+                            backgroundColor: palette.green.light2,
+                            color: palette.green.dark2,
+                            borderRadius: '10px',
+                            fontSize: '11px',
+                            fontWeight: '600'
+                          }}>
+                            Verified
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <Icon glyph="Warning" size={14} fill={palette.red.base} />
+                          <span style={{
+                            padding: '1px 6px',
+                            backgroundColor: palette.red.light2,
+                            color: palette.red.dark2,
+                            borderRadius: '10px',
+                            fontSize: '11px',
+                            fontWeight: '600'
+                          }}>
+                            Unverified
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </Card>
           )}
-        </Card>
-      )}
 
-      {/* Watchlist Matches */}
-      <WatchlistMatchesDisplay watchlistMatches={entity.watchlistMatches} />
+          {/* Identifiers */}
+          {entity.identifiers && entity.identifiers.length > 0 && (
+            <Card style={{ padding: spacing[4] }}>
+              <H3 style={{ marginBottom: spacing[3] }}>Identifiers</H3>
+              <Table>
+                <TableHead>
+                  <HeaderRow>
+                    <HeaderCell>Type</HeaderCell>
+                    <HeaderCell>Value</HeaderCell>
+                    <HeaderCell>Country</HeaderCell>
+                    <HeaderCell>Issue Date</HeaderCell>
+                    <HeaderCell>Expiry Date</HeaderCell>
+                    <HeaderCell>Verified</HeaderCell>
+                  </HeaderRow>
+                </TableHead>
+                <TableBody>
+                  {entity.identifiers.map((identifier, index) => (
+                    <Row key={index}>
+                      <Cell>
+                        <Body weight="medium">{identifier.type?.toUpperCase() || 'Unknown'}</Body>
+                      </Cell>
+                      <Cell>
+                        <Body weight="medium">{identifier.value || 'N/A'}</Body>
+                      </Cell>
+                      <Cell>
+                        <Body>{identifier.country || 'N/A'}</Body>
+                      </Cell>
+                      <Cell>
+                        <Body>{amlUtils.formatDate(identifier.issueDate)}</Body>
+                      </Cell>
+                      <Cell>
+                        <Body>{amlUtils.formatDate(identifier.expiryDate)}</Body>
+                      </Cell>
+                      <Cell>
+                        <Body style={{ 
+                          color: identifier.verified ? palette.green.dark2 : palette.red.base 
+                        }}>
+                          {identifier.verified ? 'Yes' : 'No'}
+                        </Body>
+                      </Cell>
+                    </Row>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          )}
 
-      {/* Risk Component Breakdown */}
-      <RiskComponentsDisplay riskAssessment={entity.riskAssessment} />
+          {/* Identifier Text Display */}
+          {entity.identifierText && (
+            <ExpandableCard
+              title="Identifier Text Representation"
+              description="Text used to generate identifier embedding"
+              defaultOpen={false}
+            >
+              <Code 
+                language="none" 
+                copyable={true}
+                style={{ 
+                  fontSize: '12px', 
+                  lineHeight: '1.5',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word'
+                }}
+              >
+                {entity.identifierText}
+              </Code>
+            </ExpandableCard>
+          )}
+        </div>
+      </div>
 
-      {/* Entity Resolution Information */}
-      <EntityResolutionDisplay resolution={entity.resolution} />
+      {/* Section 2: Behavioral Profile */}
+      <div style={{ marginTop: spacing[4] }}>
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: spacing[2], 
+          marginBottom: spacing[3],
+          paddingBottom: spacing[2],
+          borderBottom: `2px solid ${palette.green.light2}`
+        }}>
+          <Icon glyph="Activity" size={20} fill={palette.green.base} />
+          <H2 style={{ margin: 0, color: palette.green.dark2 }}>Behavioral Profile</H2>
+        </div>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[3] }}>
+          {/* Customer Information */}
+          {entity.customerInfo && (
+            <Card style={{ padding: spacing[4] }}>
+              <H3 style={{ marginBottom: spacing[3] }}>Customer Information</H3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: spacing[3] }}>
+                {entity.customerInfo.customerSince && (
+                  <div>
+                    <Label>Customer Since</Label>
+                    <Body weight="medium">{amlUtils.formatDate(entity.customerInfo.customerSince)}</Body>
+                  </div>
+                )}
+                {entity.customerInfo.employmentStatus && (
+                  <div>
+                    <Label>Employment Status</Label>
+                    <Body weight="medium">{entity.customerInfo.employmentStatus}</Body>
+                  </div>
+                )}
+                {entity.customerInfo.monthlyIncomeUSD && (
+                  <div>
+                    <Label>Monthly Income (USD)</Label>
+                    <Body weight="medium">${entity.customerInfo.monthlyIncomeUSD.toLocaleString()}</Body>
+                  </div>
+                )}
+              </div>
+              
+              {entity.customerInfo.segments && entity.customerInfo.segments.length > 0 && (
+                <div style={{ marginTop: spacing[3] }}>
+                  <Label>Customer Segments</Label>
+                  <div style={{ display: 'flex', gap: spacing[1], marginTop: spacing[1] }}>
+                    {entity.customerInfo.segments.map((segment, index) => (
+                      <span key={index} style={{
+                        padding: '4px 8px',
+                        background: palette.blue.light2,
+                        color: palette.blue.dark2,
+                        borderRadius: '12px',
+                        fontSize: '12px',
+                        fontWeight: 500
+                      }}>
+                        {segment.replace(/_/g, ' ')}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {entity.customerInfo.products && entity.customerInfo.products.length > 0 && (
+                <div style={{ marginTop: spacing[3] }}>
+                  <Label>Products</Label>
+                  <div style={{ display: 'flex', gap: spacing[1], marginTop: spacing[1] }}>
+                    {entity.customerInfo.products.map((product, index) => (
+                      <span key={index} style={{
+                        padding: '4px 8px',
+                        background: palette.green.light2,
+                        color: palette.green.dark2,
+                        borderRadius: '12px',
+                        fontSize: '12px',
+                        fontWeight: 500
+                      }}>
+                        {product.replace(/_/g, ' ')}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </Card>
+          )}
+
+          {/* Consolidated Behavioral Analytics Card */}
+          {entity.behavioral_analytics && (
+            <Card style={{ padding: spacing[4] }}>
+              <H3 style={{ marginBottom: spacing[3] }}>
+                <Icon glyph="Activity" style={{ marginRight: spacing[2] }} />
+                Behavioral Analytics
+              </H3>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[4] }}>
+                {/* Transaction Patterns */}
+                {entity.behavioral_analytics.transaction_patterns && (
+                  <div style={{ 
+                    paddingBottom: spacing[3],
+                    borderBottom: `1px solid ${palette.gray.light2}`
+                  }}>
+                    <H3 style={{ marginBottom: spacing[3], fontSize: '16px' }}>
+                      <Icon glyph="CreditCard" style={{ marginRight: spacing[2] }} />
+                      Transaction Patterns
+                    </H3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: spacing[3] }}>
+                      <div>
+                        <Label>Average Transaction Amount</Label>
+                        <Body weight="medium" style={{ fontSize: '18px', color: palette.blue.dark2 }}>
+                          ${entity.behavioral_analytics.transaction_patterns.avg_transaction_amount?.toFixed(2) || 'N/A'}
+                        </Body>
+                      </div>
+                      <div>
+                        <Label>Standard Deviation</Label>
+                        <Body weight="medium" style={{ fontSize: '18px', color: palette.gray.dark2 }}>
+                          ${entity.behavioral_analytics.transaction_patterns.std_transaction_amount?.toFixed(2) || 'N/A'}
+                        </Body>
+                      </div>
+                      <div>
+                        <Label>Avg Transactions Per Day</Label>
+                        <Body weight="medium" style={{ fontSize: '18px', color: palette.gray.dark2 }}>
+                          {entity.behavioral_analytics.transaction_patterns.avg_transactions_per_day?.toFixed(2) || 'N/A'}
+                        </Body>
+                      </div>
+                      {entity.behavioral_analytics.transaction_patterns.common_merchant_categories && (
+                        <div style={{ gridColumn: '1 / -1' }}>
+                          <Label>Common Merchant Categories</Label>
+                          <div style={{ display: 'flex', gap: spacing[1], flexWrap: 'wrap', marginTop: spacing[1] }}>
+                            {entity.behavioral_analytics.transaction_patterns.common_merchant_categories.map((cat, idx) => (
+                              <Badge key={idx} variant="blue">
+                                {cat}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Time Patterns with Improved Visualization */}
+                {entity.behavioral_analytics.time_of_day_patterns && (
+                  <div style={{ 
+                    paddingBottom: spacing[3],
+                    borderBottom: `1px solid ${palette.gray.light2}`
+                  }}>
+                    <H3 style={{ marginBottom: spacing[3], fontSize: '16px' }}>
+                      <Icon glyph="Clock" style={{ marginRight: spacing[2] }} />
+                      Time Patterns
+                    </H3>
+                    <TimePatternVisualization 
+                      peakHours={entity.behavioral_analytics.time_of_day_patterns.peak_hours}
+                      dayPreferences={entity.behavioral_analytics.time_of_day_patterns.day_of_week_preferences}
+                    />
+                  </div>
+                )}
+
+                {/* Frequency Patterns with Improved Visualization */}
+                {entity.behavioral_analytics.frequency_patterns && (
+                  <div style={{ 
+                    paddingBottom: spacing[3],
+                    borderBottom: `1px solid ${palette.gray.light2}`
+                  }}>
+                    <H3 style={{ marginBottom: spacing[3], fontSize: '16px' }}>
+                      <Icon glyph="Refresh" style={{ marginRight: spacing[2] }} />
+                      Frequency Patterns
+                    </H3>
+                    <FrequencyPatternDisplay 
+                      transactionFrequency={entity.behavioral_analytics.frequency_patterns.transaction_frequency}
+                      loginFrequency={entity.behavioral_analytics.frequency_patterns.login_frequency}
+                      sessionDuration={entity.behavioral_analytics.frequency_patterns.session_duration_avg_minutes}
+                    />
+                  </div>
+                )}
+
+                {/* Devices */}
+                {entity.behavioral_analytics.devices && entity.behavioral_analytics.devices.length > 0 && (
+                  <div style={{ 
+                    paddingBottom: spacing[3],
+                    borderBottom: `1px solid ${palette.gray.light2}`
+                  }}>
+                    <H3 style={{ marginBottom: spacing[3], fontSize: '16px' }}>
+                      <Icon glyph="Laptop" style={{ marginRight: spacing[2] }} />
+                      Devices ({entity.behavioral_analytics.devices.length})
+                    </H3>
+                    <Table>
+                      <TableHead>
+                        <HeaderRow>
+                          <HeaderCell>Device ID</HeaderCell>
+                          <HeaderCell>Type</HeaderCell>
+                          <HeaderCell>OS</HeaderCell>
+                          <HeaderCell>Browser</HeaderCell>
+                          <HeaderCell>IP Range</HeaderCell>
+                        </HeaderRow>
+                      </TableHead>
+                      <TableBody>
+                        {entity.behavioral_analytics.devices.map((device, index) => (
+                          <Row key={index}>
+                            <Cell>
+                              <Body weight="medium" style={{ fontSize: '12px', fontFamily: 'monospace' }}>
+                                {device.device_id}
+                              </Body>
+                            </Cell>
+                            <Cell>
+                              <Body>{device.type}</Body>
+                            </Cell>
+                            <Cell>
+                              <Body>{device.os}</Body>
+                            </Cell>
+                            <Cell>
+                              <Body>{device.browser}</Body>
+                            </Cell>
+                            <Cell>
+                              <Body style={{ fontSize: '12px' }}>
+                                {device.ip_range && device.ip_range.length > 0
+                                  ? device.ip_range.slice(0, 2).join(', ') + (device.ip_range.length > 2 ? '...' : '')
+                                  : 'N/A'}
+                              </Body>
+                            </Cell>
+                          </Row>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+
+                {/* IP Addresses */}
+                {entity.behavioral_analytics.ip_addresses && entity.behavioral_analytics.ip_addresses.length > 0 && (
+                  <div style={{ 
+                    paddingBottom: spacing[3],
+                    borderBottom: `1px solid ${palette.gray.light2}`
+                  }}>
+                    <H3 style={{ marginBottom: spacing[3], fontSize: '16px' }}>
+                      <Icon glyph="Cloud" style={{ marginRight: spacing[2] }} />
+                      IP Addresses ({entity.behavioral_analytics.ip_addresses.length})
+                    </H3>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing[2] }}>
+                      {entity.behavioral_analytics.ip_addresses.slice(0, 10).map((ipInfo, index) => (
+                        <Badge key={index} variant="gray">
+                          {typeof ipInfo === 'string' ? ipInfo : (ipInfo.ip || ipInfo.address || JSON.stringify(ipInfo))}
+                        </Badge>
+                      ))}
+                      {entity.behavioral_analytics.ip_addresses.length > 10 && (
+                        <Body style={{ color: palette.gray.dark1 }}>
+                          +{entity.behavioral_analytics.ip_addresses.length - 10} more
+                        </Body>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Location Patterns */}
+                {entity.behavioral_analytics.location_patterns && entity.behavioral_analytics.location_patterns.length > 0 && (
+                  <div style={{ 
+                    paddingBottom: spacing[3],
+                    borderBottom: `1px solid ${palette.gray.light2}`
+                  }}>
+                    <H3 style={{ marginBottom: spacing[3], fontSize: '16px' }}>
+                      <Icon glyph="Location" style={{ marginRight: spacing[2] }} />
+                      Location Patterns ({entity.behavioral_analytics.location_patterns.length})
+                    </H3>
+                    <Table>
+                      <TableHead>
+                        <HeaderRow>
+                          <HeaderCell>City</HeaderCell>
+                          <HeaderCell>State</HeaderCell>
+                          <HeaderCell>Country</HeaderCell>
+                          <HeaderCell>Frequency</HeaderCell>
+                        </HeaderRow>
+                      </TableHead>
+                      <TableBody>
+                        {entity.behavioral_analytics.location_patterns.map((location, index) => {
+                          const frequencyPercent = (location.frequency * 100).toFixed(1);
+                          return (
+                            <Row key={index}>
+                              <Cell>
+                                <Body weight="medium">{location.city || 'N/A'}</Body>
+                              </Cell>
+                              <Cell>
+                                <Body>{location.state || 'N/A'}</Body>
+                              </Cell>
+                              <Cell>
+                                <Body>{location.country || 'N/A'}</Body>
+                              </Cell>
+                              <Cell>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2] }}>
+                                  <div style={{ 
+                                    flex: 1, 
+                                    height: '8px', 
+                                    backgroundColor: palette.gray.light2, 
+                                    borderRadius: '4px',
+                                    overflow: 'hidden'
+                                  }}>
+                                    <div style={{
+                                      width: `${frequencyPercent}%`,
+                                      height: '100%',
+                                      backgroundColor: palette.blue.base,
+                                      transition: 'width 0.3s'
+                                    }} />
+                                  </div>
+                                  <Body style={{ minWidth: '45px', textAlign: 'right' }}>
+                                    {frequencyPercent}%
+                                  </Body>
+                                </div>
+                              </Cell>
+                            </Row>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+
+                {/* Behavioral Text Display */}
+                {entity.behavioralText && (
+                  <div>
+                    <ExpandableCard
+                      title="Behavioral Text Representation"
+                      description="Text used to generate behavioral embedding"
+                      defaultOpen={false}
+                    >
+                      <Code 
+                        language="none" 
+                        copyable={true}
+                        style={{ 
+                          fontSize: '12px', 
+                          lineHeight: '1.5',
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word'
+                        }}
+                      >
+                        {entity.behavioralText}
+                      </Code>
+                    </ExpandableCard>
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
+        </div>
+      </div>
+
+      {/* Section 3: Risk Profile */}
+      <div style={{ marginTop: spacing[4] }}>
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: spacing[2], 
+          marginBottom: spacing[3],
+          paddingBottom: spacing[2],
+          borderBottom: `2px solid ${palette.red.light2}`
+        }}>
+          <Icon glyph="Warning" size={20} fill={palette.red.base} />
+          <H2 style={{ margin: 0, color: palette.red.dark2 }}>Risk Profile</H2>
+        </div>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[3] }}>
+          {/* Watchlist Matches */}
+          <WatchlistMatchesDisplay watchlistMatches={entity.watchlistMatches} />
+
+          {/* Risk Component Breakdown */}
+          <RiskComponentsDisplay riskAssessment={entity.riskAssessment} />
+
+          {/* Entity Resolution Information */}
+          <EntityResolutionDisplay resolution={entity.resolution} />
+        </div>
+      </div>
       
       {/* MongoDB Unified Data Model Card */}
       <Card
@@ -1026,20 +1512,15 @@ function ComprehensiveOverviewTab({ entity }) {
               Unified Data Model
             </Body>
             <Body style={{ fontSize: '12px', color: palette.yellow.dark1 }}>
-              All entity relationships, watchlist matches, and risk assessments in one document. 
-              No need for complex JOINs across 10+ tables like traditional RDBMS architectures.
+              MongoDB's flexible document model enables storing all entity data—identifiers, behavioral patterns, 
+              risk assessments, and relationships—in a single document. This eliminates the need for complex 
+              JOIN operations across multiple tables, providing faster queries and simpler data management 
+              compared to traditional relational database architectures.
             </Body>
           </div>
         </div>
       </Card>
 
-      {/* Profile Summary */}
-      {entity.profileSummaryText && (
-        <Card style={{ padding: spacing[4] }}>
-          <H3 style={{ marginBottom: spacing[3] }}>Profile Summary</H3>
-          <Body>{entity.profileSummaryText}</Body>
-        </Card>
-      )}
     </div>
   );
 }

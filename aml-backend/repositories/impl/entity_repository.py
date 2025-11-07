@@ -146,7 +146,13 @@ class EntityRepository(EntityRepositoryInterface):
                     "riskAssessment": 1,  # Return full risk assessment object
                     "watchlistMatches": 1,
                     "profileSummaryText": 1,
-                    "profileEmbedding": 1,
+                    "profileEmbedding": 1,  # Legacy embedding
+                    "behavioral_analytics": 1,  # Behavioral analytics for transaction simulator and UI
+                    "account_info": 1,  # Account info for transaction simulator
+                    "identifierEmbedding": 1,  # New identifier embedding
+                    "behavioralEmbedding": 1,  # New behavioral embedding
+                    "identifierText": 1,  # Identifier text representation
+                    "behavioralText": 1,  # Behavioral text representation
                     "resolution": 1,
                     "customerInfo": 1,
                     "created_date": "$createdAt",
@@ -321,6 +327,8 @@ class EntityRepository(EntityRepositoryInterface):
             total_count = count_result[0]["total"] if count_result else 0
             
             # Get paginated results with proper field mapping based on actual database schema
+            # Note: MongoDB projection only includes fields that exist in documents
+            # So we filter for entities with behavioral_analytics above
             results_pipeline = (builder
                               .sort({"createdAt": -1})  # Use actual field name
                               .skip(offset)
@@ -329,19 +337,35 @@ class EntityRepository(EntityRepositoryInterface):
                                   "_id": 1,
                                   "entityId": 1,
                                   "scenarioKey": 1,
+                                  "name": 1,  # Include full name object for compatibility
                                   "name_full": "$name.full",  # Extract full name from nested structure
                                   "entityType": 1,  # Use actual field name
                                   "status": 1,
+                                  "riskAssessment": 1,  # Include full risk assessment object
                                   "risk_level": "$riskAssessment.overall.level",  # Extract from nested risk assessment
                                   "risk_score": "$riskAssessment.overall.score",  # Extract score from nested structure
+                                  "watchlistMatches": 1,  # Include watchlist matches
                                   "watchlist_matches_count": {"$size": {"$ifNull": ["$watchlistMatches", []]}},  # Count array items
                                   "has_watchlist_matches": {"$gt": [{"$size": {"$ifNull": ["$watchlistMatches", []]}}, 0]},
+                                  "behavioral_analytics": 1,  # Include behavioral analytics for transaction simulator (only if exists)
+                                  "account_info": 1,  # Include account info for transaction simulator (only if exists)
+                                  "identifierEmbedding": 1,  # Include identifier embedding
+                                  "behavioralEmbedding": 1,  # Include behavioral embedding
+                                  "identifierText": 1,  # Include identifier text
+                                  "behavioralText": 1,  # Include behavioral text
                                   "created_date": "$createdAt",  # Map to expected field name
                                   "updated_date": "$updatedAt"   # Map to expected field name
                               })
                               .build())
             
+            logger.debug(f"Executing pipeline with projection including behavioral_analytics")
             entities = await self.repo.execute_pipeline(self.collection_name, results_pipeline)
+            
+            # Log sample entity to verify projection
+            if entities and len(entities) > 0:
+                sample_keys = list(entities[0].keys())
+                logger.debug(f"Sample entity keys after projection: {sample_keys}")
+                logger.debug(f"Has behavioral_analytics: {'behavioral_analytics' in entities[0]}")
             
             # Convert ObjectIds to strings
             for entity in entities:

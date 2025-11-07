@@ -32,10 +32,6 @@ function Header() {
           <Icon glyph="Home" fill={palette.gray.light3} /> 
           <Body>Home</Body>
         </Link>
-        <Link href="/transaction-simulator" className={styles.navLink}>
-          <Icon glyph="CreditCard" fill={palette.gray.light3} /> 
-          <Body>Transaction Simulator</Body>
-        </Link>
         
         <Link href="/entities" className={styles.navLink}>
           <Icon glyph="Person" fill={palette.gray.light3} /> 
@@ -45,6 +41,11 @@ function Header() {
         <Link href="/entity-resolution/enhanced" className={styles.navLink}>
           <Icon glyph="University" fill={palette.gray.light3} /> 
           <Body>Entity Resolution</Body>
+        </Link>
+        
+        <Link href="/transaction-simulator" className={styles.navLink}>
+          <Icon glyph="CreditCard" fill={palette.gray.light3} /> 
+          <Body>Transaction Simulator</Body>
         </Link>
         
         <Link href="/risk-models" className={styles.navLink}>

@@ -466,6 +466,8 @@ FRONTEND_URL=http://localhost:3000
 ATLAS_SEARCH_INDEX=entity_resolution_search
 ATLAS_TEXT_SEARCH_INDEX=entity_text_search_index
 ENTITY_VECTOR_INDEX=entity_vector_search_index
+ENTITY_IDENTIFIER_VECTOR_INDEX=entity_identifier_vector_index
+ENTITY_BEHAVIORAL_VECTOR_INDEX=entity_behavioral_vector_index
 
 # Performance Tuning
 ATLAS_SEARCH_TIMEOUT=30000

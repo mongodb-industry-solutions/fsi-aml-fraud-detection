@@ -86,7 +86,14 @@ async def evaluate_transaction(
     """
     Evaluate a transaction for potential fraud without storing it in the database.
     This endpoint is useful for pre-screening transactions or simulating fraud detection.
+    
+    Supports both customer_id (legacy) and entity_id (new) fields.
+    If entity_id is provided, it will be used as customer_id for compatibility.
     """
+    # Support both entity_id and customer_id for backward compatibility
+    if "entity_id" in transaction and not transaction.get("customer_id"):
+        transaction["customer_id"] = transaction["entity_id"]
+    
     # Find similar transactions using vector search
     similar_transactions, similarity_risk_score, calculation_breakdown = await fraud_service.find_similar_transactions(transaction)
     

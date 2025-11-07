@@ -113,29 +113,122 @@ function TransactionSimulator() {
   const [showCustomerJson, setShowCustomerJson] = useState(false);
   const [hoveredButton, setHoveredButton] = useState(false);
 
-  // Fetch customers and initial data
+  // Fetch entities and initial data
   useEffect(() => {
     async function fetchInitialData() {
       try {
-        const response = await axios.get(`${API_BASE_URL}/customers/`);
-        setCustomers(response.data);
-        if (response.data.length > 0) {
-          setSelectedCustomer(response.data[0]);
-          // Set initial amount based on customer's average
-          if (response.data[0].behavioral_profile && 
-              response.data[0].behavioral_profile.transaction_patterns) {
-            setAmount(Math.round(response.data[0].behavioral_profile.transaction_patterns.avg_transaction_amount));
+        setInitialLoading(true);
+        const amlApiUrl = process.env.NEXT_PUBLIC_AML_API_URL || 'https://threatsight-aml.api.mongodb-industry-solutions.com';
+        
+        // Convert page to skip for backend API
+        const limit = 50; // Reduced from 100
+        const skip = 0; // Start from beginning
+        
+        console.log('Fetching entities from:', `${amlApiUrl}/entities/`, { skip, limit });
+        
+        const response = await axios.get(`${amlApiUrl}/entities/`, {
+          params: {
+            skip: skip,
+            limit: limit,
+            has_behavioral_analytics: 'true'  // Request only entities with behavioral analytics
+          }
+        });
+        
+        console.log('API Response:', response.data);
+        
+        // Map entities to customer-like structure for compatibility
+        const entities = response.data?.entities || response.data?.data?.results || response.data?.results || [];
+        console.log('Extracted entities:', entities.length, 'entities');
+        console.log('First entity sample:', entities[0]);
+        console.log('First entity has behavioral_analytics?', !!entities[0]?.behavioral_analytics);
+        console.log('First entity keys:', entities[0] ? Object.keys(entities[0]) : 'no entity');
+        console.log('Full first entity:', JSON.stringify(entities[0], null, 2));
+        
+        if (!Array.isArray(entities)) {
+          console.error('Expected entities to be an array, got:', typeof entities, entities);
+          setError('Invalid response format from entities API');
+          setInitialLoading(false);
+          return;
+        }
+        
+        if (entities.length === 0) {
+          console.warn('No entities returned from API');
+          setError('No entities found. Please ensure entities exist in the database.');
+          setInitialLoading(false);
+          return;
+        }
+        
+        // Sample diverse entities by scenarioKey - get 1-2 per unique scenarioKey
+        const scenarioGroups = {};
+        entities.forEach(entity => {
+          const scenarioKey = entity.scenarioKey || 'unknown';
+          if (!scenarioGroups[scenarioKey]) {
+            scenarioGroups[scenarioKey] = [];
+          }
+          scenarioGroups[scenarioKey].push(entity);
+        });
+        
+        // Take 1-2 entities from each scenario group
+        const sampledEntities = [];
+        Object.keys(scenarioGroups).forEach(scenarioKey => {
+          const group = scenarioGroups[scenarioKey];
+          sampledEntities.push(...group.slice(0, 2)); // Max 2 per scenario
+        });
+        
+        console.log('Sampled entities by scenario:', sampledEntities.length, 'entities from', Object.keys(scenarioGroups).length, 'scenarios');
+        
+        const mappedEntities = sampledEntities.map(entity => {
+          const mapped = {
+            _id: entity.entityId || entity._id || entity.id,
+            personal_info: {
+              name: entity.name_full || (typeof entity.name === 'string' ? entity.name : (entity.name?.full || 'Unknown'))
+            },
+            account_info: entity.account_info || {
+              account_number: entity.entityId || entity._id || 'N/A'
+            },
+            behavioral_profile: entity.behavioral_analytics ? {
+              devices: entity.behavioral_analytics.devices || [],
+              transaction_patterns: entity.behavioral_analytics.transaction_patterns || {}
+            } : null,
+            risk_profile: entity.riskAssessment || entity.risk_assessment ? {
+              overall_risk_score: ((entity.riskAssessment?.overall?.score || entity.risk_assessment?.overall_score || entity.riskAssessment?.overall_score || 0)) * 100 // Convert 0-1 to 0-100 scale
+            } : {
+              overall_risk_score: 0
+            }
+          };
+          console.log('Mapped entity:', mapped._id, 'has behavioral_profile:', !!mapped.behavioral_profile);
+          return mapped;
+        });
+        
+        // Filter to only entities with behavioral data, but log if we're filtering out too many
+        const entitiesWithBehavioral = mappedEntities.filter(entity => entity.behavioral_profile);
+        console.log('Entities with behavioral data:', entitiesWithBehavioral.length, 'out of', mappedEntities.length);
+        
+        if (entitiesWithBehavioral.length === 0) {
+          console.error('No entities with behavioral_analytics found. Sample entity structure:', mappedEntities[0]);
+          setError('No entities with behavioral analytics found. Please ensure entities have behavioral_analytics data.');
+          setInitialLoading(false);
+          return;
+        }
+        
+        setCustomers(entitiesWithBehavioral);
+        if (entitiesWithBehavioral.length > 0) {
+          setSelectedCustomer(entitiesWithBehavioral[0]);
+          // Set initial amount based on entity's average
+          if (entitiesWithBehavioral[0].behavioral_profile?.transaction_patterns?.avg_transaction_amount) {
+            setAmount(Math.round(entitiesWithBehavioral[0].behavioral_profile.transaction_patterns.avg_transaction_amount));
           }
           
-          // Set initial merchant category from customer's common categories
-          if (response.data[0].behavioral_profile?.transaction_patterns?.common_merchant_categories?.length > 0) {
-            setMerchantCategory(response.data[0].behavioral_profile.transaction_patterns.common_merchant_categories[0]);
+          // Set initial merchant category from entity's common categories
+          if (entitiesWithBehavioral[0].behavioral_profile?.transaction_patterns?.common_merchant_categories?.length > 0) {
+            setMerchantCategory(entitiesWithBehavioral[0].behavioral_profile.transaction_patterns.common_merchant_categories[0]);
           }
         }
         setInitialLoading(false);
       } catch (err) {
-        console.error('Error fetching customers:', err);
-        setError('Failed to load customers. Please try again later.');
+        console.error('Error fetching entities:', err);
+        console.error('Error details:', err.response?.data || err.message);
+        setError(`Failed to load entities: ${err.response?.data?.detail || err.message}`);
         setInitialLoading(false);
       }
     }
@@ -258,6 +351,15 @@ function TransactionSimulator() {
     let locationData;
     if (useCommonLocation && selectedCustomer.behavioral_profile?.transaction_patterns?.usual_transaction_locations?.length > 0) {
       const commonLocation = selectedCustomer.behavioral_profile.transaction_patterns.usual_transaction_locations[0];
+      locationData = {
+        city: commonLocation.city,
+        state: commonLocation.state,
+        country: commonLocation.country,
+        coordinates: commonLocation.location
+      };
+    } else if (useCommonLocation && selectedCustomer.behavioral_profile?.location_patterns?.length > 0) {
+      // Fallback to location_patterns if usual_transaction_locations not available
+      const commonLocation = selectedCustomer.behavioral_profile.location_patterns[0];
       locationData = {
         city: commonLocation.city,
         state: commonLocation.state,
@@ -729,8 +831,8 @@ Device: ${transactionData.device_info?.type || 'N/A'}, ${transactionData.device_
           </H3>
           
           <Select
-            label="Customer"
-            placeholder="Select a customer"
+            label="Entity"
+            placeholder="Select an entity"
             onChange={handleCustomerChange}
             value={selectedCustomer?._id}
           >
@@ -1107,7 +1209,7 @@ Device: ${transactionData.device_info?.type || 'N/A'}, ${transactionData.device_
             {selectedCustomer?.behavioral_profile?.transaction_patterns?.usual_transaction_locations?.length > 0 ? (
               <div>
                 <Subtitle style={{ marginBottom: spacing[1] }}>
-                  Using Customer's Common Location
+                  Using Entity's Common Location
                 </Subtitle>
                 <Body style={{ color: palette.gray.dark1 }}>
                   {
@@ -1119,9 +1221,24 @@ Device: ${transactionData.device_info?.type || 'N/A'}, ${transactionData.device_
                   }
                 </Body>
               </div>
+            ) : selectedCustomer?.behavioral_profile?.location_patterns?.length > 0 ? (
+              <div>
+                <Subtitle style={{ marginBottom: spacing[1] }}>
+                  Using Entity's Common Location
+                </Subtitle>
+                <Body style={{ color: palette.gray.dark1 }}>
+                  {
+                    selectedCustomer.behavioral_profile.location_patterns[0].city
+                  }, {
+                    selectedCustomer.behavioral_profile.location_patterns[0].state
+                  }, {
+                    selectedCustomer.behavioral_profile.location_patterns[0].country
+                  }
+                </Body>
+              </div>
             ) : (
               <Banner variant="warning">
-                No common locations found for this customer. Please enter a custom location.
+                No common locations found for this entity. Please enter a custom location.
               </Banner>
             )}
           </div>

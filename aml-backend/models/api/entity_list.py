@@ -28,12 +28,23 @@ class EntityListItem(BaseModel):
     watchlist_matches_count: int = 0
     has_watchlist_matches: bool = False
     
+    # Behavioral analytics and account info (for transaction simulator)
+    behavioral_analytics: Optional[Dict[str, Any]] = None
+    account_info: Optional[Dict[str, Any]] = None
+    
+    # Embeddings (for entity management UI)
+    identifierEmbedding: Optional[List[float]] = None
+    behavioralEmbedding: Optional[List[float]] = None
+    identifierText: Optional[str] = None
+    behavioralText: Optional[str] = None
+    
     # Timestamps
     created_date: datetime
     updated_date: Optional[datetime] = None
     
     class Config:
         populate_by_name = True
+        extra = "allow"  # Allow additional fields from projection
         json_encoders = {
             datetime: lambda v: v.isoformat()
         }
@@ -96,22 +107,33 @@ def create_entity_list_response(
     # Transform entities to match frontend expectations
     entity_items = []
     for entity in entities:
-        # Ensure required fields have defaults
-        entity_item = EntityListItem(
-            _id=str(entity["_id"]),
-            entityId=entity.get("entityId", ""),
-            scenarioKey=entity.get("scenarioKey"),
-            name_full=entity.get("name_full", "Unknown"),
-            entityType=entity.get("entityType", "individual"),
-            status=entity.get("status", "active"),
-            risk_level=entity.get("risk_level", "low"),
-            risk_score=entity.get("risk_score", 0.0),
-            watchlist_matches_count=entity.get("watchlist_matches_count", 0),
-            has_watchlist_matches=entity.get("has_watchlist_matches", False),
-            created_date=entity.get("created_date", datetime.utcnow()),
-            updated_date=entity.get("updated_date")
-        )
-        entity_items.append(entity_item)
+        # Build entity dict with all fields, including behavioral_analytics and embeddings
+        entity_dict = {
+            "_id": str(entity["_id"]),
+            "entityId": entity.get("entityId", ""),
+            "scenarioKey": entity.get("scenarioKey"),
+            "name_full": entity.get("name_full", "Unknown"),
+            "entityType": entity.get("entityType", "individual"),
+            "status": entity.get("status", "active"),
+            "risk_level": entity.get("risk_level", "low"),
+            "risk_score": entity.get("risk_score", 0.0),
+            "watchlist_matches_count": entity.get("watchlist_matches_count", 0),
+            "has_watchlist_matches": entity.get("has_watchlist_matches", False),
+            "behavioral_analytics": entity.get("behavioral_analytics"),  # Include behavioral analytics
+            "account_info": entity.get("account_info"),  # Include account info
+            "identifierEmbedding": entity.get("identifierEmbedding"),  # Include identifier embedding
+            "behavioralEmbedding": entity.get("behavioralEmbedding"),  # Include behavioral embedding
+            "identifierText": entity.get("identifierText"),  # Include identifier text
+            "behavioralText": entity.get("behavioralText"),  # Include behavioral text
+            "created_date": entity.get("created_date", datetime.utcnow()),
+            "updated_date": entity.get("updated_date")
+        }
+        # Add any additional fields from the entity dict (like 'name', 'riskAssessment', etc.)
+        for key, value in entity.items():
+            if key not in entity_dict and key not in ["_id"]:
+                entity_dict[key] = value
+        
+        entity_items.append(EntityListItem(**entity_dict))
     
     # Calculate pagination
     has_next = (offset + len(entities)) < total_count

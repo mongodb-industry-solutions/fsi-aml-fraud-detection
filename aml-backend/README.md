@@ -98,6 +98,8 @@ FRONTEND_URL=http://localhost:3000
 # Atlas Search Configuration
 ATLAS_SEARCH_INDEX=entity_search_index_v2
 ENTITY_VECTOR_INDEX=entity_vector_search_index
+ENTITY_IDENTIFIER_VECTOR_INDEX=entity_identifier_vector_index
+ENTITY_BEHAVIORAL_VECTOR_INDEX=entity_behavioral_vector_index
 ```
 
 ### 3. MongoDB Atlas Search Setup

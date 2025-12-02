@@ -549,6 +549,8 @@ function EntityResolutionDisplay({ resolution }) {
 }
 
 function ComprehensiveOverviewTab({ entity }) {
+  const router = useRouter();
+  const [activeSubTab, setActiveSubTab] = useState(0);
   const primaryAddress = amlUtils.getPrimaryAddress(entity.addresses);
   const primaryIdentifier = amlUtils.getPrimaryIdentifier(entity.identifiers);
 
@@ -710,21 +712,30 @@ function ComprehensiveOverviewTab({ entity }) {
     );
   };
 
+  // Handler for navigating to transaction simulator
+  const handleGoToTransactionSimulator = () => {
+    router.push(`/transaction-simulator?entityId=${entity.entityId}`);
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[4] }}>
-      {/* Section 1: Identifier Information */}
-      <div style={{ marginTop: spacing[4] }}>
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: spacing[2], 
-          marginBottom: spacing[3],
-          paddingBottom: spacing[2],
-          borderBottom: `2px solid ${palette.blue.light2}`
-        }}>
-          <Icon glyph="Person" size={20} fill={palette.blue.base} />
-          <H2 style={{ margin: 0, color: palette.blue.dark2 }}>Identifier Information</H2>
-        </div>
+      {/* Sub-tabs for Overview */}
+      <Tabs selected={activeSubTab} setSelected={setActiveSubTab}>
+        <Tab name="Identifier">
+          <div style={{ marginTop: spacing[3] }}>
+            {/* Section 1: Identifier Information */}
+            <div style={{ marginTop: spacing[4] }}>
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: spacing[2], 
+                marginBottom: spacing[3],
+                paddingBottom: spacing[2],
+                borderBottom: `2px solid ${palette.blue.light2}`
+              }}>
+                <Icon glyph="Person" size={20} fill={palette.blue.base} />
+                <H2 style={{ margin: 0, color: palette.blue.dark2 }}>Identifier Information</H2>
+              </div>
         
         <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[3] }}>
           {/* Basic Entity Information */}
@@ -1115,20 +1126,24 @@ function ComprehensiveOverviewTab({ entity }) {
           )}
         </div>
       </div>
+            </div>
+        </Tab>
 
-      {/* Section 2: Behavioral Profile */}
-      <div style={{ marginTop: spacing[4] }}>
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: spacing[2], 
-          marginBottom: spacing[3],
-          paddingBottom: spacing[2],
-          borderBottom: `2px solid ${palette.green.light2}`
-        }}>
-          <Icon glyph="Activity" size={20} fill={palette.green.base} />
-          <H2 style={{ margin: 0, color: palette.green.dark2 }}>Behavioral Profile</H2>
-        </div>
+        <Tab name="Behavioural">
+          <div style={{ marginTop: spacing[3] }}>
+            {/* Section 2: Behavioral Profile */}
+            <div style={{ marginTop: spacing[4] }}>
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: spacing[2], 
+                marginBottom: spacing[3],
+                paddingBottom: spacing[2],
+                borderBottom: `2px solid ${palette.green.light2}`
+              }}>
+                <Icon glyph="Activity" size={20} fill={palette.green.base} />
+                <H2 style={{ margin: 0, color: palette.green.dark2 }}>Behavioral Profile</H2>
+              </div>
         
         <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[3] }}>
           {/* Customer Information */}
@@ -1370,7 +1385,7 @@ function ComprehensiveOverviewTab({ entity }) {
                     borderBottom: `1px solid ${palette.gray.light2}`
                   }}>
                     <H3 style={{ marginBottom: spacing[3], fontSize: '16px' }}>
-                      <Icon glyph="Location" style={{ marginRight: spacing[2] }} />
+                      <Icon glyph="Building" style={{ marginRight: spacing[2] }} />
                       Location Patterns ({entity.behavioral_analytics.location_patterns.length})
                     </H3>
                     <Table>
@@ -1451,76 +1466,94 @@ function ComprehensiveOverviewTab({ entity }) {
               </div>
             </Card>
           )}
-        </div>
-      </div>
 
-      {/* Section 3: Risk Profile */}
-      <div style={{ marginTop: spacing[4] }}>
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: spacing[2], 
-          marginBottom: spacing[3],
-          paddingBottom: spacing[2],
-          borderBottom: `2px solid ${palette.red.light2}`
-        }}>
-          <Icon glyph="Warning" size={20} fill={palette.red.base} />
-          <H2 style={{ margin: 0, color: palette.red.dark2 }}>Risk Profile</H2>
-        </div>
-        
-        <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[3] }}>
-          {/* Watchlist Matches */}
-          <WatchlistMatchesDisplay watchlistMatches={entity.watchlistMatches} />
-
-          {/* Risk Component Breakdown */}
-          <RiskComponentsDisplay riskAssessment={entity.riskAssessment} />
-
-          {/* Entity Resolution Information */}
-          <EntityResolutionDisplay resolution={entity.resolution} />
-        </div>
-      </div>
-      
-      {/* MongoDB Unified Data Model Card */}
-      <Card
-        style={{
-          background: palette.yellow.light3,
-          padding: spacing[3],
-          marginTop: spacing[3],
-          border: `1px solid ${palette.yellow.light1}`
-        }}
-      >
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'flex-start', 
-          gap: spacing[2] 
-        }}>
-          <Icon 
-            glyph="Link" 
-            size={16} 
-            fill={palette.yellow.dark2} 
-            style={{ marginTop: '2px' }}
-          />
-          <div>
-            <Body 
-              weight="medium" 
-              style={{ 
-                fontSize: '13px', 
-                color: palette.yellow.dark2,
-                marginBottom: spacing[1]
-              }}
+          {/* Go to Transaction Simulator Button */}
+          <div style={{ marginTop: spacing[4], display: 'flex', justifyContent: 'center' }}>
+            <Button
+              variant="primary"
+              onClick={handleGoToTransactionSimulator}
+              leftGlyph={<Icon glyph="CreditCard" />}
+              size="default"
             >
-              Unified Data Model
-            </Body>
-            <Body style={{ fontSize: '12px', color: palette.yellow.dark1 }}>
-              MongoDB's flexible document model enables storing all entity data—identifiers, behavioral patterns, 
-              risk assessments, and relationships—in a single document. This eliminates the need for complex 
-              JOIN operations across multiple tables, providing faster queries and simpler data management 
-              compared to traditional relational database architectures.
-            </Body>
+              Go to Transaction Simulator
+            </Button>
           </div>
         </div>
-      </Card>
+      </div>
+            </div>
+        </Tab>
 
+        <Tab name="Risk">
+          <div style={{ marginTop: spacing[3] }}>
+            {/* Section 3: Risk Profile */}
+            <div style={{ marginTop: spacing[4] }}>
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: spacing[2], 
+                marginBottom: spacing[3],
+                paddingBottom: spacing[2],
+                borderBottom: `2px solid ${palette.red.light2}`
+              }}>
+                <Icon glyph="Warning" size={20} fill={palette.red.base} />
+                <H2 style={{ margin: 0, color: palette.red.dark2 }}>Risk Profile</H2>
+              </div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[3] }}>
+                {/* Watchlist Matches */}
+                <WatchlistMatchesDisplay watchlistMatches={entity.watchlistMatches} />
+
+                {/* Risk Component Breakdown */}
+                <RiskComponentsDisplay riskAssessment={entity.riskAssessment} />
+
+                {/* Entity Resolution Information */}
+                <EntityResolutionDisplay resolution={entity.resolution} />
+              </div>
+            </div>
+            
+            {/* MongoDB Unified Data Model Card */}
+            <Card
+              style={{
+                background: palette.yellow.light3,
+                padding: spacing[3],
+                marginTop: spacing[3],
+                border: `1px solid ${palette.yellow.light1}`
+              }}
+            >
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'flex-start', 
+                gap: spacing[2] 
+              }}>
+                <Icon 
+                  glyph="Link" 
+                  size={16} 
+                  fill={palette.yellow.dark2} 
+                  style={{ marginTop: '2px' }}
+                />
+                <div>
+                  <Body 
+                    weight="medium" 
+                    style={{ 
+                      fontSize: '13px', 
+                      color: palette.yellow.dark2,
+                      marginBottom: spacing[1]
+                    }}
+                  >
+                    Unified Data Model
+                  </Body>
+                  <Body style={{ fontSize: '12px', color: palette.yellow.dark1 }}>
+                    MongoDB's flexible document model enables storing all entity data—identifiers, behavioral patterns, 
+                    risk assessments, and relationships—in a single document. This eliminates the need for complex 
+                    JOIN operations across multiple tables, providing faster queries and simpler data management 
+                    compared to traditional relational database architectures.
+                  </Body>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </Tab>
+      </Tabs>
     </div>
   );
 }
@@ -2125,7 +2158,7 @@ function ActivityAnalysisTab({ entity }) {
             gap: spacing[2] 
           }}>
             <Icon 
-              glyph="ActivityFeed" 
+              glyph="LightningBolt" 
               size={16} 
               fill={palette.green.dark2} 
               style={{ marginTop: '2px' }}

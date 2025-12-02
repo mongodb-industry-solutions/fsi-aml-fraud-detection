@@ -40,7 +40,7 @@ function Header() {
         
         <Link href="/entity-resolution/enhanced" className={styles.navLink}>
           <Icon glyph="University" fill={palette.gray.light3} /> 
-          <Body>Entity Resolution</Body>
+          <Body>Entity Resolution/KYC</Body>
         </Link>
         
         <Link href="/transaction-simulator" className={styles.navLink}>

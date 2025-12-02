@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import axios from 'axios';
 import Card from '@leafygreen-ui/card';
 import Button from '@leafygreen-ui/button';
 import { Select, Option } from '@leafygreen-ui/select';
 import Toggle from '@leafygreen-ui/toggle';
 import Banner from '@leafygreen-ui/banner';
+import Badge from '@leafygreen-ui/badge';
 import { Table, TableBody, TableHead, HeaderRow, HeaderCell, Row, Cell, useLeafyGreenTable, flexRender } from '@leafygreen-ui/table';
 import { Body, H1, H2, H3, Subtitle, InlineCode, InlineKeyCode, Disclaimer, Error as ErrorText, Label, Description, BackLink } from '@leafygreen-ui/typography';
 import { Tabs, Tab } from '@leafygreen-ui/tabs';
@@ -75,6 +77,9 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 const TAB_VECTOR_SEARCH = 0;
 
 function TransactionSimulator() {
+  const searchParams = useSearchParams();
+  const entityIdFromUrl = searchParams?.get('entityId');
+
   // State variables
   const [customers, setCustomers] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -213,15 +218,29 @@ function TransactionSimulator() {
         
         setCustomers(entitiesWithBehavioral);
         if (entitiesWithBehavioral.length > 0) {
-          setSelectedCustomer(entitiesWithBehavioral[0]);
+          // Check if entityId is provided in URL and find matching entity
+          let entityToSelect = entitiesWithBehavioral[0];
+          if (entityIdFromUrl) {
+            const foundEntity = entitiesWithBehavioral.find(
+              entity => entity._id === entityIdFromUrl
+            );
+            if (foundEntity) {
+              entityToSelect = foundEntity;
+              console.log('Pre-selected entity from URL:', entityIdFromUrl);
+            } else {
+              console.warn('Entity ID from URL not found in loaded entities:', entityIdFromUrl);
+            }
+          }
+          
+          setSelectedCustomer(entityToSelect);
           // Set initial amount based on entity's average
-          if (entitiesWithBehavioral[0].behavioral_profile?.transaction_patterns?.avg_transaction_amount) {
-            setAmount(Math.round(entitiesWithBehavioral[0].behavioral_profile.transaction_patterns.avg_transaction_amount));
+          if (entityToSelect.behavioral_profile?.transaction_patterns?.avg_transaction_amount) {
+            setAmount(Math.round(entityToSelect.behavioral_profile.transaction_patterns.avg_transaction_amount));
           }
           
           // Set initial merchant category from entity's common categories
-          if (entitiesWithBehavioral[0].behavioral_profile?.transaction_patterns?.common_merchant_categories?.length > 0) {
-            setMerchantCategory(entitiesWithBehavioral[0].behavioral_profile.transaction_patterns.common_merchant_categories[0]);
+          if (entityToSelect.behavioral_profile?.transaction_patterns?.common_merchant_categories?.length > 0) {
+            setMerchantCategory(entityToSelect.behavioral_profile.transaction_patterns.common_merchant_categories[0]);
           }
         }
         setInitialLoading(false);
@@ -234,7 +253,7 @@ function TransactionSimulator() {
     }
 
     fetchInitialData();
-  }, []);
+  }, [entityIdFromUrl]);
 
   // Handle customer selection
   const handleCustomerChange = (customerId) => {
@@ -560,9 +579,22 @@ Device: ${transactionData.device_info?.type || 'N/A'}, ${transactionData.device_
                   <div style={{ marginBottom: spacing[3] }}>
                     <H3>Vector Search Fraud Analysis</H3>
                     <Body style={{ marginTop: spacing[1] }}>
-                      Using MongoDB Vector Search to analyze semantically similar transactions for fraud detection
+                      Using MongoDB Vector Search to analyze semantically similar transactions for fraud detection. Only behavioral features are embedded using AWS Titan sentence transformer model. Transaction amount is used separately for risk scoring.
                     </Body>
                   </div>
+                  
+                  {/* Informational callout explaining feature separation */}
+                  <Callout 
+                    variant="note" 
+                    style={{ marginBottom: spacing[3] }}
+                  >
+                    <Body weight="medium" style={{ marginBottom: spacing[1] }}>
+                      How Vector Search Works
+                    </Body>
+                    <Body size="small">
+                      <strong>Behavioral features</strong> (merchant category, transaction type, payment method, location, device) are converted to embeddings using AWS Titan sentence transformer. These embeddings capture semantic patterns and behavioral similarities. <strong>Transaction amount</strong> is a structured numeric value and is excluded from embedding but used separately for risk scoring calculations.
+                    </Body>
+                  </Callout>
                   
                   {/* Vector search representation */}
                   <div style={{ marginBottom: spacing[3] }}>
@@ -573,63 +605,159 @@ Device: ${transactionData.device_info?.type || 'N/A'}, ${transactionData.device_
                       </div>
                     </Subtitle>
                     
+                    {/* Feature separation: Behavioral vs Structured */}
                     <div style={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between', 
-                      alignItems: 'center',
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      gap: spacing[3],
                       marginTop: spacing[2],
-                      flexWrap: 'wrap'
+                      marginBottom: spacing[3]
                     }}>
+                      {/* Behavioral Features Box */}
                       <div style={{ 
-                        background: palette.blue.light2, 
-                        padding: spacing[2], 
-                        borderRadius: '4px',
-                        flex: '1 1 200px',
-                        margin: spacing[1]
+                        background: palette.green.light3, 
+                        padding: spacing[3], 
+                        borderRadius: '6px',
+                        border: `2px solid ${palette.green.base}`
                       }}>
-                        <Body weight="medium" style={{ color: palette.blue.dark2 }}>Transaction Text</Body>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1], marginBottom: spacing[2] }}>
+                          <Icon glyph="CheckmarkWithCircle" fill={palette.green.dark2} />
+                          <Body weight="medium" style={{ color: palette.green.dark2 }}>Behavioral Features</Body>
+                        </div>
+                        <div style={{ fontSize: '12px', color: palette.gray.dark2 }}>
+                          <div style={{ marginBottom: spacing[1] }}>• Merchant Category</div>
+                          <div style={{ marginBottom: spacing[1] }}>• Transaction Type</div>
+                          <div style={{ marginBottom: spacing[1] }}>• Payment Method</div>
+                          <div style={{ marginBottom: spacing[1] }}>• Location</div>
+                          <div>• Device Info</div>
+                        </div>
                       </div>
                       
-                      <div style={{ display: 'flex', alignItems: 'center', padding: `0 ${spacing[1]}px` }}>
-                        <Icon glyph="ArrowRight" />
-                      </div>
-                      
+                      {/* Structured Element Box */}
                       <div style={{ 
-                        background: palette.purple.light2, 
-                        padding: spacing[2], 
-                        borderRadius: '4px',
-                        flex: '1 1 200px',
-                        margin: spacing[1]
+                        background: palette.gray.light2, 
+                        padding: spacing[3], 
+                        borderRadius: '6px',
+                        border: `2px solid ${palette.gray.base}`,
+                        opacity: 0.7
                       }}>
-                        <Body weight="medium" style={{ color: palette.purple.dark2 }}>Embedding Model</Body>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: spacing[1], marginBottom: spacing[2] }}>
+                          <Icon glyph="X" fill={palette.gray.dark2} />
+                          <Body weight="medium" style={{ color: palette.gray.dark2 }}>Structured Element</Body>
+                        </div>
+                        <div style={{ fontSize: '12px', color: palette.gray.dark2 }}>
+                          <div>• Transaction Amount</div>
+                          <Body size="small" style={{ marginTop: spacing[1], fontStyle: 'italic', color: palette.gray.dark1 }}>
+                            (Excluded from embedding)
+                          </Body>
+                        </div>
                       </div>
-                      
-                      <div style={{ display: 'flex', alignItems: 'center', padding: `0 ${spacing[1]}px` }}>
-                        <Icon glyph="ArrowRight" />
-                      </div>
-                      
+                    </div>
+                    
+                    {/* Flow diagram for behavioral features */}
+                    <div style={{ 
+                      marginTop: spacing[3],
+                      marginBottom: spacing[2]
+                    }}>
+                      <Body weight="medium" style={{ marginBottom: spacing[2], color: palette.green.dark2 }}>
+                        Behavioral Features Flow:
+                      </Body>
                       <div style={{ 
-                        background: palette.green.light2, 
-                        padding: spacing[2], 
-                        borderRadius: '4px',
-                        flex: '1 1 200px',
-                        margin: spacing[1]
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: spacing[2]
                       }}>
-                        <Body weight="medium" style={{ color: palette.green.dark2 }}>Vector (1536 dimensions)</Body>
+                        <div style={{ 
+                          background: palette.green.light2, 
+                          padding: spacing[2], 
+                          borderRadius: '4px',
+                          flex: '1 1 150px',
+                          minWidth: '120px'
+                        }}>
+                          <Body size="small" weight="medium" style={{ color: palette.green.dark2 }}>Behavioral Features</Body>
+                        </div>
+                        
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <Icon glyph="ArrowRight" fill={palette.green.dark2} />
+                        </div>
+                        
+                        <div style={{ 
+                          background: palette.purple.light2, 
+                          padding: spacing[2], 
+                          borderRadius: '4px',
+                          flex: '1 1 150px',
+                          minWidth: '120px'
+                        }}>
+                          <Body size="small" weight="medium" style={{ color: palette.purple.dark2 }}>AWS Titan Embedding Model</Body>
+                        </div>
+                        
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <Icon glyph="ArrowRight" fill={palette.green.dark2} />
+                        </div>
+                        
+                        <div style={{ 
+                          background: palette.blue.light2, 
+                          padding: spacing[2], 
+                          borderRadius: '4px',
+                          flex: '1 1 150px',
+                          minWidth: '120px'
+                        }}>
+                          <Body size="small" weight="medium" style={{ color: palette.blue.dark2 }}>Vector (1536 dimensions)</Body>
+                        </div>
+                        
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <Icon glyph="ArrowRight" fill={palette.green.dark2} />
+                        </div>
+                        
+                        <div style={{ 
+                          background: palette.yellow.light2, 
+                          padding: spacing[2], 
+                          borderRadius: '4px',
+                          flex: '1 1 150px',
+                          minWidth: '120px'
+                        }}>
+                          <Body size="small" weight="medium" style={{ color: palette.yellow.dark2 }}>MongoDB Vector Search</Body>
+                        </div>
                       </div>
-                      
-                      <div style={{ display: 'flex', alignItems: 'center', padding: `0 ${spacing[1]}px` }}>
-                        <Icon glyph="ArrowRight" />
-                      </div>
-                      
+                    </div>
+                    
+                    {/* Separate flow for amount */}
+                    <div style={{ 
+                      marginTop: spacing[3],
+                      paddingTop: spacing[3],
+                      borderTop: `1px dashed ${palette.gray.light1}`
+                    }}>
+                      <Body weight="medium" style={{ marginBottom: spacing[2], color: palette.gray.dark2 }}>
+                        Transaction Amount Flow:
+                      </Body>
                       <div style={{ 
-                        background: palette.yellow.light2, 
-                        padding: spacing[2], 
-                        borderRadius: '4px',
-                        flex: '1 1 200px',
-                        margin: spacing[1]
+                        display: 'flex', 
+                        alignItems: 'center',
+                        gap: spacing[2],
+                        flexWrap: 'wrap'
                       }}>
-                        <Body weight="medium" style={{ color: palette.yellow.dark2 }}>MongoDB Vector Search</Body>
+                        <div style={{ 
+                          background: palette.gray.light2, 
+                          padding: spacing[2], 
+                          borderRadius: '4px',
+                          opacity: 0.7
+                        }}>
+                          <Body size="small" weight="medium" style={{ color: palette.gray.dark2 }}>Amount</Body>
+                        </div>
+                        
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <Icon glyph="ArrowRight" fill={palette.gray.dark2} />
+                        </div>
+                        
+                        <div style={{ 
+                          background: palette.red.light2, 
+                          padding: spacing[2], 
+                          borderRadius: '4px'
+                        }}>
+                          <Body size="small" weight="medium" style={{ color: palette.red.dark2 }}>Risk Scoring (Separate)</Body>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -864,7 +992,7 @@ Device: ${transactionData.device_info?.type || 'N/A'}, ${transactionData.device_
                 </div>
                 <div>
                   <Body weight="medium" size="small">Risk Score</Body>
-                  <Body>{selectedCustomer.risk_profile.overall_risk_score.toFixed(2)}</Body>
+                  <Body>{(selectedCustomer.risk_profile.overall_risk_score / 100).toFixed(2)}</Body>
                 </div>
                 <div>
                   <Body weight="medium" size="small">Avg. Transaction</Body>

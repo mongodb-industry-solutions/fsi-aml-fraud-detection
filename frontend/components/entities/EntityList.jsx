@@ -371,7 +371,7 @@ export default function EntityList() {
     <div style={{ padding: spacing[0] }}>
       {/* Header */}
       <div style={{ marginBottom: spacing[4] }}>
-        <H1>Entity Management</H1>
+        <H1>Entity Management/KYC</H1>
       </div>
 
       {/* Error Banner */}
@@ -400,16 +400,6 @@ export default function EntityList() {
           loading={loading}
         />
       </div>
-
-      {/* MongoDB Atlas Search Insights Panel */}
-      <MongoDBInsightsPanel
-        searchQuery={searchQuery}
-        activeFilters={filters}
-        facetCounts={facets}
-        autocompleteActive={autocompleteActive}
-      />
-      
-      <div style={{ marginBottom: spacing[4] }}></div>
 
       {/* Results Summary */}
       {!loading && (
@@ -520,6 +510,17 @@ export default function EntityList() {
           </Button>
         </div>
       )}
+
+      {/* Add bottom padding to prevent content from being hidden behind footer console */}
+      <div style={{ height: '60px' }}></div>
+
+      {/* MongoDB Atlas Search Insights Panel - Footer Console */}
+      <MongoDBInsightsPanel
+        searchQuery={searchQuery}
+        activeFilters={filters}
+        facetCounts={facets}
+        autocompleteActive={autocompleteActive}
+      />
     </div>
   );
 }

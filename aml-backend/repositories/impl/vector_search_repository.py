@@ -10,6 +10,7 @@ Focus: Core vector search functionality without complex bulk operations.
 import logging
 import math
 import os
+import re
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Tuple
 from bson import ObjectId
@@ -423,102 +424,356 @@ class VectorSearchRepository(VectorSearchRepositoryInterface):
     
     def _create_identifier_text(self, entity_data: Dict[str, Any]) -> str:
         """
-        Create identifier text representation for identifier embedding:
-        - Name (full name and alternate names)
-        - Identifiers (passport, national_id, tax_id, ssn, ein, etc.)
-        - Address (full address, city, country)
-        - Date of Birth
-        - Nationality
+        Create enhanced identifier text representation for identifier embedding.
+        
+        Enhanced features:
+        - Normalized addresses and names
+        - Semantic natural language structure
+        - Field weighting (emphasizes unique identifiers)
+        - Better handling of name variations
+        - Structured format for better embedding quality
         
         Args:
             entity_data: Entity data dictionary
             
         Returns:
-            str: Concatenated identifier text for embedding generation
+            str: Enhanced concatenated identifier text for embedding generation
         """
         try:
-            text_parts = []
+            entity_type = entity_data.get("entityType", entity_data.get("entity_type", "individual"))
+            is_individual = entity_type.lower() == "individual"
             
-            # Name - handle both structured and simple name fields
-            name = entity_data.get("name")
-            if isinstance(name, dict):
-                full_name = name.get("full") or name.get("structured", {}).get("first", "") + " " + name.get("structured", {}).get("last", "")
-                if full_name.strip():
-                    text_parts.append(f"Name: {full_name.strip()}")
-            elif isinstance(name, str):
-                text_parts.append(f"Name: {name}")
+            # Build semantic text parts
+            semantic_parts = []
             
-            # Alternate names
-            alternate_names = entity_data.get("alternate_names", [])
-            if alternate_names:
-                text_parts.append(f"Alternate Names: {', '.join(alternate_names)}")
+            # ========== NAME SECTION (High Priority) ==========
+            name_section = self._build_name_section(entity_data)
+            if name_section:
+                semantic_parts.append(name_section)
             
-            # Identifiers
-            identifiers = entity_data.get("identifiers", {})
-            if isinstance(identifiers, dict):
-                for id_type, id_value in identifiers.items():
-                    if id_value:
-                        text_parts.append(f"{id_type.replace('_', ' ').title()}: {id_value}")
+            # ========== IDENTIFIERS SECTION (Highest Priority - Unique Identifiers) ==========
+            identifiers_section = self._build_identifiers_section(entity_data)
+            if identifiers_section:
+                semantic_parts.append(identifiers_section)
             
-            # Address - handle structured address
-            addresses = entity_data.get("addresses", [])
-            if addresses and isinstance(addresses, list) and len(addresses) > 0:
-                primary_addr = addresses[0]
-                if isinstance(primary_addr, dict):
-                    addr_parts = []
-                    if primary_addr.get("full"):
-                        addr_parts.append(primary_addr["full"])
-                    elif primary_addr.get("structured"):
-                        struct = primary_addr["structured"]
-                        if struct.get("street"):
-                            addr_parts.append(struct["street"])
-                        if struct.get("city"):
-                            addr_parts.append(struct["city"])
-                        if struct.get("state"):
-                            addr_parts.append(struct["state"])
-                        if struct.get("postalCode"):
-                            addr_parts.append(struct["postalCode"])
-                        if struct.get("country"):
-                            addr_parts.append(struct["country"])
-                    if addr_parts:
-                        text_parts.append(f"Address: {', '.join(addr_parts)}")
+            # ========== DATE OF BIRTH / INCORPORATION SECTION ==========
+            date_section = self._build_date_section(entity_data, is_individual)
+            if date_section:
+                semantic_parts.append(date_section)
             
-            # Contact address (fallback)
-            contact = entity_data.get("contact", {})
-            if isinstance(contact, dict):
-                if contact.get("address"):
-                    text_parts.append(f"Contact Address: {contact['address']}")
-                if contact.get("city"):
-                    text_parts.append(f"City: {contact['city']}")
-                if contact.get("country"):
-                    text_parts.append(f"Country: {contact['country']}")
+            # ========== LOCATION SECTION (Address, Nationality, Residency) ==========
+            location_section = self._build_location_section(entity_data)
+            if location_section:
+                semantic_parts.append(location_section)
             
-            # Date of Birth
-            dob = entity_data.get("dateOfBirth")
-            if not dob:
-                dob = entity_data.get("dob")
-            if dob:
-                text_parts.append(f"Date of Birth: {dob}")
-            
-            # Nationality
-            nationality = entity_data.get("nationality")
-            if nationality:
-                if isinstance(nationality, list):
-                    text_parts.append(f"Nationality: {', '.join(nationality)}")
-                elif isinstance(nationality, str):
-                    text_parts.append(f"Nationality: {nationality}")
-            
-            # Residency
-            residency = entity_data.get("residency")
-            if residency:
-                text_parts.append(f"Residency: {residency}")
-            
-            # Join with consistent separator
-            return " | ".join(text_parts)
+            # Join with natural language flow
+            if semantic_parts:
+                return ". ".join(semantic_parts) + "."
+            else:
+                return ""
             
         except Exception as e:
             logger.error(f"Failed to create identifier text: {e}")
             return ""
+    
+    def _build_name_section(self, entity_data: Dict[str, Any]) -> str:
+        """Build natural language name section with variations"""
+        name_parts = []
+        
+        # Extract name information
+        name = entity_data.get("name")
+        name_dict = {}
+        
+        if isinstance(name, dict):
+            name_dict = name
+            full_name = name.get("full", "").strip()
+            structured = name.get("structured", {})
+        elif isinstance(name, str):
+            full_name = name.strip()
+            structured = {}
+        else:
+            full_name = ""
+            structured = {}
+        
+        # Build name from structured parts if full name not available
+        if not full_name and structured:
+            first = structured.get("first", "").strip()
+            middle = structured.get("middle", "").strip()
+            last = structured.get("last", "").strip()
+            
+            if first and last:
+                full_name = f"{first}"
+                if middle:
+                    full_name += f" {middle}"
+                full_name += f" {last}"
+            elif first:
+                full_name = first
+            elif last:
+                full_name = last
+        
+        # Normalize and format name
+        if full_name:
+            normalized_name = self._normalize_name(full_name)
+            name_parts.append(normalized_name)
+        
+        # Add alternate names/aliases
+        alternate_names = entity_data.get("alternate_names", [])
+        if not alternate_names and name_dict:
+            # Check for aliases in name structure
+            aliases = name_dict.get("aliases", [])
+            if aliases:
+                alternate_names = aliases
+        
+        if alternate_names:
+            normalized_alternates = [self._normalize_name(alt) for alt in alternate_names if alt and alt.strip()]
+            if normalized_alternates:
+                if len(normalized_alternates) == 1:
+                    name_parts.append(f"also known as {normalized_alternates[0]}")
+                else:
+                    name_parts.append(f"also known as {', '.join(normalized_alternates[:-1])}, and {normalized_alternates[-1]}")
+        
+        if name_parts:
+            return f"Entity: {', '.join(name_parts)}"
+        return ""
+    
+    def _build_identifiers_section(self, entity_data: Dict[str, Any]) -> str:
+        """Build identifiers section with emphasis on unique identifiers"""
+        identifiers = entity_data.get("identifiers", {})
+        if not isinstance(identifiers, dict) or not identifiers:
+            return ""
+        
+        # Priority order: unique identifiers first
+        priority_order = [
+            ("passport", "passport number"),
+            ("ssn", "Social Security Number"),
+            ("national_id", "national ID"),
+            ("tax_id", "tax ID"),
+            ("ein", "Employer Identification Number"),
+            ("drivers_license", "driver's license"),
+            ("driversLicense", "driver's license"),
+        ]
+        
+        identifier_parts = []
+        other_identifiers = []
+        
+        # Process priority identifiers first
+        processed_types = set()
+        for id_key, id_label in priority_order:
+            # Check both snake_case and camelCase
+            id_value = identifiers.get(id_key) or identifiers.get(self._to_camel_case(id_key))
+            if id_value and str(id_value).strip():
+                identifier_parts.append(f"{id_label} {str(id_value).strip()}")
+                processed_types.add(id_key)
+                processed_types.add(self._to_camel_case(id_key))
+        
+        # Process remaining identifiers
+        for id_type, id_value in identifiers.items():
+            if id_type not in processed_types and id_value and str(id_value).strip():
+                normalized_type = id_type.replace("_", " ").title()
+                other_identifiers.append(f"{normalized_type} {str(id_value).strip()}")
+        
+        # Combine priority and other identifiers
+        all_identifiers = identifier_parts + other_identifiers
+        
+        if all_identifiers:
+            if len(all_identifiers) == 1:
+                return f"Holds {all_identifiers[0]}"
+            elif len(all_identifiers) == 2:
+                return f"Holds {all_identifiers[0]} and {all_identifiers[1]}"
+            else:
+                return f"Holds {', '.join(all_identifiers[:-1])}, and {all_identifiers[-1]}"
+        
+        return ""
+    
+    def _build_date_section(self, entity_data: Dict[str, Any], is_individual: bool) -> str:
+        """Build date section (DOB for individuals, incorporation date for organizations)"""
+        if is_individual:
+            dob = entity_data.get("dateOfBirth") or entity_data.get("dob")
+            place_of_birth = entity_data.get("placeOfBirth") or entity_data.get("place_of_birth")
+            
+            date_parts = []
+            if dob:
+                date_parts.append(f"born on {dob}")
+            if place_of_birth:
+                date_parts.append(f"in {place_of_birth}")
+            
+            if date_parts:
+                return f"Born {' '.join(date_parts)}"
+        else:
+            # Organization
+            incorp_date = entity_data.get("incorporationDate") or entity_data.get("incorporation_date")
+            jurisdiction = entity_data.get("jurisdictionOfIncorporation") or entity_data.get("jurisdiction_of_incorporation")
+            
+            date_parts = []
+            if incorp_date:
+                date_parts.append(f"incorporated on {incorp_date}")
+            if jurisdiction:
+                date_parts.append(f"in {jurisdiction}")
+            
+            if date_parts:
+                return f"Incorporated {' '.join(date_parts)}"
+        
+        return ""
+    
+    def _build_location_section(self, entity_data: Dict[str, Any]) -> str:
+        """Build location section (address, nationality, residency)"""
+        location_parts = []
+        
+        # Address - normalized
+        normalized_address = self._normalize_address(entity_data)
+        if normalized_address:
+            location_parts.append(f"resides at {normalized_address}")
+        
+        # Nationality
+        nationality = entity_data.get("nationality")
+        if nationality:
+            if isinstance(nationality, list):
+                nat_str = ", ".join(nationality)
+            else:
+                nat_str = str(nationality)
+            location_parts.append(f"Nationality: {nat_str}")
+        
+        # Residency
+        residency = entity_data.get("residency")
+        if residency:
+            location_parts.append(f"Residency: {residency}")
+        
+        if location_parts:
+            return ". ".join(location_parts)
+        return ""
+    
+    def _normalize_name(self, name: str) -> str:
+        """Normalize name to title case and handle common variations"""
+        if not name or not name.strip():
+            return ""
+        
+        name = name.strip()
+        
+        # Handle common prefixes and suffixes
+        name = name.replace("  ", " ")  # Remove double spaces
+        
+        # Convert to title case, but preserve certain patterns
+        # Split and title case each word
+        words = name.split()
+        normalized_words = []
+        
+        for word in words:
+            # Handle prefixes like "Mc", "Mac", "O'"
+            if word.lower().startswith("mc") and len(word) > 2:
+                normalized_words.append("Mc" + word[2:].capitalize())
+            elif word.lower().startswith("mac") and len(word) > 3:
+                normalized_words.append("Mac" + word[3:].capitalize())
+            elif word.lower().startswith("o'") and len(word) > 2:
+                normalized_words.append("O'" + word[2:].capitalize())
+            else:
+                normalized_words.append(word.capitalize())
+        
+        return " ".join(normalized_words)
+    
+    def _normalize_address(self, entity_data: Dict[str, Any]) -> str:
+        """Normalize and format address with standard abbreviations"""
+        # Try addresses array first
+        addresses = entity_data.get("addresses", [])
+        if addresses and isinstance(addresses, list) and len(addresses) > 0:
+            primary_addr = addresses[0]
+            if isinstance(primary_addr, dict):
+                # Use full address if available
+                if primary_addr.get("full"):
+                    return self._normalize_address_string(primary_addr["full"])
+                
+                # Build from structured address
+                struct = primary_addr.get("structured", {})
+                if struct:
+                    addr_parts = []
+                    
+                    street = struct.get("street", "").strip()
+                    if street:
+                        addr_parts.append(self._normalize_address_string(street))
+                    
+                    city = struct.get("city", "").strip()
+                    state = struct.get("state", "").strip()
+                    postal_code = struct.get("postalCode", "").strip() or struct.get("postal_code", "").strip()
+                    country = struct.get("country", "").strip()
+                    
+                    # Build city/state/postal
+                    city_state = []
+                    if city:
+                        city_state.append(city)
+                    if state:
+                        city_state.append(state)
+                    if postal_code:
+                        city_state.append(postal_code)
+                    
+                    if city_state:
+                        addr_parts.append(", ".join(city_state))
+                    
+                    if country:
+                        addr_parts.append(country)
+                    
+                    if addr_parts:
+                        return ", ".join(addr_parts)
+        
+        # Fallback to contact address
+        contact = entity_data.get("contact", {})
+        if isinstance(contact, dict):
+            contact_addr = contact.get("address", "").strip()
+            contact_city = contact.get("city", "").strip()
+            contact_country = contact.get("country", "").strip()
+            
+            contact_parts = []
+            if contact_addr:
+                contact_parts.append(self._normalize_address_string(contact_addr))
+            if contact_city:
+                contact_parts.append(contact_city)
+            if contact_country:
+                contact_parts.append(contact_country)
+            
+            if contact_parts:
+                return ", ".join(contact_parts)
+        
+        return ""
+    
+    def _normalize_address_string(self, address: str) -> str:
+        """Normalize address string with standard abbreviations"""
+        if not address:
+            return ""
+        
+        # Common address abbreviations mapping
+        abbreviations = {
+            r'\bSt\b': 'Street',
+            r'\bSt\.\b': 'Street',
+            r'\bAve\b': 'Avenue',
+            r'\bAve\.\b': 'Avenue',
+            r'\bRd\b': 'Road',
+            r'\bRd\.\b': 'Road',
+            r'\bDr\b': 'Drive',
+            r'\bDr\.\b': 'Drive',
+            r'\bBlvd\b': 'Boulevard',
+            r'\bBlvd\.\b': 'Boulevard',
+            r'\bLn\b': 'Lane',
+            r'\bLn\.\b': 'Lane',
+            r'\bCt\b': 'Court',
+            r'\bCt\.\b': 'Court',
+            r'\bPkwy\b': 'Parkway',
+            r'\bPkwy\.\b': 'Parkway',
+            r'\bApt\b': 'Apartment',
+            r'\bApt\.\b': 'Apartment',
+            r'\bSte\b': 'Suite',
+            r'\bSte\.\b': 'Suite',
+            r'\bUnit\b': 'Unit',
+            r'\b#\b': 'Number',
+        }
+        
+        normalized = address
+        for pattern, replacement in abbreviations.items():
+            normalized = re.sub(pattern, replacement, normalized, flags=re.IGNORECASE)
+        
+        return normalized.strip()
+    
+    def _to_camel_case(self, snake_str: str) -> str:
+        """Convert snake_case to camelCase"""
+        components = snake_str.split('_')
+        return components[0] + ''.join(x.capitalize() for x in components[1:])
     
     def _create_behavioral_text(self, entity_data: Dict[str, Any]) -> str:
         """

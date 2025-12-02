@@ -1,5 +1,6 @@
 import { GeistSans } from 'geist/font/sans';
 import ClientLayout from '@/components/ClientLayout';
+import { UserProvider } from '@/contexts/UserContext';
 
 export const metadata = {
   title: 'ThreatSight 360 - Fraud Detection',
@@ -15,9 +16,11 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" className={GeistSans.className}>
       <body>
-        <ClientLayout>
-          {children}
-        </ClientLayout>
+        <UserProvider>
+          <ClientLayout>
+            {children}
+          </ClientLayout>
+        </UserProvider>
       </body>
     </html>
   );

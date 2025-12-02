@@ -362,7 +362,7 @@ function EnhancedEntityResolutionPage() {
           <div>
             <H1 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: spacing[2] }}>
               <Icon glyph="Diagram3" style={{ color: palette.blue.base }} />
-              Entity Resolution
+              Entity Resolution/KYC
             </H1>
             <Body style={{ color: palette.gray.dark1, marginTop: spacing[1] }}>
               Next-generation entity onboarding with parallel search, network analysis, and risk classification

@@ -492,7 +492,7 @@ aml-backend/
 │   │   └── relationship_service.py # Relationship management
 │   ├── search/                     # Search service
 │   │   ├── entity_search_service.py # Unified entity search
-│   │   ├── atlas_search_service.py # Atlas Search operations
+│   │   ├── atlas_search_service.py # Atlas Search operation
 │   │   ├── vector_search_service.py # Vector similarity search
 │   │   └── unified_search_service.py # Combined search strategies
 │   ├── network/                    # Network analysis services

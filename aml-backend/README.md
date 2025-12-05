@@ -490,7 +490,7 @@ aml-backend/
 │   │   ├── confidence_service.py   # Confidence scoring
 │   │   ├── merge_service.py        # Entity merging logic
 │   │   └── relationship_service.py # Relationship management
-│   ├── search/                     # Search services
+│   ├── search/                     # Search service
 │   │   ├── entity_search_service.py # Unified entity search
 │   │   ├── atlas_search_service.py # Atlas Search operations
 │   │   ├── vector_search_service.py # Vector similarity search

@@ -1,0 +1,116 @@
+# FSI Fraud Detection - Staging Environment Configuration
+# Unified pod deployment: Frontend + Fraud Backend + AML Backend
+# Environment: Staging
+
+# Frontend main container environment variables
+env:
+  NODE_ENV: production
+  PORT: '8080'
+  HOSTNAME: '0.0.0.0'
+  # Backend URLs for runtime (build-time values baked via Drone build_args)
+  NEXT_PUBLIC_API_URL: http://127.0.0.1:8000
+  NEXT_PUBLIC_AML_API_URL: http://127.0.0.1:8001
+
+# Sidecar containers (both backends)
+sidecarContainers:
+  # Fraud Detection Backend (port 8000)
+  - name: fraud-backend
+    image: 795250896452.dkr.ecr.us-east-1.amazonaws.com/industrysolutions/fsi-fraud-detection-backend:latest
+    ports:
+      - containerPort: 8000
+        name: fraud-api
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+    env:
+      - name: PORT
+        value: "8000"
+      - name: HOST
+        value: "0.0.0.0"
+      - name: PYTHONUNBUFFERED
+        value: "1"
+      # AWS Configuration (IRSA - no keys needed)
+      - name: AWS_REGION
+        value: "us-east-1"
+      - name: AWS_USE_SSO
+        value: "false"
+      # MongoDB Configuration (from secrets)
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-secrets
+            key: MONGODB_URI
+      - name: DB_NAME
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-secrets
+            key: DB_NAME
+
+  # AML/KYC Backend (port 8001)
+  - name: aml-backend
+    image: 795250896452.dkr.ecr.us-east-1.amazonaws.com/industrysolutions/fsi-fraud-detection-aml-backend:latest
+    ports:
+      - containerPort: 8001
+        name: aml-api
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+    env:
+      - name: PORT
+        value: "8001"
+      - name: HOST
+        value: "0.0.0.0"
+      - name: PYTHONUNBUFFERED
+        value: "1"
+      # AWS Configuration (IRSA - no keys needed)
+      - name: AWS_REGION
+        value: "us-east-1"
+      - name: AWS_USE_SSO
+        value: "false"
+      # MongoDB Configuration (from secrets)
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-secrets
+            key: AML_MONGODB_URI
+      - name: DB_NAME
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-secrets
+            key: AML_DB_NAME
+      # Atlas Search Index Names (from secrets)
+      - name: ATLAS_SEARCH_INDEX
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-secrets
+            key: ATLAS_SEARCH_INDEX
+      - name: ATLAS_TEXT_SEARCH_INDEX
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-secrets
+            key: ATLAS_TEXT_SEARCH_INDEX
+      - name: ENTITY_VECTOR_INDEX
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-secrets
+            key: ENTITY_VECTOR_INDEX
+      - name: TRANSACTION_VECTOR_INDEX
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-secrets
+            key: TRANSACTION_VECTOR_INDEX
+
+# Service Account with IRSA for AWS Bedrock access
+serviceAccount:
+  enabled: true
+  irsa:
+    accountId: '795250896452'
+    roleName: 'kanopy-staging-fraud-detection-irsa'

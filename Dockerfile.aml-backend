@@ -20,9 +20,8 @@ RUN poetry install --no-interaction --no-cache --only=main
 # Copy application code
 COPY ./aml-backend/ .
 
-# Expose port 8080 for Kanopy
+# Expose port (default 8080 for Kanopy, but can be overridden via PORT env var)
 EXPOSE 8080
 
-# Run the application with PORT environment variable set to 8080
-# This allows the app to read from env var, keeping main.py unchanged
-CMD ["sh", "-c", "PORT=8080 uvicorn main:app --host 0.0.0.0 --port 8080"]
+# Run the application using PORT environment variable (defaults to 8080 if not set)
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}"]

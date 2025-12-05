@@ -1,19 +1,30 @@
 import { MongoClient } from "mongodb";
 
-const uri = process.env.MONGODB_URI;
-
-const client = new MongoClient(uri);
+let client = null;
 let db = null;
 
+function getClient() {
+  if (!client) {
+    const uri = process.env.MONGODB_URI;
+    if (!uri) {
+      throw new Error("MONGODB_URI environment variable is not set");
+    }
+    client = new MongoClient(uri);
+  }
+  return client;
+}
+
 export async function connectToDatabase(dbName, collectionName) {
-  if (db && client.topology && client.topology.isConnected()) {
+  const mongoClient = getClient();
+  
+  if (db && mongoClient.topology && mongoClient.topology.isConnected()) {
     return db.collection(collectionName);
   }
 
   try {
-    await client.connect();
+    await mongoClient.connect();
     console.log("Connected successfully to MongoDB Atlas");
-    db = client.db(dbName);
+    db = mongoClient.db(dbName);
     return db.collection(collectionName);
   } catch (error) {
     console.error("Error connecting to MongoDB:", error);

@@ -104,7 +104,7 @@ ENTITY_BEHAVIORAL_VECTOR_INDEX=entity_behavioral_vector_index
 
 ### 3. MongoDB Atlas Search Setup
 
-The AML backend requires MongoDB Atlas Search indexes for optimal performance:
+The AML backend requires MongoDB Atlas Search indexes for optimal performance
 
 #### Entity Resolution Search Index
 

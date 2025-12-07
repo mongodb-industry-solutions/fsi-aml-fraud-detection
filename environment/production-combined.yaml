@@ -7,9 +7,12 @@ env:
   NODE_ENV: production
   PORT: '8080'
   HOSTNAME: '0.0.0.0'
-  # Backend URLs for runtime (build-time values baked via Drone build_args)
-  NEXT_PUBLIC_API_URL: http://127.0.0.1:8000
-  NEXT_PUBLIC_AML_API_URL: http://127.0.0.1:8001
+  # Client-side API URLs (proxied through Next.js API routes)
+  NEXT_PUBLIC_API_URL: /api/fraud
+  NEXT_PUBLIC_AML_API_URL: /api/aml
+  # Server-side backend URLs for proxy routes (internal pod communication)
+  FRAUD_BACKEND_URL: http://localhost:8000
+  AML_BACKEND_URL: http://localhost:8001
 
 # Sidecar containers (both backends)
 sidecarContainers:

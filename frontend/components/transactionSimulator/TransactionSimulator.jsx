@@ -140,12 +140,14 @@ function TransactionSimulator() {
         });
         
         console.log('API Response:', response.data);
-        
+
         // Map entities to customer-like structure for compatibility
         const entities = response.data?.entities || response.data?.data?.results || response.data?.results || [];
         console.log('Extracted entities:', entities.length, 'entities');
         console.log('First entity sample:', entities[0]);
         console.log('First entity has behavioral_analytics?', !!entities[0]?.behavioral_analytics);
+        console.log('First entity has behavioralEmbedding?', !!entities[0]?.behavioralEmbedding);
+        console.log('First entity has identifierEmbedding?', !!entities[0]?.identifierEmbedding);
         console.log('First entity keys:', entities[0] ? Object.keys(entities[0]) : 'no entity');
         console.log('Full first entity:', JSON.stringify(entities[0], null, 2));
         

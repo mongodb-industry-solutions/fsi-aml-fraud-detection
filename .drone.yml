@@ -27,8 +27,8 @@ steps:
       secret_key:
         from_secret: ecr_secret_key
       build_args:
-        - NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
-        - NEXT_PUBLIC_AML_API_URL=http://127.0.0.1:8001
+        - NEXT_PUBLIC_API_URL=/api/fraud
+        - NEXT_PUBLIC_AML_API_URL=/api/aml
     when:
       event:
         - push
@@ -146,8 +146,8 @@ steps:
       secret_key:
         from_secret: ecr_secret_key
       build_args:
-        - NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
-        - NEXT_PUBLIC_AML_API_URL=http://127.0.0.1:8001
+        - NEXT_PUBLIC_API_URL=/api/fraud
+        - NEXT_PUBLIC_AML_API_URL=/api/aml
     when:
       event:
         - push

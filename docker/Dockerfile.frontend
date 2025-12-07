@@ -1,8 +1,20 @@
 FROM node:20.18.0-alpine
+
+# Accept build arguments for Next.js public env vars
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_AML_API_URL
+
+# Set as environment variables for the build
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_AML_API_URL=$NEXT_PUBLIC_AML_API_URL
+
 WORKDIR /app
 COPY frontend/package*.json ./
 RUN npm install --legacy-peer-deps
 COPY frontend/ .
+
+# Build Next.js app with the env vars baked in
 RUN npm run build
+
 EXPOSE 3000
 CMD ["npm", "start"]

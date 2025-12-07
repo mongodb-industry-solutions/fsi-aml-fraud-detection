@@ -16,6 +16,7 @@ sidecarContainers:
   # Fraud Detection Backend (port 8000)
   - name: fraud-backend
     image: 795250896452.dkr.ecr.us-east-1.amazonaws.com/industrysolutions/fsi-fraud-detection-backend-prod:prod-latest
+    imagePullPolicy: Always  # Always pull latest image to avoid stale cache
     ports:
       - containerPort: 8000
         name: fraud-api
@@ -53,6 +54,7 @@ sidecarContainers:
   # AML/KYC Backend (port 8001)
   - name: aml-backend
     image: 795250896452.dkr.ecr.us-east-1.amazonaws.com/industrysolutions/fsi-fraud-detection-aml-backend-prod:prod-latest
+    imagePullPolicy: Always  # Always pull latest image to avoid stale cache
     ports:
       - containerPort: 8001
         name: aml-api

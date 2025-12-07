@@ -70,29 +70,6 @@ export default function HomepageClient() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: spacing[3], marginBottom: spacing[5] }}>
         {role === 'risk_analyst' && (
           <>
-            <Card 
-              contentStyle="clickable"
-              as={Link}
-              href="/transaction-simulator"
-              style={{ 
-                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                border: `2px solid ${palette.green.light2}`,
-                textDecoration: 'none',
-                transition: 'all 0.2s ease',
-                cursor: 'pointer'
-              }}
-              {...cardHoverStyles}
-            >
-              <div style={{ marginBottom: spacing[2], color: palette.green.dark1 }}>
-                <Icon glyph="CreditCard" size="large" />
-              </div>
-              <H3 style={{ marginBottom: spacing[2], color: palette.gray.dark2 }}>
-                Transaction Simulator
-              </H3>
-              <Description style={{ color: palette.gray.dark1 }}>
-                Test fraud detection with real-time transaction monitoring. Uses MongoDB Atlas Vector Search to compare transaction patterns against known fraud embeddings for instant risk assessment.
-              </Description>
-            </Card>
 
             <Card 
               contentStyle="clickable"
@@ -141,6 +118,31 @@ export default function HomepageClient() {
                 Find duplicate entities and match identities across systems. MongoDB $rankFusion combines Atlas text search with vector embeddings to catch variations in names, addresses, and identifiers.
               </Description>
             </Card>
+
+            <Card 
+              contentStyle="clickable"
+              as={Link}
+              href="/transaction-simulator"
+              style={{ 
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                border: `2px solid ${palette.green.light2}`,
+                textDecoration: 'none',
+                transition: 'all 0.2s ease',
+                cursor: 'pointer'
+              }}
+              {...cardHoverStyles}
+            >
+              <div style={{ marginBottom: spacing[2], color: palette.green.dark1 }}>
+                <Icon glyph="CreditCard" size="large" />
+              </div>
+              <H3 style={{ marginBottom: spacing[2], color: palette.gray.dark2 }}>
+                Transaction Simulator
+              </H3>
+              <Description style={{ color: palette.gray.dark1 }}>
+                Test fraud detection with real-time transaction monitoring. Uses MongoDB Atlas Vector Search to compare transaction patterns against known fraud embeddings for instant risk assessment.
+              </Description>
+            </Card>
+            
           </>
         )}
 

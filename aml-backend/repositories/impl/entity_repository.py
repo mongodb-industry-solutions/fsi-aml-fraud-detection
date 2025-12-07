@@ -161,12 +161,22 @@ class EntityRepository(EntityRepositoryInterface):
             ]
             
             results = await self.repo.execute_pipeline(self.collection_name, pipeline)
-            
+
             if results and len(results) > 0:
                 result = results[0]
                 result["_id"] = str(result["_id"])
+
+                # Debug logging for behavioral/identifier embeddings
+                has_behavioral = "behavioralEmbedding" in result and result["behavioralEmbedding"] is not None
+                has_identifier = "identifierEmbedding" in result and result["identifierEmbedding"] is not None
+                logger.info(f"Entity {entity_id} - behavioralEmbedding present: {has_behavioral}, identifierEmbedding present: {has_identifier}")
+                if has_behavioral:
+                    logger.debug(f"Entity {entity_id} - behavioralEmbedding length: {len(result['behavioralEmbedding']) if isinstance(result['behavioralEmbedding'], list) else 'not a list'}")
+                if has_identifier:
+                    logger.debug(f"Entity {entity_id} - identifierEmbedding length: {len(result['identifierEmbedding']) if isinstance(result['identifierEmbedding'], list) else 'not a list'}")
+
                 return result
-            
+
             return None
             
         except Exception as e:
@@ -360,12 +370,16 @@ class EntityRepository(EntityRepositoryInterface):
             
             logger.debug(f"Executing pipeline with projection including behavioral_analytics")
             entities = await self.repo.execute_pipeline(self.collection_name, results_pipeline)
-            
+
             # Log sample entity to verify projection
             if entities and len(entities) > 0:
                 sample_keys = list(entities[0].keys())
                 logger.debug(f"Sample entity keys after projection: {sample_keys}")
                 logger.debug(f"Has behavioral_analytics: {'behavioral_analytics' in entities[0]}")
+                # Additional logging for embedding fields
+                has_behavioral_emb = "behavioralEmbedding" in entities[0] and entities[0]["behavioralEmbedding"] is not None
+                has_identifier_emb = "identifierEmbedding" in entities[0] and entities[0]["identifierEmbedding"] is not None
+                logger.info(f"Pagination query - Sample entity has behavioralEmbedding: {has_behavioral_emb}, identifierEmbedding: {has_identifier_emb}")
             
             # Convert ObjectIds to strings
             for entity in entities:

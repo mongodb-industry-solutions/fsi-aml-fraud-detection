@@ -47,14 +47,23 @@ export async function POST(request, { params }) {
   try {
     const { path } = params;
     const pathString = Array.isArray(path) ? path.join('/') : path;
-
-    // Get request body
-    const body = await request.json();
-
-    // Construct full URL
     const url = `${AML_BACKEND_URL}/${pathString}`;
 
     console.log(`[AML Proxy] POST ${url}`);
+
+    // Try to get body, handle empty bodies gracefully
+    let body = null;
+    const contentType = request.headers.get('content-type');
+    const contentLength = request.headers.get('content-length');
+
+    // Only try to parse JSON if there's actually a body
+    if (contentLength && parseInt(contentLength) > 0 && contentType?.includes('application/json')) {
+      try {
+        body = await request.json();
+      } catch (e) {
+        console.log('[AML Proxy] Failed to parse JSON body:', e.message);
+      }
+    }
 
     // Forward request to AML backend
     const response = await fetch(url, {
@@ -62,12 +71,21 @@ export async function POST(request, { params }) {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(body),
+      body: body ? JSON.stringify(body) : undefined,
     });
 
-    const data = await response.json();
-
-    return NextResponse.json(data, { status: response.status });
+    // Handle response - might be JSON or plain text
+    const responseContentType = response.headers.get('content-type');
+    if (responseContentType?.includes('application/json')) {
+      const data = await response.json();
+      return NextResponse.json(data, { status: response.status });
+    } else {
+      const text = await response.text();
+      return new NextResponse(text, {
+        status: response.status,
+        headers: { 'Content-Type': 'text/plain' }
+      });
+    }
   } catch (error) {
     console.error('[AML Proxy] Error:', error);
     return NextResponse.json(
@@ -81,14 +99,23 @@ export async function PUT(request, { params }) {
   try {
     const { path } = params;
     const pathString = Array.isArray(path) ? path.join('/') : path;
-
-    // Get request body
-    const body = await request.json();
-
-    // Construct full URL
     const url = `${AML_BACKEND_URL}/${pathString}`;
 
     console.log(`[AML Proxy] PUT ${url}`);
+
+    // Try to get body, handle empty bodies gracefully
+    let body = null;
+    const contentType = request.headers.get('content-type');
+    const contentLength = request.headers.get('content-length');
+
+    // Only try to parse JSON if there's actually a body
+    if (contentLength && parseInt(contentLength) > 0 && contentType?.includes('application/json')) {
+      try {
+        body = await request.json();
+      } catch (e) {
+        console.log('[AML Proxy] Failed to parse JSON body:', e.message);
+      }
+    }
 
     // Forward request to AML backend
     const response = await fetch(url, {
@@ -96,12 +123,21 @@ export async function PUT(request, { params }) {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(body),
+      body: body ? JSON.stringify(body) : undefined,
     });
 
-    const data = await response.json();
-
-    return NextResponse.json(data, { status: response.status });
+    // Handle response - might be JSON or plain text
+    const responseContentType = response.headers.get('content-type');
+    if (responseContentType?.includes('application/json')) {
+      const data = await response.json();
+      return NextResponse.json(data, { status: response.status });
+    } else {
+      const text = await response.text();
+      return new NextResponse(text, {
+        status: response.status,
+        headers: { 'Content-Type': 'text/plain' }
+      });
+    }
   } catch (error) {
     console.error('[AML Proxy] Error:', error);
     return NextResponse.json(

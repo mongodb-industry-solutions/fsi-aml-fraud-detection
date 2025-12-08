@@ -134,8 +134,7 @@ function TransactionSimulator() {
         const response = await axios.get(`${amlApiUrl}/entities/`, {
           params: {
             skip: skip,
-            limit: limit,
-            has_behavioral_analytics: 'true'  // Request only entities with behavioral analytics
+            limit: limit
           }
         });
         

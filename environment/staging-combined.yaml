@@ -119,5 +119,5 @@ sidecarContainers:
 serviceAccount:
   enabled: true
   irsa:
-    accountId: '795250896452'
-    roleName: 'kanopy-staging-fraud-detection-irsa'
+    accountId: '275662791714'
+    roleName: 'kanopy-staging-cicd-irsa'

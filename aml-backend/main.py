@@ -76,8 +76,8 @@ app = FastAPI(
     - Comprehensive audit trails and compliance reporting
     """,
     version="1.1.0",
-    # Disable automatic redirects for trailing slashes
-    redirect_slashes=False,
+    # Enable automatic redirects for trailing slashes to handle Next.js proxy normalization
+    redirect_slashes=True,
 )
 
 # Configure CORS

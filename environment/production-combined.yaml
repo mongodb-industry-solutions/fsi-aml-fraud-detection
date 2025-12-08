@@ -13,6 +13,8 @@ env:
   # Server-side backend URLs for proxy routes (internal pod communication)
   FRAUD_BACKEND_URL: http://localhost:8000
   AML_BACKEND_URL: http://localhost:8001
+  # WebSocket proxy port
+  WS_PROXY_PORT: '8081'
 
 # Sidecar containers (both backends)
 sidecarContainers:

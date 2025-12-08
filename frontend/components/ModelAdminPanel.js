@@ -224,9 +224,22 @@ const ModelAdminPanel = () => {
 
   // Connect to WebSocket for real-time MongoDB Change Streams
   useEffect(() => {
-    // Create WebSocket URL based on backend URL (replace http with ws)
-    const wsUrl =
-      BACKEND_URL.replace(/^http/, 'ws') + '/models/change-stream';
+    // Determine WebSocket URL
+    // If BACKEND_URL is a relative path (starts with /), use WebSocket proxy path on same port
+    // Otherwise, use the backend URL directly (for backwards compatibility)
+    let wsUrl;
+    if (BACKEND_URL.startsWith('/')) {
+      // Using proxy route on same host/port: /api/fraud -> wss://same-host/ws/fraud
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;  // This includes the port if non-standard
+      const wsPath = BACKEND_URL.replace('/api/fraud', '/ws/fraud');
+      wsUrl = `${protocol}//${host}${wsPath}/models/change-stream`;
+    } else {
+      // Direct URL (local dev): http://localhost:8000 -> ws://localhost:8000
+      wsUrl = BACKEND_URL.replace(/^http/, 'ws') + '/models/change-stream';
+    }
+
+    console.log('Connecting to WebSocket:', wsUrl);
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 

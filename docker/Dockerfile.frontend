@@ -16,5 +16,7 @@ COPY frontend/ .
 # Build Next.js app with the env vars baked in
 RUN npm run build
 
-EXPOSE 3000
+# Expose Next.js port (8080) and WebSocket proxy port (8081)
+EXPOSE 3000 8081
+
 CMD ["npm", "start"]

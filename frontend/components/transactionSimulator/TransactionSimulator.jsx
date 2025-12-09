@@ -580,7 +580,7 @@ Device: ${transactionData.device_info?.type || 'N/A'}, ${transactionData.device_
                   <div style={{ marginBottom: spacing[3] }}>
                     <H3>Vector Search Fraud Analysis</H3>
                     <Body style={{ marginTop: spacing[1] }}>
-                      Using MongoDB Vector Search to analyze semantically similar transactions for fraud detection. Only behavioral features are embedded using AWS Titan sentence transformer model. Transaction amount is used separately for risk scoring.
+                      Using MongoDB Vector Search to analyze semantically similar transactions for fraud detection. Only behavioral features are embedded using a sentence transformer embedding model. Transaction amount is used separately for risk scoring.
                     </Body>
                   </div>
                   
@@ -593,7 +593,7 @@ Device: ${transactionData.device_info?.type || 'N/A'}, ${transactionData.device_
                       How Vector Search Works
                     </Body>
                     <Body size="small">
-                      <strong>Behavioral features</strong> (merchant category, transaction type, payment method, location, device) are converted to embeddings using AWS Titan sentence transformer. These embeddings capture semantic patterns and behavioral similarities. <strong>Transaction amount</strong> is a structured numeric value and is excluded from embedding but used separately for risk scoring calculations.
+                      <strong>Behavioral features</strong> (merchant category, transaction type, payment method, location, device) are converted to embeddings using an embedding model. These embeddings capture semantic patterns and behavioral similarities. <strong>Transaction amount</strong> is a structured numeric value and is excluded from embedding but used separately for risk scoring calculations.
                     </Body>
                   </Callout>
                   
@@ -691,7 +691,7 @@ Device: ${transactionData.device_info?.type || 'N/A'}, ${transactionData.device_
                           flex: '1 1 150px',
                           minWidth: '120px'
                         }}>
-                          <Body size="small" weight="medium" style={{ color: palette.purple.dark2 }}>AWS Titan Embedding Model</Body>
+                          <Body size="small" weight="medium" style={{ color: palette.purple.dark2 }}>Embedding Model</Body>
                         </div>
                         
                         <div style={{ display: 'flex', alignItems: 'center' }}>

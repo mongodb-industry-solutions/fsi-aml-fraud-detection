@@ -9,6 +9,7 @@ to maintain clean separation of concerns.
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from pydantic import BaseModel, Field
+import os
 
 
 # ==================== COLLECTION CONFIGURATIONS ====================
@@ -92,12 +93,32 @@ class EntityCollection(CollectionConfig):
     })
     
     # Vector search configuration for semantic matching
+    # Support for dual embedding system: identifier and behavioral
     vector_search_config: Dict[str, Any] = Field(default_factory=lambda: {
-        "index_name": "entity_vector_index",
-        "path": "embedding",
-        "num_dimensions": 1536,  # OpenAI/Titan embedding size
-        "similarity": "cosine",
-        "filters": ["entity_type", "status", "nationality"]
+        # Legacy embedding (kept for backward compatibility)
+        "legacy": {
+            "index_name": os.getenv("ENTITY_VECTOR_SEARCH_INDEX", "entity_vector_search_index"),
+            "path": "embedding",
+            "num_dimensions": 1536,
+            "similarity": "cosine",
+            "filters": ["entity_type", "status", "nationality"]
+        },
+        # Identifier embedding (for identity-based similarity)
+        "identifier": {
+            "index_name": os.getenv("ENTITY_IDENTIFIER_VECTOR_INDEX", "entity_identifier_vector_index"),
+            "path": "identifierEmbedding",
+            "num_dimensions": 1536,  # OpenAI/Titan embedding size
+            "similarity": "cosine",
+            "filters": ["entity_type", "status", "nationality"]
+        },
+        # Behavioral embedding (for behavioral pattern similarity)
+        "behavioral": {
+            "index_name": os.getenv("ENTITY_BEHAVIORAL_VECTOR_INDEX", "entity_behavioral_vector_index"),
+            "path": "behavioralEmbedding",
+            "num_dimensions": 1536,  # OpenAI/Titan embedding size
+            "similarity": "cosine",
+            "filters": ["entity_type", "status", "nationality"]
+        }
     })
     
     # JSON Schema validation

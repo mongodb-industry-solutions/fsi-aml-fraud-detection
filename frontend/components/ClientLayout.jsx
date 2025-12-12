@@ -8,10 +8,23 @@ import { spacing } from '@leafygreen-ui/tokens';
 import { H1, Overline, Body } from '@leafygreen-ui/typography';
 import Icon from '@leafygreen-ui/icon';
 import IconButton from '@leafygreen-ui/icon-button';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useUser } from '@/contexts/UserContext';
+import UserSelectionModal from '@/components/UserSelection/UserSelectionModal';
+import UserProfile from '@/components/UserProfile/UserProfile';
 
 export default function ClientLayout({ children }) {
   const [isMenuOpen, setMenuOpen] = useState(false);
+  const { role, isInitialized } = useUser();
+  const [showUserSelection, setShowUserSelection] = useState(false);
+
+  useEffect(() => {
+    if (isInitialized && !role) {
+      setShowUserSelection(true);
+    } else if (role) {
+      setShowUserSelection(false);
+    }
+  }, [isInitialized, role]);
 
   return (
     <>
@@ -140,111 +153,119 @@ export default function ClientLayout({ children }) {
                     <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>Home</Body>
                   </Link>
                 </li>
-                <li>
-                  <Link
-                    href="/transaction-simulator"
-                    style={{
-                      color: palette.gray.light3,
-                      textDecoration: 'none',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: spacing[1],
-                      padding: `${spacing[2]}px ${spacing[3]}px`,
-                      borderRadius: '4px',
-                      transition: 'background-color 0.2s ease',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = palette.green.dark1;
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                    }}
-                  >
-                    <Icon glyph="CreditCard" fill={palette.gray.light3} size={16} /> 
-                    <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>Transaction Simulator</Body>
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/risk-models"
-                    style={{
-                      color: palette.gray.light3,
-                      textDecoration: 'none',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: spacing[1],
-                      padding: `${spacing[2]}px ${spacing[3]}px`,
-                      borderRadius: '4px',
-                      transition: 'background-color 0.2s ease',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = palette.green.dark1;
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                    }}
-                  >
-                    <Icon glyph="Settings" fill={palette.gray.light3} size={16} /> 
-                    <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>Risk Models</Body>
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/entities"
-                    style={{
-                      color: palette.gray.light3,
-                      textDecoration: 'none',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: spacing[1],
-                      padding: `${spacing[2]}px ${spacing[3]}px`,
-                      borderRadius: '4px',
-                      transition: 'background-color 0.2s ease',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = palette.green.dark1;
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                    }}
-                  >
-                    <Icon glyph="Person" fill={palette.gray.light3} size={16} /> 
-                    <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>Entity Management</Body>
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/entity-resolution/enhanced"
-                    style={{
-                      color: palette.gray.light3,
-                      textDecoration: 'none',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: spacing[1],
-                      padding: `${spacing[2]}px ${spacing[3]}px`,
-                      borderRadius: '4px',
-                      transition: 'background-color 0.2s ease',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = palette.green.dark1;
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                    }}
-                  >
-                    <Icon glyph="Relationship" fill={palette.gray.light3} size={16} /> 
-                    <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>Entity Resolution</Body>
-                  </Link>
-                </li>
+                {role === 'risk_analyst' && (
+                  <>
+                    <li>
+                      <Link
+                        href="/entities"
+                        style={{
+                          color: palette.gray.light3,
+                          textDecoration: 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: spacing[1],
+                          padding: `${spacing[2]}px ${spacing[3]}px`,
+                          borderRadius: '4px',
+                          transition: 'background-color 0.2s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = palette.green.dark1;
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                        }}
+                      >
+                        <Icon glyph="Person" fill={palette.gray.light3} size={16} /> 
+                        <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>Entity Management</Body>
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        href="/entity-resolution/enhanced"
+                        style={{
+                          color: palette.gray.light3,
+                          textDecoration: 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: spacing[1],
+                          padding: `${spacing[2]}px ${spacing[3]}px`,
+                          borderRadius: '4px',
+                          transition: 'background-color 0.2s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = palette.green.dark1;
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                        }}
+                      >
+                        <Icon glyph="Relationship" fill={palette.gray.light3} size={16} /> 
+                        <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>Entity Resolution</Body>
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        href="/transaction-simulator"
+                        style={{
+                          color: palette.gray.light3,
+                          textDecoration: 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: spacing[1],
+                          padding: `${spacing[2]}px ${spacing[3]}px`,
+                          borderRadius: '4px',
+                          transition: 'background-color 0.2s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = palette.green.dark1;
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                        }}
+                      >
+                        <Icon glyph="CreditCard" fill={palette.gray.light3} size={16} /> 
+                        <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>Transaction Simulator</Body>
+                      </Link>
+                    </li>
+                  </>
+                )}
+                {role === 'risk_manager' && (
+                  <li>
+                    <Link
+                      href="/risk-models"
+                      style={{
+                        color: palette.gray.light3,
+                        textDecoration: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: spacing[1],
+                        padding: `${spacing[2]}px ${spacing[3]}px`,
+                        borderRadius: '4px',
+                        transition: 'background-color 0.2s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = palette.green.dark1;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      <Icon glyph="Settings" fill={palette.gray.light3} size={16} /> 
+                      <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>Risk Models</Body>
+                    </Link>
+                  </li>
+                )}
               </ul>
             </nav>
 
-            {/* Empty div to maintain spacing */}
+            {/* User Profile */}
             <div style={{ 
               display: 'flex', 
               alignItems: 'center', 
               marginLeft: spacing[4],
-            }}></div>
+            }}>
+              {role && <UserProfile />}
+            </div>
           </div>
         </div>
       </header>
@@ -262,6 +283,19 @@ export default function ClientLayout({ children }) {
           </Card>
         </div>
       </main>
+
+      {/* User Selection Modal */}
+      {showUserSelection && (
+        <UserSelectionModal 
+          isSwitching={false}
+          onClose={() => {
+            // Don't allow closing on first visit
+            if (role) {
+              setShowUserSelection(false);
+            }
+          }}
+        />
+      )}
 
       <style jsx global>{`
         /**

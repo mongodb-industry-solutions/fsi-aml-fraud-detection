@@ -1,0 +1,67 @@
+# Multi-stage Dockerfile for Combined Frontend + Backend Service
+# This builds both the Next.js frontend and FastAPI backend in a single container
+
+# Stage 1: Build Frontend
+FROM node:20.18.0-alpine AS frontend-builder
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm install --legacy-peer-deps
+COPY frontend/ .
+RUN npm run build
+
+# Stage 2: Backend Dependencies
+FROM python:3.10-slim-buster AS backend-builder
+ENV GET_POETRY_IGNORE_DEPRECATION=1
+WORKDIR /app/backend
+
+# Install Poetry
+RUN pip install poetry==1.8.4
+RUN poetry config virtualenvs.create false
+
+# Copy and install backend dependencies
+COPY backend/pyproject.toml backend/poetry.lock ./
+RUN poetry install --no-interaction --no-cache --only=main
+
+# Stage 3: Final Runtime Image
+FROM python:3.10-slim-buster
+
+# Install Node.js in the final image
+RUN apt-get update && \
+    apt-get install -y curl && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy backend with dependencies
+COPY --from=backend-builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
+COPY --from=backend-builder /usr/local/bin /usr/local/bin
+COPY backend/ /app/backend/
+
+# Copy frontend build
+COPY --from=frontend-builder /app/frontend /app/frontend/
+
+# Copy startup script
+COPY start-services.sh /app/start-services.sh
+RUN chmod +x /app/start-services.sh
+
+# Set environment variables for Kanopy
+# Frontend will listen on 8080 (Kanopy default), backend on 8000 internally
+ENV PORT=8080
+ENV BACKEND_PORT=8000
+ENV NODE_ENV=production
+ENV HOSTNAME=0.0.0.0
+ENV HOST=0.0.0.0
+
+# Expose port 8080 for Kanopy
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8080/ || exit 1
+
+# Run the startup script
+CMD ["/bin/bash", "/app/start-services.sh"]
+

@@ -9,6 +9,7 @@ Streamlined vector search API using repository pattern directly:
 
 import logging
 import time
+import os
 from typing import Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -61,17 +62,27 @@ async def find_similar_entities_by_entity(
     try:
         start_time = time.time()
         
-        logger.info(f"Executing vector search for entity: {request.entity_id}")
+        logger.info(f"Executing vector search for entity: {request.entity_id} with embedding type: {request.embedding_type}")
         
         # Use repository directly for clean, simple implementation
         similar_entity_docs = await vector_search_repo.find_similar_by_entity_id(
             entity_id=request.entity_id,
             limit=request.limit,
-            filters=request.filters
+            filters=request.filters,
+            embedding_type=request.embedding_type
         )
         
         end_time = time.time()
         search_time_ms = (end_time - start_time) * 1000
+        
+        # Determine which index was used
+        embedding_type = request.embedding_type or "identifier"
+        if embedding_type == "identifier":
+            index_name = os.getenv("ENTITY_IDENTIFIER_VECTOR_INDEX", "entity_identifier_vector_index")
+        elif embedding_type == "behavioral":
+            index_name = os.getenv("ENTITY_BEHAVIORAL_VECTOR_INDEX", "entity_behavioral_vector_index")
+        else:
+            index_name = os.getenv("ENTITY_VECTOR_SEARCH_INDEX", "entity_vector_search_index")
         
         # Transform repository results to API response format
         similar_entities = []
@@ -102,8 +113,9 @@ async def find_similar_entities_by_entity(
             "search_time_ms": round(search_time_ms, 2),
             "total_found": len(similar_entities),
             "entity_id": request.entity_id,
+            "embedding_type": embedding_type,
             "similarity_metric": "cosine",
-            "vector_index_used": "entity_vector_search_index",
+            "vector_index_used": index_name,
             "repository_pattern": True
         }
         

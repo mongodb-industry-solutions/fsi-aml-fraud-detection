@@ -72,7 +72,7 @@ class FraudDetectionService:
                 "transaction_type": "suspicious"
             }
         
-        # Find customer in the correct collection
+        # Find customer/entity in the correct collection
         from bson import ObjectId
         
         # Prepare for debugging
@@ -90,7 +90,7 @@ class FraudDetectionService:
                     logger.warning(f"Error converting customer_id to ObjectId: {str(e)}")
                     pass  # Use the original id if conversion fails
             
-            # Try first with query_id (which might be ObjectId or string)
+            # Try first with customers collection
             customer = self.db_client.get_collection(
                 db_name=self.db_name,
                 collection_name=self.customer_collection
@@ -103,39 +103,44 @@ class FraudDetectionService:
                     collection_name=self.customer_collection
                 ).find_one({"_id": customer_id})
             
-            # If still not found, try a broader search - this is important as the string/ObjectId issue might be real
+            # If still not found, try entities collection (for entity-based transactions)
             if not customer:
-                # Try with the customer ID as a string field (not _id)
+                # Try entityId field
+                entity = self.db_client.get_collection(
+                    db_name=self.db_name,
+                    collection_name="entities"
+                ).find_one({"entityId": customer_id})
+                
+                if entity:
+                    # Map entity to customer-like structure for compatibility
+                    customer = {
+                        "_id": entity.get("entityId") or entity.get("_id"),
+                        "personal_info": {
+                            "name": entity.get("name") if isinstance(entity.get("name"), str) else (entity.get("name", {}).get("full") if isinstance(entity.get("name"), dict) else "Unknown")
+                        },
+                        "account_info": entity.get("account_info", {
+                            "account_number": entity.get("entityId") or str(entity.get("_id"))
+                        }),
+                        "behavioral_profile": entity.get("behavioral_analytics", {}),
+                        "risk_profile": {
+                            "overall_risk_score": (entity.get("risk_assessment", {}).get("overall_score", 0) * 100) if entity.get("risk_assessment") else 0
+                        }
+                    }
+                    logger.info(f"Found entity with ID {customer_id}, mapped to customer structure")
+            
+            # If still not found, try account_info.account_number in customers
+            if not customer:
                 customer = self.db_client.get_collection(
                     db_name=self.db_name,
                     collection_name=self.customer_collection
                 ).find_one({"account_info.account_number": customer_id})
-                
-                # Let's also try to see what customers exist
-                customers = list(self.db_client.get_collection(
-                    db_name=self.db_name,
-                    collection_name=self.customer_collection
-                ).find().limit(1))
-                
-                if customers:
-                    # If we found any customers, let's use the first one as a fallback
-                    if not customer:
-                        customer = customers[0]
-                        logger.warning(f"Customer with ID {customer_id} not found, using fallback customer: {customer.get('_id')}")
-                    
-                    # Log some debug info about the first customer
-                    sample_customer = customers[0]
-                    logger.info(f"Sample customer ID: {sample_customer.get('_id')}")
-                    logger.info(f"Sample customer account: {sample_customer.get('account_info', {}).get('account_number', 'Unknown')}")
-                else:
-                    logger.error("No customers found in database. Collection may be empty.")
             
-            logger.info(f"Found customer with ID {customer_id}: {customer is not None}")
+            logger.info(f"Found customer/entity with ID {customer_id}: {customer is not None}")
             if customer:
-                logger.info(f"Customer name: {customer.get('personal_info', {}).get('name', 'Unknown')}")
+                logger.info(f"Customer/entity name: {customer.get('personal_info', {}).get('name', 'Unknown')}")
                 
         except Exception as e:
-            logger.error(f"Error finding customer: {str(e)}")
+            logger.error(f"Error finding customer/entity: {str(e)}")
         
         if not customer:
             logger.warning(f"Customer with ID {customer_id} not found")

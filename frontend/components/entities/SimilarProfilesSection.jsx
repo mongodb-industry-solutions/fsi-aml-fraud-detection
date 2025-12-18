@@ -13,11 +13,119 @@ import Tooltip from '@leafygreen-ui/tooltip';
 import Icon from '@leafygreen-ui/icon';
 import Modal from '@leafygreen-ui/modal';
 import Code from '@leafygreen-ui/code';
+import { RadioGroup, Radio } from '@leafygreen-ui/radio-group';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 import { amlAPI, useAMLAPIError, amlUtils } from '@/lib/aml-api';
 import EntityLink from '@/components/common/EntityLink';
 import styles from './EntityDetail.module.css';
+
+/**
+ * Reorders entity fields for display in JSON view
+ * - Places behavioral_analytics after customerInfo
+ * - Places identifierText and behavioralText right before embeddings
+ * - Places embeddings at the very end (truncated for readability)
+ * - Excludes profileSummaryText and profileEmbedding
+ */
+function reorderEntityForDisplay(entity) {
+  if (!entity) return entity;
+  
+  const ordered = {};
+  const excludedFields = ['profileSummaryText', 'profileEmbedding'];
+  
+  // Helper function to truncate embedding arrays
+  const truncateEmbedding = (embedding, maxDisplay = 5) => {
+    if (!Array.isArray(embedding)) return embedding;
+    if (embedding.length <= maxDisplay) return embedding;
+    return {
+      _truncated: true,
+      _sample: embedding.slice(0, maxDisplay),
+      _totalLength: embedding.length,
+      _message: `[Array truncated: showing first ${maxDisplay} of ${embedding.length} values]`
+    };
+  };
+  
+  // Core fields (in order)
+  const coreFields = [
+    '_id', 'entityId', 'scenarioKey', 'entityType', 'status', 
+    'name', 'addresses', 'identifiers', 'dateOfBirth', 
+    'placeOfBirth', 'gender', 'nationality', 'residency', 'contactInfo'
+  ];
+  
+  // Add core fields
+  coreFields.forEach(field => {
+    if (entity.hasOwnProperty(field) && !excludedFields.includes(field)) {
+      ordered[field] = entity[field];
+    }
+  });
+  
+  // Add customerInfo
+  if (entity.customerInfo) {
+    ordered.customerInfo = entity.customerInfo;
+  }
+  
+  // Add behavioral_analytics (after customerInfo)
+  if (entity.behavioral_analytics) {
+    ordered.behavioral_analytics = entity.behavioral_analytics;
+  }
+  
+  // Add resolution
+  if (entity.resolution) {
+    ordered.resolution = entity.resolution;
+  }
+  
+  // Add watchlistMatches
+  if (entity.watchlistMatches) {
+    ordered.watchlistMatches = entity.watchlistMatches;
+  }
+  
+  // Add riskAssessment
+  if (entity.riskAssessment) {
+    ordered.riskAssessment = entity.riskAssessment;
+  }
+  
+  // Add account_info
+  if (entity.account_info) {
+    ordered.account_info = entity.account_info;
+  }
+  
+  // Add identifierText (right before embeddings)
+  if (entity.identifierText) {
+    ordered.identifierText = entity.identifierText;
+  }
+  
+  // Add behavioralText (right before embeddings)
+  if (entity.behavioralText) {
+    ordered.behavioralText = entity.behavioralText;
+  }
+  
+  // Add identifierEmbedding (at the very end, truncated)
+  if (entity.identifierEmbedding) {
+    ordered.identifierEmbedding = truncateEmbedding(entity.identifierEmbedding);
+  }
+  
+  // Add behavioralEmbedding (at the very end, truncated)
+  if (entity.behavioralEmbedding) {
+    ordered.behavioralEmbedding = truncateEmbedding(entity.behavioralEmbedding);
+  }
+  
+  // Add timestamps
+  if (entity.created_date || entity.createdAt) {
+    ordered.created_date = entity.created_date || entity.createdAt;
+  }
+  if (entity.updated_date || entity.updatedAt) {
+    ordered.updated_date = entity.updated_date || entity.updatedAt;
+  }
+  
+  // Add any other fields that weren't explicitly ordered (excluding excluded fields)
+  Object.keys(entity).forEach(key => {
+    if (!ordered.hasOwnProperty(key) && !excludedFields.includes(key)) {
+      ordered[key] = entity[key];
+    }
+  });
+  
+  return ordered;
+}
 
 function SimilarProfilesSection({ entity }) {
   const router = useRouter();
@@ -35,6 +143,7 @@ function SimilarProfilesSection({ entity }) {
   // Vector search state
   const [vectorSearchLimit, setVectorSearchLimit] = useState(5);
   const [filters, setFilters] = useState({});
+  const [embeddingType, setEmbeddingType] = useState('identifier'); // 'identifier' or 'behavioral'
 
   const handleVectorSearch = async () => {
     if (!entity?.entityId) {
@@ -49,7 +158,8 @@ function SimilarProfilesSection({ entity }) {
       const response = await amlAPI.findSimilarEntitiesByVector(
         entity.entityId,
         vectorSearchLimit,
-        filters
+        filters,
+        embeddingType
       );
       
       console.log('Vector search response:', response);
@@ -102,8 +212,8 @@ function SimilarProfilesSection({ entity }) {
       </H2>
       
       <Body style={{ marginBottom: spacing[3], color: palette.gray.dark1 }}>
-        Find entities with similar profiles using vector similarity search based on AI embeddings of 
-        risk characteristics, behavioral patterns, and profile descriptions.
+        Find entities with similar profiles using vector similarity search. Choose between identifier-based 
+        similarity (name, identifiers, address) or behavioral similarity (transaction patterns, devices, locations).
       </Body>
 
       {error && (
@@ -111,6 +221,25 @@ function SimilarProfilesSection({ entity }) {
           {error}
         </Banner>
       )}
+
+      {/* Embedding Type Selector */}
+      <div style={{ marginBottom: spacing[3] }}>
+        <Label style={{ marginBottom: spacing[1], display: 'block' }}>
+          Search Type
+        </Label>
+        <RadioGroup
+          value={embeddingType}
+          onChange={(e) => setEmbeddingType(e.target.value)}
+          name="embedding-type"
+        >
+          <Radio value="identifier" id="embedding-identifier">
+            Identifier Similarity (Name, IDs, Address)
+          </Radio>
+          <Radio value="behavioral" id="embedding-behavioral">
+            Behavioral Similarity (Patterns, Devices, Locations)
+          </Radio>
+        </RadioGroup>
+      </div>
 
       <div style={{ display: 'flex', gap: spacing[2], flexWrap: 'wrap', alignItems: 'center' }}>
         <Button
@@ -120,18 +249,30 @@ function SimilarProfilesSection({ entity }) {
           onClick={handleVectorSearch}
           disabled={isLoading || !entity?.entityId}
         >
-          {isLoading ? 'Searching...' : 'Find Similar Profiles'}
+          {isLoading ? 'Searching...' : `Find Similar Profiles (${embeddingType === 'identifier' ? 'Identifier' : 'Behavioral'})`}
         </Button>
 
-        {entity?.profileEmbedding && (
+        {entity?.identifierEmbedding && embeddingType === 'identifier' && (
           <Body style={{ color: palette.green.dark2, fontSize: '12px' }}>
-            ✓ Vector embeddings available ({entity.profileEmbedding.length} dimensions)
+            ✓ Identifier embeddings available ({entity.identifierEmbedding.length} dimensions)
           </Body>
         )}
         
-        {!entity?.profileEmbedding && (
+        {entity?.behavioralEmbedding && embeddingType === 'behavioral' && (
+          <Body style={{ color: palette.green.dark2, fontSize: '12px' }}>
+            ✓ Behavioral embeddings available ({entity.behavioralEmbedding.length} dimensions)
+          </Body>
+        )}
+        
+        {embeddingType === 'identifier' && !entity?.identifierEmbedding && (
           <Body style={{ color: palette.yellow.dark2, fontSize: '12px' }}>
-            ⚠ No vector embeddings found for this entity
+            ⚠ No identifier embeddings found for this entity
+          </Body>
+        )}
+        
+        {embeddingType === 'behavioral' && !entity?.behavioralEmbedding && (
+          <Body style={{ color: palette.yellow.dark2, fontSize: '12px' }}>
+            ⚠ No behavioral embeddings found for this entity
           </Body>
         )}
       </div>
@@ -154,7 +295,8 @@ function SimilarProfilesSection({ entity }) {
           }}>
             <Overline style={{ color: palette.gray.dark2 }}> 
               {similarEntities.length} results • 
-              {searchMetadata.similarity_metric || 'cosine'} similarity
+              {searchMetadata.embedding_type || 'identifier'} similarity •
+              {searchMetadata.similarity_metric || 'cosine'} metric
             </Overline>
           </div>
         )}
@@ -176,7 +318,7 @@ function SimilarProfilesSection({ entity }) {
                   <HeaderCell>Type</HeaderCell>
                   <HeaderCell>Risk Level</HeaderCell>
                   <HeaderCell>Similarity</HeaderCell>
-                  <HeaderCell>Profile Summary</HeaderCell>
+                  <HeaderCell>Match Type</HeaderCell>
                   <HeaderCell>Actions</HeaderCell>
                 </HeaderRow>
               </TableHead>
@@ -207,21 +349,11 @@ function SimilarProfilesSection({ entity }) {
                       <SimilarityBadge score={similarEntity.vectorSearchScore} />
                     </Cell>
                     <Cell>
-                      <Tooltip 
-                        trigger={
-                          <Body style={{ 
-                            maxWidth: '200px', 
-                            overflow: 'hidden', 
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            cursor: 'help'
-                          }}>
-                            {amlUtils.truncateProfileSummary(similarEntity.profileSummaryText, 100)}
-                          </Body>
-                        }
-                      >
-                        {similarEntity.profileSummaryText || 'No profile summary available'}
-                      </Tooltip>
+                      <Body style={{ color: palette.gray.dark1 }}>
+                        {searchMetadata?.embedding_type === 'identifier' 
+                          ? 'Identifier-based match'
+                          : 'Behavioral pattern match'}
+                      </Body>
                     </Cell>
                     <Cell>
                       <a 
@@ -283,7 +415,7 @@ function SimilarProfilesSection({ entity }) {
             copyable={true}
             style={{ fontSize: '12px', lineHeight: '1.4' }}
           >
-            {JSON.stringify(entity, null, 2)}
+            {JSON.stringify(reorderEntityForDisplay(entity), null, 2)}
           </Code>
         </div>
       </ExpandableCard>
@@ -321,7 +453,7 @@ function SimilarProfilesSection({ entity }) {
               margin: 0
             }}
           >
-            {JSON.stringify(entity, null, 2)}
+            {JSON.stringify(reorderEntityForDisplay(entity), null, 2)}
           </Code>
         </div>
 

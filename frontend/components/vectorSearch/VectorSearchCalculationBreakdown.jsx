@@ -604,6 +604,9 @@ export default function VectorSearchCalculationBreakdown({
               </div>
             </div>
           )}
+          
+          {/* Render components */}
+          {renderComponents()}
         </div>
       </ExpandableCard>
     </div>

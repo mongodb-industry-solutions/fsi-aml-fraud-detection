@@ -69,6 +69,53 @@ class WatchlistMatch(BaseModel):
     date_identified: datetime = Field(default_factory=datetime.utcnow)
 
 
+class AccountInfo(BaseModel):
+    """Account information for transaction simulator compatibility"""
+    account_number: str
+    account_type: Optional[str] = None  # e.g., "checking", "savings", "business"
+    creation_date: Optional[datetime] = None
+    status: Optional[str] = None  # e.g., "active", "inactive"
+
+
+class LocationPattern(BaseModel):
+    """Location pattern for behavioral analytics"""
+    city: str
+    state: str
+    country: str
+    location: Dict[str, Any]  # GeoJSON Point: {"type": "Point", "coordinates": [lng, lat]}
+    frequency: float = Field(..., ge=0.0, le=1.0)  # 0.0 to 1.0
+
+
+class DeviceInfo(BaseModel):
+    """Device information matching transaction simulator structure"""
+    device_id: str
+    type: str  # "mobile", "desktop", "tablet", "laptop"
+    os: str  # "iOS", "Android", "Windows", "macOS", "Linux"
+    browser: str  # "Chrome", "Safari", "Firefox", "Edge"
+    ip_range: List[str]  # Array of IP addresses for this device
+    usual_locations: Optional[List[Dict[str, Any]]] = None  # Optional device-specific locations
+
+
+class TransactionPatterns(BaseModel):
+    """Transaction patterns for behavioral analytics"""
+    avg_transaction_amount: float  # Required for simulator default amount
+    std_transaction_amount: float  # Required for anomaly calculations
+    avg_transactions_per_day: Optional[float] = None
+    common_merchant_categories: List[str]  # Required for simulator category suggestions
+    usual_transaction_times: Optional[List[Dict[str, Any]]] = None
+    usual_transaction_locations: List[LocationPattern]  # Required for simulator location selection
+
+
+class BehavioralAnalytics(BaseModel):
+    """Behavioral analytics data for entities"""
+    time_of_day_patterns: Dict[str, Any]  # Peak hours, day of week preferences
+    frequency_patterns: Dict[str, Any]  # Transaction frequency, login frequency
+    ip_addresses: List[Dict[str, Any]]  # IPs with timestamps and metadata
+    devices: List[DeviceInfo]  # Device info matching transaction simulator structure
+    location_patterns: List[LocationPattern]  # Frequent locations with coordinates
+    transaction_patterns: TransactionPatterns  # Required for transaction simulator
+
+
 class RiskAssessment(BaseModel):
     """Simplified risk assessment"""
     overall_score: float = Field(..., ge=0, le=1)
@@ -104,9 +151,15 @@ class Entity(BaseModel):
     contact: Optional[ContactInfo] = None
     nationality: Optional[str] = None
     
+    # Account information (for transaction simulator compatibility)
+    account_info: Optional[AccountInfo] = None
+    
     # Risk and compliance
     risk_assessment: Optional[RiskAssessment] = None
     watchlist_matches: List[WatchlistMatch] = Field(default_factory=list)
+    
+    # Behavioral analytics (after risk_assessment)
+    behavioral_analytics: Optional[BehavioralAnalytics] = None
     
     # Entity relationships (for graph operations)
     connected_entities: List[str] = Field(default_factory=list)
@@ -122,6 +175,19 @@ class Entity(BaseModel):
     
     # Search and matching fields (populated by system)
     phonetic_codes: Optional[Dict[str, str]] = None
+    
+    # Embedding fields (all at the end of document)
+    # Legacy fields (kept for backward compatibility, hidden in UI)
+    profileEmbedding: Optional[List[float]] = None
+    profileSummaryText: Optional[str] = None
+    
+    # New dual embedding fields
+    identifierText: Optional[str] = None
+    identifierEmbedding: Optional[List[float]] = None
+    behavioralText: Optional[str] = None
+    behavioralEmbedding: Optional[List[float]] = None
+    
+    # Legacy embedding field (kept for compatibility)
     embedding: Optional[List[float]] = None
     
     class Config:

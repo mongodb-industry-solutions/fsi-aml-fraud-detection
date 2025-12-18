@@ -76,8 +76,8 @@ app = FastAPI(
     - Comprehensive audit trails and compliance reporting
     """,
     version="1.1.0",
-    # Disable automatic redirects for trailing slashes
-    redirect_slashes=False,
+    # Enable automatic redirects for trailing slashes to handle Next.js proxy normalization
+    redirect_slashes=True,
 )
 
 # Configure CORS
@@ -89,6 +89,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.on_event("startup")
+async def startup_event():
+    """Log startup information for debugging deployed environments"""
+    logger.info("=" * 80)
+    logger.info("ThreatSight 360 - AML/KYC API Starting...")
+    logger.info(f"Version: 1.1.0")
+    logger.info(f"Environment Variables:")
+    logger.info(f"  - PORT: {os.getenv('PORT', 'NOT SET')}")
+    logger.info(f"  - HOST: {os.getenv('HOST', 'NOT SET')}")
+    logger.info(f"  - DB_NAME: {os.getenv('DB_NAME', 'NOT SET')}")
+    logger.info(f"  - AWS_REGION: {os.getenv('AWS_REGION', 'NOT SET')}")
+    logger.info(f"  - ATLAS_SEARCH_INDEX: {os.getenv('ATLAS_SEARCH_INDEX', 'NOT SET')}")
+    logger.info(f"  - ENTITY_VECTOR_INDEX: {os.getenv('ENTITY_VECTOR_INDEX', 'NOT SET')}")
+    logger.info(f"  - TRANSACTION_VECTOR_INDEX: {os.getenv('TRANSACTION_VECTOR_INDEX', 'NOT SET')}")
+    logger.info(f"Code includes behavioral embedding support: YES")
+    logger.info("=" * 80)
+
 @app.get("/")
 async def root():
     """Root endpoint to check API status"""
@@ -96,6 +113,7 @@ async def root():
         "status": "AML/KYC API with Entity Resolution is running!",
         "service": "ThreatSight 360 - AML/KYC",
         "version": "1.1.0",
+        "behavioral_embeddings_supported": True,  # Flag to verify code version
         "features": [
             "Entity Management",
             "Intelligent Entity Resolution", 

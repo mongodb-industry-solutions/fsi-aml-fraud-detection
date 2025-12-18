@@ -9,6 +9,8 @@ Focus: Core vector search functionality without complex bulk operations.
 
 import logging
 import math
+import os
+import re
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Tuple
 from bson import ObjectId
@@ -32,20 +34,33 @@ class VectorSearchRepository(VectorSearchRepositoryInterface):
     
     def __init__(self, mongodb_repo: MongoDBRepository, 
                  collection_name: str = "entities",
-                 vector_index_name: str = "entity_vector_search_index"):
+                 vector_index_name: str = "entity_vector_search_index",
+                 embedding_type: str = "identifier"):
         """
         Initialize Vector Search repository
         
         Args:
             mongodb_repo: MongoDB repository instance from core lib
             collection_name: Name of the collection to search
-            vector_index_name: Name of the vector search index
+            vector_index_name: Name of the vector search index (can be overridden by embedding_type)
+            embedding_type: Type of embedding to use ("identifier", "behavioral", or "legacy")
         """
         self.repo = mongodb_repo
         self.collection_name = collection_name
-        self.vector_index_name = vector_index_name
+        self.embedding_type = embedding_type
+        
+        # Set embedding field and index based on type
+        if embedding_type == "identifier":
+            self.embedding_field = "identifierEmbedding"
+            self.vector_index_name = os.getenv("ENTITY_IDENTIFIER_VECTOR_INDEX", "entity_identifier_vector_index")
+        elif embedding_type == "behavioral":
+            self.embedding_field = "behavioralEmbedding"
+            self.vector_index_name = os.getenv("ENTITY_BEHAVIORAL_VECTOR_INDEX", "entity_behavioral_vector_index")
+        else:  # legacy or default
+            self.embedding_field = "profileEmbedding"
+            self.vector_index_name = vector_index_name
+        
         self.collection = self.repo.collection(collection_name)
-        self.embedding_field = "profileEmbedding"  # Correct embedding field name
         
         # Initialize vector search capabilities
         self.ai_search = self.repo.ai_search(collection_name)
@@ -173,14 +188,26 @@ class VectorSearchRepository(VectorSearchRepositoryInterface):
     
     async def find_similar_by_entity_id(self, entity_id: str,
                                       limit: int = 10,
-                                      filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-        """Find entities similar to a specific entity"""
+                                      filters: Optional[Dict[str, Any]] = None,
+                                      embedding_type: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Find entities similar to a specific entity
+        
+        Args:
+            entity_id: Entity ID to find similar entities for
+            limit: Maximum number of results
+            filters: Additional filters to apply
+            embedding_type: Type of embedding to use ("identifier", "behavioral", or None for default)
+        """
         try:
+            # Determine which embedding to use
+            use_type = embedding_type or self.embedding_type
+            
             # Get the entity's embedding
-            entity_embedding = await self.get_embedding(entity_id)
+            entity_embedding = await self.get_embedding(entity_id, embedding_type=use_type)
             
             if not entity_embedding:
-                logger.warning(f"No embedding found for entity {entity_id}")
+                logger.warning(f"No {use_type} embedding found for entity {entity_id}")
                 return []
             
             # Add filter to exclude the original entity (using custom entityId field)
@@ -188,12 +215,32 @@ class VectorSearchRepository(VectorSearchRepositoryInterface):
                 filters = {}
             filters["entityId"] = {"$ne": entity_id}
             
+            # Temporarily update embedding field if different type requested
+            original_field = self.embedding_field
+            original_index = self.vector_index_name
+            
+            if use_type == "identifier":
+                self.embedding_field = "identifierEmbedding"
+                self.vector_index_name = os.getenv("ENTITY_IDENTIFIER_VECTOR_INDEX", "entity_identifier_vector_index")
+            elif use_type == "behavioral":
+                self.embedding_field = "behavioralEmbedding"
+                self.vector_index_name = os.getenv("ENTITY_BEHAVIORAL_VECTOR_INDEX", "entity_behavioral_vector_index")
+            elif use_type == "legacy":
+                self.embedding_field = "profileEmbedding"
+                self.vector_index_name = os.getenv("ENTITY_VECTOR_SEARCH_INDEX", "entity_vector_search_index")
+            
             # Perform vector search
-            return await self.find_similar_by_vector(
+            results = await self.find_similar_by_vector(
                 query_vector=entity_embedding,
                 limit=limit,
                 filters=filters
             )
+            
+            # Restore original settings
+            self.embedding_field = original_field
+            self.vector_index_name = original_index
+            
+            return results
             
         except Exception as e:
             logger.error(f"Find similar by entity ID failed for {entity_id}: {e}")
@@ -232,16 +279,34 @@ class VectorSearchRepository(VectorSearchRepositoryInterface):
             logger.error(f"Failed to store embedding for entity {entity_id}: {e}")
             return False
     
-    async def get_embedding(self, entity_id: str) -> Optional[List[float]]:
-        """Get embedding for an entity"""
+    async def get_embedding(self, entity_id: str, embedding_type: Optional[str] = None) -> Optional[List[float]]:
+        """
+        Get embedding for an entity
+        
+        Args:
+            entity_id: Entity ID
+            embedding_type: Type of embedding to retrieve ("identifier", "behavioral", or None for default)
+            
+        Returns:
+            Embedding vector or None if not found
+        """
         try:
+            # Determine which field to retrieve
+            field_name = self.embedding_field
+            if embedding_type == "identifier":
+                field_name = "identifierEmbedding"
+            elif embedding_type == "behavioral":
+                field_name = "behavioralEmbedding"
+            elif embedding_type == "legacy":
+                field_name = "profileEmbedding"
+            
             result = await self.collection.find_one(
                 {"entityId": entity_id},
-                {self.embedding_field: 1}
+                {field_name: 1}
             )
             
-            if result and self.embedding_field in result:
-                return result[self.embedding_field]
+            if result and field_name in result:
+                return result[field_name]
             
             return None
             
@@ -355,6 +420,461 @@ class VectorSearchRepository(VectorSearchRepositoryInterface):
             
         except Exception as e:
             logger.error(f"Failed to create entity onboarding text: {e}")
+            return ""
+    
+    def _create_identifier_text(self, entity_data: Dict[str, Any]) -> str:
+        """
+        Create enhanced identifier text representation for identifier embedding.
+        
+        Enhanced features:
+        - Normalized addresses and names
+        - Semantic natural language structure
+        - Field weighting (emphasizes unique identifiers)
+        - Better handling of name variations
+        - Structured format for better embedding quality
+        
+        Args:
+            entity_data: Entity data dictionary
+            
+        Returns:
+            str: Enhanced concatenated identifier text for embedding generation
+        """
+        try:
+            entity_type = entity_data.get("entityType", entity_data.get("entity_type", "individual"))
+            is_individual = entity_type.lower() == "individual"
+            
+            # Build semantic text parts
+            semantic_parts = []
+            
+            # ========== NAME SECTION (High Priority) ==========
+            name_section = self._build_name_section(entity_data)
+            if name_section:
+                semantic_parts.append(name_section)
+            
+            # ========== IDENTIFIERS SECTION (Highest Priority - Unique Identifiers) ==========
+            identifiers_section = self._build_identifiers_section(entity_data)
+            if identifiers_section:
+                semantic_parts.append(identifiers_section)
+            
+            # ========== DATE OF BIRTH / INCORPORATION SECTION ==========
+            date_section = self._build_date_section(entity_data, is_individual)
+            if date_section:
+                semantic_parts.append(date_section)
+            
+            # ========== LOCATION SECTION (Address, Nationality, Residency) ==========
+            location_section = self._build_location_section(entity_data)
+            if location_section:
+                semantic_parts.append(location_section)
+            
+            # Join with natural language flow
+            if semantic_parts:
+                return ". ".join(semantic_parts) + "."
+            else:
+                return ""
+            
+        except Exception as e:
+            logger.error(f"Failed to create identifier text: {e}")
+            return ""
+    
+    def _build_name_section(self, entity_data: Dict[str, Any]) -> str:
+        """Build natural language name section with variations"""
+        name_parts = []
+        
+        # Extract name information
+        name = entity_data.get("name")
+        name_dict = {}
+        
+        if isinstance(name, dict):
+            name_dict = name
+            full_name = name.get("full", "").strip()
+            structured = name.get("structured", {})
+        elif isinstance(name, str):
+            full_name = name.strip()
+            structured = {}
+        else:
+            full_name = ""
+            structured = {}
+        
+        # Build name from structured parts if full name not available
+        if not full_name and structured:
+            first = structured.get("first", "").strip()
+            middle = structured.get("middle", "").strip()
+            last = structured.get("last", "").strip()
+            
+            if first and last:
+                full_name = f"{first}"
+                if middle:
+                    full_name += f" {middle}"
+                full_name += f" {last}"
+            elif first:
+                full_name = first
+            elif last:
+                full_name = last
+        
+        # Normalize and format name
+        if full_name:
+            normalized_name = self._normalize_name(full_name)
+            name_parts.append(normalized_name)
+        
+        # Add alternate names/aliases
+        alternate_names = entity_data.get("alternate_names", [])
+        if not alternate_names and name_dict:
+            # Check for aliases in name structure
+            aliases = name_dict.get("aliases", [])
+            if aliases:
+                alternate_names = aliases
+        
+        if alternate_names:
+            normalized_alternates = [self._normalize_name(alt) for alt in alternate_names if alt and alt.strip()]
+            if normalized_alternates:
+                if len(normalized_alternates) == 1:
+                    name_parts.append(f"also known as {normalized_alternates[0]}")
+                else:
+                    name_parts.append(f"also known as {', '.join(normalized_alternates[:-1])}, and {normalized_alternates[-1]}")
+        
+        if name_parts:
+            return f"Entity: {', '.join(name_parts)}"
+        return ""
+    
+    def _build_identifiers_section(self, entity_data: Dict[str, Any]) -> str:
+        """Build identifiers section with emphasis on unique identifiers"""
+        identifiers = entity_data.get("identifiers", {})
+        if not isinstance(identifiers, dict) or not identifiers:
+            return ""
+        
+        # Priority order: unique identifiers first
+        priority_order = [
+            ("passport", "passport number"),
+            ("ssn", "Social Security Number"),
+            ("national_id", "national ID"),
+            ("tax_id", "tax ID"),
+            ("ein", "Employer Identification Number"),
+            ("drivers_license", "driver's license"),
+            ("driversLicense", "driver's license"),
+        ]
+        
+        identifier_parts = []
+        other_identifiers = []
+        
+        # Process priority identifiers first
+        processed_types = set()
+        for id_key, id_label in priority_order:
+            # Check both snake_case and camelCase
+            id_value = identifiers.get(id_key) or identifiers.get(self._to_camel_case(id_key))
+            if id_value and str(id_value).strip():
+                identifier_parts.append(f"{id_label} {str(id_value).strip()}")
+                processed_types.add(id_key)
+                processed_types.add(self._to_camel_case(id_key))
+        
+        # Process remaining identifiers
+        for id_type, id_value in identifiers.items():
+            if id_type not in processed_types and id_value and str(id_value).strip():
+                normalized_type = id_type.replace("_", " ").title()
+                other_identifiers.append(f"{normalized_type} {str(id_value).strip()}")
+        
+        # Combine priority and other identifiers
+        all_identifiers = identifier_parts + other_identifiers
+        
+        if all_identifiers:
+            if len(all_identifiers) == 1:
+                return f"Holds {all_identifiers[0]}"
+            elif len(all_identifiers) == 2:
+                return f"Holds {all_identifiers[0]} and {all_identifiers[1]}"
+            else:
+                return f"Holds {', '.join(all_identifiers[:-1])}, and {all_identifiers[-1]}"
+        
+        return ""
+    
+    def _build_date_section(self, entity_data: Dict[str, Any], is_individual: bool) -> str:
+        """Build date section (DOB for individuals, incorporation date for organizations)"""
+        if is_individual:
+            dob = entity_data.get("dateOfBirth") or entity_data.get("dob")
+            place_of_birth = entity_data.get("placeOfBirth") or entity_data.get("place_of_birth")
+            
+            date_parts = []
+            if dob:
+                date_parts.append(f"born on {dob}")
+            if place_of_birth:
+                date_parts.append(f"in {place_of_birth}")
+            
+            if date_parts:
+                return f"Born {' '.join(date_parts)}"
+        else:
+            # Organization
+            incorp_date = entity_data.get("incorporationDate") or entity_data.get("incorporation_date")
+            jurisdiction = entity_data.get("jurisdictionOfIncorporation") or entity_data.get("jurisdiction_of_incorporation")
+            
+            date_parts = []
+            if incorp_date:
+                date_parts.append(f"incorporated on {incorp_date}")
+            if jurisdiction:
+                date_parts.append(f"in {jurisdiction}")
+            
+            if date_parts:
+                return f"Incorporated {' '.join(date_parts)}"
+        
+        return ""
+    
+    def _build_location_section(self, entity_data: Dict[str, Any]) -> str:
+        """Build location section (address, nationality, residency)"""
+        location_parts = []
+        
+        # Address - normalized
+        normalized_address = self._normalize_address(entity_data)
+        if normalized_address:
+            location_parts.append(f"resides at {normalized_address}")
+        
+        # Nationality
+        nationality = entity_data.get("nationality")
+        if nationality:
+            if isinstance(nationality, list):
+                nat_str = ", ".join(nationality)
+            else:
+                nat_str = str(nationality)
+            location_parts.append(f"Nationality: {nat_str}")
+        
+        # Residency
+        residency = entity_data.get("residency")
+        if residency:
+            location_parts.append(f"Residency: {residency}")
+        
+        if location_parts:
+            return ". ".join(location_parts)
+        return ""
+    
+    def _normalize_name(self, name: str) -> str:
+        """Normalize name to title case and handle common variations"""
+        if not name or not name.strip():
+            return ""
+        
+        name = name.strip()
+        
+        # Handle common prefixes and suffixes
+        name = name.replace("  ", " ")  # Remove double spaces
+        
+        # Convert to title case, but preserve certain patterns
+        # Split and title case each word
+        words = name.split()
+        normalized_words = []
+        
+        for word in words:
+            # Handle prefixes like "Mc", "Mac", "O'"
+            if word.lower().startswith("mc") and len(word) > 2:
+                normalized_words.append("Mc" + word[2:].capitalize())
+            elif word.lower().startswith("mac") and len(word) > 3:
+                normalized_words.append("Mac" + word[3:].capitalize())
+            elif word.lower().startswith("o'") and len(word) > 2:
+                normalized_words.append("O'" + word[2:].capitalize())
+            else:
+                normalized_words.append(word.capitalize())
+        
+        return " ".join(normalized_words)
+    
+    def _normalize_address(self, entity_data: Dict[str, Any]) -> str:
+        """Normalize and format address with standard abbreviations"""
+        # Try addresses array first
+        addresses = entity_data.get("addresses", [])
+        if addresses and isinstance(addresses, list) and len(addresses) > 0:
+            primary_addr = addresses[0]
+            if isinstance(primary_addr, dict):
+                # Use full address if available
+                if primary_addr.get("full"):
+                    return self._normalize_address_string(primary_addr["full"])
+                
+                # Build from structured address
+                struct = primary_addr.get("structured", {})
+                if struct:
+                    addr_parts = []
+                    
+                    street = struct.get("street", "").strip()
+                    if street:
+                        addr_parts.append(self._normalize_address_string(street))
+                    
+                    city = struct.get("city", "").strip()
+                    state = struct.get("state", "").strip()
+                    postal_code = struct.get("postalCode", "").strip() or struct.get("postal_code", "").strip()
+                    country = struct.get("country", "").strip()
+                    
+                    # Build city/state/postal
+                    city_state = []
+                    if city:
+                        city_state.append(city)
+                    if state:
+                        city_state.append(state)
+                    if postal_code:
+                        city_state.append(postal_code)
+                    
+                    if city_state:
+                        addr_parts.append(", ".join(city_state))
+                    
+                    if country:
+                        addr_parts.append(country)
+                    
+                    if addr_parts:
+                        return ", ".join(addr_parts)
+        
+        # Fallback to contact address
+        contact = entity_data.get("contact", {})
+        if isinstance(contact, dict):
+            contact_addr = contact.get("address", "").strip()
+            contact_city = contact.get("city", "").strip()
+            contact_country = contact.get("country", "").strip()
+            
+            contact_parts = []
+            if contact_addr:
+                contact_parts.append(self._normalize_address_string(contact_addr))
+            if contact_city:
+                contact_parts.append(contact_city)
+            if contact_country:
+                contact_parts.append(contact_country)
+            
+            if contact_parts:
+                return ", ".join(contact_parts)
+        
+        return ""
+    
+    def _normalize_address_string(self, address: str) -> str:
+        """Normalize address string with standard abbreviations"""
+        if not address:
+            return ""
+        
+        # Common address abbreviations mapping
+        abbreviations = {
+            r'\bSt\b': 'Street',
+            r'\bSt\.\b': 'Street',
+            r'\bAve\b': 'Avenue',
+            r'\bAve\.\b': 'Avenue',
+            r'\bRd\b': 'Road',
+            r'\bRd\.\b': 'Road',
+            r'\bDr\b': 'Drive',
+            r'\bDr\.\b': 'Drive',
+            r'\bBlvd\b': 'Boulevard',
+            r'\bBlvd\.\b': 'Boulevard',
+            r'\bLn\b': 'Lane',
+            r'\bLn\.\b': 'Lane',
+            r'\bCt\b': 'Court',
+            r'\bCt\.\b': 'Court',
+            r'\bPkwy\b': 'Parkway',
+            r'\bPkwy\.\b': 'Parkway',
+            r'\bApt\b': 'Apartment',
+            r'\bApt\.\b': 'Apartment',
+            r'\bSte\b': 'Suite',
+            r'\bSte\.\b': 'Suite',
+            r'\bUnit\b': 'Unit',
+            r'\b#\b': 'Number',
+        }
+        
+        normalized = address
+        for pattern, replacement in abbreviations.items():
+            normalized = re.sub(pattern, replacement, normalized, flags=re.IGNORECASE)
+        
+        return normalized.strip()
+    
+    def _to_camel_case(self, snake_str: str) -> str:
+        """Convert snake_case to camelCase"""
+        components = snake_str.split('_')
+        return components[0] + ''.join(x.capitalize() for x in components[1:])
+    
+    def _create_behavioral_text(self, entity_data: Dict[str, Any]) -> str:
+        """
+        Create behavioral text representation for behavioral embedding:
+        - Time of day patterns
+        - Frequency patterns
+        - IP addresses
+        - Device patterns
+        - Location patterns
+        - Transaction patterns
+        
+        Args:
+            entity_data: Entity data dictionary with behavioral_analytics
+            
+        Returns:
+            str: Concatenated behavioral text for embedding generation
+        """
+        try:
+            text_parts = []
+            behavioral = entity_data.get("behavioral_analytics", {})
+            
+            if not behavioral:
+                return ""
+            
+            # Time of day patterns
+            time_patterns = behavioral.get("time_of_day_patterns", {})
+            if time_patterns:
+                if isinstance(time_patterns, dict):
+                    peak_hours = time_patterns.get("peak_hours", [])
+                    day_preferences = time_patterns.get("day_of_week_preferences", {})
+                    if peak_hours:
+                        text_parts.append(f"Peak Hours: {', '.join(map(str, peak_hours))}")
+                    if day_preferences:
+                        text_parts.append(f"Day Preferences: {', '.join([f'{k}: {v}' for k, v in day_preferences.items()])}")
+            
+            # Frequency patterns
+            freq_patterns = behavioral.get("frequency_patterns", {})
+            if freq_patterns:
+                if isinstance(freq_patterns, dict):
+                    tx_freq = freq_patterns.get("transaction_frequency")
+                    login_freq = freq_patterns.get("login_frequency")
+                    if tx_freq:
+                        text_parts.append(f"Transaction Frequency: {tx_freq}")
+                    if login_freq:
+                        text_parts.append(f"Login Frequency: {login_freq}")
+            
+            # IP addresses
+            ip_addresses = behavioral.get("ip_addresses", [])
+            if ip_addresses:
+                ip_list = []
+                for ip_info in ip_addresses[:5]:  # Limit to first 5 IPs
+                    if isinstance(ip_info, dict):
+                        ip = ip_info.get("ip") or ip_info.get("address")
+                        if ip:
+                            ip_list.append(ip)
+                    elif isinstance(ip_info, str):
+                        ip_list.append(ip_info)
+                if ip_list:
+                    text_parts.append(f"IP Addresses: {', '.join(ip_list)}")
+            
+            # Device patterns
+            devices = behavioral.get("devices", [])
+            if devices:
+                device_info = []
+                for device in devices[:5]:  # Limit to first 5 devices
+                    if isinstance(device, dict):
+                        device_str = f"{device.get('type', 'unknown')} {device.get('os', '')} {device.get('browser', '')}"
+                        device_info.append(device_str.strip())
+                if device_info:
+                    text_parts.append(f"Devices: {', '.join(device_info)}")
+            
+            # Location patterns
+            location_patterns = behavioral.get("location_patterns", [])
+            if location_patterns:
+                locations = []
+                for loc in location_patterns[:5]:  # Limit to first 5 locations
+                    if isinstance(loc, dict):
+                        city = loc.get("city", "")
+                        state = loc.get("state", "")
+                        country = loc.get("country", "")
+                        if city or state or country:
+                            locations.append(f"{city}, {state}, {country}".strip(", "))
+                if locations:
+                    text_parts.append(f"Locations: {', '.join(locations)}")
+            
+            # Transaction patterns
+            tx_patterns = behavioral.get("transaction_patterns", {})
+            if tx_patterns:
+                if isinstance(tx_patterns, dict):
+                    avg_amount = tx_patterns.get("avg_transaction_amount")
+                    categories = tx_patterns.get("common_merchant_categories", [])
+                    if avg_amount:
+                        text_parts.append(f"Average Transaction Amount: ${avg_amount}")
+                    if categories:
+                        text_parts.append(f"Common Categories: {', '.join(categories)}")
+            
+            # Join with consistent separator
+            return " | ".join(text_parts)
+            
+        except Exception as e:
+            logger.error(f"Failed to create behavioral text: {e}")
             return ""
     
     # ==================== SIMILARITY ANALYSIS ====================

@@ -1,0 +1,240 @@
+---
+# FSI Fraud Detection - Unified Pod Deployment
+# Deploys frontend + fraud backend + AML backend as 3 containers in same pod
+
+kind: pipeline
+type: kubernetes
+name: staging
+
+trigger:
+  branch:
+    - staging
+
+steps:
+  # Step 1: Build Frontend Image
+  - name: publish-frontend
+    image: plugins/kaniko-ecr
+    settings:
+      create_repository: true
+      registry: 795250896452.dkr.ecr.us-east-1.amazonaws.com
+      repo: industrysolutions/fsi-fraud-detection-frontend
+      tags:
+        - git-${DRONE_COMMIT_SHA:0:7}
+        - latest
+      dockerfile: docker/Dockerfile.frontend
+      access_key:
+        from_secret: ecr_access_key
+      secret_key:
+        from_secret: ecr_secret_key
+      build_args:
+        - NEXT_PUBLIC_API_URL=/api/fraud
+        - NEXT_PUBLIC_AML_API_URL=/api/aml
+    when:
+      event:
+        - push
+
+  # Step 2: Build Fraud Backend Image
+  - name: publish-backend
+    image: plugins/kaniko-ecr
+    settings:
+      create_repository: true
+      registry: 795250896452.dkr.ecr.us-east-1.amazonaws.com
+      repo: industrysolutions/fsi-fraud-detection-backend
+      tags:
+        - git-${DRONE_COMMIT_SHA:0:7}
+        - latest
+      dockerfile: Dockerfile.backend
+      access_key:
+        from_secret: ecr_access_key
+      secret_key:
+        from_secret: ecr_secret_key
+    when:
+      event:
+        - push
+
+  # Step 3: Build AML Backend Image
+  - name: publish-aml-backend
+    image: plugins/kaniko-ecr
+    settings:
+      create_repository: true
+      registry: 795250896452.dkr.ecr.us-east-1.amazonaws.com
+      repo: industrysolutions/fsi-fraud-detection-aml-backend
+      tags:
+        - git-${DRONE_COMMIT_SHA:0:7}
+        - latest
+      dockerfile: Dockerfile.aml-backend
+      access_key:
+        from_secret: ecr_access_key
+      secret_key:
+        from_secret: ecr_secret_key
+    when:
+      event:
+        - push
+
+  # Step 4: Deploy Combined Pod to Staging
+  - name: deploy-staging
+    image: public.ecr.aws/kanopy/drone-helm:v3
+    settings:
+      chart: mongodb/web-app
+      chart_version: 4.25.0
+      add_repos: [mongodb=https://10gen.github.io/helm-charts]
+      namespace: industrysolutions
+      release: fsi-fraud-detection
+      values:
+        # Frontend main container
+        - 'image.repository=795250896452.dkr.ecr.us-east-1.amazonaws.com/industrysolutions/fsi-fraud-detection-frontend'
+        - 'image.tag=git-${DRONE_COMMIT_SHA:0:7}'
+        # Ingress configuration
+        - 'ingress.enabled=true'
+        - 'ingress.hosts[0]=fsi-fraud-detection.industrysolutions.staging.corp.mongodb.com'
+        # Service mesh
+        - 'mesh.enabled=true'
+        # Resource limits for frontend
+        - 'resources.limits.cpu=1000m'
+        - 'resources.limits.memory=1024Mi'
+        - 'resources.requests.cpu=250m'
+        - 'resources.requests.memory=256Mi'
+        # Sidecar: Fraud Backend
+        - 'sidecarContainers[0].name=fraud-backend'
+        - 'sidecarContainers[0].image=795250896452.dkr.ecr.us-east-1.amazonaws.com/industrysolutions/fsi-fraud-detection-backend:git-${DRONE_COMMIT_SHA:0:7}'
+        - 'sidecarContainers[0].ports[0].containerPort=8000'
+        - 'sidecarContainers[0].ports[0].name=fraud-api'
+        - 'sidecarContainers[0].resources.limits.cpu=500m'
+        - 'sidecarContainers[0].resources.limits.memory=1Gi'
+        - 'sidecarContainers[0].resources.requests.cpu=250m'
+        - 'sidecarContainers[0].resources.requests.memory=512Mi'
+        # Sidecar: AML Backend
+        - 'sidecarContainers[1].name=aml-backend'
+        - 'sidecarContainers[1].image=795250896452.dkr.ecr.us-east-1.amazonaws.com/industrysolutions/fsi-fraud-detection-aml-backend:git-${DRONE_COMMIT_SHA:0:7}'
+        - 'sidecarContainers[1].ports[0].containerPort=8001'
+        - 'sidecarContainers[1].ports[0].name=aml-api'
+        - 'sidecarContainers[1].resources.limits.cpu=500m'
+        - 'sidecarContainers[1].resources.limits.memory=1Gi'
+        - 'sidecarContainers[1].resources.requests.cpu=250m'
+        - 'sidecarContainers[1].resources.requests.memory=512Mi'
+      api_server: https://api.staging.corp.mongodb.com
+      kubernetes_token:
+        from_secret: staging_kubernetes_token
+      values_files: ['environment/staging-combined.yaml']
+    when:
+      event:
+        - push
+
+---
+kind: pipeline
+type: kubernetes
+name: production
+
+trigger:
+  branch:
+    - main
+
+steps:
+  # Step 1: Build Frontend Image
+  - name: publish-frontend-prod
+    image: plugins/kaniko-ecr
+    settings:
+      create_repository: true
+      registry: 795250896452.dkr.ecr.us-east-1.amazonaws.com
+      repo: industrysolutions/fsi-fraud-detection-frontend-prod
+      tags:
+        - git-${DRONE_COMMIT_SHA:0:7}-prod
+        - prod-latest
+      dockerfile: docker/Dockerfile.frontend
+      access_key:
+        from_secret: ecr_access_key
+      secret_key:
+        from_secret: ecr_secret_key
+      build_args:
+        - NEXT_PUBLIC_API_URL=/api/fraud
+        - NEXT_PUBLIC_AML_API_URL=/api/aml
+    when:
+      event:
+        - push
+
+  # Step 2: Build Fraud Backend Image
+  - name: publish-backend-prod
+    image: plugins/kaniko-ecr
+    settings:
+      create_repository: true
+      registry: 795250896452.dkr.ecr.us-east-1.amazonaws.com
+      repo: industrysolutions/fsi-fraud-detection-backend-prod
+      tags:
+        - git-${DRONE_COMMIT_SHA:0:7}-prod
+        - prod-latest
+      dockerfile: Dockerfile.backend
+      access_key:
+        from_secret: ecr_access_key
+      secret_key:
+        from_secret: ecr_secret_key
+    when:
+      event:
+        - push
+
+  # Step 3: Build AML Backend Image
+  - name: publish-aml-backend-prod
+    image: plugins/kaniko-ecr
+    settings:
+      create_repository: true
+      registry: 795250896452.dkr.ecr.us-east-1.amazonaws.com
+      repo: industrysolutions/fsi-fraud-detection-aml-backend-prod
+      tags:
+        - git-${DRONE_COMMIT_SHA:0:7}-prod
+        - prod-latest
+      dockerfile: Dockerfile.aml-backend
+      access_key:
+        from_secret: ecr_access_key
+      secret_key:
+        from_secret: ecr_secret_key
+    when:
+      event:
+        - push
+
+  # Step 4: Deploy Combined Pod to Production
+  - name: deploy-production
+    image: public.ecr.aws/kanopy/drone-helm:v3
+    settings:
+      chart: mongodb/web-app
+      chart_version: 4.25.0
+      add_repos: [mongodb=https://10gen.github.io/helm-charts]
+      namespace: industrysolutions
+      release: fsi-fraud-detection-prod
+      values:
+        # Frontend main container
+        - 'image.repository=795250896452.dkr.ecr.us-east-1.amazonaws.com/industrysolutions/fsi-fraud-detection-frontend-prod'
+        - 'image.tag=git-${DRONE_COMMIT_SHA:0:7}-prod'
+        # Ingress configuration
+        - 'ingress.enabled=true'
+        - 'ingress.hosts[0]=fsi-fraud-detection.industrysolutions.prod.corp.mongodb.com'
+        # Service mesh
+        - 'mesh.enabled=true'
+        # Resource limits for frontend
+        - 'resources.limits.cpu=1000m'
+        - 'resources.limits.memory=1024Mi'
+        - 'resources.requests.cpu=250m'
+        - 'resources.requests.memory=256Mi'
+        # Sidecar: Fraud Backend
+        - 'sidecarContainers[0].name=fraud-backend'
+        - 'sidecarContainers[0].image=795250896452.dkr.ecr.us-east-1.amazonaws.com/industrysolutions/fsi-fraud-detection-backend-prod:git-${DRONE_COMMIT_SHA:0:7}-prod'
+        - 'sidecarContainers[0].ports[0].containerPort=8000'
+        - 'sidecarContainers[0].ports[0].name=fraud-api'
+        - 'sidecarContainers[0].resources.limits.cpu=500m'
+        - 'sidecarContainers[0].resources.limits.memory=1Gi'
+        - 'sidecarContainers[0].resources.requests.cpu=250m'
+        - 'sidecarContainers[0].resources.requests.memory=512Mi'
+        # Sidecar: AML Backend
+        - 'sidecarContainers[1].name=aml-backend'
+        - 'sidecarContainers[1].image=795250896452.dkr.ecr.us-east-1.amazonaws.com/industrysolutions/fsi-fraud-detection-aml-backend-prod:git-${DRONE_COMMIT_SHA:0:7}-prod'
+        - 'sidecarContainers[1].ports[0].containerPort=8001'
+        - 'sidecarContainers[1].ports[0].name=aml-api'
+        - 'sidecarContainers[1].resources.limits.cpu=500m'
+        - 'sidecarContainers[1].resources.limits.memory=1Gi'
+        - 'sidecarContainers[1].resources.requests.cpu=250m'
+        - 'sidecarContainers[1].resources.requests.memory=512Mi'
+      api_server: https://api.prod.corp.mongodb.com
+      kubernetes_token:
+        from_secret: production_kubernetes_token
+      values_files: ['environment/production-combined.yaml']
+    when:
+      event:
+        - push

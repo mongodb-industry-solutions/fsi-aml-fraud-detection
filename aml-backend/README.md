@@ -98,11 +98,13 @@ FRONTEND_URL=http://localhost:3000
 # Atlas Search Configuration
 ATLAS_SEARCH_INDEX=entity_search_index_v2
 ENTITY_VECTOR_INDEX=entity_vector_search_index
+ENTITY_IDENTIFIER_VECTOR_INDEX=entity_identifier_vector_index
+ENTITY_BEHAVIORAL_VECTOR_INDEX=entity_behavioral_vector_index
 ```
 
 ### 3. MongoDB Atlas Search Setup
 
-The AML backend requires MongoDB Atlas Search indexes for optimal performance:
+The AML backend requires MongoDB Atlas Search indexes for optimal performance
 
 #### Entity Resolution Search Index
 
@@ -488,9 +490,9 @@ aml-backend/
 │   │   ├── confidence_service.py   # Confidence scoring
 │   │   ├── merge_service.py        # Entity merging logic
 │   │   └── relationship_service.py # Relationship management
-│   ├── search/                     # Search services
+│   ├── search/                     # Search service
 │   │   ├── entity_search_service.py # Unified entity search
-│   │   ├── atlas_search_service.py # Atlas Search operations
+│   │   ├── atlas_search_service.py # Atlas Search operation
 │   │   ├── vector_search_service.py # Vector similarity search
 │   │   └── unified_search_service.py # Combined search strategies
 │   ├── network/                    # Network analysis services

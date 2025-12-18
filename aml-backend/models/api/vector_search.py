@@ -15,6 +15,7 @@ class SimilarEntitiesRequest(BaseModel):
     entity_id: str = Field(..., description="Entity ID to find similar entities for")
     limit: int = Field(default=5, ge=1, le=100, description="Maximum number of similar entities to return")
     filters: Optional[Dict[str, Any]] = Field(default=None, description="Optional filters to apply to search")
+    embedding_type: Optional[str] = Field(default="identifier", description="Type of embedding to use: 'identifier' or 'behavioral'")
     
     class Config:
         json_schema_extra = {
@@ -24,7 +25,8 @@ class SimilarEntitiesRequest(BaseModel):
                 "filters": {
                     "entity_type": "INDIVIDUAL",
                     "risk_level": "HIGH"
-                }
+                },
+                "embedding_type": "identifier"
             }
         }
 

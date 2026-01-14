@@ -21,29 +21,29 @@ sidecarContainers:
   # Fraud Detection Backend (port 8000)
   - name: fraud-backend
     image: 795250896452.dkr.ecr.us-east-1.amazonaws.com/industrysolutions/fsi-fraud-detection-backend-prod:prod-latest
-    imagePullPolicy: Always  # Always pull latest image to avoid stale cache
+    imagePullPolicy: Always # Always pull latest image to avoid stale cache
     ports:
       - containerPort: 8000
         name: fraud-api
     resources:
       requests:
-        memory: "512Mi"
-        cpu: "250m"
+        memory: '512Mi'
+        cpu: '250m'
       limits:
-        memory: "1Gi"
-        cpu: "500m"
+        memory: '1Gi'
+        cpu: '500m'
     env:
       - name: PORT
-        value: "8000"
+        value: '8000'
       - name: HOST
-        value: "0.0.0.0"
+        value: '0.0.0.0'
       - name: PYTHONUNBUFFERED
-        value: "1"
+        value: '1'
       # AWS Configuration (IRSA - no keys needed)
       - name: AWS_REGION
-        value: "us-east-1"
+        value: 'us-east-1'
       - name: AWS_USE_SSO
-        value: "false"
+        value: 'false'
       # MongoDB Configuration (from secrets)
       - name: MONGODB_URI
         valueFrom:
@@ -59,29 +59,29 @@ sidecarContainers:
   # AML/KYC Backend (port 8001)
   - name: aml-backend
     image: 795250896452.dkr.ecr.us-east-1.amazonaws.com/industrysolutions/fsi-fraud-detection-aml-backend-prod:prod-latest
-    imagePullPolicy: Always  # Always pull latest image to avoid stale cache
+    imagePullPolicy: Always # Always pull latest image to avoid stale cache
     ports:
       - containerPort: 8001
         name: aml-api
     resources:
       requests:
-        memory: "512Mi"
-        cpu: "250m"
+        memory: '512Mi'
+        cpu: '250m'
       limits:
-        memory: "1Gi"
-        cpu: "500m"
+        memory: '1Gi'
+        cpu: '500m'
     env:
       - name: PORT
-        value: "8001"
+        value: '8001'
       - name: HOST
-        value: "0.0.0.0"
+        value: '0.0.0.0'
       - name: PYTHONUNBUFFERED
-        value: "1"
+        value: '1'
       # AWS Configuration (IRSA - no keys needed)
       - name: AWS_REGION
-        value: "us-east-1"
+        value: 'us-east-1'
       - name: AWS_USE_SSO
-        value: "false"
+        value: 'false'
       # MongoDB Configuration (from secrets)
       - name: MONGODB_URI
         valueFrom:
@@ -120,4 +120,4 @@ serviceAccount:
   enabled: true
   irsa:
     accountId: '275662791714'
-    roleName: 'kanopy-production-cicd-irsa'
+    roleName: 'kanopy-prod-cicd-irsa'

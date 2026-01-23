@@ -30,8 +30,8 @@ sidecarContainers:
         memory: '512Mi'
         cpu: '250m'
       limits:
-        memory: '1Gi'
-        cpu: '500m'
+        memory: '750Mi'
+        cpu: '350m'
     env:
       - name: PORT
         value: '8000'
@@ -68,8 +68,8 @@ sidecarContainers:
         memory: '512Mi'
         cpu: '250m'
       limits:
-        memory: '1Gi'
-        cpu: '500m'
+        memory: '750Mi'
+        cpu: '350m'
     env:
       - name: PORT
         value: '8001'

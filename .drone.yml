@@ -1,4 +1,3 @@
----
 # FSI Fraud Detection - Unified Pod Deployment
 # Deploys frontend + fraud backend + AML backend as 3 containers in same pod
 
@@ -90,8 +89,8 @@ steps:
         # Service mesh
         - 'mesh.enabled=true'
         # Resource limits for frontend
-        - 'resources.limits.cpu=1000m'
-        - 'resources.limits.memory=1024Mi'
+        - 'resources.limits.cpu=500m'
+        - 'resources.limits.memory=600Mi'
         - 'resources.requests.cpu=250m'
         - 'resources.requests.memory=256Mi'
         # Sidecar: Fraud Backend
@@ -99,8 +98,8 @@ steps:
         - 'sidecarContainers[0].image=795250896452.dkr.ecr.us-east-1.amazonaws.com/industrysolutions/fsi-fraud-detection-backend:git-${DRONE_COMMIT_SHA:0:7}'
         - 'sidecarContainers[0].ports[0].containerPort=8000'
         - 'sidecarContainers[0].ports[0].name=fraud-api'
-        - 'sidecarContainers[0].resources.limits.cpu=500m'
-        - 'sidecarContainers[0].resources.limits.memory=1Gi'
+        - 'sidecarContainers[0].resources.limits.cpu=350m'
+        - 'sidecarContainers[0].resources.limits.memory=750Mi'
         - 'sidecarContainers[0].resources.requests.cpu=250m'
         - 'sidecarContainers[0].resources.requests.memory=512Mi'
         # Sidecar: AML Backend
@@ -108,8 +107,8 @@ steps:
         - 'sidecarContainers[1].image=795250896452.dkr.ecr.us-east-1.amazonaws.com/industrysolutions/fsi-fraud-detection-aml-backend:git-${DRONE_COMMIT_SHA:0:7}'
         - 'sidecarContainers[1].ports[0].containerPort=8001'
         - 'sidecarContainers[1].ports[0].name=aml-api'
-        - 'sidecarContainers[1].resources.limits.cpu=500m'
-        - 'sidecarContainers[1].resources.limits.memory=1Gi'
+        - 'sidecarContainers[1].resources.limits.cpu=350m'
+        - 'sidecarContainers[1].resources.limits.memory=750Mi'
         - 'sidecarContainers[1].resources.requests.cpu=250m'
         - 'sidecarContainers[1].resources.requests.memory=512Mi'
       api_server: https://api.staging.corp.mongodb.com
@@ -209,8 +208,8 @@ steps:
         # Service mesh
         - 'mesh.enabled=true'
         # Resource limits for frontend
-        - 'resources.limits.cpu=1000m'
-        - 'resources.limits.memory=1024Mi'
+        - 'resources.limits.cpu=500m'
+        - 'resources.limits.memory=600Mi'
         - 'resources.requests.cpu=250m'
         - 'resources.requests.memory=256Mi'
         # Sidecar: Fraud Backend
@@ -218,8 +217,8 @@ steps:
         - 'sidecarContainers[0].image=795250896452.dkr.ecr.us-east-1.amazonaws.com/industrysolutions/fsi-fraud-detection-backend-prod:git-${DRONE_COMMIT_SHA:0:7}-prod'
         - 'sidecarContainers[0].ports[0].containerPort=8000'
         - 'sidecarContainers[0].ports[0].name=fraud-api'
-        - 'sidecarContainers[0].resources.limits.cpu=500m'
-        - 'sidecarContainers[0].resources.limits.memory=1Gi'
+        - 'sidecarContainers[0].resources.limits.cpu=350m'
+        - 'sidecarContainers[0].resources.limits.memory=750Mi'
         - 'sidecarContainers[0].resources.requests.cpu=250m'
         - 'sidecarContainers[0].resources.requests.memory=512Mi'
         # Sidecar: AML Backend
@@ -227,8 +226,8 @@ steps:
         - 'sidecarContainers[1].image=795250896452.dkr.ecr.us-east-1.amazonaws.com/industrysolutions/fsi-fraud-detection-aml-backend-prod:git-${DRONE_COMMIT_SHA:0:7}-prod'
         - 'sidecarContainers[1].ports[0].containerPort=8001'
         - 'sidecarContainers[1].ports[0].name=aml-api'
-        - 'sidecarContainers[1].resources.limits.cpu=500m'
-        - 'sidecarContainers[1].resources.limits.memory=1Gi'
+        - 'sidecarContainers[1].resources.limits.cpu=350m'
+        - 'sidecarContainers[1].resources.limits.memory=750Mi'
         - 'sidecarContainers[1].resources.requests.cpu=250m'
         - 'sidecarContainers[1].resources.requests.memory=512Mi'
       api_server: https://api.prod.corp.mongodb.com

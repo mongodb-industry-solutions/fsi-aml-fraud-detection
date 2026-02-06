@@ -148,7 +148,7 @@ async def classify_entity_streaming(
         # Return Server-Sent Events stream
         return StreamingResponse(
             generate_classification_stream(),
-            media_type="text/plain",
+            media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",

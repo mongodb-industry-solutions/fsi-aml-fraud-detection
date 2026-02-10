@@ -118,6 +118,28 @@ function TransactionSimulator() {
   const [showCustomerJson, setShowCustomerJson] = useState(false);
   const [hoveredButton, setHoveredButton] = useState(false);
 
+  // Helper function to map entity to customer structure
+  const mapEntityToCustomer = (entity) => {
+    return {
+      _id: entity.entityId || entity._id || entity.id,
+      personal_info: {
+        name: entity.name_full || (typeof entity.name === 'string' ? entity.name : (entity.name?.full || 'Unknown'))
+      },
+      account_info: entity.account_info || {
+        account_number: entity.entityId || entity._id || 'N/A'
+      },
+      behavioral_profile: entity.behavioral_analytics ? {
+        devices: entity.behavioral_analytics.devices || [],
+        transaction_patterns: entity.behavioral_analytics.transaction_patterns || {}
+      } : null,
+      risk_profile: entity.riskAssessment || entity.risk_assessment ? {
+        overall_risk_score: ((entity.riskAssessment?.overall?.score || entity.risk_assessment?.overall_score || entity.riskAssessment?.overall_score || 0)) * 100 // Convert 0-1 to 0-100 scale
+      } : {
+        overall_risk_score: 0
+      }
+    };
+  };
+
   // Fetch entities and initial data
   useEffect(() => {
     async function fetchInitialData() {
@@ -131,12 +153,31 @@ function TransactionSimulator() {
         
         console.log('Fetching entities from:', `${amlApiUrl}/entities/`, { skip, limit });
         
-        const response = await axios.get(`${amlApiUrl}/entities/`, {
-          params: {
-            skip: skip,
-            limit: limit
-          }
-        });
+        // Fetch entities list and optionally the specific entity from URL in parallel
+        const fetchPromises = [
+          axios.get(`${amlApiUrl}/entities/`, {
+            params: {
+              skip: skip,
+              limit: limit
+            }
+          })
+        ];
+        
+        // If entityId is provided in URL, fetch that specific entity
+        if (entityIdFromUrl) {
+          console.log('Also fetching specific entity from URL:', entityIdFromUrl);
+          fetchPromises.push(
+            axios.get(`${amlApiUrl}/entities/${encodeURIComponent(entityIdFromUrl)}`)
+              .catch(err => {
+                console.warn('Failed to fetch specific entity:', entityIdFromUrl, err.response?.status);
+                return null; // Return null on error so Promise.all doesn't fail
+              })
+          );
+        }
+        
+        const results = await Promise.all(fetchPromises);
+        const response = results[0];
+        const specificEntityResponse = results[1];
         
         console.log('API Response:', response.data);
 
@@ -183,54 +224,51 @@ function TransactionSimulator() {
         
         console.log('Sampled entities by scenario:', sampledEntities.length, 'entities from', Object.keys(scenarioGroups).length, 'scenarios');
         
-        const mappedEntities = sampledEntities.map(entity => {
-          const mapped = {
-            _id: entity.entityId || entity._id || entity.id,
-            personal_info: {
-              name: entity.name_full || (typeof entity.name === 'string' ? entity.name : (entity.name?.full || 'Unknown'))
-            },
-            account_info: entity.account_info || {
-              account_number: entity.entityId || entity._id || 'N/A'
-            },
-            behavioral_profile: entity.behavioral_analytics ? {
-              devices: entity.behavioral_analytics.devices || [],
-              transaction_patterns: entity.behavioral_analytics.transaction_patterns || {}
-            } : null,
-            risk_profile: entity.riskAssessment || entity.risk_assessment ? {
-              overall_risk_score: ((entity.riskAssessment?.overall?.score || entity.risk_assessment?.overall_score || entity.riskAssessment?.overall_score || 0)) * 100 // Convert 0-1 to 0-100 scale
-            } : {
-              overall_risk_score: 0
-            }
-          };
-          console.log('Mapped entity:', mapped._id, 'has behavioral_profile:', !!mapped.behavioral_profile);
-          return mapped;
-        });
+        const mappedEntities = sampledEntities.map(mapEntityToCustomer);
+        console.log('Mapped entities:', mappedEntities.length, 'entities');
         
-        // Filter to only entities with behavioral data, but log if we're filtering out too many
-        const entitiesWithBehavioral = mappedEntities.filter(entity => entity.behavioral_profile);
-        console.log('Entities with behavioral data:', entitiesWithBehavioral.length, 'out of', mappedEntities.length);
+        // Handle specific entity from URL if fetched
+        let specificEntity = null;
+        if (specificEntityResponse && specificEntityResponse.data) {
+          const entityData = specificEntityResponse.data?.data || specificEntityResponse.data;
+          specificEntity = mapEntityToCustomer(entityData);
+          console.log('Fetched specific entity from URL:', specificEntity._id, specificEntity.personal_info.name);
+          
+          // Check if the specific entity is already in mappedEntities
+          const alreadyExists = mappedEntities.some(e => e._id === specificEntity._id);
+          if (!alreadyExists) {
+            console.log('Specific entity not in sampled list, prepending it');
+            mappedEntities.unshift(specificEntity); // Add to beginning of list
+          } else {
+            console.log('Specific entity already in sampled list');
+          }
+        }
         
-        if (entitiesWithBehavioral.length === 0) {
-          console.error('No entities with behavioral_analytics found. Sample entity structure:', mappedEntities[0]);
-          setError('No entities with behavioral analytics found. Please ensure entities have behavioral_analytics data.');
+        if (mappedEntities.length === 0) {
+          console.error('No entities available after mapping');
+          setError('No entities found. Please ensure entities exist in the database.');
           setInitialLoading(false);
           return;
         }
         
-        setCustomers(entitiesWithBehavioral);
-        if (entitiesWithBehavioral.length > 0) {
-          // Check if entityId is provided in URL and find matching entity
-          let entityToSelect = entitiesWithBehavioral[0];
-          if (entityIdFromUrl) {
-            const foundEntity = entitiesWithBehavioral.find(
+        setCustomers(mappedEntities);
+        if (mappedEntities.length > 0) {
+          // If we have a specific entity from URL, use it; otherwise use first entity
+          let entityToSelect = specificEntity || mappedEntities[0];
+          
+          // Double-check if entityId from URL exists in the list (in case fetch failed but it's in sampled list)
+          if (!specificEntity && entityIdFromUrl) {
+            const foundEntity = mappedEntities.find(
               entity => entity._id === entityIdFromUrl
             );
             if (foundEntity) {
               entityToSelect = foundEntity;
-              console.log('Pre-selected entity from URL:', entityIdFromUrl);
+              console.log('Pre-selected entity from URL (found in sampled list):', entityIdFromUrl);
             } else {
               console.warn('Entity ID from URL not found in loaded entities:', entityIdFromUrl);
             }
+          } else if (specificEntity) {
+            console.log('Pre-selected specific entity from URL:', specificEntity._id);
           }
           
           setSelectedCustomer(entityToSelect);

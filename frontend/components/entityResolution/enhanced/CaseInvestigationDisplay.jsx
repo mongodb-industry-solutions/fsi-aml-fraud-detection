@@ -399,8 +399,9 @@ function CaseReportTab({ investigation, workflowData }) {
         throw new Error(`PDF generation failed: ${errorText}`);
       }
       
-      // Get PDF as blob
-      const pdfBlob = await response.blob();
+      // Get PDF as blob with explicit MIME type
+      const pdfArrayBuffer = await response.arrayBuffer();
+      const pdfBlob = new Blob([pdfArrayBuffer], { type: 'application/pdf' });
       const pdfUrl = URL.createObjectURL(pdfBlob);
       const pdfSize = (pdfBlob.size / (1024 * 1024)).toFixed(2); // Convert to MB
       

@@ -83,6 +83,10 @@ const ModelAdminPanel = () => {
 
   // WebSocket reference
   const wsRef = useRef(null);
+  // Reconnection tracking
+  const reconnectTimeoutRef = useRef(null);
+  const reconnectAttemptsRef = useRef(0);
+  const maxReconnectAttempts = 20;
 
   // Custom toast function
   const showToast = React.useCallback(
@@ -111,9 +115,20 @@ const ModelAdminPanel = () => {
   const [selectedModelId, setSelectedModelId] = useState(null);
   const [selectedModel, setSelectedModel] = useState(null);
 
+  // Refs to track selected model state without causing reconnects
+  const selectedModelIdRef = useRef(null);
+  const selectedModelRef = useRef(null);
+
+  // Update refs when state changes
+  useEffect(() => {
+    selectedModelIdRef.current = selectedModelId;
+    selectedModelRef.current = selectedModel;
+  }, [selectedModelId, selectedModel]);
+
   // State for change stream events
   const [changeEvents, setChangeEvents] = useState([]);
   const [wsConnected, setWsConnected] = useState(false);
+  const [wsReconnecting, setWsReconnecting] = useState(false);
 
   // State for model editing
   const [editMode, setEditMode] = useState(false);
@@ -224,234 +239,276 @@ const ModelAdminPanel = () => {
 
   // Connect to WebSocket for real-time MongoDB Change Streams
   useEffect(() => {
+    let isMounted = true;
+
     // Determine WebSocket URL
     // If BACKEND_URL is a relative path (starts with /), use WebSocket proxy path on same port
     // Otherwise, use the backend URL directly (for backwards compatibility)
-    let wsUrl;
-    if (BACKEND_URL.startsWith('/')) {
-      // Using proxy route on same host/port: /api/fraud -> wss://same-host/ws/fraud
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = window.location.host;  // This includes the port if non-standard
-      const wsPath = BACKEND_URL.replace('/api/fraud', '/ws/fraud');
-      wsUrl = `${protocol}//${host}${wsPath}/models/change-stream`;
-    } else {
-      // Direct URL (local dev): http://localhost:8000 -> ws://localhost:8000
-      wsUrl = BACKEND_URL.replace(/^http/, 'ws') + '/models/change-stream';
-    }
-
-    console.log('Connecting to WebSocket:', wsUrl);
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-
-    // Handle WebSocket events
-    ws.onopen = () => {
-      console.log('WebSocket connected to MongoDB Change Stream');
-      setWsConnected(true);
-      showToast('Connected to real-time model updates', 'success');
-    };
-
-    ws.onclose = () => {
-      console.log('WebSocket disconnected');
-      setWsConnected(false);
-    };
-
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      setWsConnected(false);
-    };
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-
-      // Handle heartbeat messages
-      if (data.type === 'heartbeat') {
-        console.log(
-          'Received heartbeat from server:',
-          data.timestamp
-        );
-        return;
+    const getWebSocketUrl = () => {
+      if (BACKEND_URL.startsWith('/')) {
+        // Using proxy route on same host/port: /api/fraud -> wss://same-host/ws/fraud
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = window.location.host;  // This includes the port if non-standard
+        const wsPath = BACKEND_URL.replace('/api/fraud', '/ws/fraud');
+        return `${protocol}//${host}${wsPath}/models/change-stream`;
+      } else {
+        // Direct URL (local dev): http://localhost:8000 -> ws://localhost:8000
+        return BACKEND_URL.replace(/^http/, 'ws') + '/models/change-stream';
       }
+    };
 
-      // Handle initial models data
-      if (data.type === 'initial') {
-        setModels(data.models);
+    const connectWebSocket = () => {
+      if (!isMounted) return;
 
-        // Select first active model by default
-        const activeModel = data.models.find(
-          (model) => model.status === 'active'
-        );
-        if (activeModel && !selectedModelId) {
-          setSelectedModelId(activeModel.modelId);
-          setSelectedModel(activeModel);
+      const wsUrl = getWebSocketUrl();
+      console.log('Connecting to WebSocket:', wsUrl);
+      
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      // Handle WebSocket events
+      ws.onopen = () => {
+        if (!isMounted) return;
+        console.log('WebSocket connected to MongoDB Change Stream');
+        setWsConnected(true);
+        setWsReconnecting(false);
+        reconnectAttemptsRef.current = 0;
+        showToast('Connected to real-time model updates', 'success');
+      };
+
+      ws.onclose = () => {
+        if (!isMounted) return;
+        console.log('WebSocket disconnected');
+        setWsConnected(false);
+        
+        // Attempt reconnection with exponential backoff
+        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
+          console.log(`Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current + 1}/${maxReconnectAttempts})`);
+          setWsReconnecting(true);
+          
+          reconnectTimeoutRef.current = setTimeout(() => {
+            reconnectAttemptsRef.current += 1;
+            connectWebSocket();
+          }, delay);
+        } else {
+          console.error('Max reconnection attempts reached');
+          setWsReconnecting(false);
+          showToast('Failed to reconnect to real-time updates. Please refresh the page.', 'danger');
         }
-      }
+      };
 
-      // Handle change events
-      if (data.type === 'change') {
-        // Add the event to our change event log
-        setChangeEvents((prev) => {
-          // Keep only last 5 events
-          const newEvents = [data, ...prev.slice(0, 4)];
-          return newEvents;
-        });
+      ws.onerror = (error) => {
+        if (!isMounted) return;
+        console.error('WebSocket error:', error);
+        setWsConnected(false);
+      };
 
-        // Update models list based on operation type
-        if (
-          data.operationType === 'insert' ||
-          data.operationType === 'update' ||
-          data.operationType === 'replace'
-        ) {
-          const updatedDoc = data.document;
+      ws.onmessage = (event) => {
+        if (!isMounted) return;
+        const data = JSON.parse(event.data);
 
-          setModels((prevModels) => {
-            // Check if model already exists in our list
-            const existingIndex = prevModels.findIndex(
-              (m) =>
-                m.modelId === updatedDoc.modelId &&
-                m.version === updatedDoc.version
-            );
+        // Handle heartbeat messages
+        if (data.type === 'heartbeat') {
+          console.log(
+            'Received heartbeat from server:',
+            data.timestamp
+          );
+          return;
+        }
 
-            if (existingIndex >= 0) {
-              // Update existing model
-              const updatedModels = [...prevModels];
-              updatedModels[existingIndex] = updatedDoc;
-              return updatedModels;
-            } else {
-              // Add new model
-              return [...prevModels, updatedDoc];
-            }
+        // Handle initial models data
+        if (data.type === 'initial') {
+          setModels(data.models);
+
+          // Select first active model by default
+          const activeModel = data.models.find(
+            (model) => model.status === 'active'
+          );
+          if (activeModel && !selectedModelIdRef.current) {
+            setSelectedModelId(activeModel.modelId);
+            setSelectedModel(activeModel);
+          }
+        }
+
+        // Handle change events
+        if (data.type === 'change') {
+          // Add the event to our change event log
+          setChangeEvents((prev) => {
+            // Keep only last 5 events
+            const newEvents = [data, ...prev.slice(0, 4)];
+            return newEvents;
           });
 
-          // If this update affects our selected model, update it too
+          // Update models list based on operation type
           if (
-            selectedModel &&
-            selectedModel.modelId === updatedDoc.modelId &&
-            selectedModel.version === updatedDoc.version
+            data.operationType === 'insert' ||
+            data.operationType === 'update' ||
+            data.operationType === 'replace'
           ) {
-            console.log(
-              'Detected update to current model via Change Stream'
-            );
+            const updatedDoc = data.document;
 
-            // Clear any previous highlights
-            setRecentlyUpdated({
-              description: false,
-              flagThreshold: false,
-              blockThreshold: false,
-              riskFactors: {},
+            setModels((prevModels) => {
+              // Check if model already exists in our list
+              const existingIndex = prevModels.findIndex(
+                (m) =>
+                  m.modelId === updatedDoc.modelId &&
+                  m.version === updatedDoc.version
+              );
+
+              if (existingIndex >= 0) {
+                // Update existing model
+                const updatedModels = [...prevModels];
+                updatedModels[existingIndex] = updatedDoc;
+                return updatedModels;
+              } else {
+                // Add new model
+                return [...prevModels, updatedDoc];
+              }
             });
 
-            // Check which fields changed to highlight them
+            // If this update affects our selected model, update it too
+            // Use refs to get current values without causing reconnects
+            const currentSelectedModel = selectedModelRef.current;
             if (
-              selectedModel.description !== updatedDoc.description
+              currentSelectedModel &&
+              currentSelectedModel.modelId === updatedDoc.modelId &&
+              currentSelectedModel.version === updatedDoc.version
             ) {
               console.log(
-                'Description changed:',
-                selectedModel.description,
-                '->',
-                updatedDoc.description
+                'Detected update to current model via Change Stream'
               );
-              highlightField('description');
-            }
 
-            // Check threshold changes
-            const oldFlag = parseInt(selectedModel.thresholds?.flag);
-            const newFlag = parseInt(updatedDoc.thresholds?.flag);
-            if (oldFlag !== newFlag) {
-              console.log(
-                'Flag threshold changed:',
-                oldFlag,
-                '->',
-                newFlag
-              );
-              highlightField('flagThreshold');
-            }
+              // Clear any previous highlights
+              setRecentlyUpdated({
+                description: false,
+                flagThreshold: false,
+                blockThreshold: false,
+                riskFactors: {},
+              });
 
-            const oldBlock = parseInt(
-              selectedModel.thresholds?.block
-            );
-            const newBlock = parseInt(updatedDoc.thresholds?.block);
-            if (oldBlock !== newBlock) {
-              console.log(
-                'Block threshold changed:',
-                oldBlock,
-                '->',
-                newBlock
-              );
-              highlightField('blockThreshold');
-            }
-
-            // Check risk factor changes
-            const oldFactors = selectedModel.riskFactors || [];
-            const newFactors = updatedDoc.riskFactors || [];
-
-            // Track changed or new risk factors
-            newFactors.forEach((factor) => {
-              const oldFactor = oldFactors.find(
-                (f) => f.id === factor.id
-              );
-              if (!oldFactor) {
-                console.log('New risk factor added:', factor.id);
-                highlightField('riskFactors', factor.id);
-              } else if (
-                oldFactor.description !== factor.description ||
-                oldFactor.threshold !== factor.threshold ||
-                oldFactor.distanceThreshold !==
-                  factor.distanceThreshold ||
-                oldFactor.active !== factor.active
+              // Check which fields changed to highlight them
+              if (
+                currentSelectedModel.description !== updatedDoc.description
               ) {
-                console.log('Risk factor changed:', factor.id);
-                highlightField('riskFactors', factor.id);
+                console.log(
+                  'Description changed:',
+                  currentSelectedModel.description,
+                  '->',
+                  updatedDoc.description
+                );
+                highlightField('description');
               }
-            });
 
-            // Check for weight changes
-            Object.keys(updatedDoc.weights || {}).forEach(
-              (factorId) => {
-                if (
-                  selectedModel.weights?.[factorId] !==
-                  updatedDoc.weights[factorId]
+              // Check threshold changes
+              const oldFlag = parseInt(currentSelectedModel.thresholds?.flag);
+              const newFlag = parseInt(updatedDoc.thresholds?.flag);
+              if (oldFlag !== newFlag) {
+                console.log(
+                  'Flag threshold changed:',
+                  oldFlag,
+                  '->',
+                  newFlag
+                );
+                highlightField('flagThreshold');
+              }
+
+              const oldBlock = parseInt(
+                currentSelectedModel.thresholds?.block
+              );
+              const newBlock = parseInt(updatedDoc.thresholds?.block);
+              if (oldBlock !== newBlock) {
+                console.log(
+                  'Block threshold changed:',
+                  oldBlock,
+                  '->',
+                  newBlock
+                );
+                highlightField('blockThreshold');
+              }
+
+              // Check risk factor changes
+              const oldFactors = currentSelectedModel.riskFactors || [];
+              const newFactors = updatedDoc.riskFactors || [];
+
+              // Track changed or new risk factors
+              newFactors.forEach((factor) => {
+                const oldFactor = oldFactors.find(
+                  (f) => f.id === factor.id
+                );
+                if (!oldFactor) {
+                  console.log('New risk factor added:', factor.id);
+                  highlightField('riskFactors', factor.id);
+                } else if (
+                  oldFactor.description !== factor.description ||
+                  oldFactor.threshold !== factor.threshold ||
+                  oldFactor.distanceThreshold !==
+                    factor.distanceThreshold ||
+                  oldFactor.active !== factor.active
                 ) {
-                  console.log('Weight changed for factor:', factorId);
-                  highlightField('riskFactors', factorId);
+                  console.log('Risk factor changed:', factor.id);
+                  highlightField('riskFactors', factor.id);
                 }
-              }
-            );
+              });
 
-            // Update the model
-            setSelectedModel(updatedDoc);
-            showToast(
-              `Model ${updatedDoc.modelId} updated in real-time via Change Stream`,
-              'info'
-            );
-          }
+              // Check for weight changes
+              Object.keys(updatedDoc.weights || {}).forEach(
+                (factorId) => {
+                  if (
+                    currentSelectedModel.weights?.[factorId] !==
+                    updatedDoc.weights[factorId]
+                  ) {
+                    console.log('Weight changed for factor:', factorId);
+                    highlightField('riskFactors', factorId);
+                  }
+                }
+              );
 
-          // If status changed to active, update other models
-          if (updatedDoc.status === 'active') {
+              // Update the model
+              setSelectedModel(updatedDoc);
+              showToast(
+                `Model ${updatedDoc.modelId} updated in real-time via Change Stream`,
+                'info'
+              );
+            }
+
+            // If status changed to active, update other models
+            if (updatedDoc.status === 'active') {
+              setModels((prevModels) =>
+                prevModels.map((model) =>
+                  model._id !== updatedDoc._id &&
+                  model.status === 'active'
+                    ? { ...model, status: 'inactive' }
+                    : model
+                )
+              );
+            }
+          } else if (data.operationType === 'delete') {
+            // Remove deleted model from list
             setModels((prevModels) =>
-              prevModels.map((model) =>
-                model._id !== updatedDoc._id &&
-                model.status === 'active'
-                  ? { ...model, status: 'inactive' }
-                  : model
+              prevModels.filter(
+                (model) => model._id !== data.documentId
               )
             );
           }
-        } else if (data.operationType === 'delete') {
-          // Remove deleted model from list
-          setModels((prevModels) =>
-            prevModels.filter(
-              (model) => model._id !== data.documentId
-            )
-          );
         }
-      }
+      };
     };
+
+    // Initial connection
+    connectWebSocket();
 
     // Clean up on component unmount
     return () => {
-      ws.close();
+      isMounted = false;
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
     };
-  }, [showToast, selectedModelId]);
+  }, [showToast]);
 
   // Fetch models on component mount (as backup if WebSocket fails)
   useEffect(() => {
@@ -1566,9 +1623,11 @@ const ModelAdminPanel = () => {
                             borderRadius: '50%',
                             backgroundColor: wsConnected
                               ? palette.green.dark1
+                              : wsReconnecting
+                              ? palette.yellow.dark1
                               : palette.red.dark1,
                             marginRight: '4px',
-                            animation: wsConnected
+                            animation: wsConnected || wsReconnecting
                               ? 'pulse 2s infinite'
                               : 'none',
                           }}
@@ -1578,10 +1637,12 @@ const ModelAdminPanel = () => {
                             fontSize: '11px',
                             color: wsConnected
                               ? palette.green.dark2
+                              : wsReconnecting
+                              ? palette.yellow.dark2
                               : palette.red.dark2,
                           }}
                         >
-                          {wsConnected ? 'LIVE' : 'DISCONNECTED'}
+                          {wsConnected ? 'LIVE' : wsReconnecting ? 'RECONNECTING...' : 'DISCONNECTED'}
                         </span>
                       </div>
 
@@ -1611,11 +1672,13 @@ const ModelAdminPanel = () => {
                           style={{
                             color: wsConnected
                               ? palette.green.light2
+                              : wsReconnecting
+                              ? palette.yellow.light2
                               : palette.red.light2,
                           }}
                         >
                           {'>>'} WebSocket connection status:{' '}
-                          {wsConnected ? 'CONNECTED' : 'DISCONNECTED'}
+                          {wsConnected ? 'CONNECTED' : wsReconnecting ? 'RECONNECTING...' : 'DISCONNECTED'}
                         </div>
                         {selectedModel && (
                           <div style={{ color: palette.blue.light2 }}>

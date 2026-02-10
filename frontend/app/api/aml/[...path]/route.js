@@ -74,18 +74,33 @@ export async function POST(request, { params }) {
       body: body ? JSON.stringify(body) : undefined,
     });
 
-    // Handle response - might be JSON or plain text
+    // Handle response based on content type
     const responseContentType = response.headers.get('content-type');
+    
+    // SSE streaming - pass through ReadableStream without buffering
+    if (responseContentType?.includes('text/event-stream')) {
+      return new Response(response.body, {
+        status: response.status,
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
+      });
+    }
+    
+    // JSON response
     if (responseContentType?.includes('application/json')) {
       const data = await response.json();
       return NextResponse.json(data, { status: response.status });
-    } else {
-      const text = await response.text();
-      return new NextResponse(text, {
-        status: response.status,
-        headers: { 'Content-Type': 'text/plain' }
-      });
     }
+    
+    // Fallback - plain text
+    const text = await response.text();
+    return new NextResponse(text, {
+      status: response.status,
+      headers: { 'Content-Type': 'text/plain' }
+    });
   } catch (error) {
     console.error('[AML Proxy] Error:', error);
     return NextResponse.json(

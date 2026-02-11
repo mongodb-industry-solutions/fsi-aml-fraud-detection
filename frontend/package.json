@@ -42,7 +42,7 @@
     "@leafygreen-ui/tooltip": "^11.1.0",
     "@leafygreen-ui/typography": "^18.4.0",
     "@mongodb-js/charts-embed-dom": "^3.3.1",
-    "axios": "^1.11.0",
+    "axios": "^1.13.5",
     "cytoscape": "^3.33.0",
     "cytoscape-context-menus": "^4.2.1",
     "cytoscape-dagre": "^2.5.0",

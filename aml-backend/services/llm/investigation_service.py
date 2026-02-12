@@ -291,7 +291,7 @@ Write in professional compliance language suitable for case documentation."""
             
             # Make API call
             response = bedrock_runtime.invoke_model(
-                modelId="anthropic.claude-3-sonnet-20240229-v1:0",
+                modelId="arn:aws:bedrock:us-east-1:275662791714:application-inference-profile/n5kazy9gif2u",
                 body=json.dumps(request_body),
                 contentType="application/json"
             )

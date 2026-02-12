@@ -35,10 +35,10 @@ class StreamingClassificationService:
         """Initialize streaming classification service"""
         self.bedrock_client = bedrock_client or BedrockClient()
         self.supported_models = {
-            'claude-sonnet-4': 'us.anthropic.claude-sonnet-4-20250514-v1:0',
-            'claude-3.5-sonnet-v2': 'anthropic.claude-3-5-sonnet-20241022-v2:0',
-            'claude-3-sonnet': 'anthropic.claude-3-sonnet-20240229-v1:0',
-            'claude-3-haiku': 'anthropic.claude-3-haiku-20240307-v1:0'
+            'claude-sonnet-4': 'arn:aws:bedrock:us-east-1:275662791714:application-inference-profile/n5kazy9gif2u',
+            'claude-3.5-sonnet-v2': 'arn:aws:bedrock:us-east-1:275662791714:application-inference-profile/n5kazy9gif2u',
+            'claude-3-sonnet': 'arn:aws:bedrock:us-east-1:275662791714:application-inference-profile/n5kazy9gif2u',
+            'claude-3-haiku': 'arn:aws:bedrock:us-east-1:275662791714:application-inference-profile/w1qp69dyf4ml'
         }
         logger.info("StreamingClassificationService initialized for transparent AI classification")
     

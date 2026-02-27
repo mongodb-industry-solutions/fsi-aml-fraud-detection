@@ -142,6 +142,30 @@ export default function HomepageClient() {
                 Test fraud detection with real-time transaction monitoring. Uses MongoDB Atlas Vector Search to compare transaction patterns against known fraud embeddings for instant risk assessment.
               </Description>
             </Card>
+
+            <Card 
+              contentStyle="clickable"
+              as={Link}
+              href="/investigations"
+              style={{ 
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                border: `2px solid ${palette.yellow.light2}`,
+                textDecoration: 'none',
+                transition: 'all 0.2s ease',
+                cursor: 'pointer'
+              }}
+              {...cardHoverStyles}
+            >
+              <div style={{ marginBottom: spacing[2], color: palette.yellow.dark2 }}>
+                <Icon glyph="ActivityFeed" size="large" />
+              </div>
+              <H3 style={{ marginBottom: spacing[2], color: palette.gray.dark2 }}>
+                Agentic Investigations
+              </H3>
+              <Description style={{ color: palette.gray.dark1 }}>
+                AI-powered multi-agent pipeline for automated SAR investigations. LangGraph orchestrates triage, evidence gathering, typology classification, narrative generation, and human-in-the-loop review.
+              </Description>
+            </Card>
             
           </>
         )}

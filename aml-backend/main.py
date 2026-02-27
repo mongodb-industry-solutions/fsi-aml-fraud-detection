@@ -22,7 +22,8 @@ from routes import (
     enhanced_resolution_router,
     transactions_router,
     llm_classification_router,
-    llm_investigation_router
+    llm_investigation_router,
+    agent_investigation_router,
 )
 
 # Import PDF generation routes
@@ -119,7 +120,8 @@ async def root():
             "Intelligent Entity Resolution", 
             "Atlas Search Integration",
             "Relationship Management",
-            "Network Analysis"
+            "Network Analysis",
+            "Agentic Investigation Pipeline"
         ],
         "endpoints": {
             "core": {
@@ -255,6 +257,9 @@ include_router_safely(app, llm_investigation_router, "LLM Investigation")
 
 # 4.8. PDF Generation routes
 include_router_safely(app, pdf_router, "PDF Generation")
+
+# 4.9. Agent Investigation routes
+include_router_safely(app, agent_investigation_router, "Agent Investigation")
 
 # 5. Core entity routes (has catch-all routes, so include after more specific routes)  
 include_router_safely(app, core_entities_router, "Core Entities")

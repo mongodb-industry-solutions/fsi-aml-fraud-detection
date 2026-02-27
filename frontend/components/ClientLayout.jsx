@@ -9,6 +9,7 @@ import { H1, Overline, Body } from '@leafygreen-ui/typography';
 import Icon from '@leafygreen-ui/icon';
 import IconButton from '@leafygreen-ui/icon-button';
 import { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { useUser } from '@/contexts/UserContext';
 import UserSelectionModal from '@/components/UserSelection/UserSelectionModal';
 import UserProfile from '@/components/UserProfile/UserProfile';
@@ -17,6 +18,31 @@ export default function ClientLayout({ children }) {
   const [isMenuOpen, setMenuOpen] = useState(false);
   const { role, isInitialized } = useUser();
   const [showUserSelection, setShowUserSelection] = useState(false);
+  const pathname = usePathname();
+  const isWideRoute = pathname?.startsWith('/investigations');
+
+  const isActive = (href) => {
+    if (href === '/') return pathname === '/';
+    return pathname?.startsWith(href);
+  };
+
+  const navLinkStyle = (href) => ({
+    color: palette.gray.light3,
+    textDecoration: 'none',
+    display: 'flex',
+    alignItems: 'center',
+    gap: spacing[1],
+    padding: `${spacing[2]}px ${spacing[3]}px`,
+    borderRadius: '4px',
+    transition: 'background-color 0.2s ease',
+    backgroundColor: isActive(href) ? 'rgba(255, 255, 255, 0.12)' : 'transparent',
+  });
+
+  const handleLinkHover = (e, href, entering) => {
+    e.currentTarget.style.backgroundColor = entering
+      ? palette.green.dark1
+      : isActive(href) ? 'rgba(255, 255, 255, 0.12)' : 'transparent';
+  };
 
   useEffect(() => {
     if (isInitialized && !role) {
@@ -42,13 +68,14 @@ export default function ClientLayout({ children }) {
       >
         <div
           style={{
-            maxWidth: '1200px',
+            maxWidth: isWideRoute ? '1600px' : '1200px',
             margin: '0 auto',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             flexWrap: isMenuOpen ? 'wrap' : 'nowrap',
             padding: `${spacing[3]}px ${spacing[3]}px`,
+            transition: 'max-width 0.3s ease',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
@@ -129,132 +156,27 @@ export default function ClientLayout({ children }) {
                   flexDirection: isMenuOpen ? 'column' : 'row',
                 }}
               >
-                <li>
-                  <Link
-                    href="/"
-                    style={{
-                      color: palette.gray.light3,
-                      textDecoration: 'none',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: spacing[1],
-                      padding: `${spacing[2]}px ${spacing[3]}px`,
-                      borderRadius: '4px',
-                      transition: 'background-color 0.2s ease',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = palette.green.dark1;
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                    }}
-                  >
-                    <Icon glyph="Home" fill={palette.gray.light3} size={16} /> 
-                    <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>Home</Body>
-                  </Link>
-                </li>
-                {role === 'risk_analyst' && (
-                  <>
-                    <li>
-                      <Link
-                        href="/entities"
-                        style={{
-                          color: palette.gray.light3,
-                          textDecoration: 'none',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: spacing[1],
-                          padding: `${spacing[2]}px ${spacing[3]}px`,
-                          borderRadius: '4px',
-                          transition: 'background-color 0.2s ease',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = palette.green.dark1;
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = 'transparent';
-                        }}
-                      >
-                        <Icon glyph="Person" fill={palette.gray.light3} size={16} /> 
-                        <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>Entity Management</Body>
-                      </Link>
-                    </li>
-                    <li>
-                      <Link
-                        href="/entity-resolution/enhanced"
-                        style={{
-                          color: palette.gray.light3,
-                          textDecoration: 'none',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: spacing[1],
-                          padding: `${spacing[2]}px ${spacing[3]}px`,
-                          borderRadius: '4px',
-                          transition: 'background-color 0.2s ease',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = palette.green.dark1;
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = 'transparent';
-                        }}
-                      >
-                        <Icon glyph="Relationship" fill={palette.gray.light3} size={16} /> 
-                        <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>Entity Resolution</Body>
-                      </Link>
-                    </li>
-                    <li>
-                      <Link
-                        href="/transaction-simulator"
-                        style={{
-                          color: palette.gray.light3,
-                          textDecoration: 'none',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: spacing[1],
-                          padding: `${spacing[2]}px ${spacing[3]}px`,
-                          borderRadius: '4px',
-                          transition: 'background-color 0.2s ease',
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = palette.green.dark1;
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = 'transparent';
-                        }}
-                      >
-                        <Icon glyph="CreditCard" fill={palette.gray.light3} size={16} /> 
-                        <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>Transaction Simulator</Body>
-                      </Link>
-                    </li>
-                  </>
-                )}
-                {role === 'risk_manager' && (
-                  <li>
+                {[
+                  { href: '/', icon: 'Home', label: 'Home', roles: null },
+                  { href: '/entities', icon: 'Person', label: 'Entity Management', roles: ['risk_analyst'] },
+                  { href: '/entity-resolution/enhanced', icon: 'Relationship', label: 'Entity Resolution', roles: ['risk_analyst'] },
+                  { href: '/transaction-simulator', icon: 'CreditCard', label: 'Transaction Simulator', roles: ['risk_analyst'] },
+                  { href: '/investigations', icon: 'ActivityFeed', label: 'Investigations', roles: ['risk_analyst'] },
+                  { href: '/risk-models', icon: 'Settings', label: 'Risk Models', roles: ['risk_manager'] },
+                ].filter(link => !link.roles || link.roles.includes(role)).map(link => (
+                  <li key={link.href}>
                     <Link
-                      href="/risk-models"
-                      style={{
-                        color: palette.gray.light3,
-                        textDecoration: 'none',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: spacing[1],
-                        padding: `${spacing[2]}px ${spacing[3]}px`,
-                        borderRadius: '4px',
-                        transition: 'background-color 0.2s ease',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = palette.green.dark1;
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'transparent';
-                      }}
+                      href={link.href}
+                      aria-current={isActive(link.href) ? 'page' : undefined}
+                      style={navLinkStyle(link.href)}
+                      onMouseEnter={(e) => handleLinkHover(e, link.href, true)}
+                      onMouseLeave={(e) => handleLinkHover(e, link.href, false)}
                     >
-                      <Icon glyph="Settings" fill={palette.gray.light3} size={16} /> 
-                      <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>Risk Models</Body>
+                      <Icon glyph={link.icon} fill={palette.gray.light3} size={16} />
+                      <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>{link.label}</Body>
                     </Link>
                   </li>
-                )}
+                ))}
               </ul>
             </nav>
 
@@ -273,11 +195,12 @@ export default function ClientLayout({ children }) {
       <main>
         <div style={{ backgroundColor: palette.gray.light3, minHeight: 'calc(100vh - 74px)', padding: spacing[3] }}>
           <Card style={{ 
-            maxWidth: '1200px', 
+            maxWidth: isWideRoute ? '1600px' : '1200px', 
             margin: '0 auto', 
-            padding: spacing[4],
+            padding: isWideRoute ? spacing[3] : spacing[4],
             boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
-            border: `1px solid ${palette.gray.light2}`
+            border: `1px solid ${palette.gray.light2}`,
+            transition: 'max-width 0.3s ease',
           }}>
             {children}
           </Card>

@@ -1,0 +1,75 @@
+"""Validation Agent – quality-checks the investigation and routes dynamically."""
+
+import json
+import logging
+from datetime import datetime, timezone
+
+from langchain_core.messages import SystemMessage, HumanMessage
+from langgraph.types import Command
+
+from models.agents.investigation import ValidationResult
+from services.agents.llm import get_llm
+from services.agents.prompts import VALIDATION_SYSTEM
+from services.agents.state import InvestigationState
+
+logger = logging.getLogger(__name__)
+
+MAX_VALIDATION_LOOPS = 2
+
+
+def validation_node(state: InvestigationState) -> Command:
+    loop_count = state.get("validation_count", 0) + 1
+
+    if loop_count >= MAX_VALIDATION_LOOPS:
+        forced = ValidationResult(
+            is_valid=False,
+            score=0.0,
+            issues=["Maximum validation loops exceeded — forced escalation"],
+            route_to="human_review",
+        )
+        audit_entry = {
+            "agent": "validator",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "loop": loop_count,
+            "forced_escalation": True,
+        }
+        return Command(
+            goto="human_review",
+            update={
+                "validation_result": forced.model_dump(),
+                "validation_count": loop_count,
+                "investigation_status": "forced_escalation",
+                "agent_audit_log": [audit_entry],
+            },
+        )
+
+    payload = json.dumps({
+        "case_file": state.get("case_file", {}),
+        "narrative": state.get("narrative", {}),
+        "typology": state.get("typology", {}),
+        "network_analysis": state.get("network_analysis", {}),
+    }, default=str)[:12000]
+
+    llm = get_llm().with_structured_output(ValidationResult)
+    result: ValidationResult = llm.invoke([
+        SystemMessage(content=VALIDATION_SYSTEM),
+        HumanMessage(content=payload),
+    ])
+
+    audit_entry = {
+        "agent": "validator",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "loop": loop_count,
+        "score": result.score,
+        "route_to": result.route_to,
+        "issues": result.issues,
+    }
+
+    update = {
+        "validation_result": result.model_dump(),
+        "validation_count": loop_count,
+        "investigation_status": f"validation_{result.route_to}",
+        "agent_audit_log": [audit_entry],
+    }
+
+    return Command(goto=result.route_to, update=update)

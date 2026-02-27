@@ -41,7 +41,7 @@ validation, and human review — producing audit-ready case documents.
 - **Automated Alert Triage** — Risk scoring and disposition routing (auto-close, investigate, urgent escalation)
 - **Parallel Data Gathering** — Concurrent entity, transaction, network, and watchlist queries via LangGraph's `Send` API
 - **Typology Classification** — RAG-powered mapping to 12 AML crime typologies with confidence scoring
-- **Network Risk Analysis** — `$graphLookup`-based traversal identifying shell structures and suspicious connections
+- **Network Risk Analysis** — Real graph computation (degree centrality, network risk scoring) from MongoDB data
 - **SAR Narrative Generation** — FinCEN-compliant who/what/when/where/why/how narratives grounded exclusively in evidence
 - **Quality Validation Loop** — Automated fact-checking with up to 3 re-drafting cycles before forced escalation
 - **Durable Human Review** — `interrupt()`-based pause/resume enabling analyst decisions hours or days later
@@ -53,7 +53,7 @@ validation, and human review — producing audit-ready case documents.
 |-----------|------------|
 | Orchestration | LangGraph 1.0.7 (StateGraph, Command, Send, interrupt) |
 | LLM | Claude Sonnet via AWS Bedrock (`ChatBedrockConverse`) |
-| Embeddings | Voyage AI `voyage-finance-2` |
+| Embeddings | Voyage AI `voyage-4` via Atlas Embedding API |
 | State Persistence | `MongoDBSaver` (checkpoints + checkpoint_writes) |
 | Long-term Memory | `MongoDBStore` (cross-investigation learning) |
 | Data Platform | MongoDB Atlas (operational data, vector search, `$graphLookup`) |
@@ -117,8 +117,8 @@ flowchart LR
         Claude["Claude Sonnet"]
     end
 
-    subgraph Voyage["Voyage AI"]
-        VF2["voyage-finance-2"]
+    subgraph Voyage["Atlas Embedding API"]
+        V4["voyage-4 (Atlas API)"]
     end
 
     UI --> P --> Routes --> Graph
@@ -126,7 +126,7 @@ flowchart LR
     Agents --> Tools
     Tools --> MongoDB
     Agents --> Claude
-    Agents --> VF2
+    Agents --> V4
     Graph --> CP
 ```
 
@@ -246,7 +246,7 @@ sequenceDiagram
     TY->>TY: RAG + LLM → TypologyResult
     TY-->>NA: typology
 
-    NA->>NA: LLM → NetworkRiskProfile
+    NA->>NA: Graph Computation → NetworkRiskProfile
     NA-->>NR: network_analysis
 
     NR->>NR: RAG + LLM → SARNarrative
@@ -354,15 +354,12 @@ Includes confidence scores and supporting evidence for regulatory explainability
 **File:** `services/agents/nodes/network_analyst.py`
 **Structured Output:** `NetworkRiskProfile`
 
-Enriches the investigation with graph-based insights:
+Enriches the investigation with graph-computed network insights (no LLM — pure MongoDB aggregation):
 
-- **Shell company structures** — nominee directors, layered subsidiaries
-- **Suspicious relationship patterns** — proxy, beneficial owner, financial beneficiary
-- **Centrality analysis** — is the entity a hub connecting high-risk nodes?
-- **Risk propagation** — do connected entities raise overall risk?
-
-Uses the `analyze_entity_network` tool which runs `$graphLookup` on the
-`relationships` collection, traversing up to 2 hops from the target entity.
+- **Shell company structures** — passes through shell indicators from gathered data
+- **Suspicious relationship patterns** — proxy, beneficial owner, financial beneficiary connections from gathered data
+- **Degree centrality** — computed from actual connection counts in the network
+- **Network risk score** — computed from connected entity risk scores
 
 ### 4.5 Narrative Agent
 
@@ -696,8 +693,9 @@ classDiagram
         +int high_risk_connections
         +int max_depth_reached
         +List~str~ shell_structure_indicators
-        +float centrality_score
-        +float risk_propagation_score
+        +float degree_centrality
+        +float network_risk_score
+        +float base_entity_risk
         +List~dict~ key_connections
         +str summary
     }
@@ -857,6 +855,8 @@ data: {"type":"investigation_complete","thread_id":"case-abc123","status":"filed
 |-----------|--------|-------------|
 | `agent_start` | `agent`, `timestamp` | Agent node beginning execution |
 | `agent_end` | `agent`, `status`, `timestamp` | Agent node completed |
+| `tool_start` | `agent`, `tool`, `input`, `timestamp` | Tool invocation beginning |
+| `tool_end` | `agent`, `tool`, `output`, `timestamp` | Tool invocation completed |
 | `investigation_complete` | `thread_id`, `status`, `triage_decision`, `typology`, `narrative`, `validation_result`, `needs_human_review` | Pipeline finished |
 | `error` | `message` | Error occurred |
 
@@ -1097,9 +1097,9 @@ flowchart LR
 
 | Setting | Value |
 |---------|-------|
-| Model | `voyage-finance-2` (financial-domain-optimized) |
-| Provider | Voyage AI |
-| Client | Custom `VoyageFinanceEmbeddings` wrapper implementing LangChain `Embeddings` |
+| Model | `voyage-4` |
+| Provider | Atlas Embedding API (`ai.mongodb.com`) |
+| Client | Custom `AtlasVoyageEmbeddings` wrapper implementing LangChain `Embeddings` |
 | Pattern | Singleton via `get_voyage_embeddings()` |
 
 ---
@@ -1193,7 +1193,7 @@ services/agents/
 ├── state.py                    # InvestigationState TypedDict + reducers
 ├── graph.py                    # LangGraph StateGraph wiring + compilation
 ├── llm.py                      # ChatBedrockConverse singleton
-├── embeddings.py               # VoyageFinanceEmbeddings wrapper
+├── embeddings.py               # AtlasVoyageEmbeddings wrapper (voyage-4 via Atlas API)
 ├── memory.py                   # MongoDBStore for cross-investigation learning
 ├── prompts.py                  # Centralized system prompts (5 prompts)
 ├── seed.py                     # Seed script (12 typologies + 6 policies)

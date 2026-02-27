@@ -15,13 +15,24 @@ from services.agents.tools.policy_tools import search_compliance_policies
 logger = logging.getLogger(__name__)
 
 
+_MAX_TOOL_OUTPUT = 3000
+
+
 def narrative_node(state: InvestigationState) -> dict:
     case_file = state.get("case_file", {})
     typology = state.get("typology", {})
     network = state.get("network_analysis", {})
 
-    policies = search_compliance_policies.invoke({"query": "SAR narrative structure"})
+    tool_input = {"query": "SAR narrative structure"}
+    policies = search_compliance_policies.invoke(tool_input)
     policy_context = json.dumps(policies, default=str)[:3000] if policies else "Follow standard FinCEN SAR narrative guidelines."
+
+    output_text = json.dumps(policies, default=str) if policies else "[]"
+    tool_calls = [{
+        "tool": "search_compliance_policies",
+        "input": json.dumps(tool_input),
+        "output": output_text[:_MAX_TOOL_OUTPUT] + "..." if len(output_text) > _MAX_TOOL_OUTPUT else output_text,
+    }]
 
     evidence_payload = json.dumps({
         "case_file": case_file,
@@ -48,5 +59,6 @@ def narrative_node(state: InvestigationState) -> dict:
     return {
         "narrative": narrative.model_dump(),
         "investigation_status": "narrative_generated",
+        "_node_tool_calls": tool_calls,
         "agent_audit_log": [audit_entry],
     }

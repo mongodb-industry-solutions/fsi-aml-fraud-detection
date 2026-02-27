@@ -383,7 +383,7 @@ const INITIAL_NODES = [
   {
     id: 'typology',
     type: 'agent',
-    position: { x: 130, y: 585 },
+    position: { x: CX - 30, y: 585 },
     data: {
       label: 'Typology Classifier', icon: '🏷', color: palette.yellow.dark2,
       subtitle: 'RAG → TypologyResult',
@@ -394,17 +394,18 @@ const INITIAL_NODES = [
   {
     id: 'networkAnalyst',
     type: 'agent',
-    position: { x: 400, y: 585 },
+    position: { x: CX - 30, y: 690 },
     data: {
       label: 'Network Analyst', icon: '🔗', color: palette.yellow.dark2,
-      subtitle: '$graphLookup → NetworkRiskProfile',
-      tooltip: 'Analyzes $graphLookup network data with case_file context. Identifies shell structures, centrality, and risk propagation.',
+      subtitle: 'Centrality + Risk Scoring',
+      tools: ['compute_network_metrics'],
+      tooltip: 'Computes degree centrality and network risk score from real graph data. No LLM -- pure MongoDB aggregation.',
     },
   },
   {
     id: 'narrative',
     type: 'agent',
-    position: { x: CX - 30, y: 700 },
+    position: { x: CX - 30, y: 795 },
     data: {
       label: 'Narrative Writer', icon: '📝', color: palette.green.dark1,
       subtitle: 'RAG → SARNarrative (5Ws)',
@@ -415,7 +416,7 @@ const INITIAL_NODES = [
   {
     id: 'validation',
     type: 'agent',
-    position: { x: CX - 30, y: 810 },
+    position: { x: CX - 30, y: 905 },
     data: {
       label: 'Quality Reviewer', icon: '✓', color: palette.blue.dark1,
       subtitle: 'ValidationResult → Command',
@@ -425,7 +426,7 @@ const INITIAL_NODES = [
   {
     id: 'humanReview',
     type: 'agent',
-    position: { x: CX - 30, y: 930 },
+    position: { x: CX - 30, y: 1020 },
     data: {
       label: 'Human Review', icon: '👁', color: palette.red.base,
       subtitle: 'interrupt() → pause/resume',
@@ -435,7 +436,7 @@ const INITIAL_NODES = [
   {
     id: 'finalize',
     type: 'agent',
-    position: { x: CX - 30, y: 1040 },
+    position: { x: CX - 30, y: 1130 },
     data: {
       label: 'Finalize Case', icon: '📋', color: palette.green.dark2,
       subtitle: 'Persist to MongoDB',
@@ -445,7 +446,7 @@ const INITIAL_NODES = [
   {
     id: 'endNode',
     type: 'terminal',
-    position: { x: CX + 20, y: 1140 },
+    position: { x: CX + 20, y: 1230 },
     data: { label: 'END', color: palette.gray.dark2 },
   },
 ];
@@ -455,8 +456,9 @@ const COLLECTION_NODES = [
   { id: 'col-txns', type: 'collection', position: { x: 185, y: 445 }, data: { icon: '🗄', label: 'transactionsv2' } },
   { id: 'col-rels', type: 'collection', position: { x: 345, y: 445 }, data: { icon: '🗄', label: 'relationships' } },
   { id: 'col-watchlist', type: 'collection', position: { x: 510, y: 445 }, data: { icon: '🗄', label: 'entities' } },
-  { id: 'col-typology-lib', type: 'collection', position: { x: 70, y: 672 }, data: { icon: '🗄', label: 'typology_library' } },
-  { id: 'col-policies', type: 'collection', position: { x: 510, y: 740 }, data: { icon: '🗄', label: 'compliance_policies' } },
+  { id: 'col-typology-lib', type: 'collection', position: { x: 70, y: 620 }, data: { icon: '🗄', label: 'typology_library' } },
+  { id: 'col-rels2', type: 'collection', position: { x: 510, y: 725 }, data: { icon: '🗄', label: 'entities + relationships' } },
+  { id: 'col-policies', type: 'collection', position: { x: 510, y: 835 }, data: { icon: '🗄', label: 'compliance_policies' } },
 ];
 
 const COLLECTION_EDGES = [
@@ -465,6 +467,7 @@ const COLLECTION_EDGES = [
   { id: 'ce-rels', source: 'fetchNetwork', target: 'col-rels', style: { strokeWidth: 1, stroke: palette.gray.light1, strokeDasharray: '3 2' }, markerEnd: { type: MarkerType.ArrowClosed, width: 8, height: 8, color: palette.gray.light1 } },
   { id: 'ce-wl', source: 'fetchWatchlist', target: 'col-watchlist', style: { strokeWidth: 1, stroke: palette.gray.light1, strokeDasharray: '3 2' }, markerEnd: { type: MarkerType.ArrowClosed, width: 8, height: 8, color: palette.gray.light1 } },
   { id: 'ce-typolib', source: 'typology', target: 'col-typology-lib', style: { strokeWidth: 1, stroke: palette.gray.light1, strokeDasharray: '3 2' }, markerEnd: { type: MarkerType.ArrowClosed, width: 8, height: 8, color: palette.gray.light1 } },
+  { id: 'ce-network-db', source: 'networkAnalyst', target: 'col-rels2', style: { strokeWidth: 1, stroke: palette.gray.light1, strokeDasharray: '3 2' }, markerEnd: { type: MarkerType.ArrowClosed, width: 8, height: 8, color: palette.gray.light1 } },
   { id: 'ce-policies', source: 'narrative', target: 'col-policies', style: { strokeWidth: 1, stroke: palette.gray.light1, strokeDasharray: '3 2' }, markerEnd: { type: MarkerType.ArrowClosed, width: 8, height: 8, color: palette.gray.light1 } },
 ];
 
@@ -492,8 +495,7 @@ const INITIAL_EDGES = [
     id: `e-${source}-assemble`, source, target: 'assembleCase', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.green.dark2 },
   })),
   { id: 'e-assemble-typo', source: 'assembleCase', target: 'typology', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.yellow.dark2 } },
-  { id: 'e-assemble-network', source: 'assembleCase', target: 'networkAnalyst', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.yellow.dark2 } },
-  { id: 'e-typo-narrative', source: 'typology', target: 'narrative', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.green.dark1 } },
+  { id: 'e-typo-network', source: 'typology', target: 'networkAnalyst', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.yellow.dark2 } },
   { id: 'e-network-narrative', source: 'networkAnalyst', target: 'narrative', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.green.dark1 } },
   { id: 'e-narrative-validation', source: 'narrative', target: 'validation', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.blue.dark1 } },
   { id: 'e-validation-hr', source: 'validation', target: 'humanReview', label: 'human_review', labelStyle: { fontSize: 8, fontWeight: 600, fontFamily: FONT }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.red.base } },

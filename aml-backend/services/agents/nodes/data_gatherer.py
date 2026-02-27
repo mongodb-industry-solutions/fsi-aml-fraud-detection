@@ -19,6 +19,16 @@ from services.agents.tools.network_tools import analyze_entity_network
 
 logger = logging.getLogger(__name__)
 
+_MAX_TOOL_OUTPUT = 3000
+
+
+def _serialize_tool_output(obj) -> str:
+    try:
+        text = json.dumps(obj, default=str)
+    except Exception:
+        text = str(obj)
+    return text[:_MAX_TOOL_OUTPUT] + "..." if len(text) > _MAX_TOOL_OUTPUT else text
+
 
 def _resolve_entity_id(raw_id: str) -> str:
     """Resolve an identifier that may be a scenarioKey to the actual entityId."""
@@ -71,26 +81,58 @@ def dispatch_data_tasks(state: InvestigationState) -> Command:
 
 def fetch_entity_profile_node(state: GatherTask) -> dict:
     entity_id = state["entity_id"]
-    result = get_entity_profile.invoke({"entity_id": entity_id})
-    return {"gathered_data": {"entity_profile": result}}
+    tool_input = {"entity_id": entity_id}
+    result = get_entity_profile.invoke(tool_input)
+    return {
+        "gathered_data": {"entity_profile": result},
+        "_node_tool_calls": [{
+            "tool": "get_entity_profile",
+            "input": json.dumps(tool_input),
+            "output": _serialize_tool_output(result),
+        }],
+    }
 
 
 def fetch_transactions_node(state: GatherTask) -> dict:
     entity_id = state["entity_id"]
-    result = query_entity_transactions.invoke({"entity_id": entity_id, "limit": 50})
-    return {"gathered_data": {"transactions": result}}
+    tool_input = {"entity_id": entity_id, "limit": 50}
+    result = query_entity_transactions.invoke(tool_input)
+    return {
+        "gathered_data": {"transactions": result},
+        "_node_tool_calls": [{
+            "tool": "query_entity_transactions",
+            "input": json.dumps(tool_input),
+            "output": _serialize_tool_output(result),
+        }],
+    }
 
 
 def fetch_network_node(state: GatherTask) -> dict:
     entity_id = state["entity_id"]
-    result = analyze_entity_network.invoke({"entity_id": entity_id, "max_depth": 2})
-    return {"gathered_data": {"network": result}}
+    tool_input = {"entity_id": entity_id, "max_depth": 2}
+    result = analyze_entity_network.invoke(tool_input)
+    return {
+        "gathered_data": {"network": result},
+        "_node_tool_calls": [{
+            "tool": "analyze_entity_network",
+            "input": json.dumps(tool_input),
+            "output": _serialize_tool_output(result),
+        }],
+    }
 
 
 def fetch_watchlist_node(state: GatherTask) -> dict:
     entity_id = state["entity_id"]
-    result = screen_watchlists.invoke({"entity_id": entity_id})
-    return {"gathered_data": {"watchlist": result}}
+    tool_input = {"entity_id": entity_id}
+    result = screen_watchlists.invoke(tool_input)
+    return {
+        "gathered_data": {"watchlist": result},
+        "_node_tool_calls": [{
+            "tool": "screen_watchlists",
+            "input": json.dumps(tool_input),
+            "output": _serialize_tool_output(result),
+        }],
+    }
 
 
 # ── Fan-in assembly ──────────────────────────────────────────────────

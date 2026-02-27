@@ -112,6 +112,51 @@ def _extract_agent_output(result: dict) -> dict:
     return output
 
 
+def _emit_node_events(node_name: str, state_update):
+    """Yield agent_start, tool_start/tool_end pairs, then agent_end SSE events."""
+    events = []
+    events.append(_sse({
+        "type": "agent_start",
+        "agent": node_name,
+        "timestamp": _now(),
+    }))
+
+    tool_calls = []
+    status = ""
+    output_data = {}
+    if isinstance(state_update, dict):
+        tool_calls = state_update.get("_node_tool_calls", [])
+        if not isinstance(tool_calls, list):
+            tool_calls = []
+        status = state_update.get("investigation_status", "")
+        output_data = _extract_agent_output(state_update)
+
+    for tc in tool_calls:
+        events.append(_sse({
+            "type": "tool_start",
+            "agent": node_name,
+            "tool": tc.get("tool", "unknown"),
+            "input": tc.get("input", ""),
+            "timestamp": _now(),
+        }))
+        events.append(_sse({
+            "type": "tool_end",
+            "agent": node_name,
+            "tool": tc.get("tool", "unknown"),
+            "output": tc.get("output", ""),
+            "timestamp": _now(),
+        }))
+
+    events.append(_sse({
+        "type": "agent_end",
+        "agent": node_name,
+        "status": status,
+        "output": output_data,
+        "timestamp": _now(),
+    }))
+    return events
+
+
 # ── Launch investigation ──────────────────────────────────────────────
 
 @router.post("/investigate")
@@ -148,23 +193,8 @@ async def launch_investigation(request: Dict[str, Any]):
                 for node_name, state_update in chunk.items():
                     if node_name not in _AGENT_NODES:
                         continue
-                    yield _sse({
-                        "type": "agent_start",
-                        "agent": node_name,
-                        "timestamp": _now(),
-                    })
-                    status = ""
-                    output_data = {}
-                    if isinstance(state_update, dict):
-                        status = state_update.get("investigation_status", "")
-                        output_data = _extract_agent_output(state_update)
-                    yield _sse({
-                        "type": "agent_end",
-                        "agent": node_name,
-                        "status": status,
-                        "output": output_data,
-                        "timestamp": _now(),
-                    })
+                    for event in _emit_node_events(node_name, state_update):
+                        yield event
 
             final_state = graph.get_state(config)
             state_values = final_state.values if final_state else {}
@@ -235,23 +265,8 @@ async def resume_investigation(request: Dict[str, Any]):
                 for node_name, state_update in chunk.items():
                     if node_name not in _AGENT_NODES:
                         continue
-                    yield _sse({
-                        "type": "agent_start",
-                        "agent": node_name,
-                        "timestamp": _now(),
-                    })
-                    status = ""
-                    output_data = {}
-                    if isinstance(state_update, dict):
-                        status = state_update.get("investigation_status", "")
-                        output_data = _extract_agent_output(state_update)
-                    yield _sse({
-                        "type": "agent_end",
-                        "agent": node_name,
-                        "status": status,
-                        "output": output_data,
-                        "timestamp": _now(),
-                    })
+                    for event in _emit_node_events(node_name, state_update):
+                        yield event
 
             final_state = graph.get_state(config)
             state_values = final_state.values if final_state else {}

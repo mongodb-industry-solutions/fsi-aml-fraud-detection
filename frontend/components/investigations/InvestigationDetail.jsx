@@ -300,8 +300,8 @@ function SummaryTab({ triage, typology, validation, humanDecision, networkAnalys
           <div style={{ display: 'flex', gap: spacing[4], flexWrap: 'wrap' }}>
             <InfoPair label="Network Size" value={networkAnalysis.network_size} />
             <InfoPair label="High-Risk Connections" value={networkAnalysis.high_risk_connections} />
-            <InfoPair label="Centrality" value={networkAnalysis.centrality_score?.toFixed(2)} />
-            <InfoPair label="Risk Propagation" value={networkAnalysis.risk_propagation_score != null ? `${Math.round(networkAnalysis.risk_propagation_score * 100)}%` : undefined} />
+            <InfoPair label="Degree Centrality" value={networkAnalysis.degree_centrality?.toFixed(3)} />
+            <InfoPair label="Network Risk" value={networkAnalysis.network_risk_score != null ? `${networkAnalysis.network_risk_score.toFixed(1)}/100` : undefined} />
           </div>
           {networkAnalysis.summary && (
             <Body style={{ fontSize: '12px', fontFamily: FONT, color: palette.gray.dark1, marginTop: 8, lineHeight: 1.5 }}>
@@ -359,7 +359,8 @@ function EvidenceTab({ caseFile, typology, networkAnalysis }) {
             <InfoPair label="Network Size" value={networkAnalysis.network_size} />
             <InfoPair label="High-Risk Connections" value={networkAnalysis.high_risk_connections} />
             <InfoPair label="Max Depth" value={networkAnalysis.max_depth_reached} />
-            <InfoPair label="Centrality Score" value={networkAnalysis.centrality_score?.toFixed(2)} />
+            <InfoPair label="Degree Centrality" value={networkAnalysis.degree_centrality?.toFixed(3)} />
+            <InfoPair label="Network Risk" value={networkAnalysis.network_risk_score != null ? `${networkAnalysis.network_risk_score.toFixed(1)}/100` : undefined} />
           </div>
           {networkAnalysis.shell_structure_indicators?.length > 0 && (
             <div style={{ marginBottom: spacing[2] }}>

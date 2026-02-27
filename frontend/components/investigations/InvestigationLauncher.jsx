@@ -51,7 +51,7 @@ const AGENT_LABELS = {
   fetch_watchlist: { label: 'Screening Watchlists', icon: '🛡', color: palette.purple.light1, desc: 'Checking sanctions and PEP databases' },
   assemble_case: { label: 'Assembling Case File', icon: '📁', color: palette.green.dark1, desc: 'LLM-powered 360° profile synthesis' },
   typology: { label: 'Typology Classification', icon: '🏷', color: palette.yellow.dark2, desc: 'RAG-powered crime typology mapping' },
-  network_analyst: { label: 'Network Risk Analysis', icon: '🔗', color: palette.yellow.dark2, desc: '$graphLookup network traversal' },
+  network_analyst: { label: 'Network Risk Analysis', icon: '🔗', color: palette.yellow.dark2, desc: 'Graph centrality and risk scoring' },
   narrative: { label: 'SAR Narrative Generation', icon: '📝', color: palette.green.base, desc: 'FinCEN 5Ws narrative with citations' },
   validation: { label: 'Validation Agent', icon: '✓', color: palette.blue.dark1, desc: 'Quality gate with fact-checking' },
   human_review: { label: 'Human Review', icon: '👁', color: palette.red.base, desc: 'interrupt() durable pause for analyst' },
@@ -67,6 +67,7 @@ const TOOL_FRIENDLY_NAMES = {
   screen_watchlists: 'Screening Watchlists',
   search_typologies: 'Searching Typology Library',
   search_compliance_policies: 'Searching Compliance Policies',
+  compute_network_metrics: 'Computing Network Metrics',
 };
 
 const PIPELINE_STEPS = [
@@ -335,13 +336,13 @@ function ToolCallDetail({ tool }) {
           {tool.input && (
             <div style={{ marginBottom: tool.output ? 6 : 0 }}>
               <span style={{ color: palette.gray.light1, fontWeight: 600 }}>Input: </span>
-              {tool.input}
+              {typeof tool.input === 'object' ? JSON.stringify(tool.input, null, 2) : tool.input}
             </div>
           )}
           {tool.output && (
             <div>
               <span style={{ color: palette.green.light1, fontWeight: 600 }}>Output: </span>
-              {tool.output}
+              {typeof tool.output === 'object' ? JSON.stringify(tool.output, null, 2) : tool.output}
             </div>
           )}
         </div>
@@ -537,10 +538,16 @@ function StructuredOutputCard({ agent, output }) {
               <div style={{ fontSize: 16, fontWeight: 700, fontFamily: FONT, color: palette.red.base }}>{na.high_risk_connections}</div>
             </div>
           )}
-          {na.risk_propagation_score != null && (
+          {na.degree_centrality != null && (
             <div>
-              <div style={{ fontSize: 10, color: palette.gray.base, fontFamily: FONT }}>Risk Propagation</div>
-              <div style={{ fontSize: 16, fontWeight: 700, fontFamily: FONT }}>{Math.round(na.risk_propagation_score * 100)}%</div>
+              <div style={{ fontSize: 10, color: palette.gray.base, fontFamily: FONT }}>Degree Centrality</div>
+              <div style={{ fontSize: 16, fontWeight: 700, fontFamily: FONT }}>{na.degree_centrality.toFixed(3)}</div>
+            </div>
+          )}
+          {na.network_risk_score != null && (
+            <div>
+              <div style={{ fontSize: 10, color: palette.gray.base, fontFamily: FONT }}>Network Risk</div>
+              <div style={{ fontSize: 16, fontWeight: 700, fontFamily: FONT, color: na.network_risk_score >= 60 ? palette.red.base : palette.gray.dark2 }}>{na.network_risk_score.toFixed(1)}/100</div>
             </div>
           )}
         </div>
@@ -967,6 +974,8 @@ function HumanReviewPanel({ payload, accumulatedEvidence, analystNotes, onNotesC
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing[3] }}>
           <MiniInfo label="Network Size" value={networkAnalysis.network_size} />
           <MiniInfo label="High-Risk Links" value={networkAnalysis.high_risk_connections} />
+          <MiniInfo label="Centrality" value={networkAnalysis.degree_centrality?.toFixed(3)} />
+          <MiniInfo label="Network Risk" value={networkAnalysis.network_risk_score != null ? `${networkAnalysis.network_risk_score.toFixed(1)}/100` : undefined} />
           {networkAnalysis.shell_structure_indicators?.length > 0 && (
             <div style={{ flex: '1 1 100%' }}>
               <div style={{ fontSize: 10, color: palette.gray.base, fontFamily: FONT, marginBottom: 2 }}>Shell Indicators</div>

@@ -104,8 +104,9 @@ class NetworkRiskProfile(BaseModel):
     high_risk_connections: int = 0
     max_depth_reached: int = 0
     shell_structure_indicators: List[str] = Field(default_factory=list)
-    centrality_score: float = 0
-    risk_propagation_score: float = 0
+    degree_centrality: float = Field(default=0, description="Computed from actual connection counts, normalized 0-1")
+    network_risk_score: float = Field(default=0, description="Composite risk: base entity risk + connection risk factor (0-100)")
+    base_entity_risk: float = Field(default=0, description="Entity's own riskAssessment.overall.score (0-100)")
     key_connections: List[dict] = Field(default_factory=list)
     summary: str = ""
 

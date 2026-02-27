@@ -59,5 +59,8 @@ class InvestigationState(TypedDict, total=False):
     investigation_status: str
     case_id: str
 
+    # Per-node tool call metadata (overwritten each node, consumed by SSE generator)
+    _node_tool_calls: list
+
     # Immutable audit trail
     agent_audit_log: Annotated[list, _append_only]

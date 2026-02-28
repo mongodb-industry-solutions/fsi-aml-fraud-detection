@@ -161,7 +161,7 @@ export default function ClientLayout({ children }) {
                   { href: '/entities', icon: 'Person', label: 'Entity Management', roles: ['risk_analyst'] },
                   { href: '/entity-resolution/enhanced', icon: 'Relationship', label: 'Entity Resolution', roles: ['risk_analyst'] },
                   { href: '/transaction-simulator', icon: 'CreditCard', label: 'Transaction Simulator', roles: ['risk_analyst'] },
-                  { href: '/investigations', icon: 'ActivityFeed', label: 'Investigations', roles: ['risk_analyst'] },
+                  { href: '/investigations', icon: 'ActivityFeed', label: 'Agentic Investigation', roles: ['risk_analyst'] },
                   { href: '/risk-models', icon: 'Settings', label: 'Risk Models', roles: ['risk_manager'] },
                 ].filter(link => !link.roles || link.roles.includes(role)).map(link => (
                   <li key={link.href}>

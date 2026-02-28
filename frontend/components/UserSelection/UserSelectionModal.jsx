@@ -20,9 +20,10 @@ const ROLE_CONFIG = {
     features: [
       'Entity Management',
       'Entity Resolution',
-      'Transaction Screening'
+      'Transaction Screening',
+      'Agentic Investigation'
     ],
-    description: 'Analyze entities, resolve duplicates, and screen transactions for fraud patterns.'
+    description: 'Analyze entities, resolve duplicates, screen transactions, and run AI-powered agentic investigations with human-in-the-loop review.'
   },
   risk_manager: {
     name: 'Risk Manager',

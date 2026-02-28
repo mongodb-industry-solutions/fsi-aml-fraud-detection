@@ -160,10 +160,10 @@ export default function HomepageClient() {
                 <Icon glyph="ActivityFeed" size="large" />
               </div>
               <H3 style={{ marginBottom: spacing[2], color: palette.gray.dark2 }}>
-                Agentic Investigations
+                Agentic Investigation
               </H3>
               <Description style={{ color: palette.gray.dark1 }}>
-                AI-powered multi-agent pipeline for automated SAR investigations. LangGraph orchestrates triage, evidence gathering, typology classification, narrative generation, and human-in-the-loop review.
+                AI-powered multi-agent investigation pipeline built on LangGraph. Automated triage, parallel evidence gathering, typology classification, SAR narrative generation, and human-in-the-loop review -- all persisted to MongoDB with full audit trails.
               </Description>
             </Card>
             

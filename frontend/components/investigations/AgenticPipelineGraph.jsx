@@ -30,6 +30,11 @@ const AGENT_TO_NODE = {
   assemble_case: 'assembleCase',
   typology: 'typology',
   network_analyst: 'networkAnalyst',
+  temporal_analyst: 'temporalAnalyst',
+  trail_follower: 'trailFollower',
+  sub_investigation_dispatch: 'subDispatch',
+  mini_investigate: 'miniInvestigate',
+  collect_sub_findings: 'collectSubFindings',
   narrative: 'narrative',
   validation: 'validation',
   human_review: 'humanReview',
@@ -417,63 +422,117 @@ const INITIAL_NODES = [
   {
     id: 'networkAnalyst',
     type: 'agent',
-    position: { x: CX - 30, y: 690 },
+    position: { x: CX - 160, y: 690 },
     data: {
       label: 'Network Analyst', icon: '🔗', color: palette.yellow.dark2,
       subtitle: 'Centrality + Risk Scoring',
       tools: ['compute_network_metrics'],
       mongoBadge: '$graphLookup',
-      tooltip: 'Computes degree centrality and network risk from real graph data via $graphLookup. No Neo4j needed — MongoDB handles graph traversal natively via aggregation pipelines.',
+      tooltip: 'Computes degree centrality and network risk from real graph data via $graphLookup. No Neo4j needed — MongoDB handles graph traversal natively via aggregation pipelines. Runs in PARALLEL with Temporal Analyst.',
+    },
+  },
+  {
+    id: 'temporalAnalyst',
+    type: 'agent',
+    position: { x: CX + 110, y: 690 },
+    data: {
+      label: 'Temporal Analyst', icon: '⏱', color: palette.yellow.dark2,
+      subtitle: 'Structuring + Velocity + Dormancy',
+      tools: ['temporal_analysis'],
+      mongoBadge: '$setWindowFields',
+      tooltip: 'Pure compute — no LLM. Detects structuring patterns, velocity spikes, round-trip fund flows, off-hours activity, and dormancy bursts via MongoDB aggregation. Runs in PARALLEL with Network Analyst.',
+    },
+  },
+  {
+    id: 'trailFollower',
+    type: 'agent',
+    position: { x: CX - 30, y: 800 },
+    data: {
+      label: 'Trail Follower', icon: '🔎', color: palette.blue.dark2,
+      subtitle: 'LLM Lead Selection',
+      tools: ['trace_ownership_chains'],
+      mongoBadge: '$graphLookup',
+      tooltip: 'Analyses network + temporal results to select top 3 suspicious connected entities for sub-investigation. Traces ownership chains via $graphLookup.',
+    },
+  },
+  {
+    id: 'subDispatch',
+    type: 'agent',
+    position: { x: CX - 30, y: 905 },
+    data: {
+      label: 'Sub-Investigation Dispatch', icon: '📊', color: palette.purple.base,
+      subtitle: 'Send API Fan-out (Leads)',
+      tooltip: 'Dispatches parallel mini-investigations for each lead entity via LangGraph Send. Same fan-out pattern as data gathering, applied at a higher level.',
+    },
+  },
+  {
+    id: 'miniInvestigate',
+    type: 'worker',
+    position: { x: CX - 30, y: 1000 },
+    data: {
+      label: 'Mini-Investigate', icon: '🔬',
+      toolName: '4 tools + LLM assess',
+      mongoBadge: 'parallel workers',
+    },
+  },
+  {
+    id: 'collectSubFindings',
+    type: 'agent',
+    position: { x: CX - 30, y: 1095 },
+    data: {
+      label: 'Collect Sub-Findings', icon: '📑', color: palette.green.dark1,
+      subtitle: 'LLM Synthesis',
+      tooltip: 'Fan-in: consolidates all mini-investigation assessments. Identifies high-risk leads, confirmed connections, and narrative threads for the SAR.',
     },
   },
   {
     id: 'narrative',
     type: 'agent',
-    position: { x: CX - 30, y: 795 },
+    position: { x: CX - 30, y: 1200 },
     data: {
       label: 'Narrative Writer', icon: '📝', color: palette.green.dark1,
       subtitle: 'RAG → SARNarrative (5Ws)',
       tools: ['search_compliance_policies'],
       mongoBadge: 'Atlas Search RAG',
-      tooltip: 'Generates FinCEN-compliant SAR narrative grounded in case_file. Atlas Search RAG over compliance_policies for regulatory citations. Same MongoDB cluster — no vector DB sidecar.',
+      tooltip: 'Generates FinCEN-compliant SAR narrative from the full evidence corpus — case file, typology, network, temporal, trail, and sub-investigation findings.',
     },
   },
   {
     id: 'validation',
     type: 'agent',
-    position: { x: CX - 30, y: 905 },
+    position: { x: CX - 30, y: 1310 },
     data: {
       label: 'Quality Reviewer', icon: '✓', color: palette.blue.dark1,
       subtitle: 'ValidationResult → Command',
-      tooltip: 'Quality gate: completeness, factual accuracy, citation quality. Routes via Command. Hard cap at 3 validation loops.',
+      tooltip: 'LLM-as-Judge quality gate: completeness, factual accuracy, citation quality. Routes via Command. Hard cap at 3 validation loops.',
     },
   },
   {
     id: 'humanReview',
     type: 'agent',
-    position: { x: CX - 30, y: 1020 },
+    position: { x: CX - 30, y: 1425 },
     data: {
       label: 'Human Review', icon: '👁', color: palette.red.base,
       subtitle: 'interrupt() → pause/resume',
       mongoBadge: 'MongoDBSaver interrupt()',
-      tooltip: 'LangGraph interrupt() durably pauses the pipeline. MongoDBSaver persists the full graph state to MongoDB — resume hours later, even after server restarts. Without MongoDB: Redis for state + Kafka for event sourcing + custom recovery code.',
+      tooltip: 'LangGraph interrupt() durably pauses the pipeline. MongoDBSaver persists the full graph state to MongoDB — resume hours later, even after server restarts.',
     },
   },
   {
     id: 'finalize',
     type: 'agent',
-    position: { x: CX - 30, y: 1130 },
+    position: { x: CX - 30, y: 1535 },
     data: {
       label: 'Finalize Case', icon: '📋', color: palette.green.dark2,
       subtitle: 'Persist to MongoDB',
       mongoBadge: 'insertOne()',
-      tooltip: 'The complete investigation — evidence, narrative, audit trail — stored as one rich MongoDB document via insertOne(). Without MongoDB: INSERT into 12+ normalized tables with transaction management.',
+      tooltip: 'The complete investigation — evidence, narrative, audit trail, sub-investigation findings — stored as one rich MongoDB document via insertOne().',
     },
   },
   {
     id: 'endNode',
     type: 'terminal',
-    position: { x: CX + 20, y: 1230 },
+    position: { x: CX + 20, y: 1635 },
     data: { label: 'END', color: palette.gray.dark2 },
   },
 ];
@@ -484,8 +543,10 @@ const COLLECTION_NODES = [
   { id: 'col-rels', type: 'collection', position: { x: 345, y: 445 }, data: { icon: '🗄', label: 'relationships' } },
   { id: 'col-watchlist', type: 'collection', position: { x: 510, y: 445 }, data: { icon: '🗄', label: 'entities' } },
   { id: 'col-typology-lib', type: 'collection', position: { x: 70, y: 620 }, data: { icon: '🗄', label: 'typology_library' } },
-  { id: 'col-rels2', type: 'collection', position: { x: 510, y: 725 }, data: { icon: '🗄', label: 'entities + relationships' } },
-  { id: 'col-policies', type: 'collection', position: { x: 510, y: 835 }, data: { icon: '🗄', label: 'compliance_policies' } },
+  { id: 'col-rels2', type: 'collection', position: { x: 30, y: 730 }, data: { icon: '🗄', label: 'entities + relationships' } },
+  { id: 'col-txns2', type: 'collection', position: { x: 560, y: 730 }, data: { icon: '🗄', label: 'transactionsv2' } },
+  { id: 'col-rels3', type: 'collection', position: { x: 560, y: 840 }, data: { icon: '🗄', label: 'relationships' } },
+  { id: 'col-policies', type: 'collection', position: { x: 560, y: 1240 }, data: { icon: '🗄', label: 'compliance_policies' } },
 ];
 
 const COL_EDGE_STYLE = { strokeWidth: 1, stroke: palette.gray.light1, strokeDasharray: '3 2' };
@@ -500,6 +561,8 @@ const COLLECTION_EDGES = [
   { id: 'ce-wl', source: 'fetchWatchlist', target: 'col-watchlist', style: COL_EDGE_STYLE, markerEnd: COL_EDGE_MARKER, label: 'find()', labelStyle: COL_LABEL_STYLE, labelBgStyle: COL_LABEL_BG },
   { id: 'ce-typolib', source: 'typology', target: 'col-typology-lib', style: COL_EDGE_STYLE, markerEnd: COL_EDGE_MARKER, label: 'Atlas Search', labelStyle: COL_LABEL_STYLE, labelBgStyle: COL_LABEL_BG },
   { id: 'ce-network-db', source: 'networkAnalyst', target: 'col-rels2', style: COL_EDGE_STYLE, markerEnd: COL_EDGE_MARKER, label: '$graphLookup', labelStyle: COL_LABEL_STYLE, labelBgStyle: COL_LABEL_BG },
+  { id: 'ce-temporal-db', source: 'temporalAnalyst', target: 'col-txns2', style: COL_EDGE_STYLE, markerEnd: COL_EDGE_MARKER, label: '$setWindowFields', labelStyle: COL_LABEL_STYLE, labelBgStyle: COL_LABEL_BG },
+  { id: 'ce-trail-db', source: 'trailFollower', target: 'col-rels3', style: COL_EDGE_STYLE, markerEnd: COL_EDGE_MARKER, label: '$graphLookup', labelStyle: COL_LABEL_STYLE, labelBgStyle: COL_LABEL_BG },
   { id: 'ce-policies', source: 'narrative', target: 'col-policies', style: COL_EDGE_STYLE, markerEnd: COL_EDGE_MARKER, label: 'Atlas Search', labelStyle: COL_LABEL_STYLE, labelBgStyle: COL_LABEL_BG },
 ];
 
@@ -527,8 +590,18 @@ const INITIAL_EDGES = [
     id: `e-${source}-assemble`, source, target: 'assembleCase', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.green.dark2 },
   })),
   { id: 'e-assemble-typo', source: 'assembleCase', target: 'typology', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.yellow.dark2 } },
-  { id: 'e-typo-network', source: 'typology', target: 'networkAnalyst', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.yellow.dark2 } },
-  { id: 'e-network-narrative', source: 'networkAnalyst', target: 'narrative', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.green.dark1 } },
+  // Parallel: typology -> [networkAnalyst, temporalAnalyst]
+  { id: 'e-typo-network', source: 'typology', target: 'networkAnalyst', label: 'parallel', labelStyle: { fontSize: 7, fontWeight: 600, fontFamily: FONT, fill: palette.yellow.dark2 }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.yellow.dark2 } },
+  { id: 'e-typo-temporal', source: 'typology', target: 'temporalAnalyst', label: 'parallel', labelStyle: { fontSize: 7, fontWeight: 600, fontFamily: FONT, fill: palette.yellow.dark2 }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.yellow.dark2 } },
+  // Both converge into trail_follower
+  { id: 'e-network-trail', source: 'networkAnalyst', target: 'trailFollower', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.blue.dark2 } },
+  { id: 'e-temporal-trail', source: 'temporalAnalyst', target: 'trailFollower', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.blue.dark2 } },
+  // Trail -> sub-investigation fan-out
+  { id: 'e-trail-subdispatch', source: 'trailFollower', target: 'subDispatch', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.purple.base } },
+  { id: 'e-subdispatch-mini', source: 'subDispatch', target: 'miniInvestigate', ...EDGE_BASE, animated: true, label: 'Send (N leads)', labelStyle: { fontSize: 7, fontWeight: 600, fontFamily: FONT, fill: palette.purple.base }, labelBgStyle: LABEL_BG, style: { ...EDGE_BASE.style, stroke: palette.purple.base, strokeDasharray: '6 3' } },
+  { id: 'e-mini-collect', source: 'miniInvestigate', target: 'collectSubFindings', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.green.dark1 } },
+  // Collect -> narrative -> validation
+  { id: 'e-collect-narrative', source: 'collectSubFindings', target: 'narrative', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.green.dark1 } },
   { id: 'e-narrative-validation', source: 'narrative', target: 'validation', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.blue.dark1 } },
   { id: 'e-validation-hr', source: 'validation', target: 'humanReview', label: 'human_review', labelStyle: { fontSize: 8, fontWeight: 600, fontFamily: FONT }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.red.base } },
   {

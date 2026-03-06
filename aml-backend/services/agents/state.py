@@ -45,6 +45,16 @@ class InvestigationState(TypedDict, total=False):
     # Network risk analysis
     network_analysis: dict
 
+    # Temporal pattern analysis
+    temporal_analysis: dict
+
+    # Trail follower / lead selection
+    trail_analysis: dict
+
+    # Sub-investigation results (keyed by entity_id, merged via reducer)
+    sub_investigation_findings: Annotated[dict, _merge_dicts]
+    sub_investigation_summary: dict
+
     # SAR narrative
     narrative: dict
 

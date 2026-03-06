@@ -32,8 +32,15 @@ def finalize_node(state: InvestigationState) -> dict:
     audit_log = state.get("agent_audit_log", [])
     tool_trace = state.get("tool_trace_log", [])
 
-    llm_nodes = {"triage", "data_gathering", "typology", "narrative", "validator"}
+    llm_nodes = {
+        "triage", "data_gathering", "typology", "narrative", "validator",
+        "trail_follower", "collect_sub_findings",
+    }
     llm_calls_count = sum(1 for e in audit_log if e.get("agent") in llm_nodes and e.get("llm_model"))
+    llm_calls_count += sum(
+        1 for e in audit_log
+        if e.get("agent", "").startswith("mini_investigate:") and e.get("llm_model")
+    )
     total_node_duration = sum(e.get("duration_ms", 0) for e in audit_log)
 
     case_document = {
@@ -46,6 +53,10 @@ def finalize_node(state: InvestigationState) -> dict:
         "case_file": state.get("case_file", {}),
         "typology": state.get("typology", {}),
         "network_analysis": state.get("network_analysis", {}),
+        "temporal_analysis": state.get("temporal_analysis", {}),
+        "trail_analysis": state.get("trail_analysis", {}),
+        "sub_investigation_findings": state.get("sub_investigation_findings", {}),
+        "sub_investigation_summary": state.get("sub_investigation_summary", {}),
         "narrative": state.get("narrative", {}),
         "validation_result": state.get("validation_result", {}),
         "human_decision": human,

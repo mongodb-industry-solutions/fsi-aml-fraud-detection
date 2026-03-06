@@ -109,9 +109,13 @@ const AGENT_LABELS = {
   fetch_watchlist: { label: 'Screening Watchlists', icon: '🛡', color: palette.purple.light1, desc: 'Checking sanctions and PEP databases' },
   assemble_case: { label: 'Assembling Case File', icon: '📁', color: palette.green.dark1, desc: 'LLM-powered 360° profile synthesis' },
   typology: { label: 'Typology Classification', icon: '🏷', color: palette.yellow.dark2, desc: 'RAG-powered crime typology mapping' },
-  network_analyst: { label: 'Network Risk Analysis', icon: '🔗', color: palette.yellow.dark2, desc: 'Graph centrality and risk scoring' },
-  narrative: { label: 'SAR Narrative Generation', icon: '📝', color: palette.green.base, desc: 'FinCEN 5Ws narrative with citations' },
-  validation: { label: 'Validation Agent', icon: '✓', color: palette.blue.dark1, desc: 'Quality gate with fact-checking' },
+  network_analyst: { label: 'Network Risk Analysis', icon: '🔗', color: palette.yellow.dark2, desc: 'Graph centrality and risk scoring (parallel)' },
+  temporal_analyst: { label: 'Temporal Pattern Analysis', icon: '⏱', color: palette.yellow.dark2, desc: 'Structuring, velocity, round-trips, dormancy (parallel)' },
+  trail_follower: { label: 'Trail Follower', icon: '🔎', color: palette.blue.dark2, desc: 'LLM lead selection from network + temporal' },
+  sub_investigation_dispatch: { label: 'Sub-Investigation Dispatch', icon: '📊', color: palette.purple.base, desc: 'Parallel mini-investigation fan-out' },
+  collect_sub_findings: { label: 'Collecting Sub-Findings', icon: '📑', color: palette.green.dark1, desc: 'LLM synthesis of lead assessments' },
+  narrative: { label: 'SAR Narrative Generation', icon: '📝', color: palette.green.base, desc: 'FinCEN 5Ws narrative with full evidence' },
+  validation: { label: 'Validation Agent', icon: '✓', color: palette.blue.dark1, desc: 'LLM-as-Judge quality gate' },
   human_review: { label: 'Human Review', icon: '👁', color: palette.red.base, desc: 'interrupt() durable pause for analyst' },
   finalize: { label: 'Finalizing Case', icon: '📋', color: palette.green.dark2, desc: 'Persist investigation to MongoDB' },
   auto_close: { label: 'Auto-Closing', icon: '✕', color: palette.gray.dark1, desc: 'False positive auto-closure' },
@@ -126,6 +130,8 @@ const TOOL_FRIENDLY_NAMES = {
   search_typologies: 'Searching Typology Library (Atlas Search RAG)',
   search_compliance_policies: 'Searching Compliance Policies (Atlas Search RAG)',
   compute_network_metrics: 'Computing Network Metrics ($graphLookup)',
+  temporal_analysis: 'Temporal Pattern Analysis ($setWindowFields)',
+  trace_ownership_chains: 'Tracing Ownership Chains ($graphLookup)',
 };
 
 // ---------------------------------------------------------------------------
@@ -823,7 +829,10 @@ function ReasoningBlock({ text, open, onToggle }) {
 function AgentStepCard({ step, isLast }) {
   const [expanded, setExpanded] = useState(false);
   const [reasoningOpen, setReasoningOpen] = useState(false);
-  const info = AGENT_LABELS[step.agent] || { label: step.agent, icon: '●', color: palette.gray.dark1 };
+  const info = AGENT_LABELS[step.agent]
+    || (step.agent?.startsWith('mini_investigate:')
+      ? { label: `Mini-Investigate: ${step.agent.split(':')[1] || ''}`, icon: '🔬', color: palette.purple.light1, desc: 'Sub-investigation of connected entity' }
+      : { label: step.agent, icon: '●', color: palette.gray.dark1 });
   const isRunning = step.status === 'running';
   const isComplete = step.status === 'complete';
   const hasDetail = step.tools.length > 0 || step.llmOutputs.length > 0 || step.structuredOutput;

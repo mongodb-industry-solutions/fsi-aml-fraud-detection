@@ -112,6 +112,67 @@ class NetworkRiskProfile(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Temporal Analysis
+# ---------------------------------------------------------------------------
+
+class TemporalAnalysis(BaseModel):
+    structuring_indicators: List[dict] = Field(default_factory=list)
+    velocity_anomalies: List[dict] = Field(default_factory=list)
+    round_trip_patterns: List[dict] = Field(default_factory=list)
+    time_anomalies: List[dict] = Field(default_factory=list)
+    dormancy_bursts: List[dict] = Field(default_factory=list)
+    timeline_summary: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Trail Analysis & Investigation Leads
+# ---------------------------------------------------------------------------
+
+class InvestigationLead(BaseModel):
+    entity_id: str
+    entity_name: str = ""
+    reason: str = ""
+    risk_indicators: List[str] = Field(default_factory=list)
+    relationship_to_subject: str = ""
+    priority: Literal["high", "medium", "low"] = "medium"
+
+
+class TrailAnalysis(BaseModel):
+    ownership_chains: List[dict] = Field(default_factory=list)
+    shell_patterns: List[str] = Field(default_factory=list)
+    leads: List[InvestigationLead] = Field(default_factory=list)
+    summary: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Sub-Investigation (Mini-Investigate)
+# ---------------------------------------------------------------------------
+
+class LeadAssessment(BaseModel):
+    entity_id: str = ""
+    entity_name: str = ""
+    risk_level: Literal["low", "medium", "high", "critical"] = "medium"
+    risk_score: float = Field(ge=0, le=100, default=0)
+    watchlist_hits: int = 0
+    connection_to_subject: str = ""
+    key_findings: List[str] = Field(default_factory=list)
+    red_flags: List[str] = Field(default_factory=list)
+    recommendation: Literal[
+        "no_concern", "monitor", "escalate", "investigate_further"
+    ] = "monitor"
+    summary: str = ""
+
+
+class SubInvestigationSummary(BaseModel):
+    total_leads_investigated: int = 0
+    high_risk_leads: List[dict] = Field(default_factory=list)
+    confirmed_connections: List[str] = Field(default_factory=list)
+    updated_risk_factors: List[str] = Field(default_factory=list)
+    narrative_threads: List[str] = Field(default_factory=list)
+    summary: str = ""
+
+
+# ---------------------------------------------------------------------------
 # SAR Narrative
 # ---------------------------------------------------------------------------
 

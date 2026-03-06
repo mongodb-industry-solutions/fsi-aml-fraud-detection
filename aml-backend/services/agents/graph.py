@@ -3,7 +3,8 @@ LangGraph StateGraph wiring for the agentic investigation pipeline.
 
 Combines:
   - Command-based dynamic routing (triage, validation)
-  - Send-based parallel fan-out (data gathering)
+  - Send-based parallel fan-out (data gathering, sub-investigations)
+  - Parallel analysis nodes (network_analyst || temporal_analyst)
   - interrupt_before for durable human-in-the-loop review
   - MongoDBSaver for persistent checkpointing
 """
@@ -27,6 +28,13 @@ from services.agents.nodes.data_gatherer import (
 )
 from services.agents.nodes.typology import typology_node
 from services.agents.nodes.network_analyst import network_analyst_node
+from services.agents.nodes.temporal_analyst import temporal_analyst_node
+from services.agents.nodes.trail_follower import trail_follower_node
+from services.agents.nodes.sub_investigator import (
+    dispatch_sub_investigations,
+    mini_investigate_node,
+    collect_sub_findings_node,
+)
 from services.agents.nodes.narrative import narrative_node
 from services.agents.nodes.validator import validation_node
 from services.agents.nodes.human_review import human_review_node
@@ -62,9 +70,18 @@ def build_investigation_graph() -> StateGraph:
     # Analysis pipeline
     builder.add_node("typology", typology_node)
     builder.add_node("network_analyst", network_analyst_node)
-    builder.add_node("narrative", narrative_node)
+    builder.add_node("temporal_analyst", temporal_analyst_node)
 
-    # Validation (returns Command -> data_gathering | narrative | human_review | finalize)
+    # Trail follower (LLM lead selection after network + temporal converge)
+    builder.add_node("trail_follower", trail_follower_node)
+
+    # Sub-investigation fan-out
+    builder.add_node("dispatch_sub_investigations", dispatch_sub_investigations)
+    builder.add_node("mini_investigate", mini_investigate_node)
+    builder.add_node("collect_sub_findings", collect_sub_findings_node)
+
+    # Narrative + validation
+    builder.add_node("narrative", narrative_node)
     builder.add_node("validation", validation_node)
 
     # Human review (paused via interrupt_before at compile time)
@@ -77,7 +94,6 @@ def build_investigation_graph() -> StateGraph:
 
     # Entry
     builder.add_edge(START, "triage")
-    # triage uses Command — no explicit edges needed for routing
 
     # Auto-close still goes through finalize so the case is persisted
     builder.add_edge("auto_close", "finalize")
@@ -91,12 +107,26 @@ def build_investigation_graph() -> StateGraph:
     builder.add_edge("fetch_network", "assemble_case")
     builder.add_edge("fetch_watchlist", "assemble_case")
 
-    # Sequential pipeline after case assembly
+    # Sequential: assemble -> typology
     builder.add_edge("assemble_case", "typology")
+
+    # Parallel: typology -> [network_analyst, temporal_analyst]
     builder.add_edge("typology", "network_analyst")
-    builder.add_edge("network_analyst", "narrative")
+    builder.add_edge("typology", "temporal_analyst")
+
+    # Both converge into trail_follower
+    builder.add_edge("network_analyst", "trail_follower")
+    builder.add_edge("temporal_analyst", "trail_follower")
+
+    # Trail follower -> dispatch sub-investigations
+    builder.add_edge("trail_follower", "dispatch_sub_investigations")
+
+    # Sub-investigation workers -> collect_sub_findings
+    builder.add_edge("mini_investigate", "collect_sub_findings")
+
+    # Collect -> narrative -> validation
+    builder.add_edge("collect_sub_findings", "narrative")
     builder.add_edge("narrative", "validation")
-    # validation uses Command — no explicit edges needed for routing
 
     # Human review -> finalize
     builder.add_edge("human_review", "finalize")

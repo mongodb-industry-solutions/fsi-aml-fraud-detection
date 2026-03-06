@@ -23,6 +23,7 @@ const DETAIL_TABS = [
 const AGENT_COLORS = {
   triage: palette.blue.base,
   data_gathering: palette.purple.base,
+  data_gathering_dispatch: palette.purple.base,
   fetch_entity_profile: palette.purple.light1,
   fetch_transactions: palette.purple.light1,
   fetch_network: palette.purple.light1,
@@ -30,6 +31,10 @@ const AGENT_COLORS = {
   assemble_case: palette.green.dark1,
   typology: palette.yellow.dark2,
   network_analyst: palette.yellow.dark2,
+  temporal_analyst: palette.yellow.dark2,
+  trail_follower: palette.blue.dark2,
+  sub_investigation_dispatch: palette.purple.base,
+  collect_sub_findings: palette.green.dark1,
   narrative: palette.green.base,
   validation: palette.blue.dark1,
   human_review: palette.red.base,
@@ -68,6 +73,10 @@ export default function InvestigationDetail({ investigation }) {
     case_file,
     typology,
     network_analysis,
+    temporal_analysis,
+    trail_analysis,
+    sub_investigation_findings,
+    sub_investigation_summary,
     narrative,
     validation_result,
     human_decision,
@@ -148,6 +157,9 @@ export default function InvestigationDetail({ investigation }) {
           validation={validation_result}
           humanDecision={human_decision}
           networkAnalysis={network_analysis}
+          temporalAnalysis={temporal_analysis}
+          trailAnalysis={trail_analysis}
+          subInvestigationSummary={sub_investigation_summary}
         />
       )}
 
@@ -156,6 +168,10 @@ export default function InvestigationDetail({ investigation }) {
           caseFile={case_file}
           typology={typology}
           networkAnalysis={network_analysis}
+          temporalAnalysis={temporal_analysis}
+          trailAnalysis={trail_analysis}
+          subFindings={sub_investigation_findings}
+          subSummary={sub_investigation_summary}
         />
       )}
 
@@ -194,7 +210,7 @@ export default function InvestigationDetail({ investigation }) {
 // Summary Tab
 // ---------------------------------------------------------------------------
 
-function SummaryTab({ triage, typology, validation, humanDecision, networkAnalysis }) {
+function SummaryTab({ triage, typology, validation, humanDecision, networkAnalysis, temporalAnalysis, trailAnalysis, subInvestigationSummary }) {
   const riskScore = triage?.risk_score;
   const risk = riskScore != null ? getRiskLevel(riskScore) : null;
   const conf = typology?.confidence;
@@ -336,6 +352,86 @@ function SummaryTab({ triage, typology, validation, humanDecision, networkAnalys
           )}
         </Card>
       )}
+
+      {/* Temporal Analysis Card */}
+      {temporalAnalysis && temporalAnalysis.timeline_summary && (
+        <Card style={{ padding: spacing[3], border: `1px solid ${palette.gray.light2}` }}>
+          <div style={{ fontSize: 10, color: palette.gray.base, fontFamily: FONT, textTransform: 'uppercase', marginBottom: 4 }}>
+            Temporal Analysis
+          </div>
+          <div style={{ display: 'flex', gap: spacing[4], flexWrap: 'wrap', marginBottom: 6 }}>
+            <InfoPair label="Structuring Patterns" value={temporalAnalysis.structuring_indicators?.length || 0} />
+            <InfoPair label="Velocity Spikes" value={temporalAnalysis.velocity_anomalies?.length || 0} />
+            <InfoPair label="Round-Trips" value={temporalAnalysis.round_trip_patterns?.length || 0} />
+            <InfoPair label="Dormancy Bursts" value={temporalAnalysis.dormancy_bursts?.length || 0} />
+          </div>
+          <Body style={{ fontSize: '12px', fontFamily: FONT, color: palette.gray.dark1, lineHeight: 1.5 }}>
+            {temporalAnalysis.timeline_summary}
+          </Body>
+        </Card>
+      )}
+
+      {/* Trail Analysis Card */}
+      {trailAnalysis && trailAnalysis.leads?.length > 0 && (
+        <Card style={{ padding: spacing[3], border: `1px solid ${palette.gray.light2}` }}>
+          <div style={{ fontSize: 10, color: palette.gray.base, fontFamily: FONT, textTransform: 'uppercase', marginBottom: 4 }}>
+            Trail Analysis
+          </div>
+          <div style={{ display: 'flex', gap: spacing[4], flexWrap: 'wrap', marginBottom: 6 }}>
+            <InfoPair label="Leads Selected" value={trailAnalysis.leads.length} />
+            <InfoPair label="Ownership Chains" value={trailAnalysis.ownership_chains?.length || 0} />
+            <InfoPair label="Shell Patterns" value={trailAnalysis.shell_patterns?.length || 0} />
+          </div>
+          {trailAnalysis.shell_patterns?.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+              {trailAnalysis.shell_patterns.map((p, i) => (
+                <span key={i} style={{
+                  fontSize: 10, fontFamily: FONT, padding: '2px 6px',
+                  borderRadius: 3, background: palette.red.light3, color: palette.red.dark2,
+                }}>
+                  {p}
+                </span>
+              ))}
+            </div>
+          )}
+          {trailAnalysis.summary && (
+            <Body style={{ fontSize: '12px', fontFamily: FONT, color: palette.gray.dark1, lineHeight: 1.5 }}>
+              {trailAnalysis.summary}
+            </Body>
+          )}
+        </Card>
+      )}
+
+      {/* Sub-Investigation Summary Card */}
+      {subInvestigationSummary && subInvestigationSummary.total_leads_investigated > 0 && (
+        <Card style={{ padding: spacing[3], border: `1px solid ${palette.gray.light2}`, gridColumn: '1 / -1' }}>
+          <div style={{ fontSize: 10, color: palette.gray.base, fontFamily: FONT, textTransform: 'uppercase', marginBottom: 4 }}>
+            Sub-Investigations
+          </div>
+          <div style={{ display: 'flex', gap: spacing[4], flexWrap: 'wrap', marginBottom: 6 }}>
+            <InfoPair label="Leads Investigated" value={subInvestigationSummary.total_leads_investigated} />
+            <InfoPair label="High-Risk Leads" value={subInvestigationSummary.high_risk_leads?.length || 0} />
+            <InfoPair label="Confirmed Connections" value={subInvestigationSummary.confirmed_connections?.length || 0} />
+          </div>
+          {subInvestigationSummary.updated_risk_factors?.length > 0 && (
+            <div style={{ marginBottom: 6 }}>
+              <Body style={{ fontWeight: 600, fontSize: '11px', fontFamily: FONT, marginBottom: 4, color: palette.gray.dark1 }}>
+                Updated Risk Factors
+              </Body>
+              <ul style={{ margin: 0, paddingLeft: 16 }}>
+                {subInvestigationSummary.updated_risk_factors.map((f, i) => (
+                  <li key={i} style={{ fontSize: 12, fontFamily: FONT, color: palette.red.dark2, lineHeight: 1.5 }}>{f}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {subInvestigationSummary.summary && (
+            <Body style={{ fontSize: '12px', fontFamily: FONT, color: palette.gray.dark1, lineHeight: 1.5 }}>
+              {subInvestigationSummary.summary}
+            </Body>
+          )}
+        </Card>
+      )}
     </div>
   );
 }
@@ -344,7 +440,7 @@ function SummaryTab({ triage, typology, validation, humanDecision, networkAnalys
 // Evidence Tab
 // ---------------------------------------------------------------------------
 
-function EvidenceTab({ caseFile, typology, networkAnalysis }) {
+function EvidenceTab({ caseFile, typology, networkAnalysis, temporalAnalysis, trailAnalysis, subFindings, subSummary }) {
   if (!caseFile && !networkAnalysis) {
     return (
       <Card style={{ padding: spacing[4], textAlign: 'center' }}>
@@ -405,6 +501,182 @@ function EvidenceTab({ caseFile, typology, networkAnalysis }) {
               {networkAnalysis.summary}
             </Body>
           )}
+        </Section>
+      )}
+
+      {/* Temporal Analysis */}
+      {temporalAnalysis && temporalAnalysis.timeline_summary && (
+        <Section title="Temporal Pattern Analysis">
+          <Body style={{ fontSize: '13px', fontFamily: FONT, color: palette.gray.dark1, lineHeight: 1.5, marginBottom: spacing[2] }}>
+            {temporalAnalysis.timeline_summary}
+          </Body>
+
+          {temporalAnalysis.structuring_indicators?.length > 0 && (
+            <div style={{ marginBottom: spacing[2] }}>
+              <Body style={{ fontWeight: 600, fontSize: '12px', fontFamily: FONT, marginBottom: 4 }}>
+                Structuring Patterns ({temporalAnalysis.structuring_indicators.length})
+              </Body>
+              {temporalAnalysis.structuring_indicators.map((s, i) => (
+                <div key={i} style={{
+                  fontSize: 11, fontFamily: FONT, padding: '4px 8px', marginBottom: 2,
+                  borderRadius: 4, background: palette.red.light3, color: palette.red.dark2,
+                }}>
+                  {s.date}: {s.count} transactions totalling ${s.total?.toLocaleString()}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {temporalAnalysis.velocity_anomalies?.length > 0 && (
+            <div style={{ marginBottom: spacing[2] }}>
+              <Body style={{ fontWeight: 600, fontSize: '12px', fontFamily: FONT, marginBottom: 4 }}>
+                Velocity Spikes ({temporalAnalysis.velocity_anomalies.length})
+              </Body>
+              {temporalAnalysis.velocity_anomalies.map((v, i) => (
+                <div key={i} style={{
+                  fontSize: 11, fontFamily: FONT, padding: '4px 8px', marginBottom: 2,
+                  borderRadius: 4, background: palette.yellow.light3, color: palette.yellow.dark2,
+                }}>
+                  {v.week}: {v.transaction_count} txns (z-score: {v.z_score}, baseline: {v.baseline_avg})
+                </div>
+              ))}
+            </div>
+          )}
+
+          {temporalAnalysis.round_trip_patterns?.length > 0 && (
+            <div style={{ marginBottom: spacing[2] }}>
+              <Body style={{ fontWeight: 600, fontSize: '12px', fontFamily: FONT, marginBottom: 4 }}>
+                Round-Trip Fund Flows ({temporalAnalysis.round_trip_patterns.length})
+              </Body>
+              {temporalAnalysis.round_trip_patterns.map((r, i) => (
+                <div key={i} style={{
+                  fontSize: 11, fontFamily: FONT, padding: '4px 8px', marginBottom: 2,
+                  borderRadius: 4, background: palette.red.light3, color: palette.red.dark2,
+                }}>
+                  {r.counterparty}: Out ${r.outgoing_amount?.toLocaleString()} → Return ${r.return_amount?.toLocaleString()}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {temporalAnalysis.dormancy_bursts?.length > 0 && (
+            <div>
+              <Body style={{ fontWeight: 600, fontSize: '12px', fontFamily: FONT, marginBottom: 4 }}>
+                Dormancy-Burst Patterns ({temporalAnalysis.dormancy_bursts.length})
+              </Body>
+              {temporalAnalysis.dormancy_bursts.map((d, i) => (
+                <div key={i} style={{
+                  fontSize: 11, fontFamily: FONT, padding: '4px 8px', marginBottom: 2,
+                  borderRadius: 4, background: palette.yellow.light3, color: palette.yellow.dark2,
+                }}>
+                  {d.dormancy_days} days dormant → {d.burst_transaction_count} transactions (${d.burst_volume?.toLocaleString()})
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
+      )}
+
+      {/* Trail Analysis — Leads */}
+      {trailAnalysis && trailAnalysis.leads?.length > 0 && (
+        <Section title="Trail Analysis — Investigation Leads">
+          {trailAnalysis.summary && (
+            <Body style={{ fontSize: '13px', fontFamily: FONT, color: palette.gray.dark1, lineHeight: 1.5, marginBottom: spacing[2] }}>
+              {trailAnalysis.summary}
+            </Body>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[1] }}>
+            {trailAnalysis.leads.map((lead, i) => (
+              <div key={i} style={{
+                padding: spacing[2], borderRadius: 6,
+                border: `1px solid ${lead.priority === 'high' ? palette.red.light1 : palette.gray.light2}`,
+                background: lead.priority === 'high' ? palette.red.light3 : '#fff',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <Badge variant={lead.priority === 'high' ? 'red' : lead.priority === 'medium' ? 'yellow' : 'lightgray'}>
+                    {lead.priority}
+                  </Badge>
+                  <span style={{ fontSize: 13, fontWeight: 600, fontFamily: FONT }}>{lead.entity_name || lead.entity_id}</span>
+                </div>
+                {lead.reason && (
+                  <Body style={{ fontSize: '12px', fontFamily: FONT, color: palette.gray.dark1, lineHeight: 1.5 }}>
+                    {lead.reason}
+                  </Body>
+                )}
+                {lead.risk_indicators?.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 4 }}>
+                    {lead.risk_indicators.map((ind, j) => (
+                      <span key={j} style={{
+                        fontSize: 10, fontFamily: FONT, padding: '1px 5px',
+                        borderRadius: 3, background: palette.red.light3, color: palette.red.dark2,
+                      }}>
+                        {ind}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {/* Sub-Investigation Findings */}
+      {subFindings && Object.keys(subFindings).length > 0 && (
+        <Section title="Sub-Investigation Findings">
+          {subSummary?.summary && (
+            <Body style={{ fontSize: '13px', fontFamily: FONT, color: palette.gray.dark1, lineHeight: 1.5, marginBottom: spacing[2] }}>
+              {subSummary.summary}
+            </Body>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[1] }}>
+            {Object.entries(subFindings).map(([entityId, assessment]) => (
+              <div key={entityId} style={{
+                padding: spacing[2], borderRadius: 6,
+                border: `1px solid ${assessment.risk_level === 'high' || assessment.risk_level === 'critical' ? palette.red.light1 : palette.gray.light2}`,
+                background: assessment.risk_level === 'critical' ? palette.red.light3 : assessment.risk_level === 'high' ? '#fff5f5' : '#fff',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, fontFamily: FONT }}>
+                    {assessment.entity_name || entityId}
+                  </span>
+                  <Badge variant={assessment.risk_level === 'critical' ? 'red' : assessment.risk_level === 'high' ? 'red' : assessment.risk_level === 'medium' ? 'yellow' : 'green'}>
+                    {assessment.risk_level} ({assessment.risk_score})
+                  </Badge>
+                  <Badge variant={
+                    assessment.recommendation === 'escalate' || assessment.recommendation === 'investigate_further' ? 'red'
+                    : assessment.recommendation === 'monitor' ? 'yellow' : 'lightgray'
+                  }>
+                    {assessment.recommendation}
+                  </Badge>
+                  {assessment.watchlist_hits > 0 && (
+                    <Badge variant="red">
+                      {assessment.watchlist_hits} watchlist hit{assessment.watchlist_hits > 1 ? 's' : ''}
+                    </Badge>
+                  )}
+                </div>
+                {assessment.key_findings?.length > 0 && (
+                  <ul style={{ margin: 0, paddingLeft: 16, marginBottom: 4 }}>
+                    {assessment.key_findings.map((f, i) => (
+                      <li key={i} style={{ fontSize: 12, fontFamily: FONT, lineHeight: 1.5 }}>{f}</li>
+                    ))}
+                  </ul>
+                )}
+                {assessment.red_flags?.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                    {assessment.red_flags.map((flag, i) => (
+                      <span key={i} style={{
+                        fontSize: 10, fontFamily: FONT, padding: '1px 5px',
+                        borderRadius: 3, background: palette.red.light3, color: palette.red.dark2,
+                      }}>
+                        {flag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </Section>
       )}
 
@@ -541,6 +813,12 @@ function ToolTraceRow({ trace }) {
   );
 }
 
+function getAgentColor(agentName) {
+  if (AGENT_COLORS[agentName]) return AGENT_COLORS[agentName];
+  if (agentName?.startsWith('mini_investigate:')) return palette.purple.light1;
+  return palette.gray.dark1;
+}
+
 function DurationBar({ entries }) {
   const filtered = entries.filter(e => e.duration_ms > 0);
   const totalMs = filtered.reduce((s, e) => s + (e.duration_ms || 0), 0) || 1;
@@ -561,7 +839,7 @@ function DurationBar({ entries }) {
           return (
             <div key={i} style={{
               width: `${pct}%`,
-              background: AGENT_COLORS[entry.agent] || palette.gray.dark1,
+              background: getAgentColor(entry.agent),
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               overflow: 'hidden', position: 'relative',
             }} title={`${entry.agent}: ${dur}`}>
@@ -586,7 +864,7 @@ function DurationBar({ entries }) {
             <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
               <span style={{
                 width: 6, height: 6, borderRadius: '50%',
-                background: AGENT_COLORS[entry.agent] || palette.gray.dark1,
+                background: getAgentColor(entry.agent),
                 display: 'inline-block',
               }} />
               {entry.agent}
@@ -656,7 +934,7 @@ function AuditTab({ auditLog, toolTrace, metrics }) {
         </Subtitle>
         <div style={{ maxHeight: 600, overflowY: 'auto' }}>
           {auditLog.map((entry, i) => {
-            const agentColor = AGENT_COLORS[entry.agent] || palette.gray.dark1;
+            const agentColor = getAgentColor(entry.agent);
             const isHuman = entry.agent === 'human_review';
             const isLast = i === auditLog.length - 1;
 

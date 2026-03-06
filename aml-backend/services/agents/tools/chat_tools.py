@@ -1,10 +1,13 @@
 """Additional tools for the conversational AML assistant (chat agent)."""
 
 import logging
+import os
 from langchain_core.tools import tool
 from dependencies import get_mongo_client, DB_NAME
 
 logger = logging.getLogger(__name__)
+
+ENTITY_VECTOR_INDEX = os.getenv("ENTITY_VECTOR_INDEX", "entity_vector_search_index")
 
 
 @tool
@@ -226,4 +229,260 @@ def compare_entities(entity_id_a: str, entity_id_b: str) -> dict:
     return {
         "entity_a": _summarize(entity_id_a),
         "entity_b": _summarize(entity_id_b),
+    }
+
+
+@tool
+def trace_fund_flow(
+    entity_id: str,
+    direction: str = "outgoing",
+    hops: int = 2,
+) -> dict:
+    """Trace the flow of funds from/to an entity through transaction chains.
+
+    Follows money through transactionsv2 using fromEntityId/toEntityId links
+    up to N hops. Direction can be 'outgoing' (where money went) or 'incoming'
+    (where money came from).
+
+    Returns a list of fund flow paths with amounts and counterparties at each hop.
+    """
+    client = get_mongo_client()
+    db = client[DB_NAME]
+    coll = db["transactionsv2"]
+
+    if direction == "outgoing":
+        match_field, follow_field, next_match = "fromEntityId", "toEntityId", "fromEntityId"
+    else:
+        match_field, follow_field, next_match = "toEntityId", "fromEntityId", "toEntityId"
+
+    paths: list[dict] = []
+    frontier = [{"entity_id": entity_id, "path": [], "total_amount": 0}]
+
+    for hop in range(hops):
+        next_frontier = []
+        for node in frontier[:10]:
+            txns = list(
+                coll.find(
+                    {match_field: node["entity_id"]},
+                    {"_id": 0, "transactionId": 1, "fromEntityId": 1, "toEntityId": 1,
+                     "amount": 1, "timestamp": 1, "riskScore": 1, "flagged": 1},
+                )
+                .sort("riskScore", -1)
+                .limit(5)
+            )
+            for t in txns:
+                counterparty = t.get(follow_field, "")
+                if counterparty == entity_id:
+                    continue
+                new_path = node["path"] + [{
+                    "hop": hop + 1,
+                    "from": t.get("fromEntityId"),
+                    "to": t.get("toEntityId"),
+                    "amount": t.get("amount", 0),
+                    "risk_score": t.get("riskScore", 0),
+                    "flagged": t.get("flagged", False),
+                    "timestamp": str(t.get("timestamp", "")),
+                    "transaction_id": t.get("transactionId"),
+                }]
+                entry = {
+                    "entity_id": counterparty,
+                    "path": new_path,
+                    "total_amount": node["total_amount"] + t.get("amount", 0),
+                }
+                next_frontier.append(entry)
+                if hop == hops - 1:
+                    paths.append({
+                        "endpoint": counterparty,
+                        "hops": hop + 1,
+                        "total_amount": round(entry["total_amount"], 2),
+                        "path": new_path,
+                    })
+        frontier = next_frontier
+        if not frontier:
+            break
+
+    paths.sort(key=lambda p: p.get("total_amount", 0), reverse=True)
+    return {
+        "entity_id": entity_id,
+        "direction": direction,
+        "max_hops": hops,
+        "paths_found": len(paths),
+        "paths": paths[:15],
+    }
+
+
+@tool
+def find_similar_entities(entity_id: str, limit: int = 5) -> dict:
+    """Find entities with similar risk/behavioral profiles using vector search.
+
+    Reads the entity's profileEmbedding and runs Atlas Vector Search to find
+    the most similar entities. Useful for discovering entities that share
+    patterns with known suspicious actors.
+    """
+    client = get_mongo_client()
+    db = client[DB_NAME]
+
+    entity = db["entities"].find_one(
+        {"entityId": entity_id},
+        {"_id": 0, "entityId": 1, "name": 1, "profileEmbedding": 1},
+    )
+    if not entity:
+        return {"error": f"Entity {entity_id} not found"}
+
+    embedding = entity.get("profileEmbedding")
+    if not embedding:
+        return {"error": f"Entity {entity_id} has no profileEmbedding"}
+
+    pipeline = [
+        {
+            "$vectorSearch": {
+                "index": ENTITY_VECTOR_INDEX,
+                "path": "profileEmbedding",
+                "queryVector": embedding,
+                "numCandidates": limit * 10,
+                "limit": limit + 1,
+            }
+        },
+        {"$match": {"entityId": {"$ne": entity_id}}},
+        {"$limit": limit},
+        {"$project": {
+            "_id": 0,
+            "entityId": 1,
+            "entityType": 1,
+            "name": 1,
+            "riskAssessment.overall": 1,
+            "score": {"$meta": "vectorSearchScore"},
+        }},
+    ]
+
+    results = list(db["entities"].aggregate(pipeline))
+    return {
+        "query_entity": entity_id,
+        "query_name": entity.get("name", {}).get("full", ""),
+        "similar_count": len(results),
+        "similar_entities": results,
+    }
+
+
+@tool
+def analyze_temporal_patterns(entity_id: str, days_back: int = 90) -> dict:
+    """Analyse temporal transaction patterns for an entity.
+
+    Detects structuring (sub-threshold clusters), velocity spikes,
+    round-trip fund flows, off-hours activity, and dormancy-burst patterns.
+    Uses MongoDB aggregation -- no LLM involved.
+    """
+    from services.agents.nodes.temporal_analyst import (
+        _detect_structuring,
+        _detect_velocity_anomalies,
+        _detect_round_trips,
+        _detect_time_anomalies,
+        _detect_dormancy_bursts,
+    )
+
+    client = get_mongo_client()
+    db = client[DB_NAME]
+
+    structuring = _detect_structuring(db, entity_id)
+    velocity = _detect_velocity_anomalies(db, entity_id)
+    round_trips = _detect_round_trips(db, entity_id)
+    time_anomalies = _detect_time_anomalies(db, entity_id)
+    dormancy = _detect_dormancy_bursts(db, entity_id)
+
+    summary_parts = []
+    if structuring:
+        summary_parts.append(f"{len(structuring)} structuring pattern(s)")
+    if velocity:
+        summary_parts.append(f"{len(velocity)} velocity spike(s)")
+    if round_trips:
+        summary_parts.append(f"{len(round_trips)} round-trip flow(s)")
+    if time_anomalies:
+        summary_parts.append(f"time anomalies: {', '.join(a['type'] for a in time_anomalies)}")
+    if dormancy:
+        summary_parts.append(f"{len(dormancy)} dormancy-burst pattern(s)")
+    if not summary_parts:
+        summary_parts.append("no significant temporal anomalies")
+
+    return {
+        "entity_id": entity_id,
+        "days_back": days_back,
+        "structuring_indicators": structuring,
+        "velocity_anomalies": velocity,
+        "round_trip_patterns": round_trips,
+        "time_anomalies": time_anomalies,
+        "dormancy_bursts": dormancy,
+        "summary": "; ".join(summary_parts),
+    }
+
+
+@tool
+def expand_investigation_lead(entity_id: str) -> dict:
+    """Perform a rapid mini-investigation on a connected entity.
+
+    Fetches entity profile, watchlist screening, transaction summary, and
+    immediate network connections in a single call. Use this to quickly
+    assess whether a connected entity warrants deeper investigation.
+    """
+    client = get_mongo_client()
+    db = client[DB_NAME]
+
+    profile = db["entities"].find_one(
+        {"entityId": entity_id},
+        {
+            "_id": 0, "entityId": 1, "entityType": 1, "name": 1,
+            "riskAssessment": 1, "watchlistMatches": 1, "status": 1,
+        },
+    )
+    if not profile:
+        return {"error": f"Entity {entity_id} not found"}
+
+    txn_pipeline = [
+        {"$match": {"$or": [{"fromEntityId": entity_id}, {"toEntityId": entity_id}]}},
+        {"$group": {
+            "_id": None,
+            "total_count": {"$sum": 1},
+            "total_volume": {"$sum": "$amount"},
+            "flagged_count": {"$sum": {"$cond": ["$flagged", 1, 0]}},
+            "max_risk": {"$max": "$riskScore"},
+        }},
+    ]
+    txn_stats = list(db["transactionsv2"].aggregate(txn_pipeline))
+    txn = txn_stats[0] if txn_stats else {}
+
+    rel_pipeline = [
+        {"$match": {"$or": [
+            {"source.entityId": entity_id},
+            {"target.entityId": entity_id},
+        ]}},
+        {"$group": {
+            "_id": "$type",
+            "count": {"$sum": 1},
+        }},
+        {"$sort": {"count": -1}},
+        {"$limit": 10},
+    ]
+    relationships = list(db["relationships"].aggregate(rel_pipeline))
+
+    watchlist = profile.get("watchlistMatches", [])
+
+    return {
+        "entity_id": entity_id,
+        "name": profile.get("name", {}).get("full", ""),
+        "entity_type": profile.get("entityType", ""),
+        "risk_assessment": profile.get("riskAssessment", {}),
+        "watchlist_hits": len(watchlist),
+        "watchlist_details": [
+            {"list_id": m.get("listId"), "score": m.get("matchScore")}
+            for m in watchlist[:5]
+        ],
+        "transaction_stats": {
+            "total_count": txn.get("total_count", 0),
+            "total_volume": round(txn.get("total_volume", 0), 2),
+            "flagged_count": txn.get("flagged_count", 0),
+            "max_risk_score": txn.get("max_risk", 0),
+        },
+        "relationship_types": [
+            {"type": r["_id"], "count": r["count"]}
+            for r in relationships
+        ],
     }

@@ -47,11 +47,18 @@ def narrative_node(state: InvestigationState) -> dict:
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }]
 
+    temporal = state.get("temporal_analysis", {})
+    trail = state.get("trail_analysis", {})
+    sub_summary = state.get("sub_investigation_summary", {})
+
     evidence_payload = json.dumps({
         "case_file": case_file,
         "typology_classification": typology,
         "network_analysis": network,
-    }, default=str)[:10000]
+        "temporal_analysis": temporal,
+        "trail_analysis": trail,
+        "sub_investigation_summary": sub_summary,
+    }, default=str)[:14000]
 
     llm = get_llm().with_structured_output(SARNarrative, include_raw=True)
     llm_result = llm.invoke([

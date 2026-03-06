@@ -163,7 +163,7 @@ export default function HomepageClient() {
                 Agentic Investigation
               </H3>
               <Description style={{ color: palette.gray.dark1 }}>
-                AI-powered multi-agent investigation pipeline built on LangGraph. Automated triage, parallel evidence gathering, typology classification, SAR narrative generation, and human-in-the-loop review -- all persisted to MongoDB with full audit trails.
+                AI-powered multi-agent investigation pipeline built on LangGraph. MongoDB MongoDBSaver enables durable human-in-the-loop review, $graphLookup powers network traversal, Atlas Search drives RAG over typologies and compliance policies, and the flexible document model stores complete investigations as single rich documents.
               </Description>
             </Card>
             

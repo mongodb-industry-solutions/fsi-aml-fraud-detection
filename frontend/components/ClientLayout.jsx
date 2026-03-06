@@ -13,6 +13,7 @@ import { usePathname } from 'next/navigation';
 import { useUser } from '@/contexts/UserContext';
 import UserSelectionModal from '@/components/UserSelection/UserSelectionModal';
 import UserProfile from '@/components/UserProfile/UserProfile';
+import ChatBubble from '@/components/chat/ChatBubble';
 
 export default function ClientLayout({ children }) {
   const [isMenuOpen, setMenuOpen] = useState(false);
@@ -206,6 +207,9 @@ export default function ClientLayout({ children }) {
           </Card>
         </div>
       </main>
+
+      {/* AML Compliance Assistant Chat */}
+      <ChatBubble />
 
       {/* User Selection Modal */}
       {showUserSelection && (

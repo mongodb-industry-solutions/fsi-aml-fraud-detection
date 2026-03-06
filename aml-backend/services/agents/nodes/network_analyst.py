@@ -2,6 +2,7 @@
 
 import json
 import logging
+import time
 from datetime import datetime, timezone
 
 from dependencies import get_mongo_client, DB_NAME
@@ -66,11 +67,13 @@ def _compute_network_risk(db, entity_id: str, suspicious_connections: list) -> d
 
 
 def network_analyst_node(state: InvestigationState) -> dict:
+    t0 = time.perf_counter()
     gathered = state.get("gathered_data", {})
     network_data = gathered.get("network", {})
     entity_id = network_data.get("entity_id", state.get("alert_data", {}).get("entity_id", ""))
 
     if not network_data or network_data.get("network_size", 0) == 0:
+        duration_ms = int((time.perf_counter() - t0) * 1000)
         profile = NetworkRiskProfile(summary="No network data available.")
         return {
             "network_analysis": profile.model_dump(),
@@ -82,8 +85,10 @@ def network_analyst_node(state: InvestigationState) -> dict:
             "agent_audit_log": [{
                 "agent": "network_analyst",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
+                "duration_ms": duration_ms,
                 "network_size": 0,
                 "high_risk_connections": 0,
+                "reasoning": "No network data available for this entity",
             }],
         }
 
@@ -129,13 +134,27 @@ def network_analyst_node(state: InvestigationState) -> dict:
         "network_size": profile.network_size,
     }
 
+    duration_ms = int((time.perf_counter() - t0) * 1000)
+
     audit_entry = {
         "agent": "network_analyst",
         "timestamp": datetime.now(timezone.utc).isoformat(),
+        "duration_ms": duration_ms,
         "network_size": profile.network_size,
         "high_risk_connections": profile.high_risk_connections,
         "degree_centrality": profile.degree_centrality,
         "network_risk_score": profile.network_risk_score,
+        "reasoning": " ".join(summary_parts),
+        "output_summary": f"network_size={profile.network_size}, risk={profile.network_risk_score:.1f}, centrality={profile.degree_centrality:.2f}",
+    }
+
+    trace_entry = {
+        "tool": "compute_network_metrics",
+        "agent": "network_analyst",
+        "input": json.dumps({"entity_id": entity_id, "network_size": network_size}),
+        "output": json.dumps(tool_output),
+        "duration_ms": duration_ms,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
     return {
@@ -145,5 +164,6 @@ def network_analyst_node(state: InvestigationState) -> dict:
             "input": json.dumps({"entity_id": entity_id, "network_size": network_size}),
             "output": json.dumps(tool_output),
         }],
+        "tool_trace_log": [trace_entry],
         "agent_audit_log": [audit_entry],
     }

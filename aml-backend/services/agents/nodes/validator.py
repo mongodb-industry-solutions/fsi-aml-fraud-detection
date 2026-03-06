@@ -2,6 +2,7 @@
 
 import json
 import logging
+import time
 from datetime import datetime, timezone
 
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -15,12 +16,15 @@ from services.agents.state import InvestigationState
 logger = logging.getLogger(__name__)
 
 MAX_VALIDATION_LOOPS = 2
+_LLM_MODEL = "bedrock/anthropic-sonnet"
 
 
 def validation_node(state: InvestigationState) -> Command:
+    t0 = time.perf_counter()
     loop_count = state.get("validation_count", 0) + 1
 
     if loop_count >= MAX_VALIDATION_LOOPS:
+        duration_ms = int((time.perf_counter() - t0) * 1000)
         forced = ValidationResult(
             is_valid=False,
             score=0.0,
@@ -30,8 +34,10 @@ def validation_node(state: InvestigationState) -> Command:
         audit_entry = {
             "agent": "validator",
             "timestamp": datetime.now(timezone.utc).isoformat(),
+            "duration_ms": duration_ms,
             "loop": loop_count,
             "forced_escalation": True,
+            "reasoning": "Max validation loops exceeded, forcing human review",
         }
         return Command(
             goto="human_review",
@@ -55,14 +61,21 @@ def validation_node(state: InvestigationState) -> Command:
         SystemMessage(content=VALIDATION_SYSTEM),
         HumanMessage(content=payload),
     ])
+    duration_ms = int((time.perf_counter() - t0) * 1000)
 
     audit_entry = {
         "agent": "validator",
         "timestamp": datetime.now(timezone.utc).isoformat(),
+        "duration_ms": duration_ms,
+        "llm_model": _LLM_MODEL,
         "loop": loop_count,
         "score": result.score,
         "route_to": result.route_to,
         "issues": result.issues,
+        "reasoning": f"Validation score {result.score}, routing to {result.route_to}" + (
+            f" — issues: {', '.join(result.issues[:2])}" if result.issues else ""
+        ),
+        "output_summary": f"score={result.score}, route={result.route_to}, issues={len(result.issues)}",
     }
 
     update = {

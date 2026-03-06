@@ -2,6 +2,7 @@
 
 import json
 import logging
+import time
 from datetime import datetime, timezone
 from typing import TypedDict
 
@@ -20,6 +21,7 @@ from services.agents.tools.network_tools import analyze_entity_network
 logger = logging.getLogger(__name__)
 
 _MAX_TOOL_OUTPUT = 3000
+_LLM_MODEL = "bedrock/anthropic-sonnet"
 
 
 def _serialize_tool_output(obj) -> str:
@@ -79,65 +81,69 @@ def dispatch_data_tasks(state: InvestigationState) -> Command:
 
 # ── Individual fan-out workers ────────────────────────────────────────
 
-def fetch_entity_profile_node(state: GatherTask) -> dict:
+def _fetch_with_trace(state, tool_name, tool_fn, tool_input, data_key):
+    """Run a tool, capture timing, and produce audit + trace entries."""
     entity_id = state["entity_id"]
-    tool_input = {"entity_id": entity_id}
-    result = get_entity_profile.invoke(tool_input)
-    return {
-        "gathered_data": {"entity_profile": result},
-        "_node_tool_calls": [{
-            "tool": "get_entity_profile",
-            "input": json.dumps(tool_input),
-            "output": _serialize_tool_output(result),
-        }],
+    t0 = time.perf_counter()
+    result = tool_fn.invoke(tool_input)
+    duration_ms = int((time.perf_counter() - t0) * 1000)
+    serialized = _serialize_tool_output(result)
+
+    trace_entry = {
+        "tool": tool_name,
+        "agent": f"fetch_{data_key}",
+        "input": json.dumps(tool_input),
+        "output": serialized,
+        "duration_ms": duration_ms,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+    audit_entry = {
+        "agent": f"fetch_{data_key}",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "duration_ms": duration_ms,
+        "tool": tool_name,
+        "output_summary": serialized[:200],
+    }
+    return {
+        "gathered_data": {data_key: result},
+        "_node_tool_calls": [{"tool": tool_name, "input": json.dumps(tool_input), "output": serialized}],
+        "tool_trace_log": [trace_entry],
+        "agent_audit_log": [audit_entry],
+    }
+
+
+def fetch_entity_profile_node(state: GatherTask) -> dict:
+    return _fetch_with_trace(
+        state, "get_entity_profile", get_entity_profile,
+        {"entity_id": state["entity_id"]}, "entity_profile",
+    )
 
 
 def fetch_transactions_node(state: GatherTask) -> dict:
-    entity_id = state["entity_id"]
-    tool_input = {"entity_id": entity_id, "limit": 50}
-    result = query_entity_transactions.invoke(tool_input)
-    return {
-        "gathered_data": {"transactions": result},
-        "_node_tool_calls": [{
-            "tool": "query_entity_transactions",
-            "input": json.dumps(tool_input),
-            "output": _serialize_tool_output(result),
-        }],
-    }
+    return _fetch_with_trace(
+        state, "query_entity_transactions", query_entity_transactions,
+        {"entity_id": state["entity_id"], "limit": 50}, "transactions",
+    )
 
 
 def fetch_network_node(state: GatherTask) -> dict:
-    entity_id = state["entity_id"]
-    tool_input = {"entity_id": entity_id, "max_depth": 2}
-    result = analyze_entity_network.invoke(tool_input)
-    return {
-        "gathered_data": {"network": result},
-        "_node_tool_calls": [{
-            "tool": "analyze_entity_network",
-            "input": json.dumps(tool_input),
-            "output": _serialize_tool_output(result),
-        }],
-    }
+    return _fetch_with_trace(
+        state, "analyze_entity_network", analyze_entity_network,
+        {"entity_id": state["entity_id"], "max_depth": 2}, "network",
+    )
 
 
 def fetch_watchlist_node(state: GatherTask) -> dict:
-    entity_id = state["entity_id"]
-    tool_input = {"entity_id": entity_id}
-    result = screen_watchlists.invoke(tool_input)
-    return {
-        "gathered_data": {"watchlist": result},
-        "_node_tool_calls": [{
-            "tool": "screen_watchlists",
-            "input": json.dumps(tool_input),
-            "output": _serialize_tool_output(result),
-        }],
-    }
+    return _fetch_with_trace(
+        state, "screen_watchlists", screen_watchlists,
+        {"entity_id": state["entity_id"]}, "watchlist",
+    )
 
 
 # ── Fan-in assembly ──────────────────────────────────────────────────
 
 def assemble_case_node(state: InvestigationState) -> dict:
+    t0 = time.perf_counter()
     gathered = state.get("gathered_data", {})
 
     llm = get_llm().with_structured_output(CaseFile)
@@ -145,15 +151,22 @@ def assemble_case_node(state: InvestigationState) -> dict:
         SystemMessage(content=CASE_ASSEMBLY_SYSTEM),
         HumanMessage(content=json.dumps(gathered, default=str)[:12000]),
     ])
+    duration_ms = int((time.perf_counter() - t0) * 1000)
+
+    case_dump = case_file.model_dump()
+    findings_count = len(case_dump.get("key_findings", []) if isinstance(case_dump.get("key_findings"), list) else [])
 
     audit_entry = {
         "agent": "data_gathering",
         "timestamp": datetime.now(timezone.utc).isoformat(),
+        "duration_ms": duration_ms,
+        "llm_model": _LLM_MODEL,
         "sources_gathered": list(gathered.keys()),
+        "output_summary": f"{findings_count} key findings assembled from {len(gathered)} sources",
     }
 
     return {
-        "case_file": case_file.model_dump(),
+        "case_file": case_dump,
         "investigation_status": "case_assembled",
         "agent_audit_log": [audit_entry],
     }

@@ -2,6 +2,7 @@
 
 import json
 import logging
+import time
 from datetime import datetime, timezone
 
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -14,24 +15,36 @@ from services.agents.tools.policy_tools import search_compliance_policies
 
 logger = logging.getLogger(__name__)
 
-
 _MAX_TOOL_OUTPUT = 3000
+_LLM_MODEL = "bedrock/anthropic-sonnet"
 
 
 def narrative_node(state: InvestigationState) -> dict:
+    t0 = time.perf_counter()
     case_file = state.get("case_file", {})
     typology = state.get("typology", {})
     network = state.get("network_analysis", {})
 
     tool_input = {"query": "SAR narrative structure"}
+    t_tool = time.perf_counter()
     policies = search_compliance_policies.invoke(tool_input)
+    tool_dur = int((time.perf_counter() - t_tool) * 1000)
     policy_context = json.dumps(policies, default=str)[:3000] if policies else "Follow standard FinCEN SAR narrative guidelines."
 
     output_text = json.dumps(policies, default=str) if policies else "[]"
+    truncated = output_text[:_MAX_TOOL_OUTPUT] + "..." if len(output_text) > _MAX_TOOL_OUTPUT else output_text
     tool_calls = [{
         "tool": "search_compliance_policies",
         "input": json.dumps(tool_input),
-        "output": output_text[:_MAX_TOOL_OUTPUT] + "..." if len(output_text) > _MAX_TOOL_OUTPUT else output_text,
+        "output": truncated,
+    }]
+    trace_entries = [{
+        "tool": "search_compliance_policies",
+        "agent": "narrative",
+        "input": json.dumps(tool_input),
+        "output": truncated,
+        "duration_ms": tool_dur,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }]
 
     evidence_payload = json.dumps({
@@ -48,17 +61,24 @@ def narrative_node(state: InvestigationState) -> dict:
             f"INVESTIGATION EVIDENCE:\n{evidence_payload}"
         )),
     ])
+    duration_ms = int((time.perf_counter() - t0) * 1000)
+
+    total_length = len(narrative.introduction) + len(narrative.body) + len(narrative.conclusion)
 
     audit_entry = {
         "agent": "narrative",
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "narrative_length": len(narrative.introduction) + len(narrative.body) + len(narrative.conclusion),
+        "duration_ms": duration_ms,
+        "llm_model": _LLM_MODEL,
+        "narrative_length": total_length,
         "citations_count": len(narrative.cited_evidence),
+        "output_summary": f"{total_length} chars, {len(narrative.cited_evidence)} citations, 3 sections",
     }
 
     return {
         "narrative": narrative.model_dump(),
         "investigation_status": "narrative_generated",
         "_node_tool_calls": tool_calls,
+        "tool_trace_log": trace_entries,
         "agent_audit_log": [audit_entry],
     }

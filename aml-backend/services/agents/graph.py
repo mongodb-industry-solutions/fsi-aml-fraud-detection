@@ -4,7 +4,7 @@ LangGraph StateGraph wiring for the agentic investigation pipeline.
 Combines:
   - Command-based dynamic routing (triage, validation)
   - Send-based parallel fan-out (data gathering)
-  - interrupt_before for durable human-in-the-loop review (Python 3.10 safe)
+  - interrupt_before for durable human-in-the-loop review
   - MongoDBSaver for persistent checkpointing
 """
 

@@ -6,14 +6,14 @@ import Button from '@leafygreen-ui/button';
 import TextInput from '@leafygreen-ui/text-input';
 import Badge from '@leafygreen-ui/badge';
 import Icon from '@leafygreen-ui/icon';
-import { Body, Subtitle, H3, InlineCode } from '@leafygreen-ui/typography';
+import { Body, Subtitle, H3 } from '@leafygreen-ui/typography';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 
 import Banner from '@leafygreen-ui/banner';
 import Callout from '@leafygreen-ui/callout';
 
-import { launchInvestigation, resumeInvestigation, fetchInvestigableEntities, fetchTypologies } from '@/lib/agent-api';
+import { launchInvestigation, resumeInvestigation } from '@/lib/agent-api';
 import AgenticPipelineGraph from './AgenticPipelineGraph';
 import InvestigationInsightsPanel from './InvestigationInsightsPanel';
 
@@ -127,15 +127,6 @@ const TOOL_FRIENDLY_NAMES = {
   search_compliance_policies: 'Searching Compliance Policies (Atlas Search RAG)',
   compute_network_metrics: 'Computing Network Metrics ($graphLookup)',
 };
-
-const PIPELINE_STEPS = [
-  'Triage the alert and score risk (state checkpointed via MongoDBSaver)',
-  'Gather entity, transactions, network ($graphLookup), and watchlist data in parallel',
-  'Assemble a 360° case file (flexible document model)',
-  'Classify crime typology via Atlas Search RAG and analyze network risk',
-  'Generate FinCEN-compliant SAR narrative with compliance policy RAG',
-  'Validate quality and route for human review (durable interrupt via MongoDBSaver)',
-];
 
 // ---------------------------------------------------------------------------
 // Event → Steps reducer
@@ -1056,78 +1047,6 @@ function AgentStepTimeline({ events, running, startTime }) {
 }
 
 // ---------------------------------------------------------------------------
-// IntentPreviewCard
-// ---------------------------------------------------------------------------
-
-function IntentPreviewCard({ entityId, alertType, title, onProceed, onCancel }) {
-  return (
-    <Card style={{
-      padding: spacing[4],
-      border: `2px solid ${palette.blue.light1}`,
-      background: '#fff',
-      marginBottom: spacing[3],
-    }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: spacing[3] }}>
-        <div style={{
-          width: 40, height: 40, borderRadius: 8,
-          background: palette.blue.light3, display: 'flex',
-          alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-        }}>
-          <Icon glyph="Visibility" size={20} fill={palette.blue.base} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <Subtitle style={{ fontFamily: FONT, margin: 0, fontSize: '15px', color: palette.blue.dark2 }}>
-            Investigation Plan Preview
-          </Subtitle>
-          <Body style={{ fontFamily: FONT, fontSize: '13px', color: palette.gray.dark1, marginTop: 4 }}>
-            {title ? `Scenario: ${title}` : 'Custom Investigation'}
-          </Body>
-
-          <div style={{
-            marginTop: spacing[2], padding: spacing[2], borderRadius: 6,
-            background: palette.gray.light3, border: `1px solid ${palette.gray.light2}`,
-          }}>
-            <div style={{ display: 'flex', gap: spacing[3], marginBottom: spacing[2], flexWrap: 'wrap' }}>
-              <div>
-                <div style={{ fontSize: 10, color: palette.gray.base, fontFamily: FONT, textTransform: 'uppercase' }}>Entity ID</div>
-                <InlineCode>{entityId}</InlineCode>
-              </div>
-              <div>
-                <div style={{ fontSize: 10, color: palette.gray.base, fontFamily: FONT, textTransform: 'uppercase' }}>Alert Type</div>
-                <InlineCode>{alertType}</InlineCode>
-              </div>
-            </div>
-
-            <div style={{ fontSize: 11, color: palette.gray.dark1, fontFamily: FONT, marginBottom: 4 }}>
-              The agent pipeline will execute the following steps:
-            </div>
-            <ol style={{ margin: 0, paddingLeft: 18 }}>
-              {PIPELINE_STEPS.map((step, i) => (
-                <li key={i} style={{
-                  fontSize: 11, fontFamily: FONT, color: palette.gray.dark2,
-                  lineHeight: 1.6, paddingLeft: 4,
-                }}>
-                  {step}
-                </li>
-              ))}
-            </ol>
-          </div>
-
-          <div style={{ display: 'flex', gap: spacing[2], marginTop: spacing[3] }}>
-            <Button variant="baseGreen" onClick={onProceed}>
-              Proceed with Investigation
-            </Button>
-            <Button variant="default" onClick={onCancel}>
-              Cancel
-            </Button>
-          </div>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // HumanReviewPanel (enhanced with structured evidence review)
 // ---------------------------------------------------------------------------
 
@@ -1393,126 +1312,7 @@ function HumanReviewPanel({ payload, accumulatedEvidence, analystNotes, onNotesC
         Kafka for event replay + PostgreSQL for data &mdash; MongoDB replaces all three.
       </Callout>
 
-      {/* Checkpoint Explorer */}
-      <CheckpointExplorer accumulatedEvidence={accumulatedEvidence} />
     </Card>
-  );
-}
-
-function CheckpointExplorer({ accumulatedEvidence }) {
-  const [expanded, setExpanded] = useState(false);
-
-  const checkpoints = [];
-  if (accumulatedEvidence?.triage_decision) checkpoints.push({ node: 'triage', label: 'Triage Decision', keys: Object.keys(accumulatedEvidence.triage_decision) });
-  if (accumulatedEvidence?.gathered_data) checkpoints.push({ node: 'data_gathering', label: 'Data Gathering (4 parallel)', keys: ['entity_profile', 'transactions', 'network', 'watchlist'] });
-  if (accumulatedEvidence?.case_file) checkpoints.push({ node: 'assemble_case', label: 'Case File Assembly', keys: Object.keys(accumulatedEvidence.case_file) });
-  if (accumulatedEvidence?.typology) checkpoints.push({ node: 'typology', label: 'Typology Classification', keys: Object.keys(accumulatedEvidence.typology) });
-  if (accumulatedEvidence?.narrative) checkpoints.push({ node: 'narrative', label: 'SAR Narrative', keys: Object.keys(accumulatedEvidence.narrative) });
-  if (accumulatedEvidence?.validation_result) checkpoints.push({ node: 'validation', label: 'Quality Validation', keys: Object.keys(accumulatedEvidence.validation_result) });
-  checkpoints.push({ node: 'human_review', label: 'Human Review (current)', keys: ['interrupt()', 'full_state_persisted'] });
-
-  const totalKeys = checkpoints.reduce((s, c) => s + c.keys.length, 0);
-
-  return (
-    <div style={{ marginTop: spacing[2] }}>
-      <button
-        onClick={() => setExpanded(!expanded)}
-        style={{
-          width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          padding: '8px 12px', borderRadius: 6,
-          background: '#1a1a2e', color: palette.green.light1,
-          border: `1px solid ${palette.green.dark2}44`,
-          cursor: 'pointer', fontFamily: FONT, fontSize: 12, fontWeight: 600,
-        }}
-      >
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 14 }}>🗄</span>
-          MongoDBSaver Checkpoint Explorer
-          <span style={{
-            fontSize: 9, padding: '1px 5px', borderRadius: 4,
-            background: palette.green.dark2, color: palette.green.light3,
-          }}>
-            {checkpoints.length} checkpoints
-          </span>
-        </span>
-        <span style={{ fontSize: 10, transition: 'transform 0.15s', transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
-          ▼
-        </span>
-      </button>
-
-      {expanded && (
-        <div style={{
-          padding: '10px 12px', background: '#1a1a2e',
-          borderRadius: '0 0 6px 6px', borderTop: `1px solid ${palette.green.dark2}22`,
-          border: `1px solid ${palette.green.dark2}44`, borderTopWidth: 0,
-        }}>
-          <div style={{
-            display: 'flex', gap: spacing[2], marginBottom: spacing[2], flexWrap: 'wrap',
-          }}>
-            <div style={{ padding: '4px 10px', borderRadius: 4, background: `${palette.purple.dark2}33`, textAlign: 'center' }}>
-              <div style={{ fontSize: 18, fontWeight: 700, color: palette.purple.light1, fontFamily: FONT }}>{checkpoints.length}</div>
-              <div style={{ fontSize: 9, color: palette.gray.light1, fontFamily: FONT }}>Checkpoints</div>
-            </div>
-            <div style={{ padding: '4px 10px', borderRadius: 4, background: `${palette.blue.dark1}33`, textAlign: 'center' }}>
-              <div style={{ fontSize: 18, fontWeight: 700, color: palette.blue.light1, fontFamily: FONT }}>{totalKeys}</div>
-              <div style={{ fontSize: 9, color: palette.gray.light1, fontFamily: FONT }}>State Keys</div>
-            </div>
-            <div style={{ flex: 1, padding: '4px 10px', borderRadius: 4, background: `${palette.green.dark2}33` }}>
-              <div style={{ fontSize: 9, color: palette.green.light2, fontFamily: FONT, fontWeight: 600, marginBottom: 2 }}>
-                Resumable from any point
-              </div>
-              <div style={{ fontSize: 9, color: palette.gray.light1, fontFamily: FONT, lineHeight: 1.4 }}>
-                If the server crashes, the pipeline resumes from the last checkpoint &mdash; not from scratch.
-              </div>
-            </div>
-          </div>
-
-          {/* Checkpoint timeline */}
-          {checkpoints.map((cp, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 16, flexShrink: 0 }}>
-                <div style={{
-                  width: 8, height: 8, borderRadius: '50%', marginTop: 4,
-                  background: cp.node === 'human_review' ? palette.yellow.base : palette.green.light1,
-                  border: cp.node === 'human_review' ? `2px solid ${palette.yellow.base}` : 'none',
-                }} />
-                {i < checkpoints.length - 1 && (
-                  <div style={{ flex: 1, width: 1, background: palette.gray.dark1, marginTop: 2, minHeight: 16 }} />
-                )}
-              </div>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: palette.green.light2, fontFamily: FONT }}>
-                  {cp.label}
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 2 }}>
-                  {cp.keys.slice(0, 6).map((k, j) => (
-                    <span key={j} style={{
-                      fontSize: 8, fontFamily: "'Source Code Pro', monospace",
-                      padding: '1px 4px', borderRadius: 2,
-                      background: `${palette.green.dark2}44`, color: palette.gray.light1,
-                    }}>
-                      {k}
-                    </span>
-                  ))}
-                  {cp.keys.length > 6 && (
-                    <span style={{ fontSize: 8, color: palette.gray.light1 }}>+{cp.keys.length - 6} more</span>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-
-          <div style={{
-            marginTop: spacing[2], padding: '6px 8px', borderRadius: 4,
-            background: `${palette.green.dark2}22`, fontSize: 10, fontFamily: FONT,
-            color: palette.gray.light1, lineHeight: 1.4,
-          }}>
-            Without MongoDB: Redis for state serialization + Kafka for event sourcing + PostgreSQL for data persistence + custom recovery logic.
-            <strong style={{ color: palette.green.light2 }}> With MongoDBSaver: one database, zero custom code.</strong>
-          </div>
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -1529,8 +1329,8 @@ function MiniInfo({ label, value }) {
 // FinalResultCard
 // ---------------------------------------------------------------------------
 
-function FinalResultCard({ result, onViewAuditTrail }) {
-  const { status, typology, narrative, triage_decision, case_id } = result;
+function FinalResultCard({ result }) {
+  const { status, typology, narrative, triage_decision, case_id, thread_id } = result;
   const risk = triage_decision?.risk_score != null ? getRiskLevel(triage_decision.risk_score) : null;
 
   return (
@@ -1539,20 +1339,39 @@ function FinalResultCard({ result, onViewAuditTrail }) {
       border: `1px solid ${palette.green.light1}`,
       background: palette.green.light3,
     }}>
-      <Subtitle style={{ fontFamily: FONT, marginBottom: spacing[2], fontSize: '14px', color: palette.green.dark2 }}>
-        Investigation Complete
-      </Subtitle>
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        marginBottom: spacing[2],
+      }}>
+        <Subtitle style={{ fontFamily: FONT, fontSize: '14px', color: palette.green.dark2, margin: 0 }}>
+          Investigation Complete
+        </Subtitle>
+        {case_id && (
+          <span style={{
+            fontSize: 11, fontFamily: "'Source Code Pro', monospace",
+            padding: '3px 10px', borderRadius: 4,
+            background: '#fff', border: `1px solid ${palette.green.light1}`,
+            color: palette.gray.dark2, fontWeight: 600,
+          }}>
+            {case_id}
+          </span>
+        )}
+      </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: spacing[3], marginBottom: spacing[2] }}>
+      <div style={{
+        display: 'grid', gridTemplateColumns: '1fr 1fr', gap: spacing[2],
+        marginBottom: spacing[2],
+        padding: spacing[2], borderRadius: 6, background: 'rgba(255,255,255,0.6)',
+      }}>
         <div>
-          <Body style={{ fontSize: '12px', color: palette.gray.base, fontFamily: FONT }}>Status</Body>
+          <Body style={{ fontSize: '10px', color: palette.gray.base, fontFamily: FONT, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Status</Body>
           <Badge variant={status === 'filed' ? 'green' : status === 'closed_false_positive' ? 'lightgray' : 'blue'}>
             {status}
           </Badge>
         </div>
         {risk && (
           <div>
-            <Body style={{ fontSize: '12px', color: palette.gray.base, fontFamily: FONT }}>Risk Score</Body>
+            <Body style={{ fontSize: '10px', color: palette.gray.base, fontFamily: FONT, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Risk Score</Body>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <Body style={{ fontWeight: 700, fontFamily: FONT, color: risk.color }}>
                 {triage_decision.risk_score}
@@ -1566,33 +1385,31 @@ function FinalResultCard({ result, onViewAuditTrail }) {
         )}
         {typology?.primary_typology && (
           <div>
-            <Body style={{ fontSize: '12px', color: palette.gray.base, fontFamily: FONT }}>Typology</Body>
+            <Body style={{ fontSize: '10px', color: palette.gray.base, fontFamily: FONT, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Typology</Body>
             <Body style={{ fontWeight: 600, fontFamily: FONT }}>{typology.primary_typology}</Body>
+          </div>
+        )}
+        {thread_id && (
+          <div>
+            <Body style={{ fontSize: '10px', color: palette.gray.base, fontFamily: FONT, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Thread</Body>
+            <Body style={{ fontSize: '11px', fontFamily: "'Source Code Pro', monospace", color: palette.gray.dark1 }}>
+              {thread_id.length > 20 ? thread_id.slice(0, 20) + '...' : thread_id}
+            </Body>
           </div>
         )}
       </div>
 
       {narrative?.introduction && (
-        <div style={{ marginTop: spacing[2] }}>
-          <Body style={{ fontSize: '12px', color: palette.gray.base, fontFamily: FONT, marginBottom: spacing[1] }}>
+        <div style={{
+          marginTop: spacing[1], padding: spacing[2], borderRadius: 6,
+          background: 'rgba(255,255,255,0.6)',
+        }}>
+          <Body style={{ fontSize: '10px', color: palette.gray.base, fontFamily: FONT, marginBottom: spacing[1], textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             Narrative Summary
           </Body>
-          <Body style={{ fontSize: '13px', fontFamily: FONT, color: palette.gray.dark2, lineHeight: '1.5' }}>
+          <Body style={{ fontSize: '13px', fontFamily: FONT, color: palette.gray.dark2, lineHeight: '1.6' }}>
             {narrative.introduction}
           </Body>
-        </div>
-      )}
-
-      {case_id && onViewAuditTrail && (
-        <div style={{ marginTop: spacing[3], borderTop: `1px solid ${palette.green.light1}`, paddingTop: spacing[2] }}>
-          <Button
-            variant="default"
-            size="small"
-            leftGlyph={<Icon glyph="ActivityFeed" />}
-            onClick={() => onViewAuditTrail(case_id)}
-          >
-            View Full Audit Trail
-          </Button>
         </div>
       )}
     </Card>
@@ -1603,8 +1420,7 @@ function FinalResultCard({ result, onViewAuditTrail }) {
 // Main Component
 // ---------------------------------------------------------------------------
 
-export default function InvestigationLauncher({ onComplete, onViewAuditTrail }) {
-  const [customEntityId, setCustomEntityId] = useState('');
+export default function InvestigationLauncher({ onComplete }) {
   const [running, setRunning] = useState(false);
   const [events, setEvents] = useState([]);
   const [finalResult, setFinalResult] = useState(null);
@@ -1612,38 +1428,13 @@ export default function InvestigationLauncher({ onComplete, onViewAuditTrail }) 
   const [reviewPayload, setReviewPayload] = useState(null);
   const [analystNotes, setAnalystNotes] = useState('');
   const [startTime, setStartTime] = useState(null);
-  const [previewData, setPreviewData] = useState(null);
 
-  // Category card cycling state (same pattern as entity resolution)
   const [categoryIndices, setCategoryIndices] = useState(() => {
     const initial = {};
     INVESTIGATION_CATEGORIES.forEach(cat => { initial[cat.id] = 0; });
     return initial;
   });
   const [selectedCategory, setSelectedCategory] = useState(null);
-
-  // Scenario Simulator state
-  const [simEntities, setSimEntities] = useState([]);
-  const [simTypologies, setSimTypologies] = useState([]);
-  const [simSelectedEntity, setSimSelectedEntity] = useState(null);
-  const [simSelectedTypology, setSimSelectedTypology] = useState(null);
-  const [simLoading, setSimLoading] = useState(false);
-  const [simExpanded, setSimExpanded] = useState(false);
-
-  useEffect(() => {
-    if (!simExpanded) return;
-    let cancelled = false;
-    setSimLoading(true);
-    Promise.all([fetchInvestigableEntities(), fetchTypologies()])
-      .then(([entRes, typRes]) => {
-        if (cancelled) return;
-        setSimEntities(entRes.entities || []);
-        setSimTypologies(typRes.typologies || []);
-      })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setSimLoading(false); });
-    return () => { cancelled = true; };
-  }, [simExpanded]);
 
   const accumulatedEvidence = useMemo(() => {
     const evidence = {};
@@ -1698,7 +1489,6 @@ export default function InvestigationLauncher({ onComplete, onViewAuditTrail }) 
     setFinalResult(null);
     setNeedsReview(false);
     setReviewPayload(null);
-    setPreviewData(null);
     setStartTime(Date.now());
 
     try {
@@ -1706,10 +1496,6 @@ export default function InvestigationLauncher({ onComplete, onViewAuditTrail }) 
     } catch (err) {
       handleEvent({ type: 'error', message: err.message });
     }
-  };
-
-  const handlePreview = (entityId, alertType, title) => {
-    setPreviewData({ entityId, alertType, title });
   };
 
   const handleResume = async (decision) => {
@@ -1728,19 +1514,6 @@ export default function InvestigationLauncher({ onComplete, onViewAuditTrail }) 
       handleEvent({ type: 'error', message: err.message });
     }
   };
-
-  // If showing intent preview, render it
-  if (previewData && !running && events.length === 0) {
-    return (
-      <IntentPreviewCard
-        entityId={previewData.entityId}
-        alertType={previewData.alertType}
-        title={previewData.title}
-        onProceed={() => launch(previewData.entityId, previewData.alertType)}
-        onCancel={() => setPreviewData(null)}
-      />
-    );
-  }
 
   return (
     <div>
@@ -1851,7 +1624,7 @@ export default function InvestigationLauncher({ onComplete, onViewAuditTrail }) 
                 </Body>
                 <Button
                   size="small" variant="baseGreen"
-                  onClick={() => handlePreview(ent.entity_id, cat.alert_type, `${cat.title} — ${ent.label}`)}
+                  onClick={() => launch(ent.entity_id, cat.alert_type)}
                   disabled={running}
                 >
                   Launch Investigation
@@ -1860,180 +1633,6 @@ export default function InvestigationLauncher({ onComplete, onViewAuditTrail }) 
             );
           })()}
 
-          {/* Scenario Simulator */}
-          <Card style={{
-            padding: spacing[3], marginBottom: spacing[4],
-            border: `1px solid ${palette.gray.light2}`,
-          }}>
-            <div
-              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
-              onClick={() => setSimExpanded(v => !v)}
-            >
-              <Subtitle style={{ fontFamily: FONT, fontSize: '14px', margin: 0 }}>
-                Advanced: Full Entity + Typology Selection
-              </Subtitle>
-              <Body style={{ fontSize: '12px', color: palette.gray.base, fontFamily: FONT }}>
-                {simExpanded ? '▲ Collapse' : '▼ Browse all 504 entities and 12 typologies'}
-              </Body>
-            </div>
-
-            {simExpanded && (
-              <div style={{ marginTop: spacing[3] }}>
-                <div style={{
-                  padding: '8px 12px', borderRadius: 6, marginBottom: spacing[2],
-                  background: palette.green.light3, border: `1px solid ${palette.green.light1}`,
-                  fontSize: 12, fontFamily: FONT, color: palette.green.dark2,
-                }}>
-                  <strong>MongoDB Aggregation:</strong> The entity list is built from a <code>$lookup</code> pipeline
-                  joining <code>entities</code> with <code>transactionsv2</code>, grouping by red-flag tags. The
-                  typology picker queries the <code>typology_library</code> collection &mdash; 12 AML typologies seeded
-                  with regulatory references. No ETL, no data warehouse.
-                </div>
-                {simLoading ? (
-                  <Body style={{ fontFamily: FONT, fontSize: '13px', color: palette.gray.dark1 }}>
-                    Loading entities and typologies...
-                  </Body>
-                ) : (
-                  <>
-                    {/* Entity selector */}
-                    <div style={{ marginBottom: spacing[3] }}>
-                      <Body style={{
-                        fontSize: '12px', fontWeight: 600, fontFamily: FONT,
-                        color: palette.gray.dark1, marginBottom: spacing[1],
-                        textTransform: 'uppercase', letterSpacing: '0.5px',
-                      }}>
-                        Select Entity
-                      </Body>
-                      <div style={{
-                        maxHeight: 200, overflowY: 'auto',
-                        border: `1px solid ${palette.gray.light2}`, borderRadius: 6,
-                      }}>
-                        {simEntities.map((ent) => {
-                          const isSelected = simSelectedEntity?.entityId === ent.entityId;
-                          const riskLevel = ent.riskAssessment?.overall?.level || 'unknown';
-                          const riskVariant = riskLevel === 'critical' || riskLevel === 'high' ? 'red'
-                            : riskLevel === 'medium' ? 'yellow' : 'green';
-                          return (
-                            <div
-                              key={ent.entityId}
-                              onClick={() => { setSimSelectedEntity(ent); setSimSelectedTypology(null); }}
-                              style={{
-                                padding: `${spacing[1]}px ${spacing[2]}px`,
-                                cursor: 'pointer',
-                                background: isSelected ? palette.green.light3 : 'transparent',
-                                borderBottom: `1px solid ${palette.gray.light3}`,
-                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                              }}
-                            >
-                              <div>
-                                <Body style={{ fontSize: '13px', fontFamily: FONT, fontWeight: isSelected ? 600 : 400 }}>
-                                  {ent.name?.full || ent.entityId}
-                                </Body>
-                                <Body style={{ fontSize: '11px', fontFamily: FONT, color: palette.gray.base }}>
-                                  {ent.entityType} &middot; {ent.scenarioKey || 'N/A'}
-                                </Body>
-                              </div>
-                              <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
-                                <Badge variant={riskVariant} style={{ fontSize: 10 }}>{riskLevel}</Badge>
-                                {ent.red_flag_tags?.length > 0 && (
-                                  <Badge variant="lightgray" style={{ fontSize: 9 }}>
-                                    {ent.red_flag_tags.length} flags
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Typology selector -- shown after entity is picked */}
-                    {simSelectedEntity && (
-                      <div style={{ marginBottom: spacing[3] }}>
-                        <Body style={{
-                          fontSize: '12px', fontWeight: 600, fontFamily: FONT,
-                          color: palette.gray.dark1, marginBottom: spacing[1],
-                          textTransform: 'uppercase', letterSpacing: '0.5px',
-                        }}>
-                          Red-Flag Scenario
-                        </Body>
-                        <div style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                          gap: spacing[1],
-                        }}>
-                          {simTypologies.map((typ) => {
-                            const isSelected = simSelectedTypology?.typology_id === typ.typology_id;
-                            return (
-                              <div
-                                key={typ.typology_id}
-                                onClick={() => setSimSelectedTypology(typ)}
-                                style={{
-                                  padding: spacing[2],
-                                  borderRadius: 6,
-                                  cursor: 'pointer',
-                                  border: `1.5px solid ${isSelected ? palette.green.dark1 : palette.gray.light2}`,
-                                  background: isSelected ? palette.green.light3 : 'transparent',
-                                }}
-                              >
-                                <Body style={{ fontSize: '13px', fontFamily: FONT, fontWeight: 600 }}>
-                                  {typ.name}
-                                </Body>
-                                <Body style={{ fontSize: '11px', fontFamily: FONT, color: palette.gray.dark1, marginTop: 2 }}>
-                                  {typ.red_flags?.slice(0, 2).join(' · ')}
-                                </Body>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Launch */}
-                    {simSelectedEntity && simSelectedTypology && (
-                      <Button
-                        variant="baseGreen"
-                        onClick={() => handlePreview(
-                          simSelectedEntity.entityId,
-                          simSelectedTypology.typology_id,
-                          `${simSelectedTypology.name} — ${simSelectedEntity.name?.full || simSelectedEntity.entityId}`,
-                        )}
-                        disabled={running}
-                      >
-                        Launch Investigation
-                      </Button>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-          </Card>
-
-          {/* Custom Launch */}
-          <Card style={{
-            padding: spacing[3], marginBottom: spacing[4],
-            border: `1px solid ${palette.gray.light2}`,
-          }}>
-            <Subtitle style={{ fontFamily: FONT, marginBottom: spacing[2], fontSize: '14px' }}>
-              Custom Investigation
-            </Subtitle>
-            <div style={{ display: 'flex', gap: spacing[2], alignItems: 'flex-end' }}>
-              <TextInput
-                label="Entity ID"
-                placeholder="e.g. sanctioned_org_varied_0"
-                value={customEntityId}
-                onChange={(e) => setCustomEntityId(e.target.value)}
-                style={{ flex: 1 }}
-              />
-              <Button
-                variant="baseGreen"
-                onClick={() => handlePreview(customEntityId, 'custom', null)}
-                disabled={running || !customEntityId.trim()}
-              >
-                Investigate
-              </Button>
-            </div>
-          </Card>
         </>
       )}
 
@@ -2064,11 +1663,6 @@ export default function InvestigationLauncher({ onComplete, onViewAuditTrail }) 
         <AgentStepTimeline events={events} running={running} startTime={startTime} />
       )}
 
-      {/* MongoDB Operations Insights Panel */}
-      {events.length > 0 && (
-        <InvestigationInsightsPanel events={events} running={running} />
-      )}
-
       {/* Human Review Panel */}
       {needsReview && reviewPayload && (
         <HumanReviewPanel
@@ -2084,7 +1678,7 @@ export default function InvestigationLauncher({ onComplete, onViewAuditTrail }) 
       {/* Final Result Summary */}
       {finalResult && !needsReview && (
         <>
-          <FinalResultCard result={finalResult} onViewAuditTrail={onViewAuditTrail} />
+          <FinalResultCard result={finalResult} />
           <Callout variant="tip" style={{ marginTop: spacing[2] }}>
             <strong>Single Document, Complete Investigation:</strong> The final investigation &mdash; entity profile,
             360&deg; case file, typology classification, network analysis, SAR narrative, validation results, human
@@ -2092,6 +1686,11 @@ export default function InvestigationLauncher({ onComplete, onViewAuditTrail }) 
             would be scattered across 12&ndash;15 normalized tables with complex JOIN queries for every retrieval.
           </Callout>
         </>
+      )}
+
+      {/* MongoDB Operations Insights Panel */}
+      {events.length > 0 && (
+        <InvestigationInsightsPanel events={events} running={running} accumulatedEvidence={accumulatedEvidence} />
       )}
     </div>
   );

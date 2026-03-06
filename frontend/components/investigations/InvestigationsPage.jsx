@@ -10,10 +10,7 @@ import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 import { Spinner } from '@leafygreen-ui/loading-indicator';
 
-import Banner from '@leafygreen-ui/banner';
-import TextInput from '@leafygreen-ui/text-input';
-
-import { listInvestigations, seedAgentCollections, connectInvestigationStream, searchInvestigations } from '@/lib/agent-api';
+import { listInvestigations, seedAgentCollections, connectInvestigationStream } from '@/lib/agent-api';
 import InvestigationLauncher from './InvestigationLauncher';
 import InvestigationDetail from './InvestigationDetail';
 import AgenticPipelineGraph from './AgenticPipelineGraph';
@@ -59,12 +56,6 @@ export default function InvestigationsPage() {
   const [error, setError] = useState(null);
   const [statusFilter, setStatusFilter] = useState(null);
 
-  const [liveConnected, setLiveConnected] = useState(false);
-  const [liveEvents, setLiveEvents] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState(null);
-  const [searching, setSearching] = useState(false);
-
   const fetchInvestigations = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -83,47 +74,21 @@ export default function InvestigationsPage() {
     fetchInvestigations();
   }, [fetchInvestigations, refreshKey]);
 
-  // Change Stream connection (kept for list refresh; console handles its own display)
   useEffect(() => {
     let handle;
     try {
       handle = connectInvestigationStream((event) => {
-        setLiveConnected(true);
         if (event.type === 'change') {
-          setLiveEvents(prev => [event, ...prev].slice(0, 10));
           setRefreshKey(k => k + 1);
         }
       });
-      setLiveConnected(true);
-    } catch {
-      setLiveConnected(false);
-    }
+    } catch { /* stream unavailable */ }
     return () => { handle?.close(); };
   }, []);
 
   const handleChangeStreamInvestigation = useCallback(() => {
     setRefreshKey(k => k + 1);
   }, []);
-
-  // Search handler
-  useEffect(() => {
-    if (!searchQuery.trim()) {
-      setSearchResults(null);
-      return;
-    }
-    const timer = setTimeout(async () => {
-      setSearching(true);
-      try {
-        const data = await searchInvestigations(searchQuery);
-        setSearchResults(data.results || []);
-      } catch {
-        setSearchResults(null);
-      } finally {
-        setSearching(false);
-      }
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
 
   const handleSeed = async () => {
     setSeeding(true);
@@ -151,20 +116,10 @@ export default function InvestigationsPage() {
     setActiveView('launcher');
   }, []);
 
-  const handleViewAuditTrail = useCallback(async (caseId) => {
-    const data = await listInvestigations(null, 100, 0);
-    const inv = (data.investigations || []).find(i => i.case_id === caseId);
-    if (inv) {
-      setSelectedCase(inv);
-      setActiveView('detail');
-    }
-  }, []);
-
   const filteredInvestigations = useMemo(() => {
-    if (searchResults !== null) return searchResults;
     if (!statusFilter) return investigations;
     return investigations.filter(inv => inv.investigation_status === statusFilter);
-  }, [investigations, statusFilter, searchResults]);
+  }, [investigations, statusFilter]);
 
   const kpis = useMemo(() => ({
     total: investigations.length,
@@ -253,47 +208,6 @@ export default function InvestigationsPage() {
               {seeding ? '...' : 'Seed'}
             </Button>
           </div>
-
-          {/* Live indicator + Search */}
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <div style={{ flex: 1 }}>
-              <TextInput
-                aria-label="Search investigations"
-                placeholder="Search case ID, entity, typology..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                sizeVariant="small"
-              />
-            </div>
-            {liveConnected && (
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 4,
-                padding: '4px 8px', borderRadius: 4,
-                background: palette.green.light3, border: `1px solid ${palette.green.light1}`,
-                flexShrink: 0,
-              }} title="Connected to MongoDB Change Stream for real-time updates">
-                <span style={{
-                  width: 6, height: 6, borderRadius: '50%', background: palette.green.dark1,
-                  animation: 'cs-pulse 2s ease-in-out infinite', display: 'inline-block',
-                }} />
-                <span style={{ fontSize: 9, fontWeight: 600, fontFamily: FONT, color: palette.green.dark2 }}>
-                  Live
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Search results hint */}
-          {searchQuery.trim() && (
-            <div style={{
-              fontSize: 10, fontFamily: FONT, color: palette.green.dark2,
-              padding: '4px 8px', borderRadius: 4,
-              background: palette.green.light3, border: `1px solid ${palette.green.light1}`,
-            }}>
-              <strong>Atlas Search:</strong> Querying <code>investigations</code> collection across
-              narrative text, entity IDs, typologies, and case findings.
-            </div>
-          )}
 
           {/* Status Filters */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }} role="group" aria-label="Filter by status">
@@ -435,18 +349,12 @@ export default function InvestigationsPage() {
           {/* Change Stream Console */}
           <ChangeStreamConsole onInvestigationChange={handleChangeStreamInvestigation} />
 
-          <style>{`
-            @keyframes cs-pulse {
-              0%, 100% { opacity: 1; }
-              50% { opacity: 0.3; }
-            }
-          `}</style>
         </aside>
 
         {/* RIGHT WORKSPACE */}
         <section aria-label="Investigation workspace" style={{ flex: 1, minWidth: 0 }}>
           {activeView === 'launcher' && (
-            <InvestigationLauncher onComplete={handleInvestigationComplete} onViewAuditTrail={handleViewAuditTrail} />
+            <InvestigationLauncher onComplete={handleInvestigationComplete} />
           )}
           {activeView === 'detail' && (
             <InvestigationDetail investigation={selectedCase} />

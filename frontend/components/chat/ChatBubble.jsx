@@ -154,8 +154,8 @@ function MessageBubble({ msg }) {
   );
 }
 
-export default function ChatBubble() {
-  const [open, setOpen] = useState(false);
+export default function ChatBubble({ embedded = false }) {
+  const [open, setOpen] = useState(embedded);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
@@ -268,7 +268,7 @@ export default function ChatBubble() {
     }
   };
 
-  if (!open) {
+  if (!open && !embedded) {
     return (
       <div
         onClick={() => setOpen(true)}
@@ -301,17 +301,14 @@ export default function ChatBubble() {
 
   return (
     <div style={{
-      position: 'fixed',
-      bottom: 24,
-      right: 24,
-      width: 420,
-      height: 560,
-      zIndex: 1000,
+      ...(embedded
+        ? { width: '100%', height: '100%' }
+        : { position: 'fixed', bottom: 24, right: 24, width: 420, height: 560, zIndex: 1000, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }
+      ),
       borderRadius: 12,
       overflow: 'hidden',
       display: 'flex',
       flexDirection: 'column',
-      boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
       border: `1px solid ${palette.gray.light2}`,
       background: '#fff',
     }}>
@@ -344,15 +341,17 @@ export default function ChatBubble() {
           >
             New
           </button>
-          <button
-            onClick={() => setOpen(false)}
-            style={{
-              background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 4,
-              color: '#fff', cursor: 'pointer', padding: '2px 8px', fontSize: 16,
-            }}
-          >
-            ✕
-          </button>
+          {!embedded && (
+            <button
+              onClick={() => setOpen(false)}
+              style={{
+                background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 4,
+                color: '#fff', cursor: 'pointer', padding: '2px 8px', fontSize: 16,
+              }}
+            >
+              ✕
+            </button>
+          )}
         </div>
       </div>
 

@@ -1,0 +1,112 @@
+"""
+Chat API Routes for the conversational AML/Compliance Assistant.
+
+Endpoint:
+  POST /agents/chat  -- Send a message and receive SSE-streamed response
+"""
+
+import json
+import logging
+import uuid
+from datetime import datetime, timezone
+from typing import Any, Dict
+
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
+
+from services.agents.chat_agent import get_chat_agent
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/agents", tags=["agent-chat"])
+
+MAX_OUTPUT_CHARS = 4000
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _sse(payload: dict) -> str:
+    return f"data: {json.dumps(payload, default=str)}\n\n"
+
+
+def _truncate(text: str, limit: int = MAX_OUTPUT_CHARS) -> str:
+    if len(text) <= limit:
+        return text
+    return text[:limit] + f"... [{len(text) - limit} chars truncated]"
+
+
+@router.post("/chat")
+async def chat(request: Dict[str, Any]):
+    """Send a message to the AML compliance assistant.
+
+    Body:
+        { "message": "...", "thread_id": "..." (optional) }
+
+    Returns SSE stream with events:
+        { type: "thread_id", thread_id }
+        { type: "tool_call", tool, input }
+        { type: "tool_result", tool, output }
+        { type: "token", content }
+        { type: "done" }
+    """
+    message = request.get("message", "").strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="message is required")
+
+    thread_id = request.get("thread_id") or f"chat-{uuid.uuid4().hex[:12]}"
+    config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 40}
+
+    async def event_stream():
+        yield _sse({"type": "thread_id", "thread_id": thread_id, "timestamp": _now()})
+
+        agent = get_chat_agent()
+        try:
+            async for event in agent.astream_events(
+                {"messages": [{"role": "user", "content": message}]},
+                config=config,
+                version="v2",
+            ):
+                kind = event.get("event", "")
+
+                if kind == "on_chat_model_stream":
+                    chunk = event.get("data", {}).get("chunk")
+                    if chunk and hasattr(chunk, "content") and chunk.content:
+                        content = chunk.content
+                        if isinstance(content, list):
+                            text_parts = []
+                            for block in content:
+                                if isinstance(block, dict) and block.get("type") == "text":
+                                    text_parts.append(block["text"])
+                                elif isinstance(block, str):
+                                    text_parts.append(block)
+                            content = "".join(text_parts)
+                        if isinstance(content, str) and content:
+                            yield _sse({"type": "token", "content": content})
+
+                elif kind == "on_tool_start":
+                    yield _sse({
+                        "type": "tool_call",
+                        "tool": event.get("name", ""),
+                        "input": _truncate(json.dumps(event.get("data", {}).get("input", {}), default=str)),
+                        "timestamp": _now(),
+                    })
+
+                elif kind == "on_tool_end":
+                    raw_output = event.get("data", {}).get("output", "")
+                    output_str = raw_output if isinstance(raw_output, str) else json.dumps(raw_output, default=str)
+                    yield _sse({
+                        "type": "tool_result",
+                        "tool": event.get("name", ""),
+                        "output": _truncate(output_str),
+                        "timestamp": _now(),
+                    })
+
+            yield _sse({"type": "done", "thread_id": thread_id, "timestamp": _now()})
+
+        except Exception as e:
+            logger.exception("Chat stream error")
+            yield _sse({"type": "error", "message": str(e), "timestamp": _now()})
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")

@@ -21,7 +21,6 @@ const FONT = "'Euclid Circular A', sans-serif";
 const AGENT_TO_NODE = {
   triage: 'triage',
   auto_close: 'autoClose',
-  urgent_escalation: 'urgentEscalation',
   data_gathering: 'dataGathering',
   fetch_entity_profile: 'fetchEntity',
   fetch_transactions: 'fetchTxn',
@@ -353,16 +352,6 @@ const INITIAL_NODES = [
     },
   },
   {
-    id: 'urgentEscalation',
-    type: 'agent',
-    position: { x: 560, y: 195 },
-    data: {
-      label: 'Urgent Escalation', icon: '⚠', color: palette.red.dark2,
-      subtitle: 'Risk > 70 / sanctions',
-      tooltip: 'Confirmed sanctions hits or PEP with suspicious patterns. Routes directly to human review.',
-    },
-  },
-  {
     id: 'dataGathering',
     type: 'agent',
     position: { x: CX - 30, y: 250 },
@@ -578,8 +567,6 @@ const INITIAL_EDGES = [
   { id: 'e-start-triage', source: 'alertInput', target: 'triage', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.green.dark2 } },
   { id: 'e-triage-autoclose', source: 'triage', target: 'autoClose', label: 'auto_close', labelStyle: { fontSize: 8, fontWeight: 600, fontFamily: FONT }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.gray.base } },
   { id: 'e-autoclose-end', source: 'autoClose', target: 'endNode', ...EDGE_BASE, type: 'smoothstep', style: { ...EDGE_BASE.style, stroke: palette.gray.light1, strokeDasharray: '4 2' } },
-  { id: 'e-triage-urgent', source: 'triage', target: 'urgentEscalation', label: 'escalate_urgent', labelStyle: { fontSize: 8, fontWeight: 600, fontFamily: FONT }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.red.dark2 } },
-  { id: 'e-urgent-humanreview', source: 'urgentEscalation', target: 'humanReview', ...EDGE_BASE, type: 'smoothstep', style: { ...EDGE_BASE.style, stroke: palette.red.dark2, strokeDasharray: '6 3' } },
   { id: 'e-triage-dg', source: 'triage', target: 'dataGathering', label: 'investigate', labelStyle: { fontSize: 8, fontWeight: 600, fontFamily: FONT }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.blue.base } },
   ...['fetchEntity', 'fetchTxn', 'fetchNetwork', 'fetchWatchlist'].map((target) => ({
     id: `e-dg-${target}`, source: 'dataGathering', target, ...EDGE_BASE, animated: true,

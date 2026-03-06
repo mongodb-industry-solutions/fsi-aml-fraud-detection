@@ -36,7 +36,7 @@ const INVESTIGATION_CATEGORIES = [
   {
     id: 'pep_exposure',
     title: 'PEP Exposure',
-    description: 'Politically exposed persons with high watchlist match scores and offshore transactions. Tests the urgent escalation path.',
+    description: 'Politically exposed persons with high watchlist match scores and offshore transactions. Tests the full investigation pipeline on high-risk PEP entities.',
     alert_type: 'pep_alert',
     badge: { variant: 'yellow', label: 'PEP' },
     entities: [
@@ -119,7 +119,6 @@ const AGENT_LABELS = {
   human_review: { label: 'Human Review', icon: '👁', color: palette.red.base, desc: 'interrupt() durable pause for analyst' },
   finalize: { label: 'Finalizing Case', icon: '📋', color: palette.green.dark2, desc: 'Persist investigation to MongoDB' },
   auto_close: { label: 'Auto-Closing', icon: '✕', color: palette.gray.dark1, desc: 'False positive auto-closure' },
-  urgent_escalation: { label: 'Urgent Escalation', icon: '⚠', color: palette.red.dark2, desc: 'High-risk immediate escalation' },
 };
 
 const TOOL_FRIENDLY_NAMES = {
@@ -572,7 +571,7 @@ function StructuredOutputCard({ agent, output }) {
           </div>
           <div>
             <div style={{ fontSize: 10, color: palette.gray.base, fontFamily: FONT, marginBottom: 2 }}>Disposition</div>
-            <Badge variant={td.disposition === 'auto_close' ? 'lightgray' : td.disposition === 'escalate_urgent' ? 'red' : 'blue'}>
+            <Badge variant={td.disposition === 'auto_close' ? 'lightgray' : 'blue'}>
               {td.disposition}
             </Badge>
           </div>

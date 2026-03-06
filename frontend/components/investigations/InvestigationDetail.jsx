@@ -40,7 +40,6 @@ const AGENT_COLORS = {
   human_review: palette.red.base,
   finalize: palette.green.dark2,
   auto_close: palette.gray.dark1,
-  urgent_escalation: palette.red.dark2,
 };
 
 function getRiskLevel(score) {
@@ -237,7 +236,7 @@ function SummaryTab({ triage, typology, validation, humanDecision, networkAnalys
           </div>
           {triage?.disposition && (
             <div style={{ marginBottom: 4 }}>
-              <Badge variant={triage.disposition === 'auto_close' ? 'lightgray' : triage.disposition === 'escalate_urgent' ? 'red' : 'blue'}>
+              <Badge variant={triage.disposition === 'auto_close' ? 'lightgray' : 'blue'}>
                 {triage.disposition}
               </Badge>
             </div>
@@ -1080,7 +1079,7 @@ function AuditTab({ auditLog, toolTrace, metrics }) {
 function StatusBadgeDetail({ status }) {
   const variants = {
     filed: 'green', closed: 'gray', closed_false_positive: 'lightgray',
-    urgent_escalation: 'red', forced_escalation: 'red',
+    forced_escalation: 'red',
     reviewed_by_analyst: 'blue', pending_review: 'yellow', narrative_generated: 'blue',
   };
   return <Badge variant={variants[status] || 'lightgray'}>{status || 'Unknown'}</Badge>;

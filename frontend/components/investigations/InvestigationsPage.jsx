@@ -24,7 +24,6 @@ const STATUS_BADGES = {
   filed: { variant: 'green', label: 'SAR Filed' },
   closed: { variant: 'gray', label: 'Closed' },
   closed_false_positive: { variant: 'lightgray', label: 'Auto-Closed (FP)' },
-  urgent_escalation: { variant: 'red', label: 'Urgent Escalation' },
   forced_escalation: { variant: 'red', label: 'Forced Escalation' },
   reviewed_by_analyst: { variant: 'blue', label: 'Reviewed' },
   pending_review: { variant: 'yellow', label: 'Pending Review' },
@@ -36,7 +35,7 @@ const STATUS_FILTERS = [
   { value: 'pending_review', label: 'Pending Review' },
   { value: 'filed', label: 'Filed' },
   { value: 'closed_false_positive', label: 'Auto-Closed' },
-  { value: 'urgent_escalation', label: 'Escalated' },
+  { value: 'forced_escalation', label: 'Escalated' },
 ];
 
 function StatusBadge({ status }) {
@@ -128,7 +127,7 @@ export default function InvestigationsPage() {
     ).length,
     filed: investigations.filter(i => i.investigation_status === 'filed').length,
     escalated: investigations.filter(i =>
-      i.investigation_status === 'urgent_escalation' || i.investigation_status === 'forced_escalation'
+      i.investigation_status === 'forced_escalation'
     ).length,
   }), [investigations]);
 

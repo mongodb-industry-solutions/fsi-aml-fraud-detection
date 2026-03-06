@@ -16,7 +16,6 @@ const STATUS_BADGES = {
   filed: { variant: 'green', label: 'SAR Filed' },
   closed: { variant: 'gray', label: 'Closed' },
   closed_false_positive: { variant: 'lightgray', label: 'Auto-Closed (FP)' },
-  urgent_escalation: { variant: 'red', label: 'Urgent Escalation' },
   forced_escalation: { variant: 'red', label: 'Forced Escalation' },
   reviewed_by_analyst: { variant: 'blue', label: 'Reviewed' },
   pending_review: { variant: 'yellow', label: 'Pending Review' },

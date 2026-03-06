@@ -18,7 +18,6 @@ const STATUS_COLORS = {
   filed: palette.green.dark1,
   closed: palette.gray.dark1,
   closed_false_positive: palette.gray.base,
-  urgent_escalation: palette.red.base,
   forced_escalation: palette.red.dark2,
   pending_review: palette.yellow.dark2,
   reviewed_by_analyst: palette.blue.base,

@@ -1,6 +1,7 @@
 """Finalize Agent – assembles the final case document and persists to MongoDB."""
 
 import logging
+import time
 import uuid
 from datetime import datetime, timezone
 
@@ -11,18 +12,36 @@ logger = logging.getLogger(__name__)
 
 
 def finalize_node(state: InvestigationState) -> dict:
+    t0 = time.perf_counter()
     case_id = f"CASE-{uuid.uuid4().hex[:8].upper()}"
     now = datetime.now(timezone.utc)
 
     human = state.get("human_decision", {})
     decision = human.get("decision", "approved") if human else "auto_finalized"
 
+    upstream_status = state.get("investigation_status", "")
+    if upstream_status == "closed_false_positive":
+        final_status = "closed_false_positive"
+    elif upstream_status == "urgent_escalation":
+        final_status = "urgent_escalation"
+    elif decision == "approve":
+        final_status = "filed"
+    else:
+        final_status = "closed"
+
+    audit_log = state.get("agent_audit_log", [])
+    tool_trace = state.get("tool_trace_log", [])
+
+    llm_nodes = {"triage", "data_gathering", "typology", "narrative", "validator"}
+    llm_calls_count = sum(1 for e in audit_log if e.get("agent") in llm_nodes and e.get("llm_model"))
+    total_node_duration = sum(e.get("duration_ms", 0) for e in audit_log)
+
     case_document = {
         "case_id": case_id,
         "created_at": now.isoformat(),
         "entity_id": state.get("alert_data", {}).get("entity_id", ""),
         "alert_data": state.get("alert_data", {}),
-        "investigation_status": "filed" if decision == "approve" else "closed",
+        "investigation_status": final_status,
         "triage_decision": state.get("triage_decision", {}),
         "case_file": state.get("case_file", {}),
         "typology": state.get("typology", {}),
@@ -30,7 +49,18 @@ def finalize_node(state: InvestigationState) -> dict:
         "narrative": state.get("narrative", {}),
         "validation_result": state.get("validation_result", {}),
         "human_decision": human,
-        "agent_audit_log": state.get("agent_audit_log", []),
+        "agent_audit_log": audit_log,
+        "tool_trace_log": tool_trace,
+        "pipeline_metrics": {
+            "total_node_duration_ms": total_node_duration,
+            "llm_calls_count": llm_calls_count,
+            "tool_calls_count": len(tool_trace),
+            "nodes_executed": [e.get("agent") for e in audit_log],
+            "validation_loops": state.get("validation_count", 0),
+            "total_input_tokens": sum(e.get("token_usage", {}).get("input_tokens", 0) for e in audit_log),
+            "total_output_tokens": sum(e.get("token_usage", {}).get("output_tokens", 0) for e in audit_log),
+            "total_tokens": sum(e.get("token_usage", {}).get("total_tokens", 0) for e in audit_log),
+        },
     }
 
     persistence_error = None
@@ -42,11 +72,15 @@ def finalize_node(state: InvestigationState) -> dict:
         logger.exception("Failed to persist investigation %s", case_id)
         persistence_error = str(exc)
 
+    duration_ms = int((time.perf_counter() - t0) * 1000)
+
     audit_entry = {
         "agent": "finalize",
         "timestamp": now.isoformat(),
+        "duration_ms": duration_ms,
         "case_id": case_id,
         "final_status": case_document["investigation_status"],
+        "pipeline_metrics": case_document["pipeline_metrics"],
     }
     if persistence_error:
         audit_entry["persistence_error"] = persistence_error

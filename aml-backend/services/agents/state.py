@@ -59,8 +59,11 @@ class InvestigationState(TypedDict, total=False):
     investigation_status: str
     case_id: str
 
-    # Per-node tool call metadata (overwritten each node, consumed by SSE generator)
-    _node_tool_calls: list
+    # Per-node tool call metadata (appended by parallel nodes, consumed by SSE generator)
+    _node_tool_calls: Annotated[list, _append_only]
+
+    # Persisted tool call traces with inputs, outputs, and timing
+    tool_trace_log: Annotated[list, _append_only]
 
     # Immutable audit trail
     agent_audit_log: Annotated[list, _append_only]

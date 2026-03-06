@@ -130,6 +130,16 @@ function AgentNode({ data }) {
           ✓
         </div>
       )}
+      {data.mongoBadge && (
+        <div style={{
+          fontSize: 7, fontFamily: "'Source Code Pro', monospace", fontWeight: 600,
+          padding: '1px 5px', borderRadius: 3, marginTop: 3, display: 'inline-block',
+          background: palette.green.light3, color: palette.green.dark2,
+          border: `1px solid ${palette.green.light1}`,
+        }}>
+          {data.mongoBadge}
+        </div>
+      )}
       {data.tools && data.tools.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, justifyContent: 'center', marginTop: 4 }}>
           {data.tools.map((t) => (
@@ -242,6 +252,16 @@ function WorkerNode({ data }) {
           {data.toolName}
         </div>
       )}
+      {data.mongoBadge && (
+        <div style={{
+          fontSize: 7, fontFamily: "'Source Code Pro', monospace", fontWeight: 600,
+          padding: '1px 5px', borderRadius: 3, marginTop: 2, display: 'inline-block',
+          background: palette.green.light3, color: palette.green.dark2,
+          border: `1px solid ${palette.green.light1}`,
+        }}>
+          {data.mongoBadge}
+        </div>
+      )}
       {execState === 'completed' && (
         <div style={{
           position: 'absolute', top: -3, right: -3,
@@ -313,7 +333,8 @@ const INITIAL_NODES = [
     data: {
       label: 'Triage Agent', icon: '🔍', color: palette.blue.base,
       subtitle: 'TriageDecision → Command',
-      tooltip: 'Risk scoring with LLM contextual reasoning. Routes via Command to auto_close, data_gathering, or urgent_escalation.',
+      mongoBadge: 'MongoDBSaver',
+      tooltip: 'Risk scoring with LLM contextual reasoning. MongoDBSaver checkpoints the decision, enabling the graph to branch via Command routing. Without MongoDB: Redis for state + custom serialization code.',
     },
   },
   {
@@ -343,32 +364,32 @@ const INITIAL_NODES = [
     data: {
       label: 'Data Gathering', icon: '📊', color: palette.purple.base,
       subtitle: 'Send API Fan-out',
-      tooltip: 'Dispatches parallel tasks via LangGraph Send API. Four workers fetch entity, transactions, network, and watchlist data concurrently.',
+      tooltip: 'Parallel fan-out via LangGraph Send API. Each worker queries MongoDB directly — entity profiles, transaction aggregations, $graphLookup network traversal, watchlist screening. Without MongoDB: 4 separate databases or microservices.',
     },
   },
   {
     id: 'fetchEntity',
     type: 'worker',
     position: { x: 50, y: 370 },
-    data: { label: 'Fetch Entity', icon: '👤', toolName: 'get_entity_profile' },
+    data: { label: 'Fetch Entity', icon: '👤', toolName: 'get_entity_profile', mongoBadge: 'findOne()' },
   },
   {
     id: 'fetchTxn',
     type: 'worker',
     position: { x: 195, y: 370 },
-    data: { label: 'Fetch Txns', icon: '💳', toolName: 'query_entity_transactions' },
+    data: { label: 'Fetch Txns', icon: '💳', toolName: 'query_entity_transactions', mongoBadge: 'aggregate()' },
   },
   {
     id: 'fetchNetwork',
     type: 'worker',
     position: { x: 355, y: 370 },
-    data: { label: 'Fetch Network', icon: '🕸', toolName: 'analyze_entity_network' },
+    data: { label: 'Fetch Network', icon: '🕸', toolName: 'analyze_entity_network', mongoBadge: '$graphLookup' },
   },
   {
     id: 'fetchWatchlist',
     type: 'worker',
     position: { x: 510, y: 370 },
-    data: { label: 'Fetch Watchlist', icon: '🛡', toolName: 'screen_watchlists' },
+    data: { label: 'Fetch Watchlist', icon: '🛡', toolName: 'screen_watchlists', mongoBadge: 'find()' },
   },
   {
     id: 'assembleCase',
@@ -377,7 +398,8 @@ const INITIAL_NODES = [
     data: {
       label: 'Assemble Case File', icon: '📁', color: palette.green.dark2,
       subtitle: 'LLM → CaseFile',
-      tooltip: 'Fan-in node. Synthesizes gathered evidence into a structured 360° CaseFile via hierarchical summarization.',
+      mongoBadge: 'Document Model',
+      tooltip: 'Fan-in node. Synthesizes gathered evidence into a structured 360° CaseFile. MongoDB\'s flexible document model stores the nested case file — entity profiles, transaction arrays, network graphs — without rigid schemas.',
     },
   },
   {
@@ -388,7 +410,8 @@ const INITIAL_NODES = [
       label: 'Typology Classifier', icon: '🏷', color: palette.yellow.dark2,
       subtitle: 'RAG → TypologyResult',
       tools: ['search_typologies'],
-      tooltip: 'RAG over typology_library (12 AML typologies). Classifies with CrimeTypology enum + confidence scores.',
+      mongoBadge: 'Atlas Search RAG',
+      tooltip: 'RAG over typology_library (12 AML typologies) using Atlas Search. Classifies with confidence scores. Same cluster, no Elasticsearch sidecar, no data sync.',
     },
   },
   {
@@ -399,7 +422,8 @@ const INITIAL_NODES = [
       label: 'Network Analyst', icon: '🔗', color: palette.yellow.dark2,
       subtitle: 'Centrality + Risk Scoring',
       tools: ['compute_network_metrics'],
-      tooltip: 'Computes degree centrality and network risk score from real graph data. No LLM -- pure MongoDB aggregation.',
+      mongoBadge: '$graphLookup',
+      tooltip: 'Computes degree centrality and network risk from real graph data via $graphLookup. No Neo4j needed — MongoDB handles graph traversal natively via aggregation pipelines.',
     },
   },
   {
@@ -410,7 +434,8 @@ const INITIAL_NODES = [
       label: 'Narrative Writer', icon: '📝', color: palette.green.dark1,
       subtitle: 'RAG → SARNarrative (5Ws)',
       tools: ['search_compliance_policies'],
-      tooltip: 'Generates FinCEN-compliant SAR narrative. Temperature 0.1, grounded in case_file JSON, bracket citations.',
+      mongoBadge: 'Atlas Search RAG',
+      tooltip: 'Generates FinCEN-compliant SAR narrative grounded in case_file. Atlas Search RAG over compliance_policies for regulatory citations. Same MongoDB cluster — no vector DB sidecar.',
     },
   },
   {
@@ -430,7 +455,8 @@ const INITIAL_NODES = [
     data: {
       label: 'Human Review', icon: '👁', color: palette.red.base,
       subtitle: 'interrupt() → pause/resume',
-      tooltip: 'Calls interrupt() to pause pipeline. State persists in MongoDBSaver. Analyst approves, rejects, or requests changes.',
+      mongoBadge: 'MongoDBSaver interrupt()',
+      tooltip: 'LangGraph interrupt() durably pauses the pipeline. MongoDBSaver persists the full graph state to MongoDB — resume hours later, even after server restarts. Without MongoDB: Redis for state + Kafka for event sourcing + custom recovery code.',
     },
   },
   {
@@ -440,7 +466,8 @@ const INITIAL_NODES = [
     data: {
       label: 'Finalize Case', icon: '📋', color: palette.green.dark2,
       subtitle: 'Persist to MongoDB',
-      tooltip: 'Assembles final investigation document with full audit trail. Writes to investigations collection.',
+      mongoBadge: 'insertOne()',
+      tooltip: 'The complete investigation — evidence, narrative, audit trail — stored as one rich MongoDB document via insertOne(). Without MongoDB: INSERT into 12+ normalized tables with transaction management.',
     },
   },
   {
@@ -461,14 +488,19 @@ const COLLECTION_NODES = [
   { id: 'col-policies', type: 'collection', position: { x: 510, y: 835 }, data: { icon: '🗄', label: 'compliance_policies' } },
 ];
 
+const COL_EDGE_STYLE = { strokeWidth: 1, stroke: palette.gray.light1, strokeDasharray: '3 2' };
+const COL_EDGE_MARKER = { type: MarkerType.ArrowClosed, width: 8, height: 8, color: palette.gray.light1 };
+const COL_LABEL_STYLE = { fontSize: 7, fontWeight: 600, fontFamily: "'Source Code Pro', monospace", fill: palette.green.dark2 };
+const COL_LABEL_BG = { fill: palette.green.light3, fillOpacity: 0.92 };
+
 const COLLECTION_EDGES = [
-  { id: 'ce-entity', source: 'fetchEntity', target: 'col-entities', style: { strokeWidth: 1, stroke: palette.gray.light1, strokeDasharray: '3 2' }, markerEnd: { type: MarkerType.ArrowClosed, width: 8, height: 8, color: palette.gray.light1 } },
-  { id: 'ce-txn', source: 'fetchTxn', target: 'col-txns', style: { strokeWidth: 1, stroke: palette.gray.light1, strokeDasharray: '3 2' }, markerEnd: { type: MarkerType.ArrowClosed, width: 8, height: 8, color: palette.gray.light1 } },
-  { id: 'ce-rels', source: 'fetchNetwork', target: 'col-rels', style: { strokeWidth: 1, stroke: palette.gray.light1, strokeDasharray: '3 2' }, markerEnd: { type: MarkerType.ArrowClosed, width: 8, height: 8, color: palette.gray.light1 } },
-  { id: 'ce-wl', source: 'fetchWatchlist', target: 'col-watchlist', style: { strokeWidth: 1, stroke: palette.gray.light1, strokeDasharray: '3 2' }, markerEnd: { type: MarkerType.ArrowClosed, width: 8, height: 8, color: palette.gray.light1 } },
-  { id: 'ce-typolib', source: 'typology', target: 'col-typology-lib', style: { strokeWidth: 1, stroke: palette.gray.light1, strokeDasharray: '3 2' }, markerEnd: { type: MarkerType.ArrowClosed, width: 8, height: 8, color: palette.gray.light1 } },
-  { id: 'ce-network-db', source: 'networkAnalyst', target: 'col-rels2', style: { strokeWidth: 1, stroke: palette.gray.light1, strokeDasharray: '3 2' }, markerEnd: { type: MarkerType.ArrowClosed, width: 8, height: 8, color: palette.gray.light1 } },
-  { id: 'ce-policies', source: 'narrative', target: 'col-policies', style: { strokeWidth: 1, stroke: palette.gray.light1, strokeDasharray: '3 2' }, markerEnd: { type: MarkerType.ArrowClosed, width: 8, height: 8, color: palette.gray.light1 } },
+  { id: 'ce-entity', source: 'fetchEntity', target: 'col-entities', style: COL_EDGE_STYLE, markerEnd: COL_EDGE_MARKER, label: 'findOne()', labelStyle: COL_LABEL_STYLE, labelBgStyle: COL_LABEL_BG },
+  { id: 'ce-txn', source: 'fetchTxn', target: 'col-txns', style: COL_EDGE_STYLE, markerEnd: COL_EDGE_MARKER, label: 'aggregate()', labelStyle: COL_LABEL_STYLE, labelBgStyle: COL_LABEL_BG },
+  { id: 'ce-rels', source: 'fetchNetwork', target: 'col-rels', style: COL_EDGE_STYLE, markerEnd: COL_EDGE_MARKER, label: '$graphLookup', labelStyle: COL_LABEL_STYLE, labelBgStyle: COL_LABEL_BG },
+  { id: 'ce-wl', source: 'fetchWatchlist', target: 'col-watchlist', style: COL_EDGE_STYLE, markerEnd: COL_EDGE_MARKER, label: 'find()', labelStyle: COL_LABEL_STYLE, labelBgStyle: COL_LABEL_BG },
+  { id: 'ce-typolib', source: 'typology', target: 'col-typology-lib', style: COL_EDGE_STYLE, markerEnd: COL_EDGE_MARKER, label: 'Atlas Search', labelStyle: COL_LABEL_STYLE, labelBgStyle: COL_LABEL_BG },
+  { id: 'ce-network-db', source: 'networkAnalyst', target: 'col-rels2', style: COL_EDGE_STYLE, markerEnd: COL_EDGE_MARKER, label: '$graphLookup', labelStyle: COL_LABEL_STYLE, labelBgStyle: COL_LABEL_BG },
+  { id: 'ce-policies', source: 'narrative', target: 'col-policies', style: COL_EDGE_STYLE, markerEnd: COL_EDGE_MARKER, label: 'Atlas Search', labelStyle: COL_LABEL_STYLE, labelBgStyle: COL_LABEL_BG },
 ];
 
 // ---------------------------------------------------------------------------

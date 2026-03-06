@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import Card from '@leafygreen-ui/card';
 import Button from '@leafygreen-ui/button';
 import TextInput from '@leafygreen-ui/text-input';
@@ -10,8 +10,12 @@ import { Body, Subtitle, H3, InlineCode } from '@leafygreen-ui/typography';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 
-import { launchInvestigation, resumeInvestigation } from '@/lib/agent-api';
+import Banner from '@leafygreen-ui/banner';
+import Callout from '@leafygreen-ui/callout';
+
+import { launchInvestigation, resumeInvestigation, fetchInvestigableEntities, fetchTypologies } from '@/lib/agent-api';
 import AgenticPipelineGraph from './AgenticPipelineGraph';
+import InvestigationInsightsPanel from './InvestigationInsightsPanel';
 
 const FONT = "'Euclid Circular A', sans-serif";
 
@@ -61,22 +65,22 @@ const AGENT_LABELS = {
 };
 
 const TOOL_FRIENDLY_NAMES = {
-  get_entity_profile: 'Fetching Entity Profile',
-  query_entity_transactions: 'Querying Transactions',
-  analyze_entity_network: 'Analyzing Entity Network',
-  screen_watchlists: 'Screening Watchlists',
-  search_typologies: 'Searching Typology Library',
-  search_compliance_policies: 'Searching Compliance Policies',
-  compute_network_metrics: 'Computing Network Metrics',
+  get_entity_profile: 'Fetching Entity Profile (db.entities.findOne)',
+  query_entity_transactions: 'Querying Transactions (aggregate pipeline)',
+  analyze_entity_network: 'Analyzing Entity Network ($graphLookup)',
+  screen_watchlists: 'Screening Watchlists (db.entities.find)',
+  search_typologies: 'Searching Typology Library (Atlas Search RAG)',
+  search_compliance_policies: 'Searching Compliance Policies (Atlas Search RAG)',
+  compute_network_metrics: 'Computing Network Metrics ($graphLookup)',
 };
 
 const PIPELINE_STEPS = [
-  'Triage the alert and score risk',
-  'Gather entity profile, transactions, network, and watchlist data in parallel',
-  'Assemble a 360° case file',
-  'Classify crime typology via RAG and analyze network risk',
-  'Generate FinCEN-compliant SAR narrative',
-  'Validate quality and route for review',
+  'Triage the alert and score risk (state checkpointed via MongoDBSaver)',
+  'Gather entity, transactions, network ($graphLookup), and watchlist data in parallel',
+  'Assemble a 360° case file (flexible document model)',
+  'Classify crime typology via Atlas Search RAG and analyze network risk',
+  'Generate FinCEN-compliant SAR narrative with compliance policy RAG',
+  'Validate quality and route for human review (durable interrupt via MongoDBSaver)',
 ];
 
 // ---------------------------------------------------------------------------
@@ -88,7 +92,24 @@ function buildSteps(events) {
   const stepMap = {};
 
   for (const evt of events) {
-    if (evt.type === 'agent_start') {
+    if (evt.type === 'pipeline_started' || evt.type === 'pipeline_resumed') {
+      const agentName = evt.agent || 'triage';
+      if (!stepMap[agentName]) {
+        const step = {
+          agent: agentName,
+          status: 'running',
+          startTime: evt.timestamp,
+          endTime: null,
+          duration: null,
+          tools: [],
+          llmOutputs: [],
+          structuredOutput: null,
+          statusLabel: '',
+        };
+        stepMap[agentName] = step;
+        steps.push(step);
+      }
+    } else if (evt.type === 'agent_start') {
       const existing = stepMap[evt.agent];
       if (existing && existing.status === 'running') {
         // Agent restarted (e.g. human_review resumed after HITL pause) -- reuse step
@@ -286,13 +307,60 @@ function ProgressHeader({ steps, running, startTime }) {
 }
 
 // ---------------------------------------------------------------------------
+// Tool call helpers
+// ---------------------------------------------------------------------------
+
+function tryParseJSON(val) {
+  if (val == null) return null;
+  if (typeof val === 'object') return val;
+  if (typeof val !== 'string') return null;
+  try { return JSON.parse(val); } catch { return null; }
+}
+
+function summarizeValue(val) {
+  if (val == null) return 'null';
+  if (typeof val === 'string') return val.length > 120 ? val.slice(0, 120) + '...' : val;
+  if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+  if (Array.isArray(val)) return `[${val.length} item${val.length !== 1 ? 's' : ''}]`;
+  if (typeof val === 'object') {
+    const keys = Object.keys(val);
+    return `{${keys.length} field${keys.length !== 1 ? 's' : ''}}`;
+  }
+  return String(val);
+}
+
+function KeyValueRows({ data, labelColor }) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+  const entries = Object.entries(data);
+  if (entries.length === 0) return null;
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '3px 10px', alignItems: 'baseline' }}>
+      {entries.map(([key, val]) => (
+        <React.Fragment key={key}>
+          <span style={{ color: labelColor, fontWeight: 600, fontSize: 10, whiteSpace: 'nowrap' }}>
+            {key}
+          </span>
+          <span style={{ fontSize: 10, wordBreak: 'break-word' }}>
+            {typeof val === 'object' && val !== null ? summarizeValue(val) : String(val ?? '')}
+          </span>
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // ToolCallDetail (enhanced)
 // ---------------------------------------------------------------------------
 
 function ToolCallDetail({ tool }) {
   const [open, setOpen] = useState(false);
+  const [showRawOutput, setShowRawOutput] = useState(false);
   const friendlyName = TOOL_FRIENDLY_NAMES[tool.tool] || tool.tool;
   const isRunning = !tool.endTime;
+
+  const parsedInput = useMemo(() => tryParseJSON(tool.input), [tool.input]);
+  const parsedOutput = useMemo(() => tryParseJSON(tool.output), [tool.output]);
 
   return (
     <div style={{ marginBottom: 6 }}>
@@ -325,24 +393,80 @@ function ToolCallDetail({ tool }) {
         )}
       </div>
       {open && (
-        <div style={{
-          marginLeft: 20, marginTop: 4,
-          padding: '6px 10px', borderRadius: 4,
-          background: palette.gray.dark3, color: palette.gray.light2,
-          fontFamily: "'Source Code Pro', monospace", fontSize: 10,
-          lineHeight: 1.5, maxHeight: 200, overflowY: 'auto',
-          whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-        }}>
+        <div style={{ marginLeft: 20, marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {/* Input section */}
           {tool.input && (
-            <div style={{ marginBottom: tool.output ? 6 : 0 }}>
-              <span style={{ color: palette.gray.light1, fontWeight: 600 }}>Input: </span>
-              {typeof tool.input === 'object' ? JSON.stringify(tool.input, null, 2) : tool.input}
+            <div style={{
+              padding: '6px 10px', borderRadius: 4,
+              background: palette.blue.light3,
+              fontFamily: "'Source Code Pro', monospace",
+              lineHeight: 1.6,
+            }}>
+              <div style={{
+                fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px',
+                color: palette.blue.dark1, marginBottom: 4,
+              }}>Input</div>
+              {parsedInput && typeof parsedInput === 'object' && !Array.isArray(parsedInput) ? (
+                <KeyValueRows data={parsedInput} labelColor={palette.blue.dark2} />
+              ) : (
+                <div style={{ fontSize: 10, color: palette.blue.dark2, wordBreak: 'break-word' }}>
+                  {typeof tool.input === 'object' ? JSON.stringify(tool.input, null, 2) : tool.input}
+                </div>
+              )}
             </div>
           )}
+          {/* Output section */}
           {tool.output && (
-            <div>
-              <span style={{ color: palette.green.light1, fontWeight: 600 }}>Output: </span>
-              {typeof tool.output === 'object' ? JSON.stringify(tool.output, null, 2) : tool.output}
+            <div style={{
+              padding: '6px 10px', borderRadius: 4,
+              background: palette.green.light3,
+              fontFamily: "'Source Code Pro', monospace",
+              lineHeight: 1.6,
+            }}>
+              <div style={{
+                fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px',
+                color: palette.green.dark2, marginBottom: 4,
+              }}>Output</div>
+              {parsedOutput && typeof parsedOutput === 'object' ? (
+                <>
+                  <KeyValueRows
+                    data={
+                      Array.isArray(parsedOutput)
+                        ? { items: `${parsedOutput.length} results` }
+                        : Object.fromEntries(
+                            Object.entries(parsedOutput).map(([k, v]) => [k, summarizeValue(v)])
+                          )
+                    }
+                    labelColor={palette.green.dark2}
+                  />
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShowRawOutput(!showRawOutput); }}
+                    style={{
+                      fontSize: 9, fontFamily: FONT, color: palette.green.dark1, background: 'none',
+                      border: 'none', cursor: 'pointer', padding: 0, marginTop: 4,
+                    }}
+                  >
+                    {showRawOutput ? 'Hide raw JSON' : 'Show raw JSON'}
+                  </button>
+                  {showRawOutput && (
+                    <div style={{
+                      marginTop: 4, padding: '4px 8px', borderRadius: 3,
+                      background: palette.gray.dark3, color: palette.gray.light2,
+                      fontSize: 9, maxHeight: 180, overflowY: 'auto',
+                      whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                    }}>
+                      {JSON.stringify(parsedOutput, null, 2)}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{
+                  fontSize: 10, color: palette.green.dark2, wordBreak: 'break-word',
+                  maxHeight: 180, overflowY: 'auto', whiteSpace: 'pre-wrap',
+                }}>
+                  {typeof tool.output === 'object' ? JSON.stringify(tool.output, null, 2) : tool.output}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -392,10 +516,8 @@ function StructuredOutputCard({ agent, output }) {
           <SegmentedRiskBar score={td.risk_score} />
         </div>
         {td.reasoning && (
-          <div>
-            <div style={{ fontSize: 12, color: palette.gray.dark2, fontFamily: FONT, lineHeight: 1.5 }}>
-              {td.reasoning}
-            </div>
+          <div style={{ fontSize: 12, color: palette.gray.dark2, fontFamily: FONT, lineHeight: 1.6 }}>
+            {formatReasoning(td.reasoning)}
           </div>
         )}
       </div>
@@ -572,6 +694,36 @@ function StructuredOutputCard({ agent, output }) {
 }
 
 // ---------------------------------------------------------------------------
+// Reasoning formatting helper
+// ---------------------------------------------------------------------------
+
+function formatReasoning(text) {
+  if (!text) return null;
+
+  let paragraphs = text.split(/\n{2,}/);
+
+  if (paragraphs.length === 1 && text.length > 200) {
+    const sentences = text.match(/[^.!?]+[.!?]+(\s|$)/g) || [text];
+    paragraphs = [];
+    let current = '';
+    for (const sentence of sentences) {
+      current += sentence;
+      if (current.length >= 150) {
+        paragraphs.push(current.trim());
+        current = '';
+      }
+    }
+    if (current.trim()) paragraphs.push(current.trim());
+  }
+
+  return paragraphs.map((p, i) => (
+    <p key={i} style={{ margin: 0, marginBottom: i < paragraphs.length - 1 ? 8 : 0 }}>
+      {p.trim()}
+    </p>
+  ));
+}
+
+// ---------------------------------------------------------------------------
 // ReasoningBlock
 // ---------------------------------------------------------------------------
 
@@ -581,13 +733,13 @@ function ReasoningBlock({ text, open, onToggle }) {
   return (
     <div style={{ marginTop: 4 }}>
       {!open && (
-        <div style={{ fontSize: 12, color: palette.gray.dark1, fontFamily: FONT, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: palette.gray.dark1, fontFamily: FONT, lineHeight: 1.6 }}>
           {preview}
         </div>
       )}
       {open && (
-        <div style={{ fontSize: 12, color: palette.gray.dark2, fontFamily: FONT, lineHeight: 1.5 }}>
-          {text}
+        <div style={{ fontSize: 12, color: palette.gray.dark2, fontFamily: FONT, lineHeight: 1.6 }}>
+          {formatReasoning(text)}
         </div>
       )}
       {text.length > 120 && (
@@ -1071,8 +1223,8 @@ function HumanReviewPanel({ payload, accumulatedEvidence, analystNotes, onNotesC
         {payload.triage_decision?.reasoning && (
           <div style={{ flex: '1 1 100%' }}>
             <div style={{ fontSize: 10, color: palette.gray.base, fontFamily: FONT, marginBottom: 2 }}>Agent Reasoning</div>
-            <div style={{ fontSize: 12, color: palette.gray.dark2, fontFamily: FONT, lineHeight: 1.5 }}>
-              {payload.triage_decision.reasoning}
+            <div style={{ fontSize: 12, color: palette.gray.dark2, fontFamily: FONT, lineHeight: 1.6 }}>
+              {formatReasoning(payload.triage_decision.reasoning)}
             </div>
           </div>
         )}
@@ -1165,7 +1317,134 @@ function HumanReviewPanel({ payload, accumulatedEvidence, analystNotes, onNotesC
           You must confirm evidence review before approving.
         </div>
       )}
+
+      <Callout variant="note" style={{ marginTop: spacing[3] }}>
+        <strong>Durable Pause with MongoDBSaver:</strong> The entire pipeline state &mdash; gathered evidence, triage
+        decision, case file, and audit trail &mdash; is checkpointed to MongoDB as a single document. This investigation
+        can be resumed hours or days later, even after server restarts. Traditional approaches require Redis for state +
+        Kafka for event replay + PostgreSQL for data &mdash; MongoDB replaces all three.
+      </Callout>
+
+      {/* Checkpoint Explorer */}
+      <CheckpointExplorer accumulatedEvidence={accumulatedEvidence} />
     </Card>
+  );
+}
+
+function CheckpointExplorer({ accumulatedEvidence }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const checkpoints = [];
+  if (accumulatedEvidence?.triage_decision) checkpoints.push({ node: 'triage', label: 'Triage Decision', keys: Object.keys(accumulatedEvidence.triage_decision) });
+  if (accumulatedEvidence?.gathered_data) checkpoints.push({ node: 'data_gathering', label: 'Data Gathering (4 parallel)', keys: ['entity_profile', 'transactions', 'network', 'watchlist'] });
+  if (accumulatedEvidence?.case_file) checkpoints.push({ node: 'assemble_case', label: 'Case File Assembly', keys: Object.keys(accumulatedEvidence.case_file) });
+  if (accumulatedEvidence?.typology) checkpoints.push({ node: 'typology', label: 'Typology Classification', keys: Object.keys(accumulatedEvidence.typology) });
+  if (accumulatedEvidence?.narrative) checkpoints.push({ node: 'narrative', label: 'SAR Narrative', keys: Object.keys(accumulatedEvidence.narrative) });
+  if (accumulatedEvidence?.validation_result) checkpoints.push({ node: 'validation', label: 'Quality Validation', keys: Object.keys(accumulatedEvidence.validation_result) });
+  checkpoints.push({ node: 'human_review', label: 'Human Review (current)', keys: ['interrupt()', 'full_state_persisted'] });
+
+  const totalKeys = checkpoints.reduce((s, c) => s + c.keys.length, 0);
+
+  return (
+    <div style={{ marginTop: spacing[2] }}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        style={{
+          width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '8px 12px', borderRadius: 6,
+          background: '#1a1a2e', color: palette.green.light1,
+          border: `1px solid ${palette.green.dark2}44`,
+          cursor: 'pointer', fontFamily: FONT, fontSize: 12, fontWeight: 600,
+        }}
+      >
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 14 }}>🗄</span>
+          MongoDBSaver Checkpoint Explorer
+          <span style={{
+            fontSize: 9, padding: '1px 5px', borderRadius: 4,
+            background: palette.green.dark2, color: palette.green.light3,
+          }}>
+            {checkpoints.length} checkpoints
+          </span>
+        </span>
+        <span style={{ fontSize: 10, transition: 'transform 0.15s', transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+          ▼
+        </span>
+      </button>
+
+      {expanded && (
+        <div style={{
+          padding: '10px 12px', background: '#1a1a2e',
+          borderRadius: '0 0 6px 6px', borderTop: `1px solid ${palette.green.dark2}22`,
+          border: `1px solid ${palette.green.dark2}44`, borderTopWidth: 0,
+        }}>
+          <div style={{
+            display: 'flex', gap: spacing[2], marginBottom: spacing[2], flexWrap: 'wrap',
+          }}>
+            <div style={{ padding: '4px 10px', borderRadius: 4, background: `${palette.purple.dark2}33`, textAlign: 'center' }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: palette.purple.light1, fontFamily: FONT }}>{checkpoints.length}</div>
+              <div style={{ fontSize: 9, color: palette.gray.light1, fontFamily: FONT }}>Checkpoints</div>
+            </div>
+            <div style={{ padding: '4px 10px', borderRadius: 4, background: `${palette.blue.dark1}33`, textAlign: 'center' }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: palette.blue.light1, fontFamily: FONT }}>{totalKeys}</div>
+              <div style={{ fontSize: 9, color: palette.gray.light1, fontFamily: FONT }}>State Keys</div>
+            </div>
+            <div style={{ flex: 1, padding: '4px 10px', borderRadius: 4, background: `${palette.green.dark2}33` }}>
+              <div style={{ fontSize: 9, color: palette.green.light2, fontFamily: FONT, fontWeight: 600, marginBottom: 2 }}>
+                Resumable from any point
+              </div>
+              <div style={{ fontSize: 9, color: palette.gray.light1, fontFamily: FONT, lineHeight: 1.4 }}>
+                If the server crashes, the pipeline resumes from the last checkpoint &mdash; not from scratch.
+              </div>
+            </div>
+          </div>
+
+          {/* Checkpoint timeline */}
+          {checkpoints.map((cp, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 16, flexShrink: 0 }}>
+                <div style={{
+                  width: 8, height: 8, borderRadius: '50%', marginTop: 4,
+                  background: cp.node === 'human_review' ? palette.yellow.base : palette.green.light1,
+                  border: cp.node === 'human_review' ? `2px solid ${palette.yellow.base}` : 'none',
+                }} />
+                {i < checkpoints.length - 1 && (
+                  <div style={{ flex: 1, width: 1, background: palette.gray.dark1, marginTop: 2, minHeight: 16 }} />
+                )}
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: palette.green.light2, fontFamily: FONT }}>
+                  {cp.label}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 2 }}>
+                  {cp.keys.slice(0, 6).map((k, j) => (
+                    <span key={j} style={{
+                      fontSize: 8, fontFamily: "'Source Code Pro', monospace",
+                      padding: '1px 4px', borderRadius: 2,
+                      background: `${palette.green.dark2}44`, color: palette.gray.light1,
+                    }}>
+                      {k}
+                    </span>
+                  ))}
+                  {cp.keys.length > 6 && (
+                    <span style={{ fontSize: 8, color: palette.gray.light1 }}>+{cp.keys.length - 6} more</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+
+          <div style={{
+            marginTop: spacing[2], padding: '6px 8px', borderRadius: 4,
+            background: `${palette.green.dark2}22`, fontSize: 10, fontFamily: FONT,
+            color: palette.gray.light1, lineHeight: 1.4,
+          }}>
+            Without MongoDB: Redis for state serialization + Kafka for event sourcing + PostgreSQL for data persistence + custom recovery logic.
+            <strong style={{ color: palette.green.light2 }}> With MongoDBSaver: one database, zero custom code.</strong>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1253,6 +1532,29 @@ export default function InvestigationLauncher({ onComplete }) {
   const [analystNotes, setAnalystNotes] = useState('');
   const [startTime, setStartTime] = useState(null);
   const [previewData, setPreviewData] = useState(null);
+
+  // Scenario Simulator state
+  const [simEntities, setSimEntities] = useState([]);
+  const [simTypologies, setSimTypologies] = useState([]);
+  const [simSelectedEntity, setSimSelectedEntity] = useState(null);
+  const [simSelectedTypology, setSimSelectedTypology] = useState(null);
+  const [simLoading, setSimLoading] = useState(false);
+  const [simExpanded, setSimExpanded] = useState(false);
+
+  useEffect(() => {
+    if (!simExpanded) return;
+    let cancelled = false;
+    setSimLoading(true);
+    Promise.all([fetchInvestigableEntities(), fetchTypologies()])
+      .then(([entRes, typRes]) => {
+        if (cancelled) return;
+        setSimEntities(entRes.entities || []);
+        setSimTypologies(typRes.typologies || []);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setSimLoading(false); });
+    return () => { cancelled = true; };
+  }, [simExpanded]);
 
   const accumulatedEvidence = useMemo(() => {
     const evidence = {};
@@ -1356,6 +1658,14 @@ export default function InvestigationLauncher({ onComplete }) {
       {/* Demo Scenarios */}
       {events.length === 0 && !running && (
         <>
+          <Banner variant="info" style={{ marginBottom: spacing[3] }}>
+            <strong>MongoDB + LangGraph for Agentic AI:</strong> MongoDB serves as the backbone for this multi-agent
+            investigation pipeline &mdash; <code>MongoDBSaver</code> checkpoints durable agent state enabling
+            human-in-the-loop pause/resume, the flexible document model stores evolving investigation evidence without
+            schema migrations, and <code>$graphLookup</code> powers real-time network traversal. No Redis, no Kafka, no
+            separate graph database.
+          </Banner>
+
           <Subtitle style={{ fontFamily: FONT, marginBottom: spacing[2] }}>
             Demo Scenarios
           </Subtitle>
@@ -1401,6 +1711,155 @@ export default function InvestigationLauncher({ onComplete }) {
               </Card>
             ))}
           </div>
+
+          {/* Scenario Simulator */}
+          <Card style={{
+            padding: spacing[3], marginBottom: spacing[4],
+            border: `1px solid ${palette.gray.light2}`,
+          }}>
+            <div
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+              onClick={() => setSimExpanded(v => !v)}
+            >
+              <Subtitle style={{ fontFamily: FONT, fontSize: '14px', margin: 0 }}>
+                Scenario Simulator
+              </Subtitle>
+              <Body style={{ fontSize: '12px', color: palette.gray.base, fontFamily: FONT }}>
+                {simExpanded ? '▲ Collapse' : '▼ Select entity + red-flag scenario'}
+              </Body>
+            </div>
+
+            {simExpanded && (
+              <div style={{ marginTop: spacing[3] }}>
+                <div style={{
+                  padding: '8px 12px', borderRadius: 6, marginBottom: spacing[2],
+                  background: palette.green.light3, border: `1px solid ${palette.green.light1}`,
+                  fontSize: 12, fontFamily: FONT, color: palette.green.dark2,
+                }}>
+                  <strong>MongoDB Aggregation:</strong> The entity list is built from a <code>$lookup</code> pipeline
+                  joining <code>entities</code> with <code>transactionsv2</code>, grouping by red-flag tags. The
+                  typology picker queries the <code>typology_library</code> collection &mdash; 12 AML typologies seeded
+                  with regulatory references. No ETL, no data warehouse.
+                </div>
+                {simLoading ? (
+                  <Body style={{ fontFamily: FONT, fontSize: '13px', color: palette.gray.dark1 }}>
+                    Loading entities and typologies...
+                  </Body>
+                ) : (
+                  <>
+                    {/* Entity selector */}
+                    <div style={{ marginBottom: spacing[3] }}>
+                      <Body style={{
+                        fontSize: '12px', fontWeight: 600, fontFamily: FONT,
+                        color: palette.gray.dark1, marginBottom: spacing[1],
+                        textTransform: 'uppercase', letterSpacing: '0.5px',
+                      }}>
+                        Select Entity
+                      </Body>
+                      <div style={{
+                        maxHeight: 200, overflowY: 'auto',
+                        border: `1px solid ${palette.gray.light2}`, borderRadius: 6,
+                      }}>
+                        {simEntities.map((ent) => {
+                          const isSelected = simSelectedEntity?.entityId === ent.entityId;
+                          const riskLevel = ent.riskAssessment?.overall?.level || 'unknown';
+                          const riskVariant = riskLevel === 'critical' || riskLevel === 'high' ? 'red'
+                            : riskLevel === 'medium' ? 'yellow' : 'green';
+                          return (
+                            <div
+                              key={ent.entityId}
+                              onClick={() => { setSimSelectedEntity(ent); setSimSelectedTypology(null); }}
+                              style={{
+                                padding: `${spacing[1]}px ${spacing[2]}px`,
+                                cursor: 'pointer',
+                                background: isSelected ? palette.green.light3 : 'transparent',
+                                borderBottom: `1px solid ${palette.gray.light3}`,
+                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                              }}
+                            >
+                              <div>
+                                <Body style={{ fontSize: '13px', fontFamily: FONT, fontWeight: isSelected ? 600 : 400 }}>
+                                  {ent.name?.full || ent.entityId}
+                                </Body>
+                                <Body style={{ fontSize: '11px', fontFamily: FONT, color: palette.gray.base }}>
+                                  {ent.entityType} &middot; {ent.scenarioKey || 'N/A'}
+                                </Body>
+                              </div>
+                              <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
+                                <Badge variant={riskVariant} style={{ fontSize: 10 }}>{riskLevel}</Badge>
+                                {ent.red_flag_tags?.length > 0 && (
+                                  <Badge variant="lightgray" style={{ fontSize: 9 }}>
+                                    {ent.red_flag_tags.length} flags
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Typology selector -- shown after entity is picked */}
+                    {simSelectedEntity && (
+                      <div style={{ marginBottom: spacing[3] }}>
+                        <Body style={{
+                          fontSize: '12px', fontWeight: 600, fontFamily: FONT,
+                          color: palette.gray.dark1, marginBottom: spacing[1],
+                          textTransform: 'uppercase', letterSpacing: '0.5px',
+                        }}>
+                          Red-Flag Scenario
+                        </Body>
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                          gap: spacing[1],
+                        }}>
+                          {simTypologies.map((typ) => {
+                            const isSelected = simSelectedTypology?.typology_id === typ.typology_id;
+                            return (
+                              <div
+                                key={typ.typology_id}
+                                onClick={() => setSimSelectedTypology(typ)}
+                                style={{
+                                  padding: spacing[2],
+                                  borderRadius: 6,
+                                  cursor: 'pointer',
+                                  border: `1.5px solid ${isSelected ? palette.green.dark1 : palette.gray.light2}`,
+                                  background: isSelected ? palette.green.light3 : 'transparent',
+                                }}
+                              >
+                                <Body style={{ fontSize: '13px', fontFamily: FONT, fontWeight: 600 }}>
+                                  {typ.name}
+                                </Body>
+                                <Body style={{ fontSize: '11px', fontFamily: FONT, color: palette.gray.dark1, marginTop: 2 }}>
+                                  {typ.red_flags?.slice(0, 2).join(' · ')}
+                                </Body>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Launch */}
+                    {simSelectedEntity && simSelectedTypology && (
+                      <Button
+                        variant="baseGreen"
+                        onClick={() => handlePreview(
+                          simSelectedEntity.entityId,
+                          simSelectedTypology.typology_id,
+                          `${simSelectedTypology.name} — ${simSelectedEntity.name?.full || simSelectedEntity.entityId}`,
+                        )}
+                        disabled={running}
+                      >
+                        Launch Investigation
+                      </Button>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </Card>
 
           {/* Custom Launch */}
           <Card style={{
@@ -1457,6 +1916,11 @@ export default function InvestigationLauncher({ onComplete }) {
         <AgentStepTimeline events={events} running={running} startTime={startTime} />
       )}
 
+      {/* MongoDB Operations Insights Panel */}
+      {events.length > 0 && (
+        <InvestigationInsightsPanel events={events} running={running} />
+      )}
+
       {/* Human Review Panel */}
       {needsReview && reviewPayload && (
         <HumanReviewPanel
@@ -1471,7 +1935,15 @@ export default function InvestigationLauncher({ onComplete }) {
 
       {/* Final Result Summary */}
       {finalResult && !needsReview && (
-        <FinalResultCard result={finalResult} />
+        <>
+          <FinalResultCard result={finalResult} />
+          <Callout variant="tip" style={{ marginTop: spacing[2] }}>
+            <strong>Single Document, Complete Investigation:</strong> The final investigation &mdash; entity profile,
+            360&deg; case file, typology classification, network analysis, SAR narrative, validation results, human
+            decision, and full audit trail &mdash; is stored as one rich MongoDB document. In a relational database, this
+            would be scattered across 12&ndash;15 normalized tables with complex JOIN queries for every retrieval.
+          </Callout>
+        </>
       )}
     </div>
   );

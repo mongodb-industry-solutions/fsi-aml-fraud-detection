@@ -4,6 +4,10 @@ import { useState } from 'react';
 import Card from '@leafygreen-ui/card';
 import Badge from '@leafygreen-ui/badge';
 import { Body, Subtitle, H3 } from '@leafygreen-ui/typography';
+import Banner from '@leafygreen-ui/banner';
+import Callout from '@leafygreen-ui/callout';
+import ExpandableCard from '@leafygreen-ui/expandable-card';
+import Code from '@leafygreen-ui/code';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 
@@ -68,6 +72,8 @@ export default function InvestigationDetail({ investigation }) {
     validation_result,
     human_decision,
     agent_audit_log,
+    tool_trace_log,
+    pipeline_metrics,
   } = investigation;
 
   return (
@@ -158,8 +164,28 @@ export default function InvestigationDetail({ investigation }) {
       )}
 
       {activeTab === 'audit' && (
-        <AuditTab auditLog={agent_audit_log} />
+        <AuditTab auditLog={agent_audit_log} toolTrace={tool_trace_log} metrics={pipeline_metrics} />
       )}
+
+      {/* MongoDB Document Viewer */}
+      <ExpandableCard
+        title="View MongoDB Document"
+        description="See the raw investigation document as stored in MongoDB"
+        style={{ marginTop: spacing[1] }}
+      >
+        <div style={{
+          padding: spacing[2], borderRadius: 6, marginBottom: spacing[2],
+          background: palette.green.light3, border: `1px solid ${palette.green.light1}`,
+          fontSize: 12, fontFamily: FONT, color: palette.green.dark2,
+        }}>
+          <strong>Schema Flexibility in Action:</strong> This single document contains the entire investigation lifecycle
+          &mdash; nested triage decisions, variable-length evidence arrays, dynamic typology fields, and the full audit
+          trail. No rigid table schemas, no migrations, no 15-table JOIN to reconstruct.
+        </div>
+        <Code language="json" style={{ maxHeight: 500, overflow: 'auto' }}>
+          {JSON.stringify(investigation, null, 2)}
+        </Code>
+      </ExpandableCard>
     </div>
   );
 }
@@ -445,10 +471,91 @@ function NarrativeTab({ narrative }) {
 }
 
 // ---------------------------------------------------------------------------
-// Audit Trail Tab (visual timeline)
+// Audit Trail Tab (enhanced visual timeline with metrics)
 // ---------------------------------------------------------------------------
 
-function AuditTab({ auditLog }) {
+function MetricCard({ label, value, sub }) {
+  return (
+    <div style={{
+      padding: `${spacing[2]}px ${spacing[3]}px`,
+      background: palette.gray.light3,
+      borderRadius: 6,
+      textAlign: 'center',
+      minWidth: 100,
+    }}>
+      <div style={{ fontSize: 20, fontWeight: 700, fontFamily: FONT, color: palette.gray.dark2 }}>
+        {value ?? '—'}
+      </div>
+      <div style={{ fontSize: 10, color: palette.gray.base, fontFamily: FONT, textTransform: 'uppercase', marginTop: 2 }}>
+        {label}
+      </div>
+      {sub && <div style={{ fontSize: 10, color: palette.gray.dark1, fontFamily: FONT, marginTop: 2 }}>{sub}</div>}
+    </div>
+  );
+}
+
+function ToolTraceRow({ trace }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div style={{
+      borderRadius: 4,
+      border: `1px solid ${palette.blue.light2}`,
+      background: palette.blue.light3,
+      fontSize: 11,
+      fontFamily: FONT,
+      marginBottom: 4,
+    }}>
+      <div
+        onClick={() => setExpanded(!expanded)}
+        style={{ padding: '4px 8px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+      >
+        <span style={{ fontWeight: 600, color: palette.blue.dark1 }}>
+          {trace.tool}
+          {trace.agent && <span style={{ fontWeight: 400, color: palette.gray.base }}> ({trace.agent})</span>}
+        </span>
+        <span style={{ color: palette.gray.base }}>
+          {trace.duration_ms != null ? `${trace.duration_ms}ms` : ''} {expanded ? '▼' : '▶'}
+        </span>
+      </div>
+      {expanded && (
+        <div style={{ padding: '4px 8px 6px', borderTop: `1px solid ${palette.blue.light2}`, wordBreak: 'break-word' }}>
+          {trace.input && (
+            <div style={{ marginBottom: 4 }}>
+              <span style={{ fontWeight: 600, color: palette.gray.dark1 }}>Input: </span>
+              <span style={{ color: palette.gray.dark2 }}>
+                {typeof trace.input === 'string' ? trace.input.slice(0, 400) : JSON.stringify(trace.input).slice(0, 400)}
+              </span>
+            </div>
+          )}
+          {trace.output && (
+            <div>
+              <span style={{ fontWeight: 600, color: palette.gray.dark1 }}>Output: </span>
+              <span style={{ color: palette.gray.dark2 }}>
+                {typeof trace.output === 'string' ? trace.output.slice(0, 400) : JSON.stringify(trace.output).slice(0, 400)}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DurationBar({ entries }) {
+  const totalMs = entries.reduce((s, e) => s + (e.duration_ms || 0), 0) || 1;
+  return (
+    <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: palette.gray.light2 }}>
+      {entries.filter(e => e.duration_ms > 0).map((entry, i) => (
+        <div key={i} style={{
+          width: `${Math.max((entry.duration_ms / totalMs) * 100, 1)}%`,
+          background: AGENT_COLORS[entry.agent] || palette.gray.dark1,
+        }} title={`${entry.agent}: ${entry.duration_ms}ms`} />
+      ))}
+    </div>
+  );
+}
+
+function AuditTab({ auditLog, toolTrace, metrics }) {
   if (!auditLog || auditLog.length === 0) {
     return (
       <Card style={{ padding: spacing[4], textAlign: 'center' }}>
@@ -457,82 +564,173 @@ function AuditTab({ auditLog }) {
     );
   }
 
+  const totalDuration = metrics?.total_node_duration_ms;
+  const formattedDuration = totalDuration != null
+    ? totalDuration > 60000 ? `${(totalDuration / 60000).toFixed(1)}m` : `${(totalDuration / 1000).toFixed(1)}s`
+    : null;
+
   return (
-    <Card style={{ padding: spacing[3], border: `1px solid ${palette.gray.light2}` }}>
-      <Subtitle style={{ fontFamily: FONT, marginBottom: spacing[3], fontSize: '14px' }}>
-        Execution Timeline ({auditLog.length} entries)
-      </Subtitle>
-      <div style={{ maxHeight: 500, overflowY: 'auto' }}>
-        {auditLog.map((entry, i) => {
-          const agentColor = AGENT_COLORS[entry.agent] || palette.gray.dark1;
-          const isHuman = entry.agent === 'human_review';
-          const isLast = i === auditLog.length - 1;
+    <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[2] }}>
+      <Banner variant="success">
+        <strong>Append-Only Audit Trail as Nested Array:</strong> Each agent node appends its audit entry to a
+        single array within the investigation document. MongoDB&apos;s <code>$push</code> operator and flexible schema
+        make this natural &mdash; no separate audit tables, no foreign keys, no JOIN to reconstruct the timeline.
+      </Banner>
 
-          return (
-            <div key={i} style={{ display: 'flex', minHeight: 44 }}>
-              {/* Timeline rail */}
-              <div style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center',
-                width: 32, flexShrink: 0,
-              }}>
-                <div style={{
-                  width: isHuman ? 14 : 10,
-                  height: isHuman ? 14 : 10,
-                  borderRadius: '50%',
-                  background: agentColor,
-                  flexShrink: 0,
-                  marginTop: 6,
-                  border: isHuman ? `2px solid ${palette.yellow.base}` : 'none',
-                }} />
-                {!isLast && (
-                  <div style={{
-                    flex: 1, width: 2, background: palette.gray.light2,
-                    marginTop: 4, marginBottom: 0,
-                  }} />
-                )}
-              </div>
+      {/* Metrics Summary */}
+      {metrics && (
+        <Card style={{ padding: spacing[3], border: `1px solid ${palette.gray.light2}` }}>
+          <Subtitle style={{ fontFamily: FONT, marginBottom: spacing[2], fontSize: '14px' }}>
+            Pipeline Metrics
+          </Subtitle>
+          <div style={{ display: 'flex', gap: spacing[2], flexWrap: 'wrap', marginBottom: spacing[2] }}>
+            <MetricCard label="Total Duration" value={formattedDuration} />
+            <MetricCard label="LLM Calls" value={metrics.llm_calls_count} />
+            <MetricCard label="Tool Calls" value={metrics.tool_calls_count} />
+            <MetricCard label="Nodes" value={auditLog.length} />
+            {metrics.validation_loops > 0 && (
+              <MetricCard label="Validation Loops" value={metrics.validation_loops} />
+            )}
+          </div>
+          <DurationBar entries={auditLog} />
+        </Card>
+      )}
 
-              {/* Entry content */}
-              <div style={{
-                flex: 1, paddingLeft: 8, paddingBottom: isLast ? 0 : 8,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <Badge
-                    variant={isHuman ? 'yellow' : 'lightgray'}
-                    style={{ fontSize: 10 }}
-                  >
-                    {entry.agent}
-                  </Badge>
-                  <span style={{
-                    fontSize: 10, color: palette.gray.base, fontFamily: FONT,
-                    fontVariantNumeric: 'tabular-nums',
-                  }}>
-                    {entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : ''}
-                  </span>
-                  {entry.forced_escalation && (
-                    <Badge variant="red" style={{ fontSize: 9 }}>FORCED ESCALATION</Badge>
-                  )}
-                </div>
+      {/* Timeline */}
+      <Card style={{ padding: spacing[3], border: `1px solid ${palette.gray.light2}` }}>
+        <Subtitle style={{ fontFamily: FONT, marginBottom: spacing[3], fontSize: '14px' }}>
+          Execution Timeline ({auditLog.length} entries)
+        </Subtitle>
+        <div style={{ maxHeight: 600, overflowY: 'auto' }}>
+          {auditLog.map((entry, i) => {
+            const agentColor = AGENT_COLORS[entry.agent] || palette.gray.dark1;
+            const isHuman = entry.agent === 'human_review';
+            const isLast = i === auditLog.length - 1;
+
+            return (
+              <div key={i} style={{ display: 'flex', minHeight: 44 }}>
+                {/* Timeline rail */}
                 <div style={{
-                  fontSize: 12, fontFamily: FONT, color: palette.gray.dark2,
-                  marginTop: 2, lineHeight: 1.5,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  width: 32, flexShrink: 0,
                 }}>
-                  {entry.decision && (
-                    <span>Decision: <strong>{typeof entry.decision === 'string' ? entry.decision : JSON.stringify(entry.decision)}</strong></span>
+                  <div style={{
+                    width: isHuman ? 14 : 10,
+                    height: isHuman ? 14 : 10,
+                    borderRadius: '50%',
+                    background: agentColor,
+                    flexShrink: 0,
+                    marginTop: 6,
+                    border: isHuman ? `2px solid ${palette.yellow.base}` : 'none',
+                  }} />
+                  {!isLast && (
+                    <div style={{
+                      flex: 1, width: 2, background: palette.gray.light2,
+                      marginTop: 4, marginBottom: 0,
+                    }} />
                   )}
-                  {entry.route_to && (
-                    <span>{entry.decision ? ' · ' : ''}Routed to <strong>{entry.route_to}</strong></span>
+                </div>
+
+                {/* Entry content */}
+                <div style={{
+                  flex: 1, paddingLeft: 8, paddingBottom: isLast ? 0 : 10,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <Badge
+                      variant={isHuman ? 'yellow' : 'lightgray'}
+                      style={{ fontSize: 10 }}
+                    >
+                      {entry.agent}
+                    </Badge>
+                    <span style={{
+                      fontSize: 10, color: palette.gray.base, fontFamily: FONT,
+                      fontVariantNumeric: 'tabular-nums',
+                    }}>
+                      {entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : ''}
+                    </span>
+                    {entry.duration_ms != null && (
+                      <span style={{
+                        fontSize: 9, padding: '1px 5px', borderRadius: 3,
+                        background: palette.gray.light2, color: palette.gray.dark1, fontFamily: FONT,
+                      }}>
+                        {entry.duration_ms > 1000 ? `${(entry.duration_ms / 1000).toFixed(1)}s` : `${entry.duration_ms}ms`}
+                      </span>
+                    )}
+                    {entry.llm_model && (
+                      <span style={{
+                        fontSize: 9, padding: '1px 5px', borderRadius: 3,
+                        background: palette.purple.light3, color: palette.purple.dark2, fontFamily: FONT,
+                      }}>
+                        LLM
+                      </span>
+                    )}
+                    {entry.forced_escalation && (
+                      <Badge variant="red" style={{ fontSize: 9 }}>FORCED ESCALATION</Badge>
+                    )}
+                  </div>
+
+                  {/* Decision / routing info */}
+                  <div style={{
+                    fontSize: 12, fontFamily: FONT, color: palette.gray.dark2,
+                    marginTop: 2, lineHeight: 1.5,
+                  }}>
+                    {entry.decision && typeof entry.decision === 'object' && entry.decision.disposition && (
+                      <span>Disposition: <strong>{entry.decision.disposition}</strong> (score: {entry.decision.risk_score})</span>
+                    )}
+                    {entry.decision && typeof entry.decision === 'string' && (
+                      <span>Decision: <strong>{entry.decision}</strong></span>
+                    )}
+                    {entry.route_to && (
+                      <span>{entry.decision ? ' · ' : ''}Routed to <strong>{entry.route_to}</strong></span>
+                    )}
+                    {entry.case_id && !entry.decision && !entry.route_to && (
+                      <span>Case: <strong>{entry.case_id}</strong></span>
+                    )}
+                    {entry.analyst_decision && (
+                      <span>Analyst: <strong>{entry.analyst_decision}</strong></span>
+                    )}
+                  </div>
+
+                  {/* Reasoning */}
+                  {entry.reasoning && (
+                    <div style={{
+                      fontSize: 11, fontFamily: FONT, color: palette.gray.dark1,
+                      marginTop: 3, lineHeight: 1.5, fontStyle: 'italic',
+                    }}>
+                      {entry.reasoning}
+                    </div>
                   )}
-                  {entry.case_id && !entry.decision && !entry.route_to && (
-                    <span>Case: <strong>{entry.case_id}</strong></span>
+
+                  {/* Output summary */}
+                  {entry.output_summary && (
+                    <div style={{
+                      fontSize: 10, fontFamily: FONT, color: palette.gray.base,
+                      marginTop: 2,
+                    }}>
+                      {entry.output_summary}
+                    </div>
                   )}
                 </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
-    </Card>
+            );
+          })}
+        </div>
+      </Card>
+
+      {/* Tool Trace Log */}
+      {toolTrace && toolTrace.length > 0 && (
+        <Card style={{ padding: spacing[3], border: `1px solid ${palette.gray.light2}` }}>
+          <Subtitle style={{ fontFamily: FONT, marginBottom: spacing[2], fontSize: '14px' }}>
+            Tool Call Traces ({toolTrace.length})
+          </Subtitle>
+          <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+            {toolTrace.map((trace, i) => (
+              <ToolTraceRow key={i} trace={trace} />
+            ))}
+          </div>
+        </Card>
+      )}
+    </div>
   );
 }
 

@@ -10,10 +10,15 @@ import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 import { Spinner } from '@leafygreen-ui/loading-indicator';
 
-import { listInvestigations, seedAgentCollections } from '@/lib/agent-api';
+import Banner from '@leafygreen-ui/banner';
+import TextInput from '@leafygreen-ui/text-input';
+
+import { listInvestigations, seedAgentCollections, connectInvestigationStream, searchInvestigations } from '@/lib/agent-api';
 import InvestigationLauncher from './InvestigationLauncher';
 import InvestigationDetail from './InvestigationDetail';
 import AgenticPipelineGraph from './AgenticPipelineGraph';
+import InvestigationAnalytics from './InvestigationAnalytics';
+import ChatBubble from '@/components/chat/ChatBubble';
 
 const FONT = "'Euclid Circular A', sans-serif";
 
@@ -53,6 +58,12 @@ export default function InvestigationsPage() {
   const [error, setError] = useState(null);
   const [statusFilter, setStatusFilter] = useState(null);
 
+  const [liveConnected, setLiveConnected] = useState(false);
+  const [liveEvents, setLiveEvents] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState(null);
+  const [searching, setSearching] = useState(false);
+
   const fetchInvestigations = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -70,6 +81,44 @@ export default function InvestigationsPage() {
   useEffect(() => {
     fetchInvestigations();
   }, [fetchInvestigations, refreshKey]);
+
+  // Change Stream connection
+  useEffect(() => {
+    let handle;
+    try {
+      handle = connectInvestigationStream((event) => {
+        setLiveConnected(true);
+        if (event.type === 'change') {
+          setLiveEvents(prev => [event, ...prev].slice(0, 10));
+          setRefreshKey(k => k + 1);
+        }
+      });
+      setLiveConnected(true);
+    } catch {
+      setLiveConnected(false);
+    }
+    return () => { handle?.close(); };
+  }, []);
+
+  // Search handler
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults(null);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const data = await searchInvestigations(searchQuery);
+        setSearchResults(data.results || []);
+      } catch {
+        setSearchResults(null);
+      } finally {
+        setSearching(false);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const handleSeed = async () => {
     setSeeding(true);
@@ -98,9 +147,10 @@ export default function InvestigationsPage() {
   }, []);
 
   const filteredInvestigations = useMemo(() => {
+    if (searchResults !== null) return searchResults;
     if (!statusFilter) return investigations;
     return investigations.filter(inv => inv.investigation_status === statusFilter);
-  }, [investigations, statusFilter]);
+  }, [investigations, statusFilter, searchResults]);
 
   const kpis = useMemo(() => ({
     total: investigations.length,
@@ -175,6 +225,13 @@ export default function InvestigationsPage() {
             >
               New Investigation
             </Button>
+            <Button
+              size="xsmall"
+              onClick={() => setActiveView(v => v === 'analytics' ? 'launcher' : 'analytics')}
+              aria-label="Analytics"
+            >
+              <Icon glyph="Charts" size={14} />
+            </Button>
             <Button size="xsmall" onClick={() => setRefreshKey(k => k + 1)} aria-label="Refresh list">
               <Icon glyph="Refresh" size={14} />
             </Button>
@@ -182,6 +239,47 @@ export default function InvestigationsPage() {
               {seeding ? '...' : 'Seed'}
             </Button>
           </div>
+
+          {/* Live indicator + Search */}
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <div style={{ flex: 1 }}>
+              <TextInput
+                aria-label="Search investigations"
+                placeholder="Search case ID, entity, typology..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                sizeVariant="small"
+              />
+            </div>
+            {liveConnected && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                padding: '4px 8px', borderRadius: 4,
+                background: palette.green.light3, border: `1px solid ${palette.green.light1}`,
+                flexShrink: 0,
+              }} title="Connected to MongoDB Change Stream for real-time updates">
+                <span style={{
+                  width: 6, height: 6, borderRadius: '50%', background: palette.green.dark1,
+                  animation: 'cs-pulse 2s ease-in-out infinite', display: 'inline-block',
+                }} />
+                <span style={{ fontSize: 9, fontWeight: 600, fontFamily: FONT, color: palette.green.dark2 }}>
+                  Live
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Search results hint */}
+          {searchQuery.trim() && (
+            <div style={{
+              fontSize: 10, fontFamily: FONT, color: palette.green.dark2,
+              padding: '4px 8px', borderRadius: 4,
+              background: palette.green.light3, border: `1px solid ${palette.green.light1}`,
+            }}>
+              <strong>Atlas Search:</strong> Querying <code>investigations</code> collection across
+              narrative text, entity IDs, typologies, and case findings.
+            </div>
+          )}
 
           {/* Status Filters */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }} role="group" aria-label="Filter by status">
@@ -298,16 +396,58 @@ export default function InvestigationsPage() {
             )}
           </div>
 
-          {/* Pipeline Toggle */}
-          <Button
-            size="xsmall"
-            variant="default"
-            onClick={() => setActiveView(v => v === 'pipeline' ? 'launcher' : 'pipeline')}
-            style={{ flexShrink: 0 }}
-          >
-            <Icon glyph="Diagram3" size={14} style={{ marginRight: 4 }} />
-            {activeView === 'pipeline' ? 'Hide Pipeline' : 'View Pipeline Architecture'}
-          </Button>
+          {/* View Toggles */}
+          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+            <Button
+              size="xsmall"
+              variant={activeView === 'assistant' ? 'baseGreen' : 'default'}
+              onClick={() => setActiveView(v => v === 'assistant' ? 'launcher' : 'assistant')}
+              style={{ flex: 1 }}
+            >
+              <Icon glyph="Wizard" size={14} style={{ marginRight: 4 }} />
+              {activeView === 'assistant' ? 'Hide Assistant' : 'AML Assistant'}
+            </Button>
+            <Button
+              size="xsmall"
+              variant="default"
+              onClick={() => setActiveView(v => v === 'pipeline' ? 'launcher' : 'pipeline')}
+              style={{ flex: 1 }}
+            >
+              <Icon glyph="Diagram3" size={14} style={{ marginRight: 4 }} />
+              {activeView === 'pipeline' ? 'Hide Pipeline' : 'Pipeline'}
+            </Button>
+          </div>
+
+          {/* Change Stream info */}
+          {liveConnected && liveEvents.length > 0 && (
+            <div style={{
+              padding: '6px 10px', borderRadius: 6, fontSize: 10, fontFamily: FONT,
+              background: '#1a1a2e', color: palette.green.light1,
+              border: `1px solid ${palette.green.dark2}44`,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                <span style={{ fontWeight: 600, fontSize: 10, color: palette.green.light2 }}>
+                  Change Stream
+                </span>
+                <span style={{
+                  fontSize: 8, padding: '1px 4px', borderRadius: 4,
+                  background: palette.green.dark2, color: palette.green.light3,
+                }}>
+                  {liveEvents.length} events
+                </span>
+              </div>
+              <div style={{ color: palette.gray.light1, lineHeight: 1.4 }}>
+                Real-time updates via <code style={{ color: palette.green.light2 }}>db.investigations.watch()</code>
+              </div>
+            </div>
+          )}
+
+          <style>{`
+            @keyframes cs-pulse {
+              0%, 100% { opacity: 1; }
+              50% { opacity: 0.3; }
+            }
+          `}</style>
         </aside>
 
         {/* RIGHT WORKSPACE */}
@@ -317,6 +457,84 @@ export default function InvestigationsPage() {
           )}
           {activeView === 'detail' && (
             <InvestigationDetail investigation={selectedCase} />
+          )}
+          {activeView === 'analytics' && (
+            <InvestigationAnalytics />
+          )}
+          {activeView === 'assistant' && (
+            <div style={{ display: 'flex', gap: spacing[3], height: '100%', minHeight: 'calc(100vh - 280px)' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <ChatBubble embedded={true} defaultExpanded={true} />
+              </div>
+              <aside style={{
+                width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: spacing[2],
+              }}>
+                <Card style={{ padding: spacing[2] }}>
+                  <Subtitle style={{ fontFamily: FONT, fontSize: 13, margin: 0, marginBottom: spacing[1] }}>
+                    Capabilities
+                  </Subtitle>
+                  {[
+                    { icon: '🏢', label: 'Entity profiles & risk scoring' },
+                    { icon: '💸', label: 'Transaction queries & analysis' },
+                    { icon: '🕸️', label: 'Network traversal ($graphLookup)' },
+                    { icon: '🔍', label: 'Typology & compliance search (Atlas Search)' },
+                    { icon: '📋', label: 'Investigation lookup & summaries' },
+                    { icon: '⚖️', label: 'SAR filing guidance' },
+                  ].map(cap => (
+                    <div key={cap.label} style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '4px 0', fontSize: 12, fontFamily: FONT,
+                      color: palette.gray.dark2,
+                    }}>
+                      <span>{cap.icon}</span>
+                      <span>{cap.label}</span>
+                    </div>
+                  ))}
+                </Card>
+                <Card style={{ padding: spacing[2] }}>
+                  <Subtitle style={{ fontFamily: FONT, fontSize: 13, margin: 0, marginBottom: spacing[1] }}>
+                    MongoDB Under the Hood
+                  </Subtitle>
+                  {[
+                    { badge: 'MongoDBSaver', desc: 'Durable conversation memory — close the browser, come back tomorrow, and the conversation continues.' },
+                    { badge: 'Atlas Search', desc: 'RAG over typology library and compliance policies with fuzzy matching.' },
+                    { badge: '$graphLookup', desc: 'Recursive network traversal to map entity connections.' },
+                    { badge: 'aggregate()', desc: 'Complex transaction analysis with pipeline stages.' },
+                  ].map(item => (
+                    <div key={item.badge} style={{
+                      padding: '6px 0', borderBottom: `1px solid ${palette.gray.light3}`,
+                      fontSize: 11, fontFamily: FONT,
+                    }}>
+                      <span style={{
+                        display: 'inline-block', fontSize: 9, padding: '1px 5px', borderRadius: 3,
+                        background: palette.green.dark1, color: '#fff', fontWeight: 600,
+                        fontFamily: 'monospace', marginBottom: 3,
+                      }}>
+                        {item.badge}
+                      </span>
+                      <Body style={{
+                        fontSize: 11, fontFamily: FONT, color: palette.gray.dark1,
+                        lineHeight: 1.4, margin: 0,
+                      }}>
+                        {item.desc}
+                      </Body>
+                    </div>
+                  ))}
+                </Card>
+                <div style={{
+                  padding: '8px 12px', borderRadius: 6,
+                  background: '#1a1a2e', color: palette.green.light1,
+                  fontSize: 10, fontFamily: FONT, lineHeight: 1.5,
+                  border: `1px solid ${palette.green.dark2}44`,
+                }}>
+                  <strong style={{ color: palette.green.light2 }}>12 tools</strong> querying MongoDB collections in real-time.
+                  Each tool call maps to a MongoDB operation — <code style={{ color: palette.green.light2 }}>findOne()</code>,{' '}
+                  <code style={{ color: palette.green.light2 }}>aggregate()</code>,{' '}
+                  <code style={{ color: palette.green.light2 }}>$graphLookup</code>, or{' '}
+                  <code style={{ color: palette.green.light2 }}>Atlas Search</code>.
+                </div>
+              </aside>
+            </div>
           )}
           {activeView === 'pipeline' && (
             <Card style={{ padding: spacing[3], height: '100%', minHeight: 600 }}>
@@ -344,6 +562,21 @@ export default function InvestigationsPage() {
             </Card>
           )}
         </section>
+      </div>
+
+      {/* Powered by MongoDB footer */}
+      <div style={{
+        marginTop: spacing[4], padding: `${spacing[3]}px 0`, textAlign: 'center',
+        borderTop: `1px solid ${palette.gray.light2}`,
+      }}>
+        <Body style={{ fontSize: '12px', fontFamily: FONT, fontWeight: 600, color: palette.gray.dark1, marginBottom: 4 }}>
+          Powered by MongoDB
+        </Body>
+        <Body style={{ fontSize: '11px', fontFamily: FONT, color: palette.gray.base, maxWidth: 700, margin: '0 auto' }}>
+          MongoDBSaver for durable agent state &nbsp;|&nbsp; <code>$graphLookup</code> for network traversal &nbsp;|&nbsp;
+          Atlas Search for RAG &nbsp;|&nbsp; Flexible document model for investigation storage &nbsp;|&nbsp;
+          Aggregation pipelines for evidence analysis &nbsp;|&nbsp; Change Streams for real-time updates
+        </Body>
       </div>
     </div>
   );

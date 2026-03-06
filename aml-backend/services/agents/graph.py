@@ -79,8 +79,8 @@ def build_investigation_graph() -> StateGraph:
     builder.add_edge(START, "triage")
     # triage uses Command — no explicit edges needed for routing
 
-    # Terminal: auto_close -> END
-    builder.add_edge("auto_close", END)
+    # Auto-close still goes through finalize so the case is persisted
+    builder.add_edge("auto_close", "finalize")
 
     # Urgent escalation -> human review
     builder.add_edge("urgent_escalation", "human_review")

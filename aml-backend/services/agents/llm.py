@@ -20,6 +20,18 @@ _SONNET_ARN = (
 _llm_instance: ChatBedrockConverse | None = None
 
 
+def extract_token_usage(raw_message) -> dict:
+    """Extract token usage from a raw AIMessage, returning empty dict on failure."""
+    meta = getattr(raw_message, "usage_metadata", None)
+    if not meta:
+        return {}
+    return {
+        "input_tokens": meta.get("input_tokens", 0),
+        "output_tokens": meta.get("output_tokens", 0),
+        "total_tokens": meta.get("total_tokens", 0),
+    }
+
+
 def get_llm() -> ChatBedrockConverse:
     """Singleton accessor for the investigation LLM."""
     global _llm_instance

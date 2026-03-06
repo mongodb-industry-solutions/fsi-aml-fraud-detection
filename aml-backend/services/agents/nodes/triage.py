@@ -9,7 +9,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langgraph.types import Command
 
 from models.agents.investigation import TriageDecision
-from services.agents.llm import get_llm
+from services.agents.llm import get_llm, extract_token_usage
 from services.agents.prompts import TRIAGE_SYSTEM
 from services.agents.state import InvestigationState
 
@@ -20,13 +20,15 @@ _LLM_MODEL = "bedrock/anthropic-sonnet"
 
 def triage_node(state: InvestigationState) -> Command:
     t0 = time.perf_counter()
-    llm = get_llm().with_structured_output(TriageDecision)
+    llm = get_llm().with_structured_output(TriageDecision, include_raw=True)
     alert = state.get("alert_data", {})
 
-    decision: TriageDecision = llm.invoke([
+    result = llm.invoke([
         SystemMessage(content=TRIAGE_SYSTEM),
         HumanMessage(content=json.dumps(alert, default=str)),
     ])
+    decision: TriageDecision = result["parsed"]
+    token_usage = extract_token_usage(result["raw"])
     duration_ms = int((time.perf_counter() - t0) * 1000)
 
     audit_entry = {
@@ -34,6 +36,7 @@ def triage_node(state: InvestigationState) -> Command:
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "duration_ms": duration_ms,
         "llm_model": _LLM_MODEL,
+        "token_usage": token_usage,
         "decision": decision.model_dump(),
         "reasoning": decision.reasoning[:300] if hasattr(decision, "reasoning") and decision.reasoning else "",
         "input_summary": f"entity_id={alert.get('entity_id','')}, alert_type={alert.get('alert_type','')}",

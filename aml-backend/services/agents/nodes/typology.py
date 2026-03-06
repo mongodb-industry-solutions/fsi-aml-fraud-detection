@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from models.agents.investigation import TypologyResult
-from services.agents.llm import get_llm
+from services.agents.llm import get_llm, extract_token_usage
 from services.agents.prompts import TYPOLOGY_SYSTEM
 from services.agents.state import InvestigationState
 from services.agents.tools.policy_tools import search_typologies
@@ -52,14 +52,16 @@ def typology_node(state: InvestigationState) -> dict:
     case_summary = json.dumps(case_file, default=str)[:8000]
     typology_context = json.dumps(relevant_typologies, default=str)[:4000] if relevant_typologies else "No specific typology hints."
 
-    llm = get_llm().with_structured_output(TypologyResult)
-    result: TypologyResult = llm.invoke([
+    llm = get_llm().with_structured_output(TypologyResult, include_raw=True)
+    llm_result = llm.invoke([
         SystemMessage(content=TYPOLOGY_SYSTEM),
         HumanMessage(content=(
             f"CASE FILE:\n{case_summary}\n\n"
             f"RELEVANT TYPOLOGIES FROM LIBRARY:\n{typology_context}"
         )),
     ])
+    result: TypologyResult = llm_result["parsed"]
+    token_usage = extract_token_usage(llm_result["raw"])
     duration_ms = int((time.perf_counter() - t0) * 1000)
 
     result_dump = result.model_dump()
@@ -70,6 +72,7 @@ def typology_node(state: InvestigationState) -> dict:
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "duration_ms": duration_ms,
         "llm_model": _LLM_MODEL,
+        "token_usage": token_usage,
         "primary": result.primary_typology.value,
         "confidence": result.confidence,
         "secondary_typologies": [s.get("typology", "") if isinstance(s, dict) else str(s) for s in secondary[:3]],

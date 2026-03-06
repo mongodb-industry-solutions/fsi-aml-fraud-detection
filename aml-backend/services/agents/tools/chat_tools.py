@@ -89,7 +89,7 @@ def search_entities(
     if entity_type:
         query["entityType"] = entity_type
     if risk_level:
-        query["riskAssessment.overall.level"] = risk_level
+        query["riskAssessment.overall.level"] = {"$regex": f"^{risk_level}$", "$options": "i"}
     if name_contains:
         query["name.full"] = {"$regex": name_contains, "$options": "i"}
 

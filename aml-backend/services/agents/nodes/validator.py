@@ -9,7 +9,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langgraph.types import Command
 
 from models.agents.investigation import ValidationResult
-from services.agents.llm import get_llm
+from services.agents.llm import get_llm, extract_token_usage
 from services.agents.prompts import VALIDATION_SYSTEM
 from services.agents.state import InvestigationState
 
@@ -56,11 +56,13 @@ def validation_node(state: InvestigationState) -> Command:
         "network_analysis": state.get("network_analysis", {}),
     }, default=str)[:12000]
 
-    llm = get_llm().with_structured_output(ValidationResult)
-    result: ValidationResult = llm.invoke([
+    llm = get_llm().with_structured_output(ValidationResult, include_raw=True)
+    llm_result = llm.invoke([
         SystemMessage(content=VALIDATION_SYSTEM),
         HumanMessage(content=payload),
     ])
+    result: ValidationResult = llm_result["parsed"]
+    token_usage = extract_token_usage(llm_result["raw"])
     duration_ms = int((time.perf_counter() - t0) * 1000)
 
     audit_entry = {
@@ -68,6 +70,7 @@ def validation_node(state: InvestigationState) -> Command:
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "duration_ms": duration_ms,
         "llm_model": _LLM_MODEL,
+        "token_usage": token_usage,
         "loop": loop_count,
         "score": result.score,
         "route_to": result.route_to,

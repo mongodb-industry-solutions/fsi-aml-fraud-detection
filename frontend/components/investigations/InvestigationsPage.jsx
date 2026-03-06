@@ -18,6 +18,7 @@ import InvestigationLauncher from './InvestigationLauncher';
 import InvestigationDetail from './InvestigationDetail';
 import AgenticPipelineGraph from './AgenticPipelineGraph';
 import InvestigationAnalytics from './InvestigationAnalytics';
+import ChangeStreamConsole from './ChangeStreamConsole';
 import ChatBubble from '@/components/chat/ChatBubble';
 
 const FONT = "'Euclid Circular A', sans-serif";
@@ -82,7 +83,7 @@ export default function InvestigationsPage() {
     fetchInvestigations();
   }, [fetchInvestigations, refreshKey]);
 
-  // Change Stream connection
+  // Change Stream connection (kept for list refresh; console handles its own display)
   useEffect(() => {
     let handle;
     try {
@@ -98,6 +99,10 @@ export default function InvestigationsPage() {
       setLiveConnected(false);
     }
     return () => { handle?.close(); };
+  }, []);
+
+  const handleChangeStreamInvestigation = useCallback(() => {
+    setRefreshKey(k => k + 1);
   }, []);
 
   // Search handler
@@ -144,6 +149,15 @@ export default function InvestigationsPage() {
   const handleNewInvestigation = useCallback(() => {
     setSelectedCase(null);
     setActiveView('launcher');
+  }, []);
+
+  const handleViewAuditTrail = useCallback(async (caseId) => {
+    const data = await listInvestigations(null, 100, 0);
+    const inv = (data.investigations || []).find(i => i.case_id === caseId);
+    if (inv) {
+      setSelectedCase(inv);
+      setActiveView('detail');
+    }
   }, []);
 
   const filteredInvestigations = useMemo(() => {
@@ -418,29 +432,8 @@ export default function InvestigationsPage() {
             </Button>
           </div>
 
-          {/* Change Stream info */}
-          {liveConnected && liveEvents.length > 0 && (
-            <div style={{
-              padding: '6px 10px', borderRadius: 6, fontSize: 10, fontFamily: FONT,
-              background: '#1a1a2e', color: palette.green.light1,
-              border: `1px solid ${palette.green.dark2}44`,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
-                <span style={{ fontWeight: 600, fontSize: 10, color: palette.green.light2 }}>
-                  Change Stream
-                </span>
-                <span style={{
-                  fontSize: 8, padding: '1px 4px', borderRadius: 4,
-                  background: palette.green.dark2, color: palette.green.light3,
-                }}>
-                  {liveEvents.length} events
-                </span>
-              </div>
-              <div style={{ color: palette.gray.light1, lineHeight: 1.4 }}>
-                Real-time updates via <code style={{ color: palette.green.light2 }}>db.investigations.watch()</code>
-              </div>
-            </div>
-          )}
+          {/* Change Stream Console */}
+          <ChangeStreamConsole onInvestigationChange={handleChangeStreamInvestigation} />
 
           <style>{`
             @keyframes cs-pulse {
@@ -453,7 +446,7 @@ export default function InvestigationsPage() {
         {/* RIGHT WORKSPACE */}
         <section aria-label="Investigation workspace" style={{ flex: 1, minWidth: 0 }}>
           {activeView === 'launcher' && (
-            <InvestigationLauncher onComplete={handleInvestigationComplete} />
+            <InvestigationLauncher onComplete={handleInvestigationComplete} onViewAuditTrail={handleViewAuditTrail} />
           )}
           {activeView === 'detail' && (
             <InvestigationDetail investigation={selectedCase} />

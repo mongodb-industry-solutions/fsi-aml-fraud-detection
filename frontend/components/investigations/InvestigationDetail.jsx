@@ -542,15 +542,59 @@ function ToolTraceRow({ trace }) {
 }
 
 function DurationBar({ entries }) {
-  const totalMs = entries.reduce((s, e) => s + (e.duration_ms || 0), 0) || 1;
+  const filtered = entries.filter(e => e.duration_ms > 0);
+  const totalMs = filtered.reduce((s, e) => s + (e.duration_ms || 0), 0) || 1;
+  const fmtTotal = totalMs > 60000 ? `${(totalMs / 60000).toFixed(1)}m` : `${(totalMs / 1000).toFixed(1)}s`;
+
   return (
-    <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', background: palette.gray.light2 }}>
-      {entries.filter(e => e.duration_ms > 0).map((entry, i) => (
-        <div key={i} style={{
-          width: `${Math.max((entry.duration_ms / totalMs) * 100, 1)}%`,
-          background: AGENT_COLORS[entry.agent] || palette.gray.dark1,
-        }} title={`${entry.agent}: ${entry.duration_ms}ms`} />
-      ))}
+    <div>
+      <div style={{
+        display: 'flex', height: 22, borderRadius: 6, overflow: 'hidden',
+        background: palette.gray.light2, position: 'relative',
+      }}>
+        {filtered.map((entry, i) => {
+          const pct = Math.max((entry.duration_ms / totalMs) * 100, 2);
+          const showLabel = pct > 10;
+          const dur = entry.duration_ms > 1000
+            ? `${(entry.duration_ms / 1000).toFixed(1)}s`
+            : `${entry.duration_ms}ms`;
+          return (
+            <div key={i} style={{
+              width: `${pct}%`,
+              background: AGENT_COLORS[entry.agent] || palette.gray.dark1,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              overflow: 'hidden', position: 'relative',
+            }} title={`${entry.agent}: ${dur}`}>
+              {showLabel && (
+                <span style={{
+                  fontSize: 8, color: '#fff', fontFamily: FONT, fontWeight: 600,
+                  whiteSpace: 'nowrap', textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                }}>
+                  {entry.agent} {dur}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', marginTop: 4,
+        fontSize: 9, fontFamily: FONT, color: palette.gray.base,
+      }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {filtered.map((entry, i) => (
+            <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+              <span style={{
+                width: 6, height: 6, borderRadius: '50%',
+                background: AGENT_COLORS[entry.agent] || palette.gray.dark1,
+                display: 'inline-block',
+              }} />
+              {entry.agent}
+            </span>
+          ))}
+        </div>
+        <span style={{ fontWeight: 600 }}>Total: {fmtTotal}</span>
+      </div>
     </div>
   );
 }
@@ -590,6 +634,15 @@ function AuditTab({ auditLog, toolTrace, metrics }) {
             <MetricCard label="Nodes" value={auditLog.length} />
             {metrics.validation_loops > 0 && (
               <MetricCard label="Validation Loops" value={metrics.validation_loops} />
+            )}
+            {metrics.total_input_tokens > 0 && (
+              <MetricCard label="Input Tokens" value={metrics.total_input_tokens.toLocaleString()} />
+            )}
+            {metrics.total_output_tokens > 0 && (
+              <MetricCard label="Output Tokens" value={metrics.total_output_tokens.toLocaleString()} />
+            )}
+            {metrics.total_tokens > 0 && (
+              <MetricCard label="Total Tokens" value={metrics.total_tokens.toLocaleString()} />
             )}
           </div>
           <DurationBar entries={auditLog} />
@@ -662,6 +715,14 @@ function AuditTab({ auditLog, toolTrace, metrics }) {
                         background: palette.purple.light3, color: palette.purple.dark2, fontFamily: FONT,
                       }}>
                         LLM
+                      </span>
+                    )}
+                    {entry.token_usage?.total_tokens > 0 && (
+                      <span style={{
+                        fontSize: 9, padding: '1px 5px', borderRadius: 3,
+                        background: palette.yellow.light3, color: palette.yellow.dark2, fontFamily: FONT,
+                      }}>
+                        {entry.token_usage.total_tokens.toLocaleString()} tokens
                       </span>
                     )}
                     {entry.forced_escalation && (

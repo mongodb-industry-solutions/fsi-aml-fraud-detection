@@ -371,6 +371,13 @@ async def seed_agent_collections() -> dict:
         await coll.create_index("entity_id")
     stats["investigations_indexes"] = "created"
 
+    # ── alerts (empty, with indexes) ─────────────────────────────────
+    coll = db["alerts"]
+    await coll.create_index("entity_id")
+    await coll.create_index("submitted_at")
+    await coll.create_index("status")
+    stats["alerts_indexes"] = "created"
+
     client.close()
     return stats
 

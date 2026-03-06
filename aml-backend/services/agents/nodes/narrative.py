@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from models.agents.investigation import SARNarrative
-from services.agents.llm import get_llm
+from services.agents.llm import get_llm, extract_token_usage
 from services.agents.prompts import NARRATIVE_SYSTEM
 from services.agents.state import InvestigationState
 from services.agents.tools.policy_tools import search_compliance_policies
@@ -53,14 +53,16 @@ def narrative_node(state: InvestigationState) -> dict:
         "network_analysis": network,
     }, default=str)[:10000]
 
-    llm = get_llm().with_structured_output(SARNarrative)
-    narrative: SARNarrative = llm.invoke([
+    llm = get_llm().with_structured_output(SARNarrative, include_raw=True)
+    llm_result = llm.invoke([
         SystemMessage(content=NARRATIVE_SYSTEM),
         HumanMessage(content=(
             f"COMPLIANCE POLICY CONTEXT:\n{policy_context}\n\n"
             f"INVESTIGATION EVIDENCE:\n{evidence_payload}"
         )),
     ])
+    narrative: SARNarrative = llm_result["parsed"]
+    token_usage = extract_token_usage(llm_result["raw"])
     duration_ms = int((time.perf_counter() - t0) * 1000)
 
     total_length = len(narrative.introduction) + len(narrative.body) + len(narrative.conclusion)
@@ -70,6 +72,7 @@ def narrative_node(state: InvestigationState) -> dict:
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "duration_ms": duration_ms,
         "llm_model": _LLM_MODEL,
+        "token_usage": token_usage,
         "narrative_length": total_length,
         "citations_count": len(narrative.cited_evidence),
         "output_summary": f"{total_length} chars, {len(narrative.cited_evidence)} citations, 3 sections",

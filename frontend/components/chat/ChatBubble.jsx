@@ -10,9 +10,39 @@ import { Body, Subtitle } from '@leafygreen-ui/typography';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
 import { sendChatMessage } from '@/lib/agent-api';
 
 const FONT = "'Euclid Circular A', sans-serif";
+
+const markdownStyles = `
+.chat-md h1, .chat-md h2, .chat-md h3 {
+  margin: 6px 0 4px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.chat-md h1 { font-size: 15px; }
+.chat-md h2 { font-size: 14px; }
+.chat-md p { margin: 4px 0; }
+.chat-md ul, .chat-md ol { margin: 4px 0; padding-left: 18px; }
+.chat-md li { margin: 2px 0; }
+.chat-md code {
+  background: rgba(0,0,0,0.06);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 12px;
+}
+.chat-md pre { margin: 6px 0; overflow-x: auto; }
+.chat-md pre code { display: block; padding: 6px 8px; }
+.chat-md hr { margin: 8px 0; border: none; border-top: 1px solid rgba(0,0,0,0.1); }
+.chat-md strong { font-weight: 600; }
+.chat-md a { color: #007bff; text-decoration: none; }
+.chat-md table { border-collapse: collapse; margin: 6px 0; font-size: 12px; }
+.chat-md th, .chat-md td { border: 1px solid rgba(0,0,0,0.1); padding: 3px 6px; }
+`;
 
 function ToolCallIndicator({ tool, input, output, collapsed, onToggle }) {
   return (
@@ -105,7 +135,7 @@ function MessageBubble({ msg }) {
           />
         ))}
         {msg.content && (
-          <div style={{
+          <div className="chat-md" style={{
             padding: `${spacing[1]}px ${spacing[2]}px`,
             borderRadius: '12px 12px 12px 4px',
             background: palette.gray.light3,
@@ -113,9 +143,10 @@ function MessageBubble({ msg }) {
             fontSize: 13,
             fontFamily: FONT,
             lineHeight: 1.6,
-            whiteSpace: 'pre-wrap',
           }}>
-            {msg.content}
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {msg.content}
+            </ReactMarkdown>
           </div>
         )}
       </div>
@@ -284,6 +315,7 @@ export default function ChatBubble() {
       border: `1px solid ${palette.gray.light2}`,
       background: '#fff',
     }}>
+      <style>{markdownStyles}</style>
       {/* Header */}
       <div style={{
         padding: `${spacing[2]}px ${spacing[3]}px`,

@@ -11,7 +11,7 @@ from langgraph.types import Send, Command
 
 from dependencies import get_mongo_client, DB_NAME
 from models.agents.investigation import CaseFile
-from services.agents.llm import get_llm
+from services.agents.llm import get_llm, extract_token_usage
 from services.agents.prompts import CASE_ASSEMBLY_SYSTEM
 from services.agents.state import InvestigationState
 from services.agents.tools.entity_tools import get_entity_profile, screen_watchlists
@@ -146,11 +146,13 @@ def assemble_case_node(state: InvestigationState) -> dict:
     t0 = time.perf_counter()
     gathered = state.get("gathered_data", {})
 
-    llm = get_llm().with_structured_output(CaseFile)
-    case_file: CaseFile = llm.invoke([
+    llm = get_llm().with_structured_output(CaseFile, include_raw=True)
+    result = llm.invoke([
         SystemMessage(content=CASE_ASSEMBLY_SYSTEM),
         HumanMessage(content=json.dumps(gathered, default=str)[:12000]),
     ])
+    case_file: CaseFile = result["parsed"]
+    token_usage = extract_token_usage(result["raw"])
     duration_ms = int((time.perf_counter() - t0) * 1000)
 
     case_dump = case_file.model_dump()
@@ -161,6 +163,7 @@ def assemble_case_node(state: InvestigationState) -> dict:
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "duration_ms": duration_ms,
         "llm_model": _LLM_MODEL,
+        "token_usage": token_usage,
         "sources_gathered": list(gathered.keys()),
         "output_summary": f"{findings_count} key findings assembled from {len(gathered)} sources",
     }

@@ -19,34 +19,88 @@ import InvestigationInsightsPanel from './InvestigationInsightsPanel';
 
 const FONT = "'Euclid Circular A', sans-serif";
 
-const DEMO_SCENARIOS = [
-  {
-    id: 'auto_close_fp',
-    title: 'Auto-Close False Positive',
-    description: 'Low-risk generic individual — tests the 70-80% FP auto-closure path.',
-    entity_id: 'generic_individual',
-    alert_type: 'routine_monitoring',
-    badge: { variant: 'green', label: 'Low Risk' },
-  },
+const INVESTIGATION_CATEGORIES = [
   {
     id: 'shell_company',
-    title: 'Shell Company Investigation',
-    description: 'Nominee directors, layering transactions, shell-to-shell flows. Full pipeline.',
-    entity_id: 'shell_company_candidate_var0',
+    title: 'Shell Company Network',
+    description: 'Nominee directors, layering transactions, shell-to-shell flows. Triggers full investigation pipeline with network analysis.',
     alert_type: 'suspicious_structure',
     badge: { variant: 'red', label: 'High Risk' },
+    entities: [
+      { entity_id: 'shell_company_candidate_var0', label: 'Shell Co. Variant 0' },
+      { entity_id: 'shell_company_candidate_var1', label: 'Shell Co. Variant 1' },
+      { entity_id: 'shell_company_candidate_var2', label: 'Shell Co. Variant 2' },
+    ],
+    defaultTypology: 'typ_shell_company',
   },
   {
-    id: 'pep_investigation',
-    title: 'PEP Investigation',
-    description: 'PEP with 0.99 watchlist match, offshore transactions. Urgent escalation path.',
-    entity_id: 'pep_individual_varied_0',
+    id: 'pep_exposure',
+    title: 'PEP Exposure',
+    description: 'Politically exposed persons with high watchlist match scores and offshore transactions. Tests the urgent escalation path.',
     alert_type: 'pep_alert',
     badge: { variant: 'yellow', label: 'PEP' },
+    entities: [
+      { entity_id: 'pep_individual_varied_0', label: 'PEP Individual 0' },
+      { entity_id: 'pep_individual_varied_1', label: 'PEP Individual 1' },
+      { entity_id: 'pep_individual_varied_2', label: 'PEP Individual 2' },
+    ],
+    defaultTypology: 'typ_pep_abuse',
+  },
+  {
+    id: 'sanctions_evasion',
+    title: 'Sanctions Evasion',
+    description: 'Sanctioned organizations with complex corporate structures designed to evade detection. Critical risk entities.',
+    alert_type: 'sanctions_alert',
+    badge: { variant: 'red', label: 'Critical' },
+    entities: [
+      { entity_id: 'sanctioned_org_varied_0', label: 'Sanctioned Org 0' },
+      { entity_id: 'sanctioned_org_varied_1', label: 'Sanctioned Org 1' },
+      { entity_id: 'sanctioned_org_varied_2', label: 'Sanctioned Org 2' },
+    ],
+    defaultTypology: 'typ_sanctions_evasion',
+  },
+  {
+    id: 'rapid_movement',
+    title: 'Rapid Money Movement',
+    description: 'Entities with high-velocity transactions just below reporting thresholds. Tests structuring / smurfing detection.',
+    alert_type: 'suspicious_activity',
+    badge: { variant: 'yellow', label: 'Suspicious' },
+    entities: [
+      { entity_id: 'rapid_mover_var0', label: 'Rapid Mover 0' },
+      { entity_id: 'rapid_mover_var1', label: 'Rapid Mover 1' },
+      { entity_id: 'rapid_mover_var2', label: 'Rapid Mover 2' },
+    ],
+    defaultTypology: 'typ_structuring',
+  },
+  {
+    id: 'false_positive',
+    title: 'Low Risk / False Positive',
+    description: 'Low-risk routine entities that should be auto-closed by triage. Tests the 70-80% false positive auto-closure path.',
+    alert_type: 'routine_monitoring',
+    badge: { variant: 'green', label: 'Low Risk' },
+    entities: [
+      { entity_id: 'generic_individual', label: 'Generic Individual' },
+      { entity_id: 'generic_organization', label: 'Generic Organization' },
+    ],
+    defaultTypology: null,
+  },
+  {
+    id: 'hnwi',
+    title: 'High-Net-Worth Investor',
+    description: 'HNWI with complex international portfolios and trade-based flows. Tests nuanced risk assessment across jurisdictions.',
+    alert_type: 'suspicious_activity',
+    badge: { variant: 'blue', label: 'Complex' },
+    entities: [
+      { entity_id: 'hnwi_global_investor_0', label: 'HNWI Investor 0' },
+      { entity_id: 'hnwi_global_investor_1', label: 'HNWI Investor 1' },
+      { entity_id: 'hnwi_global_investor_2', label: 'HNWI Investor 2' },
+    ],
+    defaultTypology: 'typ_trade_based_ml',
   },
 ];
 
 const AGENT_LABELS = {
+  alert_ingestion: { label: 'Alert Ingested', icon: '📨', color: palette.green.dark1, desc: 'Alert written to MongoDB, Change Stream triggers triage' },
   triage: { label: 'Triage Agent', icon: '🔍', color: palette.blue.base, desc: 'Risk scoring and disposition routing' },
   data_gathering: { label: 'Data Gathering', icon: '📊', color: palette.purple.base, desc: 'Parallel evidence collection via Send API' },
   fetch_entity_profile: { label: 'Fetching Entity', icon: '👤', color: palette.purple.light1, desc: 'Loading entity profile and KYC data' },
@@ -92,7 +146,21 @@ function buildSteps(events) {
   const stepMap = {};
 
   for (const evt of events) {
-    if (evt.type === 'pipeline_started' || evt.type === 'pipeline_resumed') {
+    if (evt.type === 'alert_ingested') {
+      const step = {
+        agent: 'alert_ingestion',
+        status: 'complete',
+        startTime: evt.timestamp,
+        endTime: evt.timestamp,
+        duration: 0,
+        tools: [],
+        llmOutputs: [],
+        structuredOutput: { alert_id: evt.alert_id, entity_id: evt.entity_id, alert_type: evt.alert_type },
+        statusLabel: `db.alerts.insertOne() — entity=${evt.entity_id || ''}`,
+      };
+      stepMap['alert_ingestion'] = step;
+      steps.push(step);
+    } else if (evt.type === 'pipeline_started' || evt.type === 'pipeline_resumed') {
       const agentName = evt.agent || 'triage';
       if (!stepMap[agentName]) {
         const step = {
@@ -1461,8 +1529,8 @@ function MiniInfo({ label, value }) {
 // FinalResultCard
 // ---------------------------------------------------------------------------
 
-function FinalResultCard({ result }) {
-  const { status, typology, narrative, triage_decision } = result;
+function FinalResultCard({ result, onViewAuditTrail }) {
+  const { status, typology, narrative, triage_decision, case_id } = result;
   const risk = triage_decision?.risk_score != null ? getRiskLevel(triage_decision.risk_score) : null;
 
   return (
@@ -1514,6 +1582,19 @@ function FinalResultCard({ result }) {
           </Body>
         </div>
       )}
+
+      {case_id && onViewAuditTrail && (
+        <div style={{ marginTop: spacing[3], borderTop: `1px solid ${palette.green.light1}`, paddingTop: spacing[2] }}>
+          <Button
+            variant="default"
+            size="small"
+            leftGlyph={<Icon glyph="ActivityFeed" />}
+            onClick={() => onViewAuditTrail(case_id)}
+          >
+            View Full Audit Trail
+          </Button>
+        </div>
+      )}
     </Card>
   );
 }
@@ -1522,7 +1603,7 @@ function FinalResultCard({ result }) {
 // Main Component
 // ---------------------------------------------------------------------------
 
-export default function InvestigationLauncher({ onComplete }) {
+export default function InvestigationLauncher({ onComplete, onViewAuditTrail }) {
   const [customEntityId, setCustomEntityId] = useState('');
   const [running, setRunning] = useState(false);
   const [events, setEvents] = useState([]);
@@ -1532,6 +1613,14 @@ export default function InvestigationLauncher({ onComplete }) {
   const [analystNotes, setAnalystNotes] = useState('');
   const [startTime, setStartTime] = useState(null);
   const [previewData, setPreviewData] = useState(null);
+
+  // Category card cycling state (same pattern as entity resolution)
+  const [categoryIndices, setCategoryIndices] = useState(() => {
+    const initial = {};
+    INVESTIGATION_CATEGORIES.forEach(cat => { initial[cat.id] = 0; });
+    return initial;
+  });
+  const [selectedCategory, setSelectedCategory] = useState(null);
 
   // Scenario Simulator state
   const [simEntities, setSimEntities] = useState([]);
@@ -1658,59 +1747,118 @@ export default function InvestigationLauncher({ onComplete }) {
       {/* Demo Scenarios */}
       {events.length === 0 && !running && (
         <>
-          <Banner variant="info" style={{ marginBottom: spacing[3] }}>
+          <Banner variant="info" style={{ marginBottom: spacing[2] }}>
             <strong>MongoDB + LangGraph for Agentic AI:</strong> MongoDB serves as the backbone for this multi-agent
             investigation pipeline &mdash; <code>MongoDBSaver</code> checkpoints durable agent state enabling
             human-in-the-loop pause/resume, the flexible document model stores evolving investigation evidence without
             schema migrations, and <code>$graphLookup</code> powers real-time network traversal. No Redis, no Kafka, no
             separate graph database.
           </Banner>
+          <Banner variant="warning" style={{ marginBottom: spacing[3] }}>
+            <strong>Event-Driven Investigation Trigger:</strong> In production, a Change Stream on the <code>alerts</code> collection
+            watches for new alerts from the transaction monitoring engine. When <code>db.alerts.insertOne()</code> fires,
+            the Change Stream triggers triage automatically &mdash; no polling, no message queue. This demo simulates that
+            flow by inserting an alert document before starting the pipeline.
+          </Banner>
 
           <Subtitle style={{ fontFamily: FONT, marginBottom: spacing[2] }}>
-            Demo Scenarios
+            Investigation Scenarios
           </Subtitle>
+          <Body style={{ fontSize: '12px', color: palette.gray.dark1, fontFamily: FONT, marginBottom: spacing[2] }}>
+            Select a scenario category, then click to cycle through entity variants. Each category tests a different investigation path.
+          </Body>
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
             gap: spacing[2],
             marginBottom: spacing[4],
           }}>
-            {DEMO_SCENARIOS.map((scenario) => (
-              <Card key={scenario.id} style={{
-                padding: spacing[3],
-                border: `1px solid ${palette.gray.light2}`,
+            {INVESTIGATION_CATEGORIES.map((cat) => {
+              const idx = categoryIndices[cat.id] || 0;
+              const currentEntity = cat.entities[idx];
+              const isSelected = selectedCategory === cat.id;
+              return (
+                <Card key={cat.id} style={{
+                  padding: spacing[3],
+                  border: `1.5px solid ${isSelected ? palette.green.dark1 : palette.gray.light2}`,
+                  background: isSelected ? palette.green.light3 : '#fff',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+                  onClick={() => {
+                    setSelectedCategory(cat.id);
+                    const nextIdx = (idx + 1) % cat.entities.length;
+                    setCategoryIndices(prev => ({ ...prev, [cat.id]: nextIdx }));
+                  }}
+                >
+                  <div style={{
+                    display: 'flex', justifyContent: 'space-between',
+                    alignItems: 'flex-start', marginBottom: spacing[1],
+                  }}>
+                    <Subtitle style={{ fontFamily: FONT, fontSize: '14px', margin: 0 }}>
+                      {cat.title}
+                    </Subtitle>
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
+                      <Badge variant={cat.badge.variant}>{cat.badge.label}</Badge>
+                      <span style={{
+                        fontSize: 9, fontFamily: FONT, color: palette.gray.base,
+                        padding: '1px 5px', borderRadius: 4,
+                        background: palette.gray.light3, border: `1px solid ${palette.gray.light2}`,
+                      }}>
+                        {idx + 1}/{cat.entities.length}
+                      </span>
+                    </div>
+                  </div>
+                  <Body style={{
+                    fontSize: '12px', color: palette.gray.dark1,
+                    fontFamily: FONT, marginBottom: spacing[1], lineHeight: 1.5,
+                  }}>
+                    {cat.description}
+                  </Body>
+                  <div style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    marginTop: spacing[1],
+                  }}>
+                    <Body style={{ fontSize: '11px', color: palette.gray.base, fontFamily: FONT }}>
+                      Entity: <code style={{ fontSize: 11 }}>{currentEntity.entity_id}</code>
+                    </Body>
+                    <span style={{
+                      fontSize: 10, color: palette.gray.base, fontFamily: FONT, fontStyle: 'italic',
+                    }}>
+                      Click to cycle
+                    </span>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+
+          {/* Launch selected category */}
+          {selectedCategory && (() => {
+            const cat = INVESTIGATION_CATEGORIES.find(c => c.id === selectedCategory);
+            const idx = categoryIndices[cat.id] || 0;
+            const ent = cat.entities[idx > 0 ? idx - 1 : cat.entities.length - 1];
+            return (
+              <div style={{
+                display: 'flex', gap: spacing[2], alignItems: 'center',
+                marginBottom: spacing[3], padding: spacing[2],
+                borderRadius: 8, background: palette.green.light3,
+                border: `1px solid ${palette.green.light1}`,
               }}>
-                <div style={{
-                  display: 'flex', justifyContent: 'space-between',
-                  alignItems: 'flex-start', marginBottom: spacing[2],
-                }}>
-                  <Subtitle style={{ fontFamily: FONT, fontSize: '14px', margin: 0 }}>
-                    {scenario.title}
-                  </Subtitle>
-                  <Badge variant={scenario.badge.variant}>{scenario.badge.label}</Badge>
-                </div>
-                <Body style={{
-                  fontSize: '13px', color: palette.gray.dark1,
-                  fontFamily: FONT, marginBottom: spacing[2],
-                }}>
-                  {scenario.description}
-                </Body>
-                <Body style={{
-                  fontSize: '12px', color: palette.gray.base,
-                  fontFamily: FONT, marginBottom: spacing[2],
-                }}>
-                  Entity: <code>{scenario.entity_id}</code>
+                <Body style={{ fontSize: '13px', fontFamily: FONT, flex: 1 }}>
+                  Ready to investigate <strong>{ent.label}</strong> (<code style={{ fontSize: 12 }}>{ent.entity_id}</code>)
+                  {cat.defaultTypology && <> with typology <code style={{ fontSize: 12 }}>{cat.defaultTypology}</code></>}
                 </Body>
                 <Button
                   size="small" variant="baseGreen"
-                  onClick={() => handlePreview(scenario.entity_id, scenario.alert_type, scenario.title)}
+                  onClick={() => handlePreview(ent.entity_id, cat.alert_type, `${cat.title} — ${ent.label}`)}
                   disabled={running}
                 >
-                  Launch
+                  Launch Investigation
                 </Button>
-              </Card>
-            ))}
-          </div>
+              </div>
+            );
+          })()}
 
           {/* Scenario Simulator */}
           <Card style={{
@@ -1722,10 +1870,10 @@ export default function InvestigationLauncher({ onComplete }) {
               onClick={() => setSimExpanded(v => !v)}
             >
               <Subtitle style={{ fontFamily: FONT, fontSize: '14px', margin: 0 }}>
-                Scenario Simulator
+                Advanced: Full Entity + Typology Selection
               </Subtitle>
               <Body style={{ fontSize: '12px', color: palette.gray.base, fontFamily: FONT }}>
-                {simExpanded ? '▲ Collapse' : '▼ Select entity + red-flag scenario'}
+                {simExpanded ? '▲ Collapse' : '▼ Browse all 504 entities and 12 typologies'}
               </Body>
             </div>
 
@@ -1936,7 +2084,7 @@ export default function InvestigationLauncher({ onComplete }) {
       {/* Final Result Summary */}
       {finalResult && !needsReview && (
         <>
-          <FinalResultCard result={finalResult} />
+          <FinalResultCard result={finalResult} onViewAuditTrail={onViewAuditTrail} />
           <Callout variant="tip" style={{ marginTop: spacing[2] }}>
             <strong>Single Document, Complete Investigation:</strong> The final investigation &mdash; entity profile,
             360&deg; case file, typology classification, network analysis, SAR narrative, validation results, human

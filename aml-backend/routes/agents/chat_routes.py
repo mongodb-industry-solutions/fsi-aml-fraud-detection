@@ -95,7 +95,12 @@ async def chat(request: Dict[str, Any]):
 
                 elif kind == "on_tool_end":
                     raw_output = event.get("data", {}).get("output", "")
-                    output_str = raw_output if isinstance(raw_output, str) else json.dumps(raw_output, default=str)
+                    if hasattr(raw_output, "content"):
+                        output_str = raw_output.content if isinstance(raw_output.content, str) else json.dumps(raw_output.content, default=str)
+                    elif isinstance(raw_output, str):
+                        output_str = raw_output
+                    else:
+                        output_str = json.dumps(raw_output, default=str)
                     yield _sse({
                         "type": "tool_result",
                         "tool": event.get("name", ""),

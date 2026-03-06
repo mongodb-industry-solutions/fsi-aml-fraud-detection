@@ -37,7 +37,7 @@ class CrimeTypology(str, Enum):
 
 class TriageDecision(BaseModel):
     risk_score: float = Field(ge=0, le=100, description="Composite risk score 0-100")
-    disposition: Literal["auto_close", "investigate", "escalate_urgent"] = Field(
+    disposition: Literal["auto_close", "investigate"] = Field(
         description="Routing decision for the alert"
     )
     reasoning: str = Field(description="Explanation supporting the disposition")

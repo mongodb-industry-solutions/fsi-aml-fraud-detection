@@ -51,8 +51,6 @@ def triage_node(state: InvestigationState) -> Command:
 
     if decision.disposition == "auto_close":
         return Command(goto="auto_close", update=update)
-    elif decision.disposition == "escalate_urgent":
-        return Command(goto="urgent_escalation", update=update)
     else:
         return Command(goto="data_gathering", update=update)
 
@@ -66,18 +64,5 @@ def auto_close_node(state: InvestigationState) -> dict:
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "duration_ms": 0,
             "reasoning": f"False positive auto-closure — risk score {triage.get('risk_score', 'N/A')}",
-        }],
-    }
-
-
-def urgent_escalation_node(state: InvestigationState) -> dict:
-    triage = state.get("triage_decision", {})
-    return {
-        "investigation_status": "urgent_escalation",
-        "agent_audit_log": [{
-            "agent": "urgent_escalation",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "duration_ms": 0,
-            "reasoning": f"Urgent escalation — risk score {triage.get('risk_score', 'N/A')}, disposition={triage.get('disposition', '')}",
         }],
     }

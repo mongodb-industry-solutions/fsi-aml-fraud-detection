@@ -22,8 +22,6 @@ def finalize_node(state: InvestigationState) -> dict:
     upstream_status = state.get("investigation_status", "")
     if upstream_status == "closed_false_positive":
         final_status = "closed_false_positive"
-    elif upstream_status == "urgent_escalation":
-        final_status = "urgent_escalation"
     elif decision == "approve":
         final_status = "filed"
     else:

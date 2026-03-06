@@ -17,7 +17,7 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.mongodb import MongoDBSaver
 
 from services.agents.state import InvestigationState
-from services.agents.nodes.triage import triage_node, auto_close_node, urgent_escalation_node
+from services.agents.nodes.triage import triage_node, auto_close_node
 from services.agents.nodes.data_gatherer import (
     dispatch_data_tasks,
     fetch_entity_profile_node,
@@ -52,10 +52,9 @@ def build_investigation_graph() -> StateGraph:
 
     # ── Nodes ─────────────────────────────────────────────────────────
 
-    # Triage (returns Command -> auto_close | data_gathering | urgent_escalation)
+    # Triage (returns Command -> auto_close | data_gathering)
     builder.add_node("triage", triage_node)
     builder.add_node("auto_close", auto_close_node)
-    builder.add_node("urgent_escalation", urgent_escalation_node)
 
     # Data gathering fan-out (dispatch returns list of Send objects)
     builder.add_node("data_gathering", dispatch_data_tasks)
@@ -97,9 +96,6 @@ def build_investigation_graph() -> StateGraph:
 
     # Auto-close still goes through finalize so the case is persisted
     builder.add_edge("auto_close", "finalize")
-
-    # Urgent escalation -> human review
-    builder.add_edge("urgent_escalation", "human_review")
 
     # Fan-out workers -> assemble_case
     builder.add_edge("fetch_entity_profile", "assemble_case")

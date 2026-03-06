@@ -313,11 +313,12 @@ POLICIES = [
         "content": (
             "Risk-based escalation tiers: (1) Auto-Close – risk score below "
             "25, no watchlist hits, no flagged transactions, entity type is "
-            "generic with clean history. (2) Standard Investigation – risk "
-            "score 25-70, requires full pipeline analysis and human review. "
-            "(3) Urgent Escalation – risk score above 70, confirmed sanctions "
-            "hits, or PEP with suspicious transaction patterns. Urgent cases "
-            "bypass standard queue and are routed directly to senior analysts."
+            "generic with clean history. (2) Full Investigation – risk score "
+            "25 or above, any suspicious indicators, watchlist hits, PEP "
+            "exposure, sanctions matches, or flagged transactions. All "
+            "investigations go through the complete analysis pipeline "
+            "including network analysis, temporal pattern detection, trail "
+            "following, sub-investigations, and human review before filing."
         ),
     },
     {

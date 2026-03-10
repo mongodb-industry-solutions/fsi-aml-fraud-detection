@@ -41,12 +41,12 @@ validation, and human review — producing audit-ready case documents.
 
 - **Automated Alert Triage** — Risk scoring and disposition routing (auto-close or full investigation)
 - **Parallel Data Gathering** — Concurrent entity, transaction, network, and watchlist queries via LangGraph's `Send` API
-- **Typology Classification** — RAG-powered mapping to 12 AML crime typologies with confidence scoring
-- **Parallel Analysis** — Network risk analysis and temporal pattern detection run concurrently after typology
+- **Typology Classification** — Integrated into Case Analyst; RAG-powered mapping to 12 AML crime typologies with confidence scoring
+- **Parallel Analysis** — Network risk analysis and temporal pattern detection run concurrently after Case Analyst
 - **Trail Following** — LLM-powered lead selection from network and temporal evidence, identifying suspicious connected entities
 - **Sub-Investigation Branching** — Parallel mini-investigations of connected entities via `Send` fan-out, with findings rolled up into the parent narrative
 - **SAR Narrative Generation** — FinCEN-compliant who/what/when/where/why/how narratives grounded exclusively in evidence
-- **Quality Validation Loop** — Automated fact-checking with up to 3 re-drafting cycles before forced escalation
+- **Compliance QA Loop** — Automated fact-checking with up to 3 re-drafting cycles before forced escalation
 - **Durable Human Review** — `interrupt()`-based pause/resume enabling analyst decisions hours or days later
 - **Interactive Chat Co-Pilot** — ReAct agent with tools for fund flow tracing, temporal analysis, entity similarity, and lead expansion
 - **Immutable Audit Trail** — Append-only logging of every agent decision for regulatory examination
@@ -91,13 +91,13 @@ flowchart LR
         subgraph Agents["Agent Nodes"]
             Triage["Triage"]
             DG["Data Gathering"]
-            TC["Typology"]
+            CA["Case Analyst"]
             NA["Network Analyst"]
             TA["Temporal Analyst"]
             TF["Trail Follower"]
             SI["Sub-Investigations"]
-            NR["Narrative"]
-            VL["Validation"]
+            NR["SAR Author"]
+            VL["Compliance QA"]
             HR["Human Review"]
             FN["Finalize"]
         end
@@ -184,32 +184,28 @@ flowchart TD
     FanOut -->|"Send"| FetchNet["Analyze<br/>Network"]
     FanOut -->|"Send"| FetchWL["Screen<br/>Watchlists"]
 
-    FetchEntity --> Assemble["Assemble Case File<br/><i>LLM-powered synthesis</i>"]
-    FetchTxn --> Assemble
-    FetchNet --> Assemble
-    FetchWL --> Assemble
+    FetchEntity --> CaseAnalyst["Case Analyst<br/><i>CaseFile + TypologyResult<br/>in single LLM call</i>"]
+    FetchTxn --> CaseAnalyst
+    FetchNet --> CaseAnalyst
+    FetchWL --> CaseAnalyst
 
-    Assemble --> Typology["Typology Agent<br/><i>Crime classification</i>"]
+    CaseAnalyst --> NetAnalyst["Network Analyst<br/><i>Risk profiling</i>"]
+    CaseAnalyst --> TempAnalyst["Temporal Analyst<br/><i>Time-pattern detection</i>"]
 
-    Typology --> NetAnalyst["Network Analyst<br/><i>Risk profiling</i>"]
-    Typology --> TempAnalyst["Temporal Analyst<br/><i>Time-pattern detection</i>"]
-
-    NetAnalyst --> TrailFollower["Trail Follower<br/><i>LLM lead selection</i>"]
+    NetAnalyst --> TrailFollower["Trail Follower<br/><i>Conditional LLM lead selection</i>"]
     TempAnalyst --> TrailFollower
 
     TrailFollower --> SubDispatch["Sub-Investigation<br/>Dispatch"]
 
     SubDispatch -->|"Send per lead"| MiniInvest["Mini-Investigate<br/><i>Worker (×N)</i>"]
 
-    MiniInvest --> CollectSub["Collect Sub-Findings<br/><i>LLM synthesis</i>"]
+    MiniInvest --> SARAuthor["SAR Author<br/><i>5Ws narrative generation</i>"]
+    SARAuthor --> ComplianceQA["Compliance QA<br/><i>Quality check</i>"]
 
-    CollectSub --> Narrative["Narrative Agent<br/><i>SAR 5Ws generation</i>"]
-    Narrative --> Validation["Validation Agent<br/><i>Quality check</i>"]
-
-    Validation -->|"Command: data_gathering<br/>Missing evidence"| FanOut
-    Validation -->|"Command: narrative<br/>Quality issues"| Narrative
-    Validation -->|"Command: human_review<br/>Passed validation"| HumanReview["Human Review<br/><i>interrupt() pause</i>"]
-    Validation -->|"Command: finalize<br/>Max loops exceeded"| Finalize
+    ComplianceQA -->|"Command: data_gathering<br/>Missing evidence"| FanOut
+    ComplianceQA -->|"Command: narrative<br/>Quality issues"| SARAuthor
+    ComplianceQA -->|"Command: human_review<br/>Passed validation"| HumanReview["Human Review<br/><i>interrupt() pause</i>"]
+    ComplianceQA -->|"Command: finalize<br/>Max loops exceeded"| Finalize
 
     HumanReview -->|"Resume with<br/>analyst decision"| Finalize["Finalize Case<br/><i>Persist to MongoDB</i>"]
     Finalize --> EndNode(["END"])
@@ -220,16 +216,14 @@ flowchart TD
     style FetchTxn fill:#9c27b0,color:#fff
     style FetchNet fill:#9c27b0,color:#fff
     style FetchWL fill:#9c27b0,color:#fff
-    style Assemble fill:#00695c,color:#fff
-    style Typology fill:#f57f17,color:#fff
+    style CaseAnalyst fill:#00695c,color:#fff
     style NetAnalyst fill:#f57f17,color:#fff
     style TempAnalyst fill:#f57f17,color:#fff
     style TrailFollower fill:#0d47a1,color:#fff
     style SubDispatch fill:#7b1fa2,color:#fff
     style MiniInvest fill:#9c27b0,color:#fff
-    style CollectSub fill:#00695c,color:#fff
-    style Narrative fill:#2e7d32,color:#fff
-    style Validation fill:#0d47a1,color:#fff
+    style SARAuthor fill:#2e7d32,color:#fff
+    style ComplianceQA fill:#0d47a1,color:#fff
     style HumanReview fill:#c62828,color:#fff
     style Finalize fill:#1b5e20,color:#fff
     style AutoClose fill:#757575,color:#fff
@@ -242,16 +236,14 @@ sequenceDiagram
     participant Alert as Alert Input
     participant T as Triage
     participant DG as Data Gathering
-    participant AC as Assemble Case
-    participant TY as Typology
+    participant CA as Case Analyst
     participant NA as Network Analyst
     participant TA as Temporal Analyst
     participant TF as Trail Follower
     participant SD as Sub-Inv Dispatch
     participant MI as Mini-Investigate
-    participant CS as Collect Sub-Findings
-    participant NR as Narrative
-    participant V as Validation
+    participant SA as SAR Author
+    participant CQ as Compliance QA
     participant HR as Human Review
     participant F as Finalize
     participant DB as MongoDB
@@ -267,15 +259,12 @@ sequenceDiagram
         DG->>DG: Send → fetch_watchlist
     end
 
-    DG-->>AC: gathered_data (merged)
-    AC->>AC: LLM → CaseFile
-    AC-->>TY: case_file
-
-    TY->>TY: RAG + LLM → TypologyResult
+    DG-->>CA: gathered_data (merged)
+    CA->>CA: LLM → CaseAssemblyOutput (CaseFile + TypologyResult)
 
     par Parallel Analysis
-        TY-->>NA: typology
-        TY-->>TA: typology
+        CA-->>NA: case_file + typology
+        CA-->>TA: case_file + typology
     end
 
     NA->>NA: Graph Computation → NetworkRiskProfile
@@ -283,7 +272,7 @@ sequenceDiagram
 
     NA-->>TF: network_analysis
     TA-->>TF: temporal_analysis
-    TF->>TF: $graphLookup + LLM → TrailAnalysis (leads)
+    TF->>TF: $graphLookup + conditional LLM → TrailAnalysis (leads)
 
     TF-->>SD: trail_analysis
     SD->>SD: Send per lead
@@ -292,25 +281,23 @@ sequenceDiagram
         MI->>MI: Tools + LLM → LeadAssessment
     end
 
-    MI-->>CS: sub_investigation_findings (merged)
-    CS->>CS: LLM → SubInvestigationSummary
-    CS-->>NR: sub_investigation_summary
+    MI-->>SA: sub_investigation_findings (merged)
 
-    NR->>NR: RAG + LLM → SARNarrative
-    NR-->>V: narrative
+    SA->>SA: RAG + LLM → SARNarrative
+    SA-->>CQ: narrative
 
-    V->>V: LLM → ValidationResult
+    CQ->>CQ: LLM → ValidationResult
 
     alt Valid — route to human review
-        V-->>HR: Command(goto="human_review")
+        CQ-->>HR: Command(goto="human_review")
         HR->>HR: interrupt(payload)
         Note over HR: ⏸ Pipeline paused
         HR->>HR: Resume with analyst decision
         HR-->>F: human_decision
     else Quality issues — loop back
-        V-->>NR: Command(goto="narrative")
+        CQ-->>SA: Command(goto="narrative")
     else Missing data — re-gather
-        V-->>DG: Command(goto="data_gathering")
+        CQ-->>DG: Command(goto="data_gathering")
     end
 
     F->>DB: Insert investigation document
@@ -339,7 +326,7 @@ to the immutable `agent_audit_log`.
 ### 4.2 Data Gathering Agent
 
 **File:** `services/agents/nodes/data_gatherer.py`
-**Pattern:** `Send` API parallel fan-out + `CaseFile` fan-in assembly
+**Pattern:** `Send` API parallel fan-out + `CaseAssemblyOutput` fan-in assembly
 
 ```mermaid
 flowchart LR
@@ -355,28 +342,33 @@ flowchart LR
     NW --> Merge
     WL --> Merge
 
-    Merge --> Assemble["assemble_case_node<br/><code>LLM → CaseFile</code>"]
+    Merge --> Assemble["assemble_case_node (Case Analyst)<br/><code>LLM → CaseFile + TypologyResult</code>"]
 ```
 
 Each parallel worker invokes a LangChain `@tool` and writes its results to a
 unique key in `gathered_data`. The `_merge_dicts` reducer on the state ensures
 results from parallel branches accumulate without overwriting.
 
-The assembly node uses `model.with_structured_output(CaseFile)` to synthesize
-all gathered evidence into a structured 360-degree profile, applying
-**hierarchical summarization** — detailed data for the most suspicious items,
-summaries for the rest — to prevent context window overflow.
+### 4.3 Case Analyst (assemble_case)
 
-### 4.3 Typology Agent
+**File:** `services/agents/nodes/data_gatherer.py` (`assemble_case_node`)
+**Structured Output:** `CaseAssemblyOutput` (contains `CaseFile` + `TypologyResult`)
+**RAG Source:** `typology_library` collection (12 AML typologies, conditional)
 
-**File:** `services/agents/nodes/typology.py`
-**Structured Output:** `TypologyResult`
-**RAG Source:** `typology_library` collection (12 AML typologies)
+The Case Analyst performs both evidence synthesis and typology classification in
+a **single LLM call** using `model.with_structured_output(CaseAssemblyOutput)`.
+This consolidation reduces latency by eliminating one sequential LLM round-trip.
 
-Classifies suspicious activity into one or more financial crime typologies.
-When the triage agent provides a `typology_hint`, the agent performs RAG lookup
-against the typology library for relevant patterns before classification.
-Includes confidence scores and supporting evidence for regulatory explainability.
+**Evidence Synthesis:** Synthesizes all gathered data into a structured
+360-degree `CaseFile`, applying **hierarchical summarization** — detailed data
+for the most suspicious items, summaries for the rest — to prevent context
+window overflow.
+
+**Typology Classification:** Classifies suspicious activity into one or more
+financial crime typologies. When the triage agent provides a `typology_hint`,
+a conditional `search_typologies` RAG lookup retrieves relevant patterns from
+the typology library before classification. Includes confidence scores and
+supporting evidence for regulatory explainability.
 
 **Available Typologies:**
 
@@ -399,7 +391,7 @@ Includes confidence scores and supporting evidence for regulatory explainability
 
 **File:** `services/agents/nodes/network_analyst.py`
 **Structured Output:** `NetworkRiskProfile`
-**Execution:** Runs in **parallel** with Temporal Analyst after typology
+**Execution:** Runs in **parallel** with Temporal Analyst after Case Analyst
 
 Enriches the investigation with graph-computed network insights (no LLM — pure MongoDB aggregation):
 
@@ -412,7 +404,7 @@ Enriches the investigation with graph-computed network insights (no LLM — pure
 
 **File:** `services/agents/nodes/temporal_analyst.py`
 **Structured Output:** `TemporalAnalysis`
-**Execution:** Runs in **parallel** with Network Analyst after typology
+**Execution:** Runs in **parallel** with Network Analyst after Case Analyst
 
 Pure compute node (no LLM) that detects time-based suspicious patterns using
 MongoDB aggregation pipelines on `transactionsv2`:
@@ -436,6 +428,11 @@ and temporal analyst. It uses MongoDB `$graphLookup` to trace ownership chains,
 then asks the LLM to select up to 3 connected entities as "leads" for
 sub-investigation, providing reasoning for each selection.
 
+**Conditional Skip:** For simple cases (network size ≤ 2, no high-risk
+connections, no ownership chains), the LLM call is skipped entirely and an
+empty set of leads is returned, allowing the pipeline to proceed directly
+to narrative generation.
+
 **Lead selection criteria:**
 - Entities in ownership chains or shell structures
 - Counterparties in flagged or high-risk transactions
@@ -445,7 +442,7 @@ sub-investigation, providing reasoning for each selection.
 ### 4.7 Sub-Investigation Agents
 
 **File:** `services/agents/nodes/sub_investigator.py`
-**Pattern:** `Send` API parallel fan-out + `SubInvestigationSummary` fan-in
+**Pattern:** `Send` API parallel fan-out, results flow directly to SAR Author
 **Scope:** One level deep only (parent → child, no recursion)
 
 ```mermaid
@@ -457,32 +454,30 @@ flowchart LR
     Dispatch -->|"Send"| W2["mini_investigate<br/><i>Lead 2</i>"]
     Dispatch -->|"Send"| W3["mini_investigate<br/><i>Lead 3</i>"]
 
-    W1 --> Collect["collect_sub_findings<br/><code>LLM → SubInvestigationSummary</code>"]
-    W2 --> Collect
-    W3 --> Collect
-
-    Collect --> NR["Narrative Agent"]
+    W1 --> SA["SAR Author"]
+    W2 --> SA
+    W3 --> SA
 ```
 
-**Three components:**
+**Two components:**
 
 | Component | Purpose | LLM |
 |-----------|---------|-----|
-| `dispatch_sub_investigations` | Fans out `Send` per lead from trail analysis | No |
+| `dispatch_sub_investigations` | Fans out `Send` per lead from trail analysis; routes directly to `narrative` if no leads | No |
 | `mini_investigate_node` | Self-contained worker: 4 tool calls (profile, watchlist, transactions, network at depth 1) + single LLM assessment → `LeadAssessment` | Yes (1 call) |
-| `collect_sub_findings_node` | Aggregates parallel results, LLM synthesizes `SubInvestigationSummary` | Yes |
 
-If the trail follower returns no leads, the dispatcher sends an empty payload
-and the collector produces a no-op summary, so the pipeline continues gracefully.
+If the trail follower returns no leads, the dispatcher routes directly to the
+SAR Author node, so the pipeline continues gracefully without sub-investigations.
 
-### 4.8 Narrative Agent
+### 4.8 SAR Author (narrative)
 
 **File:** `services/agents/nodes/narrative.py`
 **Structured Output:** `SARNarrative`
 **RAG Source:** `compliance_policies` collection (6 policies)
 
 Generates SAR-compliant narratives following FinCEN's who/what/when/where/why/how
-structure. The narrative agent now incorporates all evidence streams:
+structure. The SAR Author synthesizes **raw sub-investigation findings directly**
+(no intermediate summarization step) and incorporates all evidence streams:
 
 1. **Case file** — entity profile, transactions, sanctions, network
 2. **Typology classification** — crime type, red flags, confidence
@@ -509,13 +504,13 @@ Critical design constraints:
 | Body | Chronological detail with specific dates, amounts, counterparties |
 | Conclusion | Actions taken, documents available, account status |
 
-### 4.9 Validation Agent
+### 4.9 Compliance QA (validation)
 
 **File:** `services/agents/nodes/validator.py`
 **Structured Output:** `ValidationResult`
 **Routing:** `Command`-based dynamic routing
 
-The critical hallucination prevention layer. Checks:
+The critical hallucination prevention and regulatory compliance layer. Checks:
 
 ```mermaid
 flowchart LR
@@ -530,7 +525,7 @@ flowchart LR
     Checks --> Decision{Score}
 
     Decision -->|"Pass"| HR["→ human_review"]
-    Decision -->|"Quality Issues"| NR["→ narrative<br/>(re-draft)"]
+    Decision -->|"Quality Issues"| NR["→ SAR Author<br/>(re-draft)"]
     Decision -->|"Missing Data"| DG["→ data_gathering<br/>(re-gather)"]
     Decision -->|"Max loops (3)"| FE["→ human_review<br/>(forced escalation)"]
 ```
@@ -569,7 +564,7 @@ Assembles the final investigation document containing:
 - Case ID (generated UUID)
 - Complete alert data, triage decision, case file, typology
 - Network analysis, temporal analysis, trail analysis
-- Sub-investigation findings and summary
+- Sub-investigation findings
 - Full SAR narrative with citations
 - Validation result and human decision
 - Immutable `agent_audit_log` (every agent decision throughout the pipeline)
@@ -902,13 +897,9 @@ classDiagram
         +str summary
     }
 
-    class SubInvestigationSummary {
-        +int total_leads_investigated
-        +List~dict~ high_risk_leads
-        +List~str~ confirmed_connections
-        +List~str~ updated_risk_factors
-        +List~str~ narrative_threads
-        +str summary
+    class CaseAssemblyOutput {
+        +CaseFile case_file
+        +TypologyResult typology
     }
 
     class SARNarrative {
@@ -1006,11 +997,11 @@ Results are merged via `_merge_dicts` reducers on both `gathered_data` and
 ### 8.3 Parallel Analysis Edges
 
 LangGraph supports multiple edges from a single node, enabling true parallel
-execution. After typology classification:
+execution. After the Case Analyst produces both `case_file` and `typology`:
 
 ```python
-builder.add_edge("typology", "network_analyst")
-builder.add_edge("typology", "temporal_analyst")
+builder.add_edge("assemble_case", "network_analyst")
+builder.add_edge("assemble_case", "temporal_analyst")
 
 builder.add_edge("network_analyst", "trail_follower")
 builder.add_edge("temporal_analyst", "trail_follower")
@@ -1055,7 +1046,7 @@ agent can route back to `data_gathering` or `narrative` up to 3 times:
 
 ```mermaid
 flowchart LR
-    N["Narrative"] --> V["Validation"]
+    N["SAR Author"] --> V["Compliance QA"]
     V -->|"Loop ≤ 3"| N
     V -->|"Loop ≤ 3"| DG["Data Gathering"]
     V -->|"Pass or Loop > 3"| HR["Human Review"]
@@ -1256,7 +1247,7 @@ The `AgenticPipelineGraph` component renders the full pipeline as an interactive
 ReactFlow graph. During live investigations, nodes highlight in real-time as
 SSE events arrive. The graph includes:
 
-- **Agent nodes** — triage, data gathering, typology, network analyst, temporal analyst, trail follower, narrative, validation, human review, finalize
+- **Agent nodes** — triage, data gathering, case analyst, network analyst, temporal analyst, trail follower, SAR author, compliance QA, human review, finalize
 - **Worker nodes** — fetch_entity_profile, fetch_transactions, fetch_network, fetch_watchlist, mini_investigate
 - **Collection badges** — MongoDB collection names shown on relevant nodes
 - **Edge labels** — routing labels (auto_close, investigate, parallel, Send)
@@ -1307,19 +1298,18 @@ flowchart LR
 flowchart LR
     A["Alert: shell_company_candidate_var0"] --> T["Triage"]
     T -->|"Risk > 70"| DG["Data Gathering"]
-    DG --> AC["Assemble Case"]
-    AC --> TY["Typology:<br/>shell_company + layering"]
-    TY --> NA["Network Analyst"]
-    TY --> TA["Temporal Analyst"]
+    DG --> CA["Case Analyst"]
+    CA --> NA["Network Analyst"]
+    CA --> TA["Temporal Analyst"]
     NA --> TF["Trail Follower"]
     TA --> TF
     TF --> SI["Sub-Investigations"]
-    SI --> NR["Narrative"]
-    NR --> V["Validation"]
-    V --> HR["Human Review"]
+    SI --> SA["SAR Author"]
+    SA --> CQ["Compliance QA"]
+    CQ --> HR["Human Review"]
     HR --> F["Finalize"]
 
-    style TY fill:#f57f17,color:#fff
+    style CA fill:#00695c,color:#fff
     style HR fill:#c62828,color:#fff
 ```
 
@@ -1338,19 +1328,18 @@ flowchart LR
 flowchart LR
     A["Alert: pep_individual_varied_0"] --> T["Triage"]
     T -->|"PEP + watchlist 0.99<br/>Risk > 70"| DG["Data Gathering"]
-    DG --> AC["Assemble Case"]
-    AC --> TY["Typology:<br/>pep_abuse"]
-    TY --> NA["Network Analyst"]
-    TY --> TA["Temporal Analyst"]
+    DG --> CA["Case Analyst"]
+    CA --> NA["Network Analyst"]
+    CA --> TA["Temporal Analyst"]
     NA --> TF["Trail Follower"]
     TA --> TF
     TF --> SI["Sub-Investigations"]
-    SI --> NR["Narrative"]
-    NR --> V["Validation"]
-    V --> HR["Human Review"]
+    SI --> SA["SAR Author"]
+    SA --> CQ["Compliance QA"]
+    CQ --> HR["Human Review"]
     HR --> F["Finalize"]
 
-    style TY fill:#f57f17,color:#fff
+    style CA fill:#00695c,color:#fff
     style HR fill:#c62828,color:#fff
 ```
 
@@ -1466,10 +1455,10 @@ flowchart TB
 
 ### 5. Ground All Generation in Evidence
 
-The Narrative Agent generates exclusively from the structured evidence
+The SAR Author generates exclusively from the structured evidence
 JSON — never from parametric knowledge. Every factual claim cites its
 evidence source in brackets. The modular approach (separate data gathering →
-structured case file → parallel analysis → sub-investigations → narrative
+case analyst → parallel analysis → sub-investigations → SAR narrative
 generation) dramatically reduces hallucination compared to monolithic prompting.
 
 ### 6. LLM Only Where Reasoning Is Required
@@ -1480,13 +1469,14 @@ synthesis, classification, or judgment:
 | LLM Nodes | Purpose |
 |-----------|---------|
 | Triage | Risk assessment + disposition routing |
-| Assemble Case | Evidence synthesis into structured CaseFile |
-| Typology | Crime pattern classification with RAG |
-| Trail Follower | Lead selection from network + temporal evidence |
+| Case Analyst | Evidence synthesis into CaseFile + typology classification (single call) |
+| Trail Follower | Lead selection from network + temporal evidence (conditional — skipped for simple cases) |
 | Mini-Investigate (per lead) | Rapid lead risk assessment |
-| Collect Sub-Findings | Synthesize parallel sub-investigation results |
-| Narrative | SAR narrative generation |
-| Validation | Quality assurance + routing |
+| SAR Author | SAR narrative generation with direct sub-finding synthesis |
+| Compliance QA | Quality assurance + regulatory compliance routing |
+
+**Maximum LLM calls:** 8 (full pipeline with 3 sub-investigation leads).
+**Minimum LLM calls:** 4 (simple case: triage → case analyst → SAR author → compliance QA, trail follower skipped).
 
 Pure compute nodes (Network Analyst, Temporal Analyst, Data Gathering workers)
 use MongoDB aggregations directly — no LLM overhead.
@@ -1502,8 +1492,8 @@ use MongoDB aggregations directly — no LLM overhead.
 | Context window overflow | Medium | Hierarchical summarization in data gathering: summaries for bulk data, detail only for most suspicious items; payload truncation with `[:14000]` |
 | Tool call failures | Medium | Each tool catches exceptions and returns structured error dicts; agents reason about missing data gracefully |
 | State loss during interrupt | Medium | `MongoDBSaver` persists state durably; pipeline resumes from exact checkpoint |
-| No leads found by trail follower | Low | Dispatcher sends empty payload; collector produces no-op summary; pipeline continues to narrative |
-| Sub-investigation worker failure | Low | Individual worker errors are captured in findings; collector synthesizes available results |
+| No leads found by trail follower | Low | Dispatcher routes directly to SAR Author; pipeline continues without sub-investigations |
+| Sub-investigation worker failure | Low | Individual worker errors are captured in findings; SAR Author synthesizes available results |
 | Cognitive drift over time | Low | Monitor via `agent_audit_log`: are triage scores calibrating? Are investigation steps consistent? |
 | Concurrent investigation conflicts | Low | Each investigation gets a unique `thread_id`; state is isolated per thread |
 
@@ -1522,19 +1512,18 @@ services/agents/
 ├── embeddings.py               # AtlasVoyageEmbeddings wrapper (voyage-4 via Atlas API)
 ├── memory.py                   # MongoDBStore for cross-investigation learning
 ├── chat_agent.py               # ReAct chat co-pilot (13 tools, system prompt)
-├── prompts.py                  # Centralized system prompts (8 prompts)
+├── prompts.py                  # Centralized system prompts (6 prompts)
 ├── seed.py                     # Seed script (12 typologies + 6 policies)
 ├── nodes/
 │   ├── __init__.py
 │   ├── triage.py               # Triage + auto_close
-│   ├── data_gatherer.py        # Fan-out dispatch + 4 workers + fan-in assembly
-│   ├── typology.py             # RAG-powered crime classification
+│   ├── data_gatherer.py        # Fan-out dispatch + 4 workers + Case Analyst (assembly + typology)
 │   ├── network_analyst.py      # $graphLookup network risk profiling
 │   ├── temporal_analyst.py     # MongoDB aggregation temporal pattern detection
-│   ├── trail_follower.py       # $graphLookup + LLM lead selection
-│   ├── sub_investigator.py     # Send fan-out dispatch + mini_investigate workers + fan-in collector
-│   ├── narrative.py            # SAR 5Ws narrative generation
-│   ├── validator.py            # Quality loop with max 3 iterations
+│   ├── trail_follower.py       # $graphLookup + conditional LLM lead selection
+│   ├── sub_investigator.py     # Send fan-out dispatch + mini_investigate workers
+│   ├── narrative.py            # SAR Author — 5Ws narrative generation
+│   ├── validator.py            # Compliance QA — quality loop with max 3 iterations
 │   ├── human_review.py         # interrupt() durable pause/resume
 │   └── finalize.py             # Case document assembly + MongoDB persistence
 └── tools/

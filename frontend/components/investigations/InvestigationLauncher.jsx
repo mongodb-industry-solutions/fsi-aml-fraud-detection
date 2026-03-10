@@ -10,10 +10,10 @@ import { Body, Subtitle, H3 } from '@leafygreen-ui/typography';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 
-import Banner from '@leafygreen-ui/banner';
 import Callout from '@leafygreen-ui/callout';
+import { Spinner } from '@leafygreen-ui/loading-indicator';
 
-import { launchInvestigation, resumeInvestigation } from '@/lib/agent-api';
+import { launchInvestigation, resumeInvestigation, fetchInvestigableEntities } from '@/lib/agent-api';
 import AgenticPipelineGraph from './AgenticPipelineGraph';
 import InvestigationInsightsPanel from './InvestigationInsightsPanel';
 
@@ -119,6 +119,14 @@ const AGENT_LABELS = {
   human_review: { label: 'Human Review', icon: '👁', color: palette.red.base, desc: 'interrupt() durable pause for analyst' },
   finalize: { label: 'Finalizing Case', icon: '📋', color: palette.green.dark2, desc: 'Persist investigation to MongoDB' },
   auto_close: { label: 'Auto-Closing', icon: '✕', color: palette.gray.dark1, desc: 'False positive auto-closure' },
+};
+
+const TYPOLOGY_LABELS = {
+  typ_shell_company: 'Shell Company Abuse',
+  typ_pep_abuse: 'PEP Corruption / Abuse of Office',
+  typ_sanctions_evasion: 'Sanctions Evasion',
+  typ_structuring: 'Structuring / Smurfing',
+  typ_trade_based_ml: 'Trade-Based Money Laundering',
 };
 
 const TOOL_FRIENDLY_NAMES = {
@@ -351,7 +359,6 @@ function ProgressHeader({ steps, running, startTime }) {
           )}
         </span>
         <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-          {(elapsed / 1000).toFixed(1)}s elapsed
         </span>
       </div>
       <div style={{
@@ -442,17 +449,13 @@ function ToolCallDetail({ tool }) {
           color: palette.gray.dark1,
         }}>&#9654;</span>
         <span style={{ fontWeight: 500 }}>{friendlyName}</span>
-        {isRunning ? (
+        {isRunning && (
           <span style={{
             fontSize: 10, padding: '1px 6px', borderRadius: 3,
             background: palette.blue.light3, color: palette.blue.base,
             fontWeight: 500, animation: 'shimmer 1.5s ease-in-out infinite',
           }}>
             processing...
-          </span>
-        ) : (
-          <span style={{ fontSize: 10, color: palette.green.dark1 }}>
-            {((new Date(tool.endTime) - new Date(tool.startTime)) / 1000).toFixed(1)}s
           </span>
         )}
       </div>
@@ -900,21 +903,13 @@ function AgentStepCard({ step, isLast }) {
           {step.statusLabel && isComplete && (
             <Badge variant="lightgray" style={{ fontSize: 9 }}>{step.statusLabel}</Badge>
           )}
-          {step.duration != null && (
-            <span style={{
-              fontSize: 10, fontFamily: FONT, color: palette.gray.base,
-              fontVariantNumeric: 'tabular-nums', marginLeft: 'auto',
-            }}>
-              {(step.duration / 1000).toFixed(1)}s
-            </span>
-          )}
           {hasDetail && (
             <span style={{
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
               width: 16, height: 16, fontSize: 9, color: palette.gray.dark1,
               transition: 'transform 0.15s',
               transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
-              marginLeft: step.duration == null ? 'auto' : 0,
+              marginLeft: 'auto',
             }}>
               <Icon glyph="ChevronDown" size={14} />
             </span>
@@ -1443,6 +1438,22 @@ export default function InvestigationLauncher({ onComplete }) {
     return initial;
   });
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const [entityNameMap, setEntityNameMap] = useState({});
+
+  useEffect(() => {
+    fetchInvestigableEntities()
+      .then((data) => {
+        const map = {};
+        for (const ent of data.entities || []) {
+          const key = ent.scenarioKey;
+          if (key && ent.name?.full) {
+            map[key] = ent.name.full;
+          }
+        }
+        setEntityNameMap(map);
+      })
+      .catch(() => {});
+  }, []);
 
   const accumulatedEvidence = useMemo(() => {
     const evidence = {};
@@ -1528,23 +1539,32 @@ export default function InvestigationLauncher({ onComplete }) {
       {/* Demo Scenarios */}
       {events.length === 0 && !running && (
         <>
-          <Banner variant="info" style={{ marginBottom: spacing[2] }}>
-            <strong>MongoDB + LangGraph for Agentic AI:</strong> MongoDB serves as the backbone for this multi-agent
-            investigation pipeline &mdash; <code>MongoDBSaver</code> checkpoints durable agent state enabling
-            human-in-the-loop pause/resume, the flexible document model stores evolving investigation evidence without
-            schema migrations, and <code>$graphLookup</code> powers real-time network traversal. No Redis, no Kafka, no
-            separate graph database.
-          </Banner>
-          <Banner variant="warning" style={{ marginBottom: spacing[3] }}>
-            <strong>Event-Driven Investigation Trigger:</strong> In production, a Change Stream on the <code>alerts</code> collection
-            watches for new alerts from the transaction monitoring engine. When <code>db.alerts.insertOne()</code> fires,
-            the Change Stream triggers triage automatically &mdash; no polling, no message queue. This demo simulates that
-            flow by inserting an alert document before starting the pipeline.
-          </Banner>
-
-          <Subtitle style={{ fontFamily: FONT, marginBottom: spacing[2] }}>
-            Investigation Scenarios
-          </Subtitle>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: spacing[2] }}>
+            <Subtitle style={{ fontFamily: FONT, margin: 0 }}>
+              Investigation Scenarios
+            </Subtitle>
+            <details style={{ fontSize: 11, fontFamily: FONT, color: palette.gray.dark1 }}>
+              <summary style={{ cursor: 'pointer', color: palette.blue.base, fontWeight: 500 }}>
+                About this pipeline
+              </summary>
+              <div style={{
+                marginTop: spacing[1], padding: spacing[2], borderRadius: 6,
+                background: palette.gray.light3, border: `1px solid ${palette.gray.light2}`,
+                fontSize: 11, lineHeight: 1.6,
+              }}>
+                <p style={{ margin: '0 0 6px' }}>
+                  <strong>MongoDB + LangGraph:</strong> <code>MongoDBSaver</code> checkpoints durable agent state for
+                  human-in-the-loop pause/resume, the flexible document model stores evolving evidence without schema
+                  migrations, and <code>$graphLookup</code> powers real-time network traversal.
+                </p>
+                <p style={{ margin: 0 }}>
+                  <strong>Event-Driven Trigger:</strong> In production, a Change Stream on <code>alerts</code> watches
+                  for new alerts. When <code>db.alerts.insertOne()</code> fires, triage starts automatically. This demo
+                  simulates that flow.
+                </p>
+              </div>
+            </details>
+          </div>
           <Body style={{ fontSize: '12px', color: palette.gray.dark1, fontFamily: FONT, marginBottom: spacing[2] }}>
             Select a scenario category, then click to cycle through entity variants. Each category tests a different investigation path.
           </Body>
@@ -1601,7 +1621,7 @@ export default function InvestigationLauncher({ onComplete }) {
                     marginTop: spacing[1],
                   }}>
                     <Body style={{ fontSize: '11px', color: palette.gray.base, fontFamily: FONT }}>
-                      Entity: <code style={{ fontSize: 11 }}>{currentEntity.entity_id}</code>
+                      Entity: <strong style={{ color: palette.gray.dark1 }}>{entityNameMap[currentEntity.entity_id] || currentEntity.label}</strong>
                     </Body>
                     <span style={{
                       fontSize: 10, color: palette.gray.base, fontFamily: FONT, fontStyle: 'italic',
@@ -1627,8 +1647,8 @@ export default function InvestigationLauncher({ onComplete }) {
                 border: `1px solid ${palette.green.light1}`,
               }}>
                 <Body style={{ fontSize: '13px', fontFamily: FONT, flex: 1 }}>
-                  Ready to investigate <strong>{ent.label}</strong> (<code style={{ fontSize: 12 }}>{ent.entity_id}</code>)
-                  {cat.defaultTypology && <> with typology <code style={{ fontSize: 12 }}>{cat.defaultTypology}</code></>}
+                  Ready to investigate <strong>{entityNameMap[ent.entity_id] || ent.label}</strong>
+                  {cat.defaultTypology && <> &mdash; {TYPOLOGY_LABELS[cat.defaultTypology] || cat.defaultTypology}</>}
                 </Body>
                 <Button
                   size="small" variant="baseGreen"
@@ -1642,6 +1662,21 @@ export default function InvestigationLauncher({ onComplete }) {
           })()}
 
         </>
+      )}
+
+      {/* Initializing state */}
+      {running && events.length === 0 && (
+        <Card style={{
+          padding: spacing[3], marginBottom: spacing[3],
+          border: `1px solid ${palette.gray.light2}`,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2] }}>
+            <Spinner />
+            <Body style={{ fontFamily: FONT, color: palette.gray.dark1 }}>
+              Initializing investigation pipeline...
+            </Body>
+          </div>
+        </Card>
       )}
 
       {/* Live Pipeline Graph Toggle */}

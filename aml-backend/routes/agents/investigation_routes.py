@@ -387,6 +387,16 @@ async def list_investigations(
     investigations = list(cursor)
     total = coll.count_documents(query)
 
+    for inv in investigations:
+        if not inv.get("entity_name"):
+            name = (inv.get("case_file") or {}).get("entity", {}).get("name", "")
+            if name:
+                inv["entity_name"] = name
+                coll.update_one(
+                    {"case_id": inv["case_id"]},
+                    {"$set": {"entity_name": name}},
+                )
+
     return {"investigations": investigations, "total": total, "skip": skip, "limit": limit}
 
 

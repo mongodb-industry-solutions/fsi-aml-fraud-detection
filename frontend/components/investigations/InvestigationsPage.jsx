@@ -122,13 +122,7 @@ export default function InvestigationsPage() {
 
   const kpis = useMemo(() => ({
     total: investigations.length,
-    pendingReview: investigations.filter(i =>
-      i.investigation_status === 'pending_review' || i.investigation_status === 'narrative_generated'
-    ).length,
     filed: investigations.filter(i => i.investigation_status === 'filed').length,
-    escalated: investigations.filter(i =>
-      i.investigation_status === 'forced_escalation'
-    ).length,
   }), [investigations]);
 
   return (
@@ -160,9 +154,7 @@ export default function InvestigationsPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
             {[
               { label: 'Total', value: kpis.total, color: palette.gray.dark2 },
-              { label: 'Pending Review', value: kpis.pendingReview, color: kpis.pendingReview > 0 ? palette.yellow.dark2 : palette.gray.dark1 },
               { label: 'SARs Filed', value: kpis.filed, color: palette.green.dark1 },
-              { label: 'Escalated', value: kpis.escalated, color: kpis.escalated > 0 ? palette.red.base : palette.gray.dark1 },
             ].map(kpi => (
               <div key={kpi.label} style={{
                 padding: '8px 10px',
@@ -302,7 +294,7 @@ export default function InvestigationsPage() {
                       fontSize: 11, color: palette.gray.dark1, fontFamily: FONT,
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}>
-                      {inv.entity_id || inv.alert_data?.entity_id || 'N/A'}
+                      {inv.entity_name || inv.case_file?.entity?.name || inv.entity_id || inv.alert_data?.entity_id || 'N/A'}
                       {riskScore !== undefined && (
                         <span style={{
                           marginLeft: 6, fontWeight: 600,

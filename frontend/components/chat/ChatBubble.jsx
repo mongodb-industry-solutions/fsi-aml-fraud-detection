@@ -161,10 +161,20 @@ export default function ChatBubble({ embedded = false }) {
   const [streaming, setStreaming] = useState(false);
   const [threadId, setThreadId] = useState(null);
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
+  const isNearBottom = useRef(true);
   const inputRef = useRef(null);
 
+  const handleMessagesScroll = useCallback(() => {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    isNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+  }, []);
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isNearBottom.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages, streaming]);
 
   useEffect(() => {
@@ -356,35 +366,41 @@ export default function ChatBubble({ embedded = false }) {
       </div>
 
       {/* Messages */}
-      <div style={{
-        flex: 1,
-        overflowY: 'auto',
-        padding: spacing[2],
-        background: '#fafbfc',
-      }}>
+      <div
+        ref={messagesContainerRef}
+        onScroll={handleMessagesScroll}
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: spacing[2],
+          background: '#fafbfc',
+        }}
+      >
         {messages.length === 0 && (
-          <div style={{ textAlign: 'center', padding: spacing[4] }}>
-            <Body style={{ fontFamily: FONT, color: palette.gray.dark1, fontSize: 13, marginBottom: spacing[2] }}>
-              Ask me about entities, transactions, investigations, typologies, or compliance policies.
-            </Body>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {[
-                'Show me high-risk entities',
-                'What are the red flags for structuring?',
-                'Summarize recent investigations',
-              ].map((q) => (
-                <button
-                  key={q}
-                  onClick={() => { setInput(q); }}
-                  style={{
-                    background: palette.gray.light3, border: `1px solid ${palette.gray.light2}`,
-                    borderRadius: 8, padding: '6px 10px', fontSize: 12, fontFamily: FONT,
-                    color: palette.gray.dark2, cursor: 'pointer', textAlign: 'left',
-                  }}
-                >
-                  {q}
-                </button>
-              ))}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+            <div style={{ textAlign: 'center', padding: spacing[4], maxWidth: 400 }}>
+              <Body style={{ fontFamily: FONT, color: palette.gray.dark1, fontSize: 13, marginBottom: spacing[2] }}>
+                Ask me about entities, transactions, investigations, typologies, or compliance policies.
+              </Body>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {[
+                  'Show me high-risk entities',
+                  'What are the red flags for structuring?',
+                  'Summarize recent investigations',
+                ].map((q) => (
+                  <button
+                    key={q}
+                    onClick={() => { setInput(q); }}
+                    style={{
+                      background: palette.gray.light3, border: `1px solid ${palette.gray.light2}`,
+                      borderRadius: 8, padding: '6px 10px', fontSize: 12, fontFamily: FONT,
+                      color: palette.gray.dark2, cursor: 'pointer', textAlign: 'left',
+                    }}
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}

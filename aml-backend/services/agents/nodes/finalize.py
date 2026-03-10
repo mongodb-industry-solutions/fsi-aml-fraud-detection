@@ -41,10 +41,12 @@ def finalize_node(state: InvestigationState) -> dict:
     )
     total_node_duration = sum(e.get("duration_ms", 0) for e in audit_log)
 
+    case_file_entity = state.get("case_file", {}).get("entity", {})
     case_document = {
         "case_id": case_id,
         "created_at": now.isoformat(),
-        "entity_id": state.get("alert_data", {}).get("entity_id", ""),
+        "entity_id": case_file_entity.get("entity_id") or state.get("alert_data", {}).get("entity_id", ""),
+        "entity_name": case_file_entity.get("name", ""),
         "alert_data": state.get("alert_data", {}),
         "investigation_status": final_status,
         "triage_decision": state.get("triage_decision", {}),

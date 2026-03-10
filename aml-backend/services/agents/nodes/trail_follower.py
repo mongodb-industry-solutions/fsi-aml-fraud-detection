@@ -97,7 +97,10 @@ def trail_follower_node(state: InvestigationState) -> dict:
     typology = state.get("typology", {})
     network = state.get("network_analysis", {})
     temporal = state.get("temporal_analysis", {})
-    entity_id = state.get("alert_data", {}).get("entity_id", "")
+    entity_id = (
+        case_file.get("entity", {}).get("entity_id", "")
+        or state.get("alert_data", {}).get("entity_id", "")
+    )
 
     tool_calls = []
     trace_entries = []

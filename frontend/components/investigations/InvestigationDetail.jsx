@@ -97,7 +97,7 @@ export default function InvestigationDetail({ investigation }) {
           <StatusBadgeDetail status={investigation_status} />
         </div>
         <div style={{ display: 'flex', gap: spacing[4], flexWrap: 'wrap' }}>
-          <InfoPair label="Entity" value={entity_id || alert_data?.entity_id} />
+          <InfoPair label="Entity" value={investigation.entity_name || case_file?.entity?.name || entity_id || alert_data?.entity_id} />
           <InfoPair label="Alert Type" value={alert_data?.alert_type} />
           <InfoPair label="Created" value={created_at ? new Date(created_at).toLocaleString() : 'N/A'} />
           {triage_decision?.risk_score !== undefined && (
@@ -868,7 +868,7 @@ function ToolTraceRow({ trace }) {
           {trace.agent && <span style={{ fontWeight: 400, color: palette.gray.base }}> ({trace.agent})</span>}
         </span>
         <span style={{ color: palette.gray.base }}>
-          {trace.duration_ms != null ? `${trace.duration_ms}ms` : ''} {expanded ? '▼' : '▶'}
+          {expanded ? '▼' : '▶'}
         </span>
       </div>
       {expanded && (
@@ -988,7 +988,6 @@ function AuditTab({ auditLog, toolTrace, metrics }) {
             Pipeline Metrics
           </Subtitle>
           <div style={{ display: 'flex', gap: spacing[2], flexWrap: 'wrap', marginBottom: spacing[2] }}>
-            <MetricCard label="Total Duration" value={formattedDuration} />
             <MetricCard label="LLM Calls" value={metrics.llm_calls_count} />
             <MetricCard label="Tool Calls" value={metrics.tool_calls_count} />
             <MetricCard label="Nodes" value={auditLog.length} />
@@ -1005,7 +1004,6 @@ function AuditTab({ auditLog, toolTrace, metrics }) {
               <MetricCard label="Total Tokens" value={metrics.total_tokens.toLocaleString()} />
             )}
           </div>
-          <DurationBar entries={auditLog} />
         </Card>
       )}
 
@@ -1061,14 +1059,6 @@ function AuditTab({ auditLog, toolTrace, metrics }) {
                     }}>
                       {entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : ''}
                     </span>
-                    {entry.duration_ms != null && (
-                      <span style={{
-                        fontSize: 9, padding: '1px 5px', borderRadius: 3,
-                        background: palette.gray.light2, color: palette.gray.dark1, fontFamily: FONT,
-                      }}>
-                        {entry.duration_ms > 1000 ? `${(entry.duration_ms / 1000).toFixed(1)}s` : `${entry.duration_ms}ms`}
-                      </span>
-                    )}
                     {entry.llm_model && (
                       <span style={{
                         fontSize: 9, padding: '1px 5px', borderRadius: 3,

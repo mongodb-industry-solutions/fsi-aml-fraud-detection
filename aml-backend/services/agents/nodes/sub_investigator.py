@@ -2,8 +2,8 @@
 
 Uses Send-based fan-out (same pattern as data_gatherer) to investigate
 leads identified by the trail_follower. Each mini_investigate worker
-runs tool calls + a single LLM assessment. The collect node synthesises
-all findings for the narrative.
+runs tool calls + a single LLM assessment. Results flow directly to the
+narrative node for synthesis.
 """
 
 import json
@@ -15,9 +15,9 @@ from typing import TypedDict
 from langchain_core.messages import SystemMessage, HumanMessage
 from langgraph.types import Send, Command
 
-from models.agents.investigation import LeadAssessment, SubInvestigationSummary
+from models.agents.investigation import LeadAssessment
 from services.agents.llm import get_llm, extract_token_usage
-from services.agents.prompts import LEAD_ASSESSMENT_SYSTEM, COLLECT_SUB_FINDINGS_SYSTEM
+from services.agents.prompts import LEAD_ASSESSMENT_SYSTEM
 from services.agents.state import InvestigationState
 from services.agents.tools.entity_tools import get_entity_profile, screen_watchlists
 from services.agents.tools.transaction_tools import query_entity_transactions
@@ -54,7 +54,7 @@ def dispatch_sub_investigations(state: InvestigationState) -> Command:
 
     if not leads:
         return Command(
-            goto="collect_sub_findings",
+            goto="narrative",
             update={
                 "investigation_status": "sub_investigations_skipped",
                 "agent_audit_log": [{
@@ -189,75 +189,5 @@ def mini_investigate_node(state: SubInvestigateTask) -> dict:
         "sub_investigation_findings": {entity_id: assessment_dict},
         "_node_tool_calls": tool_calls,
         "tool_trace_log": trace_entries,
-        "agent_audit_log": [audit_entry],
-    }
-
-
-# ── Fan-in collector ──────────────────────────────────────────────────
-
-def collect_sub_findings_node(state: InvestigationState) -> dict:
-    """Synthesise all mini-investigation results into a summary for the narrative."""
-    t0 = time.perf_counter()
-    findings = state.get("sub_investigation_findings", {})
-    case_file = state.get("case_file", {})
-    typology = state.get("typology", {})
-    trail = state.get("trail_analysis", {})
-
-    if not findings:
-        profile = SubInvestigationSummary(
-            summary="No sub-investigations were conducted."
-        )
-        duration_ms = int((time.perf_counter() - t0) * 1000)
-        return {
-            "sub_investigation_summary": profile.model_dump(),
-            "investigation_status": "sub_investigations_complete",
-            "agent_audit_log": [{
-                "agent": "collect_sub_findings",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "duration_ms": duration_ms,
-                "leads_collected": 0,
-                "reasoning": "No sub-investigation findings to collect",
-            }],
-        }
-
-    evidence = json.dumps({
-        "case_file_summary": {
-            "entity": case_file.get("entity", {}),
-            "key_findings": case_file.get("key_findings", []),
-        },
-        "typology": typology,
-        "trail_analysis_summary": trail.get("summary", ""),
-        "sub_investigation_results": findings,
-    }, default=str)[:12000]
-
-    llm = get_llm().with_structured_output(SubInvestigationSummary, include_raw=True)
-    llm_result = llm.invoke([
-        SystemMessage(content=COLLECT_SUB_FINDINGS_SYSTEM),
-        HumanMessage(content=evidence),
-    ])
-    summary: SubInvestigationSummary = llm_result["parsed"]
-    token_usage = extract_token_usage(llm_result["raw"])
-    duration_ms = int((time.perf_counter() - t0) * 1000)
-
-    summary_dump = summary.model_dump()
-
-    audit_entry = {
-        "agent": "collect_sub_findings",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "duration_ms": duration_ms,
-        "llm_model": _LLM_MODEL,
-        "token_usage": token_usage,
-        "leads_collected": len(findings),
-        "high_risk_count": len(summary.high_risk_leads),
-        "output_summary": (
-            f"investigated={summary.total_leads_investigated}, "
-            f"high_risk={len(summary.high_risk_leads)}, "
-            f"risk_factors={len(summary.updated_risk_factors)}"
-        ),
-    }
-
-    return {
-        "sub_investigation_summary": summary_dump,
-        "investigation_status": "sub_investigations_complete",
         "agent_audit_log": [audit_entry],
     }

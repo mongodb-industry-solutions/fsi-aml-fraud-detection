@@ -30,12 +30,10 @@ const AGENT_COLORS = {
   fetch_network: palette.purple.light1,
   fetch_watchlist: palette.purple.light1,
   assemble_case: palette.green.dark1,
-  typology: palette.yellow.dark2,
   network_analyst: palette.yellow.dark2,
   temporal_analyst: palette.yellow.dark2,
   trail_follower: palette.blue.dark2,
   sub_investigation_dispatch: palette.purple.base,
-  collect_sub_findings: palette.green.dark1,
   narrative: palette.green.base,
   validation: palette.blue.dark1,
   human_review: palette.red.base,
@@ -76,7 +74,6 @@ export default function InvestigationDetail({ investigation }) {
     temporal_analysis,
     trail_analysis,
     sub_investigation_findings,
-    sub_investigation_summary,
     narrative,
     validation_result,
     human_decision,
@@ -159,7 +156,7 @@ export default function InvestigationDetail({ investigation }) {
           networkAnalysis={network_analysis}
           temporalAnalysis={temporal_analysis}
           trailAnalysis={trail_analysis}
-          subInvestigationSummary={sub_investigation_summary}
+          subInvestigationFindings={sub_investigation_findings}
         />
       )}
 
@@ -171,7 +168,6 @@ export default function InvestigationDetail({ investigation }) {
           temporalAnalysis={temporal_analysis}
           trailAnalysis={trail_analysis}
           subFindings={sub_investigation_findings}
-          subSummary={sub_investigation_summary}
         />
       )}
 
@@ -210,7 +206,7 @@ export default function InvestigationDetail({ investigation }) {
 // Summary Tab
 // ---------------------------------------------------------------------------
 
-function SummaryTab({ triage, typology, validation, humanDecision, networkAnalysis, temporalAnalysis, trailAnalysis, subInvestigationSummary }) {
+function SummaryTab({ triage, typology, validation, humanDecision, networkAnalysis, temporalAnalysis, trailAnalysis, subInvestigationFindings }) {
   const riskScore = triage?.risk_score;
   const risk = riskScore != null ? getRiskLevel(riskScore) : null;
   const conf = typology?.confidence;
@@ -464,34 +460,32 @@ function SummaryTab({ triage, typology, validation, humanDecision, networkAnalys
         </div>
       )}
 
-      {/* Sub-Investigations: compact summary */}
-      {subInvestigationSummary && subInvestigationSummary.total_leads_investigated > 0 && (
-        <Card style={{ padding: spacing[3], border: `1px solid ${palette.gray.light2}` }}>
-          <div style={{ fontSize: 11, color: palette.gray.base, fontFamily: FONT, textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.5px' }}>
-            Sub-Investigations
-          </div>
-          <div style={{ display: 'flex', gap: spacing[4], flexWrap: 'wrap', marginBottom: spacing[2] }}>
-            <InfoPair label="Leads Investigated" value={subInvestigationSummary.total_leads_investigated} />
-            <InfoPair label="High-Risk Leads" value={subInvestigationSummary.high_risk_leads?.length || 0} />
-            <InfoPair label="Confirmed Connections" value={subInvestigationSummary.confirmed_connections?.length || 0} />
-          </div>
-          {subInvestigationSummary.updated_risk_factors?.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: spacing[2] }}>
-              {subInvestigationSummary.updated_risk_factors.map((f, i) => (
-                <span key={i} style={{
-                  fontSize: 11, fontFamily: FONT, padding: '2px 8px',
-                  borderRadius: 3, background: palette.red.light3, color: palette.red.dark2,
-                }}>{f}</span>
-              ))}
+      {/* Sub-Investigations: derived from raw findings */}
+      {subInvestigationFindings && Object.keys(subInvestigationFindings).length > 0 && (() => {
+        const entries = Object.values(subInvestigationFindings);
+        const highRisk = entries.filter(e => e.risk_level === 'high' || e.risk_level === 'critical');
+        return (
+          <Card style={{ padding: spacing[3], border: `1px solid ${palette.gray.light2}` }}>
+            <div style={{ fontSize: 11, color: palette.gray.base, fontFamily: FONT, textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.5px' }}>
+              Sub-Investigations
             </div>
-          )}
-          {subInvestigationSummary.summary && (
-            <Body style={{ fontSize: '12px', fontFamily: FONT, color: palette.gray.dark1, lineHeight: 1.6 }}>
-              {subInvestigationSummary.summary}
-            </Body>
-          )}
-        </Card>
-      )}
+            <div style={{ display: 'flex', gap: spacing[4], flexWrap: 'wrap', marginBottom: spacing[2] }}>
+              <InfoPair label="Leads Investigated" value={entries.length} />
+              <InfoPair label="High-Risk Leads" value={highRisk.length} />
+            </div>
+            {highRisk.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: spacing[2] }}>
+                {highRisk.flatMap(e => e.red_flags || []).map((f, i) => (
+                  <span key={i} style={{
+                    fontSize: 11, fontFamily: FONT, padding: '2px 8px',
+                    borderRadius: 3, background: palette.red.light3, color: palette.red.dark2,
+                  }}>{f}</span>
+                ))}
+              </div>
+            )}
+          </Card>
+        );
+      })()}
     </div>
   );
 }
@@ -500,7 +494,7 @@ function SummaryTab({ triage, typology, validation, humanDecision, networkAnalys
 // Evidence Tab
 // ---------------------------------------------------------------------------
 
-function EvidenceTab({ caseFile, typology, networkAnalysis, temporalAnalysis, trailAnalysis, subFindings, subSummary }) {
+function EvidenceTab({ caseFile, typology, networkAnalysis, temporalAnalysis, trailAnalysis, subFindings }) {
   if (!caseFile && !networkAnalysis) {
     return (
       <Card style={{ padding: spacing[4], textAlign: 'center' }}>
@@ -634,11 +628,6 @@ function EvidenceTab({ caseFile, typology, networkAnalysis, temporalAnalysis, tr
       {/* Sub-Investigation Findings: compact table rows */}
       {subFindings && Object.keys(subFindings).length > 0 && (
         <Section title="Sub-Investigation Findings" icon="Beaker">
-          {subSummary?.summary && (
-            <Body style={{ fontSize: '14px', fontFamily: FONT, color: palette.gray.dark1, lineHeight: 1.7, marginBottom: spacing[2] }}>
-              {subSummary.summary}
-            </Body>
-          )}
           <div style={{ border: `1px solid ${palette.gray.light2}`, borderRadius: 6, overflow: 'hidden' }}>
             {Object.entries(subFindings).map(([entityId, assessment], idx) => (
               <div key={entityId} style={{

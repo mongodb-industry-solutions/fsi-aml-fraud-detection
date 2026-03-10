@@ -95,6 +95,12 @@ class TypologyResult(BaseModel):
     reasoning: str = ""
 
 
+class CaseAssemblyOutput(BaseModel):
+    """Combined structured output for case assembly + typology classification."""
+    case_file: CaseFile = Field(default_factory=CaseFile)
+    typology: TypologyResult = Field(default_factory=TypologyResult)
+
+
 # ---------------------------------------------------------------------------
 # Network Analysis
 # ---------------------------------------------------------------------------
@@ -160,15 +166,6 @@ class LeadAssessment(BaseModel):
     recommendation: Literal[
         "no_concern", "monitor", "escalate", "investigate_further"
     ] = "monitor"
-    summary: str = ""
-
-
-class SubInvestigationSummary(BaseModel):
-    total_leads_investigated: int = 0
-    high_risk_leads: List[dict] = Field(default_factory=list)
-    confirmed_connections: List[str] = Field(default_factory=list)
-    updated_risk_factors: List[str] = Field(default_factory=list)
-    narrative_threads: List[str] = Field(default_factory=list)
     summary: str = ""
 
 

@@ -10,13 +10,14 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langgraph.types import Send, Command
 
 from dependencies import get_mongo_client, DB_NAME
-from models.agents.investigation import CaseFile
+from models.agents.investigation import CaseAssemblyOutput
 from services.agents.llm import get_llm, extract_token_usage
 from services.agents.prompts import CASE_ASSEMBLY_SYSTEM
 from services.agents.state import InvestigationState
 from services.agents.tools.entity_tools import get_entity_profile, screen_watchlists
 from services.agents.tools.transaction_tools import query_entity_transactions
 from services.agents.tools.network_tools import analyze_entity_network
+from services.agents.tools.policy_tools import search_typologies
 
 logger = logging.getLogger(__name__)
 
@@ -140,36 +141,85 @@ def fetch_watchlist_node(state: GatherTask) -> dict:
     )
 
 
-# ── Fan-in assembly ──────────────────────────────────────────────────
+# ── Fan-in assembly + typology classification ────────────────────────
 
 def assemble_case_node(state: InvestigationState) -> dict:
+    """Build case file AND classify typology in a single LLM call."""
     t0 = time.perf_counter()
     gathered = state.get("gathered_data", {})
+    triage = state.get("triage_decision", {})
+    hint = triage.get("typology_hint", "")
 
-    llm = get_llm().with_structured_output(CaseFile, include_raw=True)
+    tool_calls = []
+    trace_entries = []
+    typology_context = "No specific typology hints."
+
+    if hint:
+        tool_input = {"query": hint}
+        t_tool = time.perf_counter()
+        relevant_typologies = search_typologies.invoke(tool_input)
+        tool_dur = int((time.perf_counter() - t_tool) * 1000)
+        output_text = json.dumps(relevant_typologies, default=str)
+        truncated = output_text[:_MAX_TOOL_OUTPUT] + "..." if len(output_text) > _MAX_TOOL_OUTPUT else output_text
+        tool_calls.append({
+            "tool": "search_typologies",
+            "input": json.dumps(tool_input),
+            "output": truncated,
+        })
+        trace_entries.append({
+            "tool": "search_typologies",
+            "agent": "case_assembly",
+            "input": json.dumps(tool_input),
+            "output": truncated,
+            "duration_ms": tool_dur,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+        if relevant_typologies:
+            typology_context = json.dumps(relevant_typologies, default=str)[:4000]
+
+    gathered_text = json.dumps(gathered, default=str)[:12000]
+
+    llm = get_llm().with_structured_output(CaseAssemblyOutput, include_raw=True)
     result = llm.invoke([
         SystemMessage(content=CASE_ASSEMBLY_SYSTEM),
-        HumanMessage(content=json.dumps(gathered, default=str)[:12000]),
+        HumanMessage(content=(
+            f"GATHERED EVIDENCE:\n{gathered_text}\n\n"
+            f"RELEVANT TYPOLOGIES FROM LIBRARY:\n{typology_context}"
+        )),
     ])
-    case_file: CaseFile = result["parsed"]
+    assembly: CaseAssemblyOutput = result["parsed"]
     token_usage = extract_token_usage(result["raw"])
     duration_ms = int((time.perf_counter() - t0) * 1000)
 
-    case_dump = case_file.model_dump()
+    case_dump = assembly.case_file.model_dump()
+    typology_dump = assembly.typology.model_dump()
     findings_count = len(case_dump.get("key_findings", []) if isinstance(case_dump.get("key_findings"), list) else [])
+    secondary = typology_dump.get("secondary_typologies", [])
 
     audit_entry = {
-        "agent": "data_gathering",
+        "agent": "case_assembly",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "duration_ms": duration_ms,
         "llm_model": _LLM_MODEL,
         "token_usage": token_usage,
         "sources_gathered": list(gathered.keys()),
-        "output_summary": f"{findings_count} key findings assembled from {len(gathered)} sources",
+        "primary_typology": assembly.typology.primary_typology.value,
+        "typology_confidence": assembly.typology.confidence,
+        "secondary_typologies": [str(s) for s in secondary[:3]],
+        "typology_reasoning": typology_dump.get("reasoning", "")[:300],
+        "input_summary": f"gathered_data with {len(gathered)} sources, hint={hint or 'none'}",
+        "output_summary": (
+            f"{findings_count} key findings, "
+            f"typology={assembly.typology.primary_typology.value} "
+            f"(confidence={assembly.typology.confidence})"
+        ),
     }
 
     return {
         "case_file": case_dump,
-        "investigation_status": "case_assembled",
+        "typology": typology_dump,
+        "investigation_status": "case_assembled_and_typology_classified",
+        "_node_tool_calls": tool_calls,
+        "tool_trace_log": trace_entries,
         "agent_audit_log": [audit_entry],
     }

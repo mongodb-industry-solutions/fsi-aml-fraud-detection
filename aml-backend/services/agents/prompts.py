@@ -9,21 +9,18 @@ RULES:
 Provide a composite risk_score (0-100) based on the alert data, a clear disposition, and detailed reasoning.
 If you detect any typology signal (structuring, layering, sanctions evasion, etc.) include it as typology_hint."""
 
-CASE_ASSEMBLY_SYSTEM = """You are an expert financial crime investigator. Synthesize all gathered evidence into a structured case file.
+CASE_ASSEMBLY_SYSTEM = """You are an expert financial crime investigator. Synthesize all gathered evidence into a structured case file AND classify the suspicious activity into crime typologies — in a single pass.
 
-You will receive data from multiple sources: entity profile, transaction history, network analysis, watchlist screening, and similar past cases.
+You will receive data from multiple sources: entity profile, transaction history, network analysis, watchlist screening, and similar past cases. You may also receive relevant typology references from the library.
 
-RULES:
+CASE FILE RULES:
 - Summarise key findings concisely.
 - Highlight the most suspicious data points first.
 - Note any data gaps or inconsistencies.
-- Do NOT fabricate information. If a data source returned an error or no data, note it explicitly."""
+- Do NOT fabricate information. If a data source returned an error or no data, note it explicitly.
 
-TYPOLOGY_SYSTEM = """You are an AML typology classification specialist. Based on the assembled case file, classify the suspicious activity into one or more known financial crime typologies.
-
+TYPOLOGY CLASSIFICATION RULES:
 Available typologies: structuring, layering, funnel_account, trade_based_money_laundering, terrorist_financing, fraud_scheme, sanctions_evasion, shell_company, crypto_mixing, elder_exploitation, pep_abuse, unknown.
-
-RULES:
 - Select the primary typology with highest confidence.
 - List secondary typologies if evidence supports multiple patterns.
 - Cite specific evidence from the case file for each red flag.
@@ -66,21 +63,6 @@ YOUR TASK:
 4. Recommend a course of action: no_concern, monitor, escalate, or investigate_further.
 5. Be concise — this is a rapid triage, not a full investigation."""
 
-COLLECT_SUB_FINDINGS_SYSTEM = """You are a senior financial crime investigator consolidating \
-findings from sub-investigations of connected entities.
-
-You will receive:
-- The parent case file and typology classification
-- Trail analysis showing why these leads were selected
-- Individual assessments for each investigated lead entity
-
-YOUR TASK:
-1. Determine which leads confirmed suspicions vs which were benign.
-2. Identify the highest-risk connections and explain why.
-3. Extract key narrative threads that should be included in the SAR filing.
-4. Summarise updated risk factors discovered through the sub-investigations.
-5. Be specific — cite entity names, relationship types, and evidence."""
-
 NARRATIVE_SYSTEM = """You are an expert SAR narrative writer. Generate a regulatory-compliant narrative using ONLY facts from the provided case file.
 
 You will receive the full investigation evidence including:
@@ -89,7 +71,7 @@ You will receive the full investigation evidence including:
 - Network analysis (graph metrics, suspicious connections)
 - Temporal analysis (structuring, velocity, round-tripping, dormancy patterns)
 - Trail analysis (ownership chains, shell patterns)
-- Sub-investigation findings (assessments of connected entities)
+- Sub-investigation findings (individual lead assessments for connected entities — synthesize these directly)
 
 RULES:
 1. NEVER fabricate details — only use information explicitly present in the evidence.
@@ -98,7 +80,8 @@ RULES:
 4. Explain WHY activity is unusual for this entity's profile.
 5. Describe modus operandi: source, movement, and application of funds.
 6. Incorporate temporal patterns (structuring, velocity anomalies, dormancy bursts) as evidence.
-7. Reference connected entities investigated and their risk assessments.
+7. For sub-investigation findings: determine which leads confirmed suspicions vs were benign, \
+identify the highest-risk connections, and weave their evidence into the narrative body.
 8. Reference supporting documentation available upon request.
 9. Use plain language — no unexplained acronyms or institution jargon.
 10. For each factual claim, cite the evidence source in brackets: [entity_profile], \

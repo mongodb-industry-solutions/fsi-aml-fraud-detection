@@ -105,6 +105,9 @@ def trail_follower_node(state: InvestigationState) -> dict:
     tool_calls = []
     trace_entries = []
 
+    network_size = network.get("network_size", 0)
+    high_risk_conns = network.get("high_risk_connections", 0)
+
     ownership_chains = []
     if entity_id:
         client = get_mongo_client()
@@ -127,6 +130,30 @@ def trail_follower_node(state: InvestigationState) -> dict:
             "duration_ms": tool_dur,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         })
+
+    if network_size <= 2 and high_risk_conns == 0 and not ownership_chains:
+        duration_ms = int((time.perf_counter() - t0) * 1000)
+        empty = TrailAnalysis(
+            summary="Skipped — network too small and no ownership chains found.",
+        )
+        result_dump = empty.model_dump()
+        result_dump["ownership_chains"] = ownership_chains
+        return {
+            "trail_analysis": result_dump,
+            "investigation_status": "trail_analysis_skipped",
+            "_node_tool_calls": tool_calls,
+            "tool_trace_log": trace_entries,
+            "agent_audit_log": [{
+                "agent": "trail_follower",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "duration_ms": duration_ms,
+                "skipped": True,
+                "reasoning": (
+                    f"network_size={network_size}, high_risk_connections={high_risk_conns}, "
+                    f"ownership_chains=0 — LLM call skipped"
+                ),
+            }],
+        }
 
     evidence_payload = json.dumps({
         "case_file": case_file,

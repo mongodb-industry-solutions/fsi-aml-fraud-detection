@@ -31,9 +31,9 @@ router = APIRouter(prefix="/agents", tags=["agent-investigation"])
 
 _AGENT_NODES = frozenset({
     "triage", "data_gathering", "assemble_case",
-    "typology", "network_analyst", "temporal_analyst",
+    "network_analyst", "temporal_analyst",
     "trail_follower", "dispatch_sub_investigations",
-    "mini_investigate", "collect_sub_findings",
+    "mini_investigate",
     "narrative", "validation", "human_review", "finalize",
     "auto_close",
     "fetch_entity_profile", "fetch_transactions",
@@ -43,7 +43,7 @@ _AGENT_NODES = frozenset({
 _STATE_OUTPUT_KEYS = (
     "triage_decision", "typology", "narrative", "network_analysis",
     "temporal_analysis", "trail_analysis", "sub_investigation_findings",
-    "sub_investigation_summary", "validation_result", "case_file",
+    "validation_result", "case_file",
     "gathered_data", "human_decision",
 )
 

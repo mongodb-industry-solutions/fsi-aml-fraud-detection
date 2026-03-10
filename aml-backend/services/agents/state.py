@@ -53,7 +53,6 @@ class InvestigationState(TypedDict, total=False):
 
     # Sub-investigation results (keyed by entity_id, merged via reducer)
     sub_investigation_findings: Annotated[dict, _merge_dicts]
-    sub_investigation_summary: dict
 
     # SAR narrative
     narrative: dict

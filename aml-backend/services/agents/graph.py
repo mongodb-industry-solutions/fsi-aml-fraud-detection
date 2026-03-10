@@ -26,14 +26,12 @@ from services.agents.nodes.data_gatherer import (
     fetch_watchlist_node,
     assemble_case_node,
 )
-from services.agents.nodes.typology import typology_node
 from services.agents.nodes.network_analyst import network_analyst_node
 from services.agents.nodes.temporal_analyst import temporal_analyst_node
 from services.agents.nodes.trail_follower import trail_follower_node
 from services.agents.nodes.sub_investigator import (
     dispatch_sub_investigations,
     mini_investigate_node,
-    collect_sub_findings_node,
 )
 from services.agents.nodes.narrative import narrative_node
 from services.agents.nodes.validator import validation_node
@@ -63,21 +61,19 @@ def build_investigation_graph() -> StateGraph:
     builder.add_node("fetch_network", fetch_network_node)
     builder.add_node("fetch_watchlist", fetch_watchlist_node)
 
-    # Fan-in assembly
+    # Fan-in assembly + typology classification (merged into single LLM call)
     builder.add_node("assemble_case", assemble_case_node)
 
-    # Analysis pipeline
-    builder.add_node("typology", typology_node)
+    # Parallel compute nodes (no LLM)
     builder.add_node("network_analyst", network_analyst_node)
     builder.add_node("temporal_analyst", temporal_analyst_node)
 
-    # Trail follower (LLM lead selection after network + temporal converge)
+    # Trail follower (conditional LLM lead selection after network + temporal converge)
     builder.add_node("trail_follower", trail_follower_node)
 
-    # Sub-investigation fan-out
+    # Sub-investigation fan-out (mini_investigate fans directly into narrative)
     builder.add_node("dispatch_sub_investigations", dispatch_sub_investigations)
     builder.add_node("mini_investigate", mini_investigate_node)
-    builder.add_node("collect_sub_findings", collect_sub_findings_node)
 
     # Narrative + validation
     builder.add_node("narrative", narrative_node)
@@ -97,18 +93,15 @@ def build_investigation_graph() -> StateGraph:
     # Auto-close still goes through finalize so the case is persisted
     builder.add_edge("auto_close", "finalize")
 
-    # Fan-out workers -> assemble_case
+    # Fan-out workers -> assemble_case (includes typology classification)
     builder.add_edge("fetch_entity_profile", "assemble_case")
     builder.add_edge("fetch_transactions", "assemble_case")
     builder.add_edge("fetch_network", "assemble_case")
     builder.add_edge("fetch_watchlist", "assemble_case")
 
-    # Sequential: assemble -> typology
-    builder.add_edge("assemble_case", "typology")
-
-    # Parallel: typology -> [network_analyst, temporal_analyst]
-    builder.add_edge("typology", "network_analyst")
-    builder.add_edge("typology", "temporal_analyst")
+    # Parallel: assemble_case -> [network_analyst, temporal_analyst]
+    builder.add_edge("assemble_case", "network_analyst")
+    builder.add_edge("assemble_case", "temporal_analyst")
 
     # Both converge into trail_follower
     builder.add_edge("network_analyst", "trail_follower")
@@ -117,11 +110,10 @@ def build_investigation_graph() -> StateGraph:
     # Trail follower -> dispatch sub-investigations
     builder.add_edge("trail_follower", "dispatch_sub_investigations")
 
-    # Sub-investigation workers -> collect_sub_findings
-    builder.add_edge("mini_investigate", "collect_sub_findings")
+    # Sub-investigation workers -> narrative (collect_sub_findings merged in)
+    builder.add_edge("mini_investigate", "narrative")
 
-    # Collect -> narrative -> validation
-    builder.add_edge("collect_sub_findings", "narrative")
+    # Narrative -> validation
     builder.add_edge("narrative", "validation")
 
     # Human review -> finalize

@@ -356,7 +356,14 @@ export default function InvestigationsPage() {
           {activeView === 'assistant' && (
             <div style={{ display: 'flex', gap: spacing[3], height: '100%', minHeight: 'calc(100vh - 280px)' }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <ChatBubble embedded={true} defaultExpanded={true} />
+                <ChatBubble
+                  embedded={true}
+                  pageContext={selectedCase ? {
+                    type: 'investigation',
+                    caseId: selectedCase.case_id,
+                    entityId: selectedCase.entity_id,
+                  } : null}
+                />
               </div>
               <aside style={{
                 width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: spacing[2],

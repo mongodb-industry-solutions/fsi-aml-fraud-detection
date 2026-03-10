@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import Button from '@leafygreen-ui/button';
 import Badge from '@leafygreen-ui/badge';
 import { Body, Subtitle } from '@leafygreen-ui/typography';
@@ -14,6 +14,109 @@ import remarkGfm from 'remark-gfm';
 import { sendChatMessage } from '@/lib/agent-api';
 
 const FONT = "'Euclid Circular A', sans-serif";
+
+const RISK_COLORS = {
+  critical: { bg: '#fce4ec', text: '#b71c1c', border: '#ef9a9a' },
+  high:     { bg: '#fff3e0', text: '#e65100', border: '#ffcc80' },
+  medium:   { bg: '#fff8e1', text: '#f57f17', border: '#fff176' },
+  low:      { bg: '#e8f5e9', text: '#2e7d32', border: '#a5d6a7' },
+};
+
+const TOOL_STATUS_LABELS = {
+  search_entities:           'Searching entities',
+  search_investigations:     'Searching investigations',
+  get_entity_profile:        'Loading entity profile',
+  get_investigation_detail:  'Loading case details',
+  get_risk_summary:          'Analyzing risk',
+  compare_entities:          'Comparing entities',
+  trace_fund_flow:           'Tracing fund flows',
+  find_similar_entities:     'Finding similar entities',
+  analyze_temporal_patterns: 'Analyzing temporal patterns',
+  expand_investigation_lead: 'Expanding lead',
+  query_entity_transactions: 'Querying transactions',
+  analyze_entity_network:    'Analyzing network',
+  screen_watchlists:         'Screening watchlists',
+  search_typologies:         'Searching typologies',
+  lookup_typology:           'Looking up typology',
+  search_compliance_policies:'Searching policies',
+};
+
+// ─── localStorage thread history helpers ──────────────────────────────────
+
+const THREADS_STORAGE_KEY = 'aml-chat-threads';
+
+function loadThreads() {
+  try { return JSON.parse(localStorage.getItem(THREADS_STORAGE_KEY) || '[]'); }
+  catch { return []; }
+}
+
+function persistThreads(threads) {
+  localStorage.setItem(THREADS_STORAGE_KEY, JSON.stringify(threads.slice(0, 30)));
+}
+
+function upsertThread(threadId, title) {
+  const threads = loadThreads();
+  const idx = threads.findIndex(t => t.threadId === threadId);
+  const entry = { threadId, title: (title || 'Untitled').slice(0, 80), updatedAt: Date.now() };
+  if (idx >= 0) Object.assign(threads[idx], entry);
+  else threads.unshift(entry);
+  threads.sort((a, b) => b.updatedAt - a.updatedAt);
+  persistThreads(threads);
+}
+
+// ─── JSON parse helper ────────────────────────────────────────────────────
+
+function tryParseJSON(val) {
+  if (val && typeof val === 'object') return val;
+  if (!val || typeof val !== 'string') return null;
+  try { return JSON.parse(val); } catch { return null; }
+}
+
+// ─── Derive follow-up suggestions from tool calls ────────────────────────
+
+function deriveFollowUps(toolCalls) {
+  if (!toolCalls?.length) return [];
+  const suggestions = [];
+
+  for (const tc of toolCalls) {
+    const data = tryParseJSON(tc.output);
+    if (!data) continue;
+
+    if (tc.tool === 'search_entities' && data.entities?.length) {
+      const first = data.entities[0];
+      const label = first.name?.full || first.entityId;
+      suggestions.push(`Show risk summary for ${label}`);
+      if (data.entities.length > 1) {
+        const second = data.entities[1];
+        suggestions.push(`Compare ${first.name?.full || first.entityId} and ${second.name?.full || second.entityId}`);
+      }
+      suggestions.push(`Trace fund flows for ${label}`);
+    }
+    if (tc.tool === 'search_investigations' && data.investigations?.length) {
+      suggestions.push(`Show details for case ${data.investigations[0].case_id}`);
+    }
+    if (tc.tool === 'get_entity_profile' && (data.entityId || data.entity_id)) {
+      const eid = data.entityId || data.entity_id;
+      suggestions.push(`Screen watchlists for ${eid}`);
+      suggestions.push(`Analyze transactions for ${eid}`);
+      suggestions.push(`Find entities similar to ${eid}`);
+    }
+    if (tc.tool === 'get_risk_summary' && data.entity_id) {
+      suggestions.push(`Trace fund flows for ${data.entity_id}`);
+      suggestions.push(`Analyze temporal patterns for ${data.entity_id}`);
+    }
+    if (tc.tool === 'get_investigation_detail' && data.entity_id) {
+      suggestions.push(`Show entity profile for ${data.entity_id}`);
+    }
+    if (tc.tool === 'trace_fund_flow' && data.entity_id) {
+      suggestions.push(`Analyze temporal patterns for ${data.entity_id}`);
+    }
+  }
+
+  return [...new Set(suggestions)].slice(0, 3);
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────
 
 const markdownStyles = `
 .chat-md h1, .chat-md h2, .chat-md h3 {
@@ -42,7 +145,193 @@ const markdownStyles = `
 .chat-md th, .chat-md td { border: 1px solid rgba(0,0,0,0.1); padding: 3px 6px; }
 `;
 
-function ToolCallIndicator({ tool, input, output, collapsed, onToggle }) {
+const miniActionBtn = {
+  background: 'none',
+  border: `1px solid ${palette.gray.light2}`,
+  borderRadius: 4,
+  cursor: 'pointer',
+  padding: '1px 5px',
+  fontSize: 11,
+  color: palette.gray.dark1,
+  fontFamily: FONT,
+  lineHeight: 1.6,
+  transition: 'background 0.12s, border-color 0.12s',
+};
+
+// ─── Micro-components ─────────────────────────────────────────────────────
+
+function RiskBadge({ level, score }) {
+  const key = (level || '').toLowerCase();
+  const colors = RISK_COLORS[key] || { bg: palette.gray.light3, text: palette.gray.dark1, border: palette.gray.light2 };
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 3,
+      padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 600,
+      background: colors.bg, color: colors.text, border: `1px solid ${colors.border}`,
+      fontFamily: FONT, textTransform: 'uppercase', letterSpacing: '0.3px',
+      whiteSpace: 'nowrap',
+    }}>
+      {level || '—'}{score != null ? ` · ${score}` : ''}
+    </span>
+  );
+}
+
+function EntityCard({ entity, onAction }) {
+  const name = entity.name?.full || entity.entityId || '—';
+  const risk = entity.riskAssessment?.overall || {};
+  const isOrg = (entity.entityType || '').toLowerCase() === 'organization';
+
+  return (
+    <div style={{
+      padding: '6px 8px', borderRadius: 6,
+      border: `1px solid ${palette.gray.light2}`, background: '#fff',
+      display: 'flex', alignItems: 'center', gap: 8,
+      marginBottom: 4, fontSize: 11, fontFamily: FONT,
+    }}>
+      <span style={{ fontSize: 14, flexShrink: 0 }}>{isOrg ? '🏢' : '👤'}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontWeight: 600, color: palette.gray.dark3,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>{name}</div>
+        <div style={{ color: palette.gray.base, fontSize: 10 }}>
+          {entity.entityId}
+          {entity.scenarioKey ? ` · ${entity.scenarioKey}` : ''}
+        </div>
+      </div>
+      <RiskBadge level={risk.level} score={risk.score} />
+      {onAction && (
+        <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+          <button onClick={() => onAction(`Show risk summary for ${entity.entityId}`)}
+            style={miniActionBtn} title="Risk summary">📊</button>
+          <button onClick={() => onAction(`Trace fund flows for ${entity.entityId}`)}
+            style={miniActionBtn} title="Trace funds">💸</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InvestigationRow({ inv, onAction }) {
+  const disposition = inv.triage_disposition || inv.status || 'unknown';
+  const badgeVariant = disposition === 'file_sar' || disposition === 'filed'
+    ? 'green' : disposition === 'escalate' ? 'red' : 'lightgray';
+
+  return (
+    <div style={{
+      padding: '5px 8px', borderRadius: 6,
+      border: `1px solid ${palette.gray.light2}`, background: '#fff',
+      marginBottom: 4, fontSize: 11, fontFamily: FONT,
+      display: 'flex', alignItems: 'center', gap: 8,
+    }}>
+      <span style={{ fontSize: 12, flexShrink: 0 }}>📋</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <span
+          style={{ fontWeight: 600, color: palette.blue.dark1, cursor: onAction ? 'pointer' : 'default' }}
+          onClick={() => onAction?.(`Show details for case ${inv.case_id}`)}
+        >
+          {inv.case_id}
+        </span>
+        {inv.typology && <span style={{ color: palette.gray.base, marginLeft: 6 }}>{inv.typology}</span>}
+      </div>
+      {inv.risk_score != null && (
+        <span style={{ fontSize: 10, color: palette.gray.dark1 }}>Risk {inv.risk_score}</span>
+      )}
+      <Badge variant={badgeVariant} style={{ fontSize: 9 }}>{disposition}</Badge>
+    </div>
+  );
+}
+
+function RiskSummaryCard({ data }) {
+  const risk = data.risk_assessment?.overall || data.risk_assessment || {};
+  return (
+    <div style={{
+      marginTop: 4, padding: '6px 8px', borderRadius: 6,
+      border: `1px solid ${palette.gray.light2}`, background: '#fff',
+      fontSize: 11, fontFamily: FONT,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+        <span style={{ fontWeight: 600, color: palette.gray.dark3 }}>{data.name || data.entity_id}</span>
+        <RiskBadge level={risk.level} score={risk.score} />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px 12px', fontSize: 10, color: palette.gray.dark1 }}>
+        <div>Watchlist hits: <strong>{data.watchlist_hits ?? 0}</strong></div>
+        <div>Flagged txns: <strong>{data.transaction_stats?.flagged_count ?? 0}</strong></div>
+        <div>Total volume: <strong>${(data.transaction_stats?.total_volume ?? 0).toLocaleString()}</strong></div>
+        <div>Network size: <strong>{data.network_stats?.total_relationships ?? 0}</strong></div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Rich tool output renderer ────────────────────────────────────────────
+
+function RichToolOutput({ tool, output, onAction }) {
+  const data = tryParseJSON(output);
+  if (!data) return null;
+
+  if (tool === 'search_entities' && 'entities' in data) {
+    if (data.count === 0) {
+      const diag = data.diagnostics;
+      return (
+        <div style={{ fontSize: 11, fontFamily: FONT, color: palette.gray.dark1, padding: '4px 0' }}>
+          <div style={{ fontWeight: 500 }}>No entities matched.</div>
+          {diag && (
+            <div style={{ fontSize: 10, color: palette.gray.base, marginTop: 2 }}>
+              {diag.total_entities_in_collection} entities in database
+              {diag.available_risk_levels?.length > 0 &&
+                ` · Levels: ${diag.available_risk_levels.join(', ')}`}
+            </div>
+          )}
+        </div>
+      );
+    }
+    return (
+      <div style={{ marginTop: 4 }}>
+        <div style={{ fontSize: 10, color: palette.gray.base, fontFamily: FONT, marginBottom: 3 }}>
+          {data.count} entit{data.count === 1 ? 'y' : 'ies'} found
+          {data.note && <span style={{ fontStyle: 'italic' }}> — {data.note}</span>}
+        </div>
+        {data.entities.slice(0, 8).map((e, i) => (
+          <EntityCard key={e.entityId || i} entity={e} onAction={onAction} />
+        ))}
+        {data.entities.length > 8 && (
+          <div style={{ fontSize: 10, color: palette.gray.base, fontFamily: FONT, paddingTop: 2 }}>
+            +{data.entities.length - 8} more
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (tool === 'search_investigations' && 'investigations' in data) {
+    if (!data.investigations?.length) return null;
+    return (
+      <div style={{ marginTop: 4 }}>
+        <div style={{ fontSize: 10, color: palette.gray.base, fontFamily: FONT, marginBottom: 3 }}>
+          {data.count} investigation{data.count === 1 ? '' : 's'} found
+        </div>
+        {data.investigations.slice(0, 6).map((inv, i) => (
+          <InvestigationRow key={inv.case_id || i} inv={inv} onAction={onAction} />
+        ))}
+      </div>
+    );
+  }
+
+  if (tool === 'get_risk_summary' && (data.risk_assessment || data.entity_id)) {
+    return <RiskSummaryCard data={data} />;
+  }
+
+  return null;
+}
+
+// ─── Tool call indicator (updated with rich output + raw toggle) ──────────
+
+function ToolCallIndicator({ tool, input, output, collapsed, onToggle, onAction }) {
+  const [showRaw, setShowRaw] = useState(false);
+  const richContent = !collapsed ? <RichToolOutput tool={tool} output={output} onAction={onAction} /> : null;
+  const hasRich = richContent !== null;
+
   return (
     <div style={{
       margin: `${spacing[1]}px 0`,
@@ -56,7 +345,7 @@ function ToolCallIndicator({ tool, input, output, collapsed, onToggle }) {
       <div
         onClick={onToggle}
         style={{
-          padding: `4px 8px`,
+          padding: '4px 8px',
           cursor: 'pointer',
           display: 'flex',
           justifyContent: 'space-between',
@@ -71,7 +360,7 @@ function ToolCallIndicator({ tool, input, output, collapsed, onToggle }) {
         </span>
       </div>
       {!collapsed && (
-        <div style={{ padding: `4px 8px 6px`, borderTop: `1px solid ${palette.blue.light2}` }}>
+        <div style={{ padding: '4px 8px 6px', borderTop: `1px solid ${palette.blue.light2}` }}>
           {input && (
             <div style={{ marginBottom: 4 }}>
               <span style={{ fontWeight: 600, color: palette.gray.dark1 }}>Input: </span>
@@ -80,15 +369,31 @@ function ToolCallIndicator({ tool, input, output, collapsed, onToggle }) {
               </span>
             </div>
           )}
-          {output && (
+
+          {/* Rich rendering (default) or raw JSON */}
+          {hasRich && !showRaw ? (
+            richContent
+          ) : output ? (
             <div>
               <span style={{ fontWeight: 600, color: palette.gray.dark1 }}>Output: </span>
               <span style={{ color: palette.gray.dark2, wordBreak: 'break-word' }}>
                 {typeof output === 'string'
-                  ? (output.length > 300 ? output.slice(0, 300) + '...' : output)
-                  : JSON.stringify(output).slice(0, 300)}
+                  ? (output.length > 500 ? output.slice(0, 500) + '...' : output)
+                  : JSON.stringify(output).slice(0, 500)}
               </span>
             </div>
+          ) : null}
+
+          {output && hasRich && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowRaw(r => !r); }}
+              style={{
+                marginTop: 4, background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 10, color: palette.blue.base, fontFamily: FONT, padding: 0,
+              }}
+            >
+              {showRaw ? 'Show formatted' : 'Show raw JSON'}
+            </button>
           )}
         </div>
       )}
@@ -96,7 +401,193 @@ function ToolCallIndicator({ tool, input, output, collapsed, onToggle }) {
   );
 }
 
-function MessageBubble({ msg }) {
+// ─── Streaming status indicator ───────────────────────────────────────────
+
+function StreamingStatus({ activeTool }) {
+  const label = activeTool
+    ? (TOOL_STATUS_LABELS[activeTool] || activeTool)
+    : 'Thinking';
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 6, padding: 4,
+      fontSize: 11, color: palette.gray.dark1, fontFamily: FONT,
+    }}>
+      <span className="chat-spinner" style={{
+        display: 'inline-block', width: 12, height: 12,
+        border: `2px solid ${palette.gray.light2}`,
+        borderTopColor: palette.green.dark1,
+        borderRadius: '50%',
+        animation: 'chat-spin 0.7s linear infinite',
+      }} />
+      <span>{label}…</span>
+    </div>
+  );
+}
+
+const spinnerKeyframes = `
+@keyframes chat-spin {
+  to { transform: rotate(360deg); }
+}
+`;
+
+// ─── Follow-up suggestions ────────────────────────────────────────────────
+
+function FollowUpSuggestions({ suggestions, onSelect }) {
+  if (!suggestions?.length) return null;
+  return (
+    <div style={{
+      display: 'flex', flexWrap: 'wrap', gap: 4,
+      padding: `${spacing[1]}px 0`,
+    }}>
+      {suggestions.map((s) => (
+        <button
+          key={s}
+          onClick={() => onSelect(s)}
+          style={{
+            background: palette.gray.light3,
+            border: `1px solid ${palette.gray.light2}`,
+            borderRadius: 12,
+            padding: '3px 10px',
+            fontSize: 11,
+            fontFamily: FONT,
+            color: palette.blue.dark1,
+            cursor: 'pointer',
+            transition: 'background 0.12s, border-color 0.12s',
+            whiteSpace: 'nowrap',
+            maxWidth: '100%',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = palette.blue.light3; e.currentTarget.style.borderColor = palette.blue.light2; }}
+          onMouseLeave={e => { e.currentTarget.style.background = palette.gray.light3; e.currentTarget.style.borderColor = palette.gray.light2; }}
+        >
+          {s}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ─── Thread picker dropdown ───────────────────────────────────────────────
+
+function ThreadPicker({ currentThreadId, onSelect, onNew }) {
+  const [open, setOpen] = useState(false);
+  const [threads, setThreads] = useState([]);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (open) setThreads(loadThreads());
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        title="Conversation history"
+        style={{
+          background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 4,
+          color: '#fff', cursor: 'pointer', padding: '2px 8px', fontSize: 11,
+          fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 3,
+        }}
+      >
+        <span style={{ fontSize: 13 }}>☰</span> History
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: '100%', right: 0, marginTop: 4,
+          width: 260, maxHeight: 300, overflowY: 'auto',
+          background: '#fff', borderRadius: 8,
+          border: `1px solid ${palette.gray.light2}`,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.14)',
+          zIndex: 10,
+        }}>
+          <div style={{
+            padding: '8px 10px', borderBottom: `1px solid ${palette.gray.light3}`,
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          }}>
+            <span style={{ fontSize: 12, fontWeight: 600, fontFamily: FONT, color: palette.gray.dark2 }}>
+              Recent Conversations
+            </span>
+            <button onClick={() => { onNew(); setOpen(false); }} style={{
+              background: palette.green.dark1, color: '#fff', border: 'none', borderRadius: 4,
+              fontSize: 10, padding: '2px 8px', cursor: 'pointer', fontFamily: FONT,
+            }}>+ New</button>
+          </div>
+
+          {threads.length === 0 ? (
+            <div style={{ padding: 12, fontSize: 11, color: palette.gray.base, fontFamily: FONT, textAlign: 'center' }}>
+              No previous conversations
+            </div>
+          ) : (
+            threads.map(t => (
+              <div
+                key={t.threadId}
+                onClick={() => { onSelect(t.threadId); setOpen(false); }}
+                style={{
+                  padding: '8px 10px', cursor: 'pointer',
+                  borderBottom: `1px solid ${palette.gray.light3}`,
+                  background: t.threadId === currentThreadId ? palette.blue.light3 : 'transparent',
+                  transition: 'background 0.1s',
+                }}
+                onMouseEnter={e => { if (t.threadId !== currentThreadId) e.currentTarget.style.background = palette.gray.light3; }}
+                onMouseLeave={e => { if (t.threadId !== currentThreadId) e.currentTarget.style.background = 'transparent'; }}
+              >
+                <div style={{
+                  fontSize: 12, fontFamily: FONT, fontWeight: 500,
+                  color: palette.gray.dark2, overflow: 'hidden',
+                  textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {t.title}
+                </div>
+                <div style={{ fontSize: 10, color: palette.gray.base, fontFamily: FONT, marginTop: 1 }}>
+                  {new Date(t.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  {t.threadId === currentThreadId && ' · current'}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Page context banner ──────────────────────────────────────────────────
+
+function PageContextBanner({ context }) {
+  if (!context) return null;
+  const label = context.type === 'investigation'
+    ? `Viewing case ${context.caseId}${context.entityId ? ` · Entity ${context.entityId}` : ''}`
+    : context.type === 'entity'
+      ? `Viewing entity ${context.entityId}${context.entityName ? ` (${context.entityName})` : ''}`
+      : null;
+  if (!label) return null;
+
+  return (
+    <div style={{
+      padding: '4px 8px', fontSize: 10, fontFamily: FONT,
+      background: palette.blue.light3, color: palette.blue.dark1,
+      borderBottom: `1px solid ${palette.blue.light2}`,
+      display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0,
+    }}>
+      <span style={{ fontSize: 12 }}>📌</span>
+      {label}
+    </div>
+  );
+}
+
+// ─── Message bubble ───────────────────────────────────────────────────────
+
+function MessageBubble({ msg, onAction, isLast, streaming }) {
   const [toolCollapsed, setToolCollapsed] = useState({});
 
   if (msg.role === 'user') {
@@ -119,9 +610,11 @@ function MessageBubble({ msg }) {
     );
   }
 
+  const followUps = isLast && !streaming ? deriveFollowUps(msg.toolCalls) : [];
+
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: spacing[1] }}>
-      <div style={{ maxWidth: '90%' }}>
+      <div style={{ maxWidth: '92%' }}>
         {msg.toolCalls?.map((tc, i) => (
           <ToolCallIndicator
             key={i}
@@ -130,6 +623,7 @@ function MessageBubble({ msg }) {
             output={tc.output}
             collapsed={toolCollapsed[i] !== false}
             onToggle={() => setToolCollapsed(prev => ({ ...prev, [i]: prev[i] === false ? true : false }))}
+            onAction={onAction}
           />
         ))}
         {msg.content && (
@@ -147,91 +641,118 @@ function MessageBubble({ msg }) {
             </ReactMarkdown>
           </div>
         )}
+        <FollowUpSuggestions suggestions={followUps} onSelect={onAction} />
       </div>
     </div>
   );
 }
 
-export default function ChatBubble({ embedded = false }) {
+// ─── Categorised empty-state prompts ──────────────────────────────────────
+
+const PROMPT_CATEGORIES = [
+  {
+    label: 'Entity Research',
+    icon: '👤',
+    prompts: [
+      'Show me high-risk entities',
+      'Search for entities named "Global"',
+    ],
+  },
+  {
+    label: 'Investigations',
+    icon: '📋',
+    prompts: [
+      'Summarize recent investigations',
+      'Show investigations with SAR filings',
+    ],
+  },
+  {
+    label: 'Compliance',
+    icon: '⚖️',
+    prompts: [
+      'What are the red flags for structuring?',
+      'Explain the layering typology',
+    ],
+  },
+];
+
+// ─── Main component ───────────────────────────────────────────────────────
+
+export default function ChatBubble({ embedded = false, pageContext = null }) {
   const [open, setOpen] = useState(embedded);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
   const [threadId, setThreadId] = useState(null);
+  const [activeTool, setActiveTool] = useState(null);
   const inputRef = useRef(null);
   const { scrollRef, contentRef, scrollToBottom, isAtBottom } = useStickToBottom();
 
   useEffect(() => {
-    if (open && inputRef.current) {
-      inputRef.current.focus();
-    }
+    if (open && inputRef.current) inputRef.current.focus();
   }, [open]);
 
-  const handleSend = useCallback(async () => {
-    const text = input.trim();
+  const sendMessage = useCallback(async (text) => {
+    text = (text || '').trim();
     if (!text || streaming) return;
 
     setInput('');
     const userMsg = { role: 'user', content: text };
     setMessages(prev => [...prev, userMsg]);
     setStreaming(true);
+    setActiveTool(null);
     scrollToBottom();
 
     let assistantContent = '';
     const toolCalls = [];
     let currentToolIdx = -1;
 
+    const messageWithContext = pageContext
+      ? `[Context: ${pageContext.type === 'investigation'
+          ? `Currently viewing investigation ${pageContext.caseId}${pageContext.entityId ? ` for entity ${pageContext.entityId}` : ''}`
+          : `Currently viewing entity ${pageContext.entityId}${pageContext.entityName ? ` (${pageContext.entityName})` : ''}`
+        }]\n${text}`
+      : text;
+
     setMessages(prev => [...prev, { role: 'assistant', content: '', toolCalls: [] }]);
 
     try {
-      await sendChatMessage(text, threadId, (event) => {
+      await sendChatMessage(messageWithContext, threadId, (event) => {
         if (event.type === 'thread_id') {
           setThreadId(event.thread_id);
+          upsertThread(event.thread_id, text);
         } else if (event.type === 'token') {
           assistantContent += event.content;
           setMessages(prev => {
             const msgs = [...prev];
-            msgs[msgs.length - 1] = {
-              role: 'assistant',
-              content: assistantContent,
-              toolCalls: [...toolCalls],
-            };
+            msgs[msgs.length - 1] = { role: 'assistant', content: assistantContent, toolCalls: [...toolCalls] };
             return msgs;
           });
+          setActiveTool(null);
         } else if (event.type === 'tool_call') {
           currentToolIdx = toolCalls.length;
           toolCalls.push({ tool: event.tool, input: event.input, output: null });
+          setActiveTool(event.tool);
           setMessages(prev => {
             const msgs = [...prev];
-            msgs[msgs.length - 1] = {
-              role: 'assistant',
-              content: assistantContent,
-              toolCalls: [...toolCalls],
-            };
+            msgs[msgs.length - 1] = { role: 'assistant', content: assistantContent, toolCalls: [...toolCalls] };
             return msgs;
           });
         } else if (event.type === 'tool_result') {
           if (currentToolIdx >= 0 && currentToolIdx < toolCalls.length) {
             toolCalls[currentToolIdx].output = event.output;
           }
+          setActiveTool(null);
           setMessages(prev => {
             const msgs = [...prev];
-            msgs[msgs.length - 1] = {
-              role: 'assistant',
-              content: assistantContent,
-              toolCalls: [...toolCalls],
-            };
+            msgs[msgs.length - 1] = { role: 'assistant', content: assistantContent, toolCalls: [...toolCalls] };
             return msgs;
           });
         } else if (event.type === 'error') {
           assistantContent += `\n⚠ Error: ${event.message}`;
           setMessages(prev => {
             const msgs = [...prev];
-            msgs[msgs.length - 1] = {
-              role: 'assistant',
-              content: assistantContent,
-              toolCalls: [...toolCalls],
-            };
+            msgs[msgs.length - 1] = { role: 'assistant', content: assistantContent, toolCalls: [...toolCalls] };
             return msgs;
           });
         }
@@ -248,13 +769,29 @@ export default function ChatBubble({ embedded = false }) {
       });
     } finally {
       setStreaming(false);
+      setActiveTool(null);
     }
-  }, [input, streaming, threadId, scrollToBottom]);
+  }, [streaming, threadId, scrollToBottom, pageContext]);
 
-  const handleNewChat = () => {
+  const handleSend = useCallback(() => { sendMessage(input); }, [input, sendMessage]);
+
+  const handleAction = useCallback((text) => {
+    if (streaming) return;
+    setInput(text);
+    setTimeout(() => sendMessage(text), 0);
+  }, [streaming, sendMessage]);
+
+  const handleNewChat = useCallback(() => {
     setMessages([]);
     setThreadId(null);
-  };
+    setActiveTool(null);
+  }, []);
+
+  const handleSwitchThread = useCallback((tid) => {
+    setMessages([]);
+    setThreadId(tid);
+    setActiveTool(null);
+  }, []);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -263,27 +800,18 @@ export default function ChatBubble({ embedded = false }) {
     }
   };
 
+  // Floating bubble (closed state)
   if (!open && !embedded) {
     return (
       <div
         onClick={() => setOpen(true)}
         style={{
-          position: 'fixed',
-          bottom: 24,
-          right: 24,
-          width: 56,
-          height: 56,
-          borderRadius: '50%',
-          background: palette.green.dark1,
-          color: '#fff',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-          zIndex: 1000,
-          transition: 'transform 0.15s ease',
-          fontSize: 24,
+          position: 'fixed', bottom: 24, right: 24,
+          width: 56, height: 56, borderRadius: '50%',
+          background: palette.green.dark1, color: '#fff',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+          zIndex: 1000, transition: 'transform 0.15s ease', fontSize: 24,
         }}
         onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.08)'; }}
         onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
@@ -307,7 +835,8 @@ export default function ChatBubble({ embedded = false }) {
       border: `1px solid ${palette.gray.light2}`,
       background: '#fff',
     }}>
-      <style>{markdownStyles}</style>
+      <style>{markdownStyles}{spinnerKeyframes}</style>
+
       {/* Header */}
       <div style={{
         padding: `${spacing[2]}px ${spacing[3]}px`,
@@ -324,7 +853,12 @@ export default function ChatBubble({ embedded = false }) {
           </Subtitle>
           <Badge variant="green" style={{ fontSize: 9 }}>AI</Badge>
         </div>
-        <div style={{ display: 'flex', gap: 4 }}>
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+          <ThreadPicker
+            currentThreadId={threadId}
+            onSelect={handleSwitchThread}
+            onNew={handleNewChat}
+          />
           <button
             onClick={handleNewChat}
             title="New conversation"
@@ -350,7 +884,10 @@ export default function ChatBubble({ embedded = false }) {
         </div>
       </div>
 
-      {/* Messages */}
+      {/* Page context banner */}
+      <PageContextBanner context={pageContext} />
+
+      {/* Messages area */}
       <div
         ref={scrollRef}
         style={{
@@ -372,60 +909,67 @@ export default function ChatBubble({ embedded = false }) {
           }}
         >
           {messages.length === 0 && (
-            <div style={{ textAlign: 'center', padding: `${spacing[3]}px 0`, maxWidth: 400, margin: '0 auto' }}>
+            <div style={{ textAlign: 'center', padding: `${spacing[2]}px 0`, maxWidth: 400, margin: '0 auto' }}>
               <Body style={{ fontFamily: FONT, color: palette.gray.dark1, fontSize: 13, marginBottom: spacing[2] }}>
                 Ask me about entities, transactions, investigations, typologies, or compliance policies.
               </Body>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {[
-                  'Show me high-risk entities',
-                  'What are the red flags for structuring?',
-                  'Summarize recent investigations',
-                ].map((q) => (
-                  <button
-                    key={q}
-                    onClick={() => { setInput(q); }}
-                    style={{
-                      background: palette.gray.light3, border: `1px solid ${palette.gray.light2}`,
-                      borderRadius: 8, padding: '6px 10px', fontSize: 12, fontFamily: FONT,
-                      color: palette.gray.dark2, cursor: 'pointer', textAlign: 'left',
-                    }}
-                  >
-                    {q}
-                  </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {PROMPT_CATEGORIES.map(cat => (
+                  <div key={cat.label}>
+                    <div style={{
+                      fontSize: 10, fontWeight: 600, fontFamily: FONT, color: palette.gray.base,
+                      textTransform: 'uppercase', letterSpacing: '0.5px',
+                      marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4,
+                    }}>
+                      <span>{cat.icon}</span> {cat.label}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {cat.prompts.map(q => (
+                        <button
+                          key={q}
+                          onClick={() => handleAction(q)}
+                          style={{
+                            background: palette.gray.light3,
+                            border: `1px solid ${palette.gray.light2}`,
+                            borderRadius: 8, padding: '6px 10px', fontSize: 12, fontFamily: FONT,
+                            color: palette.gray.dark2, cursor: 'pointer', textAlign: 'left',
+                            transition: 'background 0.12s, border-color 0.12s',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = palette.blue.light3; e.currentTarget.style.borderColor = palette.blue.light2; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = palette.gray.light3; e.currentTarget.style.borderColor = palette.gray.light2; }}
+                        >
+                          {q}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
           )}
           {messages.map((msg, i) => (
-            <MessageBubble key={i} msg={msg} />
+            <MessageBubble
+              key={i}
+              msg={msg}
+              onAction={handleAction}
+              isLast={i === messages.length - 1}
+              streaming={streaming}
+            />
           ))}
           {streaming && (
-            <div style={{ display: 'flex', gap: 4, padding: 4 }}>
-              <span style={{ fontSize: 11, color: palette.gray.base, fontFamily: FONT }}>Thinking...</span>
-            </div>
+            <StreamingStatus activeTool={activeTool} />
           )}
         </div>
         {!isAtBottom && (
           <button
             onClick={() => scrollToBottom()}
             style={{
-              position: 'sticky',
-              bottom: 8,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              display: 'block',
-              margin: '0 auto',
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
+              position: 'sticky', bottom: 8, left: '50%', transform: 'translateX(-50%)',
+              display: 'block', margin: '0 auto',
+              width: 32, height: 32, borderRadius: '50%',
               border: `1px solid ${palette.gray.light2}`,
-              background: '#fff',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-              cursor: 'pointer',
-              fontSize: 16,
-              lineHeight: '32px',
-              textAlign: 'center',
+              background: '#fff', boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+              cursor: 'pointer', fontSize: 16, lineHeight: '32px', textAlign: 'center',
               color: palette.gray.dark1,
             }}
             title="Scroll to bottom"
@@ -435,7 +979,7 @@ export default function ChatBubble({ embedded = false }) {
         )}
       </div>
 
-      {/* Input */}
+      {/* Input area */}
       <div style={{
         padding: spacing[2],
         borderTop: `1px solid ${palette.gray.light2}`,

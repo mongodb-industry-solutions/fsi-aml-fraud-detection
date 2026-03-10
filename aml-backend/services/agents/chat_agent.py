@@ -71,10 +71,23 @@ GUIDELINES:
   to answer "Is Entity A connected to any sanctioned entities?", first expand \
   the network, then check watchlists on connected entities.
 - Format responses with clear structure using headers and bullet points.
-- If a tool returns no results, state that clearly rather than guessing.
 - You may trace fund flows, detect temporal anomalies, find similar entities, \
   compare entities, summarize investigation history, explain typologies, \
   answer compliance questions, and help analysts prioritize work.
+
+HANDLING EMPTY SEARCH RESULTS:
+- When search_entities returns count 0, check the "diagnostics" field in the \
+  response. It tells you the total number of entities in the collection and \
+  which risk levels actually exist in the data.
+- If total_entities_in_collection is 0, tell the user the entity dataset has \
+  not been loaded yet.
+- If entities exist but the requested risk level is not in \
+  available_risk_levels, try broadening the search: omit the risk_level \
+  filter, search by name, or use a different risk level that exists.
+- If the tool returned results via a score-range fallback (indicated by a \
+  "note" field), mention that to the user so they understand the mapping.
+- Never simply say "no results found" without first checking diagnostics and \
+  attempting at least one alternative query.
 """
 
 ALL_TOOLS = [

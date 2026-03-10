@@ -68,6 +68,14 @@ def get_investigation_detail(case_id: str) -> dict:
     return doc
 
 
+RISK_SCORE_THRESHOLDS = {
+    "critical": 80,
+    "high": 60,
+    "medium": 40,
+    "low": 0,
+}
+
+
 @tool
 def search_entities(
     entity_type: str = "",
@@ -79,38 +87,88 @@ def search_entities(
 
     Parameters:
         entity_type: 'individual' or 'organization' (optional)
-        risk_level: 'low', 'medium', 'high', or 'critical' (optional)
+        risk_level: 'low', 'medium', 'high', or 'critical' (optional).
+            Searches by the level label first; if nothing matches it falls
+            back to a score-range query (critical>=80, high>=60, medium>=40).
         name_contains: partial name for case-insensitive search (optional)
         limit: max results (default 20)
 
     Returns matching entities with their entityId, name, type, risk info.
+    When count is 0 the response includes diagnostic metadata
+    (total_entities, available_risk_levels) so you can tell whether the
+    collection is empty vs. no entities matching the filter.
     """
     client = get_mongo_client()
     coll = client[DB_NAME]["entities"]
 
-    query = {}
+    projection = {
+        "_id": 0,
+        "entityId": 1,
+        "entityType": 1,
+        "name": 1,
+        "scenarioKey": 1,
+        "status": 1,
+        "riskAssessment.overall": 1,
+    }
+
+    base_query: dict = {}
     if entity_type:
-        query["entityType"] = entity_type
-    if risk_level:
-        query["riskAssessment.overall.level"] = {"$regex": f"^{risk_level}$", "$options": "i"}
+        base_query["entityType"] = entity_type
     if name_contains:
-        query["name.full"] = {"$regex": name_contains, "$options": "i"}
+        base_query["name.full"] = {"$regex": name_contains, "$options": "i"}
 
-    cursor = coll.find(
-        query,
-        {
-            "_id": 0,
-            "entityId": 1,
-            "entityType": 1,
-            "name": 1,
-            "scenarioKey": 1,
-            "status": 1,
-            "riskAssessment.overall": 1,
-        },
-    ).limit(limit)
+    # --- primary search: match by level label ---
+    query = {**base_query}
+    if risk_level:
+        query["riskAssessment.overall.level"] = {
+            "$regex": f"^{risk_level}$",
+            "$options": "i",
+        }
 
-    results = list(cursor)
-    return {"count": len(results), "entities": results}
+    results = list(coll.find(query, projection).limit(limit))
+
+    # --- fallback: if level match returned nothing, try score range ---
+    used_fallback = False
+    if not results and risk_level:
+        level_key = risk_level.strip().lower()
+        min_score = RISK_SCORE_THRESHOLDS.get(level_key)
+        if min_score is not None:
+            score_query = {**base_query}
+            score_filter: dict = {"riskAssessment.overall.score": {"$gte": min_score}}
+            next_levels = [v for v in sorted(RISK_SCORE_THRESHOLDS.values()) if v > min_score]
+            if next_levels:
+                score_filter["riskAssessment.overall.score"]["$lt"] = next_levels[0]
+            score_query.update(score_filter)
+            results = list(
+                coll.find(score_query, projection)
+                .sort("riskAssessment.overall.score", -1)
+                .limit(limit)
+            )
+            used_fallback = True
+
+    response: dict = {"count": len(results), "entities": results}
+
+    if used_fallback and results:
+        response["note"] = (
+            f"No entities had risk level label '{risk_level}'; "
+            f"returned {len(results)} entities matched by score range instead."
+        )
+
+    # --- diagnostics when nothing found ---
+    if not results:
+        total = coll.estimated_document_count()
+        distinct_levels = coll.distinct("riskAssessment.overall.level")
+        response["diagnostics"] = {
+            "total_entities_in_collection": total,
+            "available_risk_levels": distinct_levels,
+            "hint": (
+                "The collection may be empty or no entities match the "
+                "requested filters. Try broadening criteria or omit "
+                "risk_level to list all entities."
+            ),
+        }
+
+    return response
 
 
 @tool

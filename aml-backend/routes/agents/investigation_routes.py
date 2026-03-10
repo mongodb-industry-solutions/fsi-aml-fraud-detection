@@ -328,6 +328,14 @@ async def resume_investigation(request: Dict[str, Any]):
             open("/Users/mehar.grewal/Desktop/Work/Coding/Finance/Fraud/fsi-aml-fraud-detection/.cursor/debug-f0b7a1.log","a").write(json.dumps({"sessionId":"f0b7a1","location":"investigation_routes.py:resume_post_update","message":"State after update_state(as_node=human_review)","data":{"thread_id":thread_id,"next":str(getattr(graph.get_state(config),"next","N/A"))},"timestamp":int(_t.time()*1000),"hypothesisId":"C"})+"\n")
             # endregion
 
+            yield _sse({
+                "type": "agent_end",
+                "agent": "human_review",
+                "status": "reviewed_by_analyst",
+                "output": {"human_decision": resume_value},
+                "timestamp": _now(),
+            })
+
             async for chunk in graph.astream(
                 None,
                 config=config,

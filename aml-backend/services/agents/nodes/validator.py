@@ -32,7 +32,7 @@ def validation_node(state: InvestigationState) -> Command:
             route_to="human_review",
         )
         audit_entry = {
-            "agent": "validator",
+            "agent": "compliance_qa",
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "duration_ms": duration_ms,
             "loop": loop_count,
@@ -66,7 +66,7 @@ def validation_node(state: InvestigationState) -> Command:
     duration_ms = int((time.perf_counter() - t0) * 1000)
 
     audit_entry = {
-        "agent": "validator",
+        "agent": "compliance_qa",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "duration_ms": duration_ms,
         "llm_model": _LLM_MODEL,

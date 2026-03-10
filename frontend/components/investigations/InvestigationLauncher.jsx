@@ -107,13 +107,13 @@ const AGENT_LABELS = {
   fetch_transactions: { label: 'Fetching Transactions', icon: '💳', color: palette.purple.light1, desc: 'Querying transaction history and patterns' },
   fetch_network: { label: 'Analyzing Network', icon: '🕸', color: palette.purple.light1, desc: 'Running $graphLookup network traversal' },
   fetch_watchlist: { label: 'Screening Watchlists', icon: '🛡', color: palette.purple.light1, desc: 'Checking sanctions and PEP databases' },
-  assemble_case: { label: 'Case Assembly + Typology', icon: '📁', color: palette.green.dark1, desc: 'LLM-powered 360° profile synthesis and crime typology classification' },
+  assemble_case: { label: 'Case Analyst', icon: '📁', color: palette.green.dark1, desc: 'LLM-powered 360° profile synthesis and crime typology classification' },
   network_analyst: { label: 'Network Risk Analysis', icon: '🔗', color: palette.yellow.dark2, desc: 'Graph centrality and risk scoring (parallel)' },
   temporal_analyst: { label: 'Temporal Pattern Analysis', icon: '⏱', color: palette.yellow.dark2, desc: 'Structuring, velocity, round-trips, dormancy (parallel)' },
   trail_follower: { label: 'Trail Follower', icon: '🔎', color: palette.blue.dark2, desc: 'LLM lead selection from network + temporal' },
   sub_investigation_dispatch: { label: 'Sub-Investigation Dispatch', icon: '📊', color: palette.purple.base, desc: 'Parallel mini-investigation fan-out' },
-  narrative: { label: 'SAR Narrative Generation', icon: '📝', color: palette.green.base, desc: 'FinCEN 5Ws narrative with full evidence' },
-  validation: { label: 'Validation Agent', icon: '✓', color: palette.blue.dark1, desc: 'LLM-as-Judge quality gate' },
+  narrative: { label: 'SAR Author', icon: '📝', color: palette.green.base, desc: 'FinCEN 5Ws narrative with full evidence' },
+  validation: { label: 'Compliance QA', icon: '✓', color: palette.blue.dark1, desc: 'LLM-as-Judge quality gate' },
   human_review: { label: 'Human Review', icon: '👁', color: palette.red.base, desc: 'interrupt() durable pause for analyst' },
   finalize: { label: 'Finalizing Case', icon: '📋', color: palette.green.dark2, desc: 'Persist investigation to MongoDB' },
   auto_close: { label: 'Auto-Closing', icon: '✕', color: palette.gray.dark1, desc: 'False positive auto-closure' },
@@ -270,6 +270,29 @@ function getConfidenceLevel(confidence) {
 }
 
 // ---------------------------------------------------------------------------
+// Step categorization for progress counter
+// ---------------------------------------------------------------------------
+
+const AGENT_NODES = new Set([
+  'triage',
+  'assemble_case',
+  'network_analyst',
+  'temporal_analyst',
+  'trail_follower',
+  'narrative',
+  'validation',
+  'human_review',
+  'finalize',
+]);
+const TOOL_NODES = new Set([
+  'fetch_entity_profile',
+  'fetch_transactions',
+  'fetch_network',
+  'fetch_watchlist',
+  'mini_investigate',
+]);
+
+// ---------------------------------------------------------------------------
 // SegmentedRiskBar
 // ---------------------------------------------------------------------------
 
@@ -324,22 +347,16 @@ function SegmentedRiskBar({ score, height = 8 }) {
 // ProgressHeader
 // ---------------------------------------------------------------------------
 
-function ProgressHeader({ steps, running, startTime }) {
-  const [elapsed, setElapsed] = useState(0);
+function ProgressHeader({ steps, running }) {
+  const agentSteps = steps.filter((s) => AGENT_NODES.has(s.agent));
+  const completedAgents = agentSteps.filter((s) => s.status === 'complete').length;
+  const totalAgents = agentSteps.length;
 
-  useEffect(() => {
-    if (!startTime) return;
-    const tick = () => setElapsed(Date.now() - startTime);
-    tick();
-    if (running) {
-      const id = setInterval(tick, 200);
-      return () => clearInterval(id);
-    }
-  }, [running, startTime]);
+  const totalToolCalls = steps.reduce((sum, s) => sum + (s.tools?.length || 0), 0);
 
-  const completed = steps.filter((s) => s.status === 'complete').length;
-  const total = steps.filter((s) => s.status !== 'error').length;
-  const pct = total > 0 ? (completed / total) * 100 : 0;
+  const allSteps = steps.filter((s) => s.status !== 'error');
+  const allCompleted = allSteps.filter((s) => s.status === 'complete').length;
+  const pct = allSteps.length > 0 ? (allCompleted / allSteps.length) * 100 : 0;
 
   return (
     <div style={{ marginBottom: spacing[3] }}>
@@ -348,15 +365,15 @@ function ProgressHeader({ steps, running, startTime }) {
         marginBottom: 6, fontFamily: FONT, fontSize: 12, color: palette.gray.dark1,
       }}>
         <span>
-          {completed}/{total} agents complete
+          {completedAgents}/{totalAgents} agents
+          <span style={{ margin: '0 6px', color: palette.gray.light1 }}>·</span>
+          {totalToolCalls} tool call{totalToolCalls !== 1 ? 's' : ''}
           {running && (
             <span style={{ marginLeft: 8, color: palette.blue.base, fontWeight: 600 }}>
               Running
               <span className="pulse-text">...</span>
             </span>
           )}
-        </span>
-        <span style={{ fontVariantNumeric: 'tabular-nums' }}>
         </span>
       </div>
       <div style={{
@@ -546,6 +563,7 @@ function ToolCallDetail({ tool }) {
 
 function StructuredOutputCard({ agent, output }) {
   const [showReasoning, setShowReasoning] = useState(false);
+  const [showFallbackRaw, setShowFallbackRaw] = useState(false);
 
   if (!output || Object.keys(output).length === 0) return null;
 
@@ -738,6 +756,16 @@ function StructuredOutputCard({ agent, output }) {
             </div>
           )}
         </div>
+        {na.shell_structure_indicators?.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+            {na.shell_structure_indicators.map((ind, i) => (
+              <span key={i} style={{
+                fontSize: 10, fontFamily: FONT, padding: '2px 6px',
+                borderRadius: 3, background: palette.red.light3, color: palette.red.dark2,
+              }}>{ind}</span>
+            ))}
+          </div>
+        )}
         {na.summary && (
           <div style={{ fontSize: 12, color: palette.gray.dark2, fontFamily: FONT, lineHeight: 1.5 }}>
             {na.summary}
@@ -747,13 +775,202 @@ function StructuredOutputCard({ agent, output }) {
     );
   }
 
+  if (output.temporal_analysis) {
+    const ta = output.temporal_analysis;
+    const patternCounts = [
+      { label: 'Structuring', count: ta.structuring_indicators?.length || 0, color: palette.red.dark2, bg: palette.red.light3 },
+      { label: 'Velocity', count: ta.velocity_anomalies?.length || 0, color: palette.yellow.dark2, bg: palette.yellow.light3 },
+      { label: 'Round-Trips', count: ta.round_trip_patterns?.length || 0, color: palette.red.dark2, bg: palette.red.light3 },
+      { label: 'Dormancy', count: ta.dormancy_bursts?.length || 0, color: palette.yellow.dark2, bg: palette.yellow.light3 },
+    ];
+    return (
+      <div>
+        {ta.timeline_summary && (
+          <div style={{ fontSize: 12, color: palette.gray.dark2, fontFamily: FONT, lineHeight: 1.6, marginBottom: 8 }}>
+            {ta.timeline_summary}
+          </div>
+        )}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {patternCounts.map((p) => (
+            <span key={p.label} style={{
+              fontSize: 10, fontFamily: FONT, padding: '3px 8px', borderRadius: 4,
+              background: p.count > 0 ? p.bg : palette.gray.light3,
+              color: p.count > 0 ? p.color : palette.gray.base,
+              fontWeight: p.count > 0 ? 600 : 400,
+            }}>
+              {p.label}: {p.count}
+            </span>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (output.trail_analysis) {
+    const trail = output.trail_analysis;
+    const leads = trail.leads || [];
+    return (
+      <div>
+        <div style={{ display: 'flex', gap: 12, marginBottom: 6 }}>
+          <div>
+            <div style={{ fontSize: 10, color: palette.gray.base, fontFamily: FONT }}>Leads</div>
+            <div style={{ fontSize: 16, fontWeight: 700, fontFamily: FONT }}>{leads.length}</div>
+          </div>
+          {trail.ownership_chains?.length > 0 && (
+            <div>
+              <div style={{ fontSize: 10, color: palette.gray.base, fontFamily: FONT }}>Ownership Chains</div>
+              <div style={{ fontSize: 16, fontWeight: 700, fontFamily: FONT }}>{trail.ownership_chains.length}</div>
+            </div>
+          )}
+        </div>
+        {leads.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {leads.map((lead, i) => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
+                padding: '4px 8px', borderRadius: 4,
+                background: lead.priority === 'high' ? palette.red.light3 : palette.gray.light3,
+                fontSize: 11, fontFamily: FONT,
+              }}>
+                <span style={{
+                  fontSize: 9, padding: '1px 5px', borderRadius: 3, fontWeight: 600,
+                  background: lead.priority === 'high' ? palette.red.base : lead.priority === 'medium' ? palette.yellow.base : palette.gray.base,
+                  color: '#fff',
+                }}>{lead.priority}</span>
+                <span style={{ fontWeight: 600 }}>{lead.entity_name || lead.entity_id}</span>
+                {lead.reason && (
+                  <span style={{ color: palette.gray.dark1 }}>
+                    — {lead.reason.length > 60 ? lead.reason.slice(0, 60) + '...' : lead.reason}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (output.sub_investigation_findings) {
+    const findings = output.sub_investigation_findings;
+    const entries = Object.entries(findings);
+    return (
+      <div>
+        {entries.map(([entityId, assessment]) => (
+          <div key={entityId} style={{
+            padding: '6px 8px', borderRadius: 4, marginBottom: 4,
+            background: assessment.risk_level === 'critical' || assessment.risk_level === 'high' ? palette.red.light3 : palette.gray.light3,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: assessment.key_findings?.length > 0 ? 4 : 0 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, fontFamily: FONT }}>
+                {assessment.entity_name || entityId}
+              </span>
+              <span style={{
+                fontSize: 9, padding: '1px 5px', borderRadius: 3, fontWeight: 600,
+                background: assessment.risk_level === 'critical' || assessment.risk_level === 'high' ? palette.red.base : assessment.risk_level === 'medium' ? palette.yellow.base : palette.green.base,
+                color: '#fff',
+              }}>{assessment.risk_level} ({assessment.risk_score})</span>
+              <span style={{
+                fontSize: 9, padding: '1px 5px', borderRadius: 3,
+                background: assessment.recommendation === 'escalate' ? palette.red.light3 : palette.gray.light2,
+                color: assessment.recommendation === 'escalate' ? palette.red.dark2 : palette.gray.dark1,
+                fontFamily: FONT,
+              }}>{assessment.recommendation}</span>
+            </div>
+            {assessment.key_findings?.length > 0 && (
+              <ul style={{ margin: 0, paddingLeft: 16 }}>
+                {assessment.key_findings.slice(0, 3).map((f, i) => (
+                  <li key={i} style={{ fontSize: 10, fontFamily: FONT, lineHeight: 1.5, color: palette.gray.dark2 }}>{f}</li>
+                ))}
+                {assessment.key_findings.length > 3 && (
+                  <li style={{ fontSize: 10, fontFamily: FONT, color: palette.gray.base }}>
+                    +{assessment.key_findings.length - 3} more
+                  </li>
+                )}
+              </ul>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (output.case_file) {
+    const cf = output.case_file;
+    const entity = cf.entity;
+    const txns = cf.transactions;
+    return (
+      <div>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
+          {entity?.name && (
+            <div>
+              <div style={{ fontSize: 10, color: palette.gray.base, fontFamily: FONT }}>Entity</div>
+              <div style={{ fontSize: 13, fontWeight: 600, fontFamily: FONT }}>{entity.name}</div>
+            </div>
+          )}
+          {entity?.risk_score != null && (
+            <div>
+              <div style={{ fontSize: 10, color: palette.gray.base, fontFamily: FONT }}>Risk Score</div>
+              <div style={{ fontSize: 13, fontWeight: 700, fontFamily: FONT, color: getRiskLevel(entity.risk_score).color }}>{entity.risk_score}</div>
+            </div>
+          )}
+          {txns?.total_count != null && (
+            <div>
+              <div style={{ fontSize: 10, color: palette.gray.base, fontFamily: FONT }}>Transactions</div>
+              <div style={{ fontSize: 13, fontWeight: 600, fontFamily: FONT }}>{txns.total_count}</div>
+            </div>
+          )}
+          {cf.key_findings?.length > 0 && (
+            <div>
+              <div style={{ fontSize: 10, color: palette.gray.base, fontFamily: FONT }}>Key Findings</div>
+              <div style={{ fontSize: 13, fontWeight: 600, fontFamily: FONT }}>{cf.key_findings.length}</div>
+            </div>
+          )}
+        </div>
+        {output.typology && (() => {
+          const ty = output.typology;
+          const conf = ty.confidence != null ? ty.confidence : null;
+          const confPct = conf != null ? Math.round(conf * 100) : null;
+          return (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <Badge variant="yellow">{ty.primary_typology || 'unknown'}</Badge>
+              {confPct !== null && (
+                <span style={{ fontSize: 11, fontFamily: FONT, fontWeight: 600, color: getConfidenceLevel(conf).color }}>
+                  {confPct}% confidence
+                </span>
+              )}
+            </div>
+          );
+        })()}
+      </div>
+    );
+  }
+
   return (
-    <div style={{
-      fontFamily: "'Source Code Pro', monospace", fontSize: 10,
-      color: palette.gray.dark1, lineHeight: 1.5,
-      maxHeight: 160, overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-    }}>
-      {JSON.stringify(output, null, 2)}
+    <div>
+      <KeyValueRows
+        data={Object.fromEntries(Object.entries(output).map(([k, v]) => [k, summarizeValue(v)]))}
+        labelColor={palette.gray.dark1}
+      />
+      <button
+        onClick={() => setShowFallbackRaw(!showFallbackRaw)}
+        style={{
+          fontSize: 9, fontFamily: FONT, color: palette.gray.dark1, background: 'none',
+          border: 'none', cursor: 'pointer', padding: 0, marginTop: 6,
+        }}
+      >
+        {showFallbackRaw ? 'Hide raw JSON' : 'Show raw JSON'}
+      </button>
+      {showFallbackRaw && (
+        <div style={{
+          marginTop: 4, fontFamily: "'Source Code Pro', monospace", fontSize: 10,
+          color: palette.gray.dark1, lineHeight: 1.5,
+          maxHeight: 160, overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+          padding: '4px 8px', borderRadius: 3, background: palette.gray.light3,
+        }}>
+          {JSON.stringify(output, null, 2)}
+        </div>
+      )}
     </div>
   );
 }
@@ -1008,7 +1225,7 @@ function AgentStepTimeline({ events, running, startTime }) {
       <Subtitle style={{ fontFamily: FONT, marginBottom: spacing[2], fontSize: '14px' }}>
         Agent Pipeline Progress
       </Subtitle>
-      <ProgressHeader steps={nonErrorSteps} running={running} startTime={startTime} />
+      <ProgressHeader steps={nonErrorSteps} running={running} />
       <div style={{ maxHeight: 600, overflowY: 'auto', paddingRight: 4 }}>
         {steps.map((step, i) => {
           if (step.status === 'error') {
@@ -1331,8 +1548,15 @@ function MiniInfo({ label, value }) {
 // ---------------------------------------------------------------------------
 
 function FinalResultCard({ result }) {
-  const { status, typology, narrative, triage_decision, case_id, thread_id } = result;
+  const { status, typology, narrative, triage_decision, case_id, thread_id, human_decision } = result;
   const risk = triage_decision?.risk_score != null ? getRiskLevel(triage_decision.risk_score) : null;
+
+  const decisionColors = {
+    approve: { border: palette.green.dark1, bg: palette.green.light3, badge: 'green', label: 'Approved' },
+    reject: { border: palette.red.base, bg: palette.red.light3, badge: 'red', label: 'Rejected' },
+    request_changes: { border: palette.blue.base, bg: palette.blue.light3, badge: 'blue', label: 'Changes Requested' },
+  };
+  const decisionInfo = human_decision?.decision ? decisionColors[human_decision.decision] : null;
 
   return (
     <Card style={{
@@ -1374,13 +1598,33 @@ function FinalResultCard({ result }) {
           <div>
             <Body style={{ fontSize: '10px', color: palette.gray.base, fontFamily: FONT, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Risk Score</Body>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Body style={{ fontWeight: 700, fontFamily: FONT, color: risk.color }}>
-                {triage_decision.risk_score}
-              </Body>
-              <span style={{
-                fontSize: 9, padding: '1px 5px', borderRadius: 3,
-                background: risk.bg, color: risk.color, fontFamily: FONT,
-              }}>{risk.label}</span>
+              {human_decision?.decision === 'reject' ? (
+                <>
+                  <Body style={{ fontWeight: 700, fontFamily: FONT, color: palette.gray.base, textDecoration: 'line-through' }}>
+                    {triage_decision.risk_score}
+                  </Body>
+                  <span style={{
+                    fontSize: 9, padding: '1px 5px', borderRadius: 3,
+                    background: palette.red.light3, color: palette.red.dark2, fontFamily: FONT, fontWeight: 600,
+                  }}>Analyst Override: Rejected</span>
+                </>
+              ) : (
+                <>
+                  <Body style={{ fontWeight: 700, fontFamily: FONT, color: risk.color }}>
+                    {triage_decision.risk_score}
+                  </Body>
+                  <span style={{
+                    fontSize: 9, padding: '1px 5px', borderRadius: 3,
+                    background: risk.bg, color: risk.color, fontFamily: FONT,
+                  }}>{risk.label}</span>
+                  {human_decision?.decision === 'approve' && (
+                    <span style={{
+                      fontSize: 9, padding: '1px 5px', borderRadius: 3,
+                      background: palette.green.light3, color: palette.green.dark2, fontFamily: FONT, fontWeight: 600,
+                    }}>Analyst Confirmed</span>
+                  )}
+                </>
+              )}
             </div>
           </div>
         )}
@@ -1399,6 +1643,27 @@ function FinalResultCard({ result }) {
           </div>
         )}
       </div>
+
+      {/* Analyst Decision Section */}
+      {human_decision && decisionInfo && (
+        <div style={{
+          padding: spacing[2], borderRadius: 6, marginBottom: spacing[2],
+          background: decisionInfo.bg,
+          borderLeft: `3px solid ${decisionInfo.border}`,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: human_decision.analyst_notes ? 6 : 0 }}>
+            <Body style={{ fontSize: '10px', color: palette.gray.base, fontFamily: FONT, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Analyst Decision
+            </Body>
+            <Badge variant={decisionInfo.badge}>{decisionInfo.label}</Badge>
+          </div>
+          {human_decision.analyst_notes && (
+            <Body style={{ fontSize: '13px', fontFamily: FONT, color: palette.gray.dark2, lineHeight: '1.6' }}>
+              {human_decision.analyst_notes}
+            </Body>
+          )}
+        </div>
+      )}
 
       {narrative?.introduction && (
         <div style={{

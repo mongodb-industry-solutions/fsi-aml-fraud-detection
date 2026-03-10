@@ -31,7 +31,7 @@ def finalize_node(state: InvestigationState) -> dict:
     tool_trace = state.get("tool_trace_log", [])
 
     llm_nodes = {
-        "triage", "case_assembly", "narrative", "validator",
+        "triage", "case_analyst", "sar_author", "compliance_qa",
         "trail_follower",
     }
     llm_calls_count = sum(1 for e in audit_log if e.get("agent") in llm_nodes and e.get("llm_model"))

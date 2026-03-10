@@ -388,7 +388,7 @@ const INITIAL_NODES = [
     type: 'agent',
     position: { x: CX - 30, y: 480 },
     data: {
-      label: 'Case Assembly + Typology', icon: '📁', color: palette.green.dark2,
+      label: 'Case Analyst', icon: '📁', color: palette.green.dark2,
       subtitle: 'LLM → CaseFile + TypologyResult',
       tools: ['search_typologies'],
       mongoBadge: 'Document Model + Atlas Search',
@@ -456,7 +456,7 @@ const INITIAL_NODES = [
     type: 'agent',
     position: { x: CX - 30, y: 990 },
     data: {
-      label: 'Narrative Writer', icon: '📝', color: palette.green.dark1,
+      label: 'SAR Author', icon: '📝', color: palette.green.dark1,
       subtitle: 'RAG → SARNarrative (5Ws)',
       tools: ['search_compliance_policies'],
       mongoBadge: 'Atlas Search RAG',
@@ -468,7 +468,7 @@ const INITIAL_NODES = [
     type: 'agent',
     position: { x: CX - 30, y: 1095 },
     data: {
-      label: 'Quality Reviewer', icon: '✓', color: palette.blue.dark1,
+      label: 'Compliance QA', icon: '✓', color: palette.blue.dark1,
       subtitle: 'ValidationResult → Command',
       tooltip: 'LLM-as-Judge quality gate: completeness, factual accuracy, citation quality. Routes via Command. Hard cap at 3 validation loops.',
     },

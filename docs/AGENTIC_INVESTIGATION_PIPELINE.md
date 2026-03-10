@@ -1540,7 +1540,7 @@ routes/agents/
 
 models/agents/
 ├── __init__.py
-└── investigation.py            # 15 Pydantic models + CrimeTypology enum
+└── investigation.py            # 15 Pydantic models + CaseAssemblyOutput + CrimeTypology enum
 ```
 
 ### Frontend — `frontend/`

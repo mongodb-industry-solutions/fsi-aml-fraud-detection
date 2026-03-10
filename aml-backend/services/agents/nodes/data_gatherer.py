@@ -168,7 +168,7 @@ def assemble_case_node(state: InvestigationState) -> dict:
         })
         trace_entries.append({
             "tool": "search_typologies",
-            "agent": "case_assembly",
+            "agent": "case_analyst",
             "input": json.dumps(tool_input),
             "output": truncated,
             "duration_ms": tool_dur,
@@ -197,7 +197,7 @@ def assemble_case_node(state: InvestigationState) -> dict:
     secondary = typology_dump.get("secondary_typologies", [])
 
     audit_entry = {
-        "agent": "case_assembly",
+        "agent": "case_analyst",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "duration_ms": duration_ms,
         "llm_model": _LLM_MODEL,

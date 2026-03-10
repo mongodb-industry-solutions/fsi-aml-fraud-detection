@@ -40,7 +40,7 @@ def narrative_node(state: InvestigationState) -> dict:
     }]
     trace_entries = [{
         "tool": "search_compliance_policies",
-        "agent": "narrative",
+        "agent": "sar_author",
         "input": json.dumps(tool_input),
         "output": truncated,
         "duration_ms": tool_dur,
@@ -75,7 +75,7 @@ def narrative_node(state: InvestigationState) -> dict:
     total_length = len(narrative.introduction) + len(narrative.body) + len(narrative.conclusion)
 
     audit_entry = {
-        "agent": "narrative",
+        "agent": "sar_author",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "duration_ms": duration_ms,
         "llm_model": _LLM_MODEL,

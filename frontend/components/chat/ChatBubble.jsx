@@ -1,14 +1,12 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import Card from '@leafygreen-ui/card';
 import Button from '@leafygreen-ui/button';
 import Badge from '@leafygreen-ui/badge';
-import Icon from '@leafygreen-ui/icon';
-import TextInput from '@leafygreen-ui/text-input';
 import { Body, Subtitle } from '@leafygreen-ui/typography';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
+import { useStickToBottom } from 'use-stick-to-bottom';
 
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -160,22 +158,8 @@ export default function ChatBubble({ embedded = false }) {
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
   const [threadId, setThreadId] = useState(null);
-  const messagesEndRef = useRef(null);
-  const messagesContainerRef = useRef(null);
-  const isNearBottom = useRef(true);
   const inputRef = useRef(null);
-
-  const handleMessagesScroll = useCallback(() => {
-    const el = messagesContainerRef.current;
-    if (!el) return;
-    isNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
-  }, []);
-
-  useEffect(() => {
-    if (isNearBottom.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages, streaming]);
+  const { scrollRef, contentRef, scrollToBottom, isAtBottom } = useStickToBottom();
 
   useEffect(() => {
     if (open && inputRef.current) {
@@ -191,6 +175,7 @@ export default function ChatBubble({ embedded = false }) {
     const userMsg = { role: 'user', content: text };
     setMessages(prev => [...prev, userMsg]);
     setStreaming(true);
+    scrollToBottom();
 
     let assistantContent = '';
     const toolCalls = [];
@@ -264,7 +249,7 @@ export default function ChatBubble({ embedded = false }) {
     } finally {
       setStreaming(false);
     }
-  }, [input, streaming, threadId]);
+  }, [input, streaming, threadId, scrollToBottom]);
 
   const handleNewChat = () => {
     setMessages([]);
@@ -367,18 +352,27 @@ export default function ChatBubble({ embedded = false }) {
 
       {/* Messages */}
       <div
-        ref={messagesContainerRef}
-        onScroll={handleMessagesScroll}
+        ref={scrollRef}
         style={{
           flex: 1,
+          minHeight: 0,
           overflowY: 'auto',
-          padding: spacing[2],
           background: '#fafbfc',
+          position: 'relative',
         }}
       >
-        {messages.length === 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-            <div style={{ textAlign: 'center', padding: spacing[4], maxWidth: 400 }}>
+        <div
+          ref={contentRef}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'flex-end',
+            minHeight: '100%',
+            padding: spacing[2],
+          }}
+        >
+          {messages.length === 0 && (
+            <div style={{ textAlign: 'center', padding: `${spacing[3]}px 0`, maxWidth: 400, margin: '0 auto' }}>
               <Body style={{ fontFamily: FONT, color: palette.gray.dark1, fontSize: 13, marginBottom: spacing[2] }}>
                 Ask me about entities, transactions, investigations, typologies, or compliance policies.
               </Body>
@@ -402,17 +396,43 @@ export default function ChatBubble({ embedded = false }) {
                 ))}
               </div>
             </div>
-          </div>
+          )}
+          {messages.map((msg, i) => (
+            <MessageBubble key={i} msg={msg} />
+          ))}
+          {streaming && (
+            <div style={{ display: 'flex', gap: 4, padding: 4 }}>
+              <span style={{ fontSize: 11, color: palette.gray.base, fontFamily: FONT }}>Thinking...</span>
+            </div>
+          )}
+        </div>
+        {!isAtBottom && (
+          <button
+            onClick={() => scrollToBottom()}
+            style={{
+              position: 'sticky',
+              bottom: 8,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              display: 'block',
+              margin: '0 auto',
+              width: 32,
+              height: 32,
+              borderRadius: '50%',
+              border: `1px solid ${palette.gray.light2}`,
+              background: '#fff',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+              cursor: 'pointer',
+              fontSize: 16,
+              lineHeight: '32px',
+              textAlign: 'center',
+              color: palette.gray.dark1,
+            }}
+            title="Scroll to bottom"
+          >
+            ↓
+          </button>
         )}
-        {messages.map((msg, i) => (
-          <MessageBubble key={i} msg={msg} />
-        ))}
-        {streaming && (
-          <div style={{ display: 'flex', gap: 4, padding: 4 }}>
-            <span style={{ fontSize: 11, color: palette.gray.base, fontFamily: FONT }}>Thinking...</span>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Input */}

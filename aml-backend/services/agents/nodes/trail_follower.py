@@ -13,14 +13,13 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 from dependencies import get_mongo_client, DB_NAME
 from models.agents.investigation import TrailAnalysis
-from services.agents.llm import get_llm, extract_token_usage
+from services.agents.llm import get_llm, get_model_id, extract_token_usage, invoke_with_retry
 from services.agents.prompts import TRAIL_FOLLOWER_SYSTEM
 from services.agents.state import InvestigationState
 
 logger = logging.getLogger(__name__)
 
 _MAX_TOOL_OUTPUT = 3000
-_LLM_MODEL = "bedrock/anthropic-sonnet"
 
 OWNERSHIP_TYPES = {
     "owns", "controls", "ubo_of", "parent_of_subsidiary",
@@ -164,7 +163,7 @@ def trail_follower_node(state: InvestigationState) -> dict:
     }, default=str)[:12000]
 
     llm = get_llm().with_structured_output(TrailAnalysis, include_raw=True)
-    llm_result = llm.invoke([
+    llm_result = invoke_with_retry(llm, [
         SystemMessage(content=TRAIL_FOLLOWER_SYSTEM),
         HumanMessage(content=evidence_payload),
     ])
@@ -184,7 +183,7 @@ def trail_follower_node(state: InvestigationState) -> dict:
         "agent": "trail_follower",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "duration_ms": duration_ms,
-        "llm_model": _LLM_MODEL,
+        "llm_model": get_model_id(),
         "token_usage": token_usage,
         "ownership_chains_found": len(ownership_chains),
         "leads_selected": len(result.leads),

@@ -11,7 +11,7 @@ from langgraph.types import Send, Command
 
 from dependencies import get_mongo_client, DB_NAME
 from models.agents.investigation import CaseAssemblyOutput
-from services.agents.llm import get_llm, extract_token_usage
+from services.agents.llm import get_llm, get_model_id, extract_token_usage, invoke_with_retry
 from services.agents.prompts import CASE_ASSEMBLY_SYSTEM
 from services.agents.state import InvestigationState
 from services.agents.tools.entity_tools import get_entity_profile, screen_watchlists
@@ -22,7 +22,6 @@ from services.agents.tools.policy_tools import search_typologies
 logger = logging.getLogger(__name__)
 
 _MAX_TOOL_OUTPUT = 3000
-_LLM_MODEL = "bedrock/anthropic-sonnet"
 
 
 def _serialize_tool_output(obj) -> str:
@@ -86,7 +85,11 @@ def _fetch_with_trace(state, tool_name, tool_fn, tool_input, data_key):
     """Run a tool, capture timing, and produce audit + trace entries."""
     entity_id = state["entity_id"]
     t0 = time.perf_counter()
-    result = tool_fn.invoke(tool_input)
+    try:
+        result = tool_fn.invoke(tool_input)
+    except Exception as exc:
+        logger.warning("Data gathering tool %s failed for %s: %s", tool_name, entity_id, exc)
+        result = {"error": str(exc)}
     duration_ms = int((time.perf_counter() - t0) * 1000)
     serialized = _serialize_tool_output(result)
 
@@ -180,7 +183,7 @@ def assemble_case_node(state: InvestigationState) -> dict:
     gathered_text = json.dumps(gathered, default=str)[:12000]
 
     llm = get_llm().with_structured_output(CaseAssemblyOutput, include_raw=True)
-    result = llm.invoke([
+    result = invoke_with_retry(llm, [
         SystemMessage(content=CASE_ASSEMBLY_SYSTEM),
         HumanMessage(content=(
             f"GATHERED EVIDENCE:\n{gathered_text}\n\n"
@@ -200,7 +203,7 @@ def assemble_case_node(state: InvestigationState) -> dict:
         "agent": "case_analyst",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "duration_ms": duration_ms,
-        "llm_model": _LLM_MODEL,
+        "llm_model": get_model_id(),
         "token_usage": token_usage,
         "sources_gathered": list(gathered.keys()),
         "primary_typology": assembly.typology.primary_typology.value,

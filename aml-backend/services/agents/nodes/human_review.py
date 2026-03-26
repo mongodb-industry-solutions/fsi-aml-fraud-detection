@@ -20,9 +20,6 @@ def human_review_node(state: InvestigationState) -> dict:
     human-review logic is handled in the resume endpoint so
     that ``as_node="human_review"`` correctly routes to ``finalize``.
     """
-    # region agent log
-    import json as _j, time as _t; open("/Users/mehar.grewal/Desktop/Work/Coding/Finance/Fraud/fsi-aml-fraud-detection/.cursor/debug-f0b7a1.log","a").write(_j.dumps({"sessionId":"f0b7a1","location":"human_review.py:entry","message":"human_review_node entered (should not happen with interrupt_before)","data":{"has_decision":bool(state.get("human_decision"))},"timestamp":int(_t.time()*1000),"hypothesisId":"B"})+"\n")
-    # endregion
     decision = state.get("human_decision", {})
 
     analyst_decision = decision.get("decision", "unknown") if isinstance(decision, dict) else str(decision)

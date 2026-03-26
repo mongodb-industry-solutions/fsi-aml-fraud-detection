@@ -16,6 +16,7 @@ from pymongo import MongoClient
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.mongodb import MongoDBSaver
 
+from services.agents.memory import get_memory_store
 from services.agents.state import InvestigationState
 from services.agents.nodes.triage import triage_node, auto_close_node
 from services.agents.nodes.data_gatherer import (
@@ -136,8 +137,12 @@ def get_compiled_graph():
         client = MongoClient(MONGODB_URI)
         db = client[os.getenv("DB_NAME", "fsi-threatsight360")]
         checkpointer = MongoDBSaver(db)
-        _compiled_graph = builder.compile(
-            checkpointer=checkpointer,
-            interrupt_before=["human_review"],
-        )
+        store = get_memory_store()
+        compile_kwargs = {
+            "checkpointer": checkpointer,
+            "interrupt_before": ["human_review"],
+        }
+        if store is not None:
+            compile_kwargs["store"] = store
+        _compiled_graph = builder.compile(**compile_kwargs)
     return _compiled_graph

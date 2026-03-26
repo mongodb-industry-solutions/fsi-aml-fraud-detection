@@ -28,6 +28,7 @@ class CrimeTypology(str, Enum):
     CRYPTO_MIXING = "crypto_mixing"
     ELDER_EXPLOITATION = "elder_exploitation"
     SHELL_COMPANY = "shell_company"
+    PEP_ABUSE = "pep_abuse"
     UNKNOWN = "unknown"
 
 

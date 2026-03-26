@@ -46,8 +46,8 @@ validation, and human review — producing audit-ready case documents.
 - **Trail Following** — LLM-powered lead selection from network and temporal evidence, identifying suspicious connected entities
 - **Sub-Investigation Branching** — Parallel mini-investigations of connected entities via `Send` fan-out, with findings rolled up into the parent narrative
 - **SAR Narrative Generation** — FinCEN-compliant who/what/when/where/why/how narratives grounded exclusively in evidence
-- **Compliance QA Loop** — Automated fact-checking with up to 3 re-drafting cycles before forced escalation
-- **Durable Human Review** — `interrupt()`-based pause/resume enabling analyst decisions hours or days later
+- **Compliance QA Loop** — Automated fact-checking with up to 2 re-drafting cycles before forced escalation
+- **Durable Human Review** — `interrupt_before`-based pause/resume enabling analyst decisions hours or days later
 - **Interactive Chat Co-Pilot** — ReAct agent with tools for fund flow tracing, temporal analysis, entity similarity, and lead expansion
 - **Immutable Audit Trail** — Append-only logging of every agent decision for regulatory examination
 
@@ -56,7 +56,7 @@ validation, and human review — producing audit-ready case documents.
 | Component | Technology |
 |-----------|------------|
 | Orchestration | LangGraph 1.0.7 (StateGraph, Command, Send, interrupt) |
-| LLM | Claude Sonnet via AWS Bedrock (`ChatBedrockConverse`) |
+| LLM | Claude Haiku 4.5 (default) / Sonnet via AWS Bedrock (`ChatBedrockConverse`) |
 | Embeddings | Voyage AI `voyage-4` via Atlas Embedding API |
 | State Persistence | `MongoDBSaver` (checkpoints + checkpoint_writes) |
 | Long-term Memory | `MongoDBStore` (cross-investigation learning) |
@@ -204,8 +204,8 @@ flowchart TD
 
     ComplianceQA -->|"Command: data_gathering<br/>Missing evidence"| FanOut
     ComplianceQA -->|"Command: narrative<br/>Quality issues"| SARAuthor
-    ComplianceQA -->|"Command: human_review<br/>Passed validation"| HumanReview["Human Review<br/><i>interrupt() pause</i>"]
-    ComplianceQA -->|"Command: finalize<br/>Max loops exceeded"| Finalize
+    ComplianceQA -->|"Command: human_review<br/>Passed validation"| HumanReview["Human Review<br/><i>interrupt_before pause</i>"]
+    ComplianceQA -->|"Command: human_review<br/>Max loops exceeded<br/>(forced escalation)"| HumanReview
 
     HumanReview -->|"Resume with<br/>analyst decision"| Finalize["Finalize Case<br/><i>Persist to MongoDB</i>"]
     Finalize --> EndNode(["END"])
@@ -527,33 +527,32 @@ flowchart LR
     Decision -->|"Pass"| HR["→ human_review"]
     Decision -->|"Quality Issues"| NR["→ SAR Author<br/>(re-draft)"]
     Decision -->|"Missing Data"| DG["→ data_gathering<br/>(re-gather)"]
-    Decision -->|"Max loops (3)"| FE["→ human_review<br/>(forced escalation)"]
+    Decision -->|"Max loops (2)"| FE["→ human_review<br/>(forced escalation)"]
 ```
 
-**Hard cap:** `MAX_VALIDATION_LOOPS = 3`. After 3 cycles, the validator forces
+**Hard cap:** `MAX_VALIDATION_LOOPS = 2`. After 2 cycles, the validator forces
 escalation to human review with `forced_escalation: true` in the result.
 
 ### 4.10 Human Review Agent
 
 **File:** `services/agents/nodes/human_review.py`
-**Pattern:** `interrupt()` for durable pause/resume
+**Pattern:** `interrupt_before` at compile time for durable pause/resume
 
-Calls `interrupt(review_payload)` which:
+The graph is compiled with `interrupt_before=["human_review"]`, which:
 
-1. Serializes the complete case state to `MongoDBSaver`
-2. Returns the review payload to the frontend via SSE
-3. Pauses the pipeline indefinitely (minutes, hours, or days)
+1. Pauses execution before the `human_review` node runs
+2. Serializes the complete case state to `MongoDBSaver`
+3. Returns control to the caller (SSE stream signals pause to frontend)
 
 The analyst reviews the case file, narrative, typology, and network analysis,
-then responds with:
+then the resume endpoint calls `graph.update_state(config, resume_value, as_node="human_review")`
+followed by `graph.astream(None, config)` to continue execution through `finalize`.
 
 | Decision | Effect |
 |----------|--------|
 | `approve` | Pipeline resumes → `finalize` → SAR filed |
 | `reject` | Pipeline resumes → `finalize` → case closed |
 | `request_changes` | Pipeline resumes → `finalize` → case updated |
-
-Resume via: `graph.invoke(Command(resume={"decision": "approve", "analyst_notes": "..."}), config)`
 
 ### 4.11 Finalize Agent
 
@@ -930,6 +929,7 @@ classDiagram
         SHELL_COMPANY
         CRYPTO_MIXING
         ELDER_EXPLOITATION
+        PEP_ABUSE
         UNKNOWN
     }
 
@@ -1012,21 +1012,27 @@ to complete before executing (LangGraph's built-in join semantics).
 
 ### 8.4 Durable Interrupt for Human Review
 
-The `interrupt()` function pauses execution and persists state to MongoDB:
+The `interrupt_before` compile-time option pauses execution before the
+`human_review` node and persists state to MongoDB:
+
+```python
+# In graph.py — compile with interrupt_before
+_compiled_graph = builder.compile(
+    checkpointer=checkpointer,
+    interrupt_before=["human_review"],
+)
+```
+
+The `human_review_node` itself is a placeholder that runs only after resume:
 
 ```python
 def human_review_node(state: InvestigationState) -> dict:
-    review_payload = {
-        "case_file": state.get("case_file", {}),
-        "narrative": state.get("narrative", {}),
-        # ... full review context
-    }
-    decision = interrupt(review_payload)  # ⏸ Pauses here
-    # Resumes when analyst responds
-    return {"human_decision": decision}
+    decision = state.get("human_decision", {})
+    # Process analyst decision injected via update_state
+    return {"human_decision": decision, "investigation_status": "reviewed_by_analyst"}
 ```
 
-**Resume:** `graph.invoke(Command(resume=analyst_decision), config={"configurable": {"thread_id": thread_id}})`
+**Resume:** `graph.update_state(config, resume_value, as_node="human_review")` then `graph.astream(None, config)`
 
 ### 8.5 State Reducers
 
@@ -1042,14 +1048,14 @@ def human_review_node(state: InvestigationState) -> dict:
 ### 8.6 Validation Cycles
 
 The graph supports cycles (LangGraph is NOT a DAG framework). The validation
-agent can route back to `data_gathering` or `narrative` up to 3 times:
+agent can route back to `data_gathering` or `narrative` up to 2 times:
 
 ```mermaid
 flowchart LR
     N["SAR Author"] --> V["Compliance QA"]
-    V -->|"Loop ≤ 3"| N
-    V -->|"Loop ≤ 3"| DG["Data Gathering"]
-    V -->|"Pass or Loop > 3"| HR["Human Review"]
+    V -->|"Loop ≤ 2"| N
+    V -->|"Loop ≤ 2"| DG["Data Gathering"]
+    V -->|"Pass or Loop > 2"| HR["Human Review"]
 ```
 
 ---
@@ -1425,7 +1431,7 @@ flowchart LR
 
 | Setting | Value |
 |---------|-------|
-| Model | Claude Sonnet (`arn:aws:bedrock:us-east-1:275662791714:application-inference-profile/n5kazy9gif2u`) |
+| Model | Claude Haiku 4.5 (default: `global.anthropic.claude-haiku-4-5-20251001-v1:0`), configurable via `LLM_MODEL_ARN` env var |
 | Temperature | 0.1 |
 | Client | `ChatBedrockConverse` (langchain-aws) |
 | Pattern | Singleton via `get_llm()` |
@@ -1478,7 +1484,7 @@ SR 11-7, EU AI Act, and OCC guidance on explainability.
 |-------|-----------|---------|
 | Policy | Business rules as deterministic checks | Risk thresholds, filing deadlines |
 | Behavioral | Pydantic structured output validation | Every LLM response schema-validated |
-| Operational | Hard caps on agent behavior | `MAX_VALIDATION_LOOPS = 3` |
+| Operational | Hard caps on agent behavior | `MAX_VALIDATION_LOOPS = 2` |
 
 ### 4. Risk-Adaptive Human Oversight
 
@@ -1529,7 +1535,7 @@ use MongoDB aggregations directly — no LLM overhead.
 | Failure Mode | Risk | Mitigation |
 |-------------|------|------------|
 | Hallucinated SAR facts | Critical | Ground in structured JSON case_file; require source citations; temperature 0.1; validation agent fact-checks against evidence |
-| Infinite validation loops | High | Hard cap `MAX_VALIDATION_LOOPS = 3`; forced escalation to human review |
+| Infinite validation loops | High | Hard cap `MAX_VALIDATION_LOOPS = 2`; forced escalation to human review |
 | Context window overflow | Medium | Hierarchical summarization in data gathering: summaries for bulk data, detail only for most suspicious items; payload truncation with `[:14000]` |
 | Tool call failures | Medium | Each tool catches exceptions and returns structured error dicts; agents reason about missing data gracefully |
 | State loss during interrupt | Medium | `MongoDBSaver` persists state durably; pipeline resumes from exact checkpoint |
@@ -1564,8 +1570,8 @@ services/agents/
 │   ├── trail_follower.py       # $graphLookup + conditional LLM lead selection
 │   ├── sub_investigator.py     # Send fan-out dispatch + mini_investigate workers
 │   ├── narrative.py            # SAR Author — 5Ws narrative generation
-│   ├── validator.py            # Compliance QA — quality loop with max 3 iterations
-│   ├── human_review.py         # interrupt() durable pause/resume
+│   ├── validator.py            # Compliance QA — quality loop with max 2 iterations
+│   ├── human_review.py         # interrupt_before durable pause/resume
 │   └── finalize.py             # Case document assembly + MongoDB persistence
 └── tools/
     ├── __init__.py

@@ -18,10 +18,12 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from dependencies import get_mongo_client, get_database, DB_NAME
 from services.agents.graph import get_compiled_graph
+from services.agents.tracing import get_tracing_callbacks
+from services.agents.rate_limit import rate_limit_investigate
 
 logger = logging.getLogger(__name__)
 
@@ -165,7 +167,7 @@ def _emit_node_events(node_name: str, state_update):
 
 # ── Launch investigation ──────────────────────────────────────────────
 
-@router.post("/investigate")
+@router.post("/investigate", dependencies=[Depends(rate_limit_investigate)])
 async def launch_investigation(request: Dict[str, Any]):
     """Start a new agentic investigation.
 
@@ -177,7 +179,11 @@ async def launch_investigation(request: Dict[str, Any]):
         raise HTTPException(status_code=400, detail="entity_id is required")
 
     thread_id = f"case-{uuid.uuid4().hex[:12]}"
-    config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 100}
+    config = {
+        "configurable": {"thread_id": thread_id},
+        "recursion_limit": 100,
+        "callbacks": get_tracing_callbacks(thread_id),
+    }
 
     alert_data = {
         "entity_id": entity_id,
@@ -233,7 +239,7 @@ async def launch_investigation(request: Dict[str, Any]):
                     for event in _emit_node_events(node_name, state_update):
                         yield event
 
-            final_state = graph.get_state(config)
+            final_state = await asyncio.to_thread(graph.get_state, config)
             state_values = final_state.values if final_state else {}
             is_interrupted = bool(final_state.next) if final_state else False
 
@@ -244,11 +250,11 @@ async def launch_investigation(request: Dict[str, Any]):
                     "timestamp": _now(),
                 })
 
-            # Update alert status
             if alert_id:
                 try:
                     new_status = "awaiting_review" if is_interrupted else "completed"
-                    client[DB_NAME]["alerts"].update_one(
+                    await asyncio.to_thread(
+                        client[DB_NAME]["alerts"].update_one,
                         {"_id": ObjectId(alert_id)},
                         {"$set": {"status": new_status, "completed_at": datetime.now(timezone.utc)}},
                     )
@@ -276,7 +282,7 @@ async def launch_investigation(request: Dict[str, Any]):
 
 # ── Resume after human review ────────────────────────────────────────
 
-@router.post("/investigate/resume")
+@router.post("/investigate/resume", dependencies=[Depends(rate_limit_investigate)])
 async def resume_investigation(request: Dict[str, Any]):
     """Resume an investigation paused at human review.
 
@@ -291,7 +297,11 @@ async def resume_investigation(request: Dict[str, Any]):
     decision = request.get("decision", "approve")
     analyst_notes = request.get("analyst_notes", "")
 
-    config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 100}
+    config = {
+        "configurable": {"thread_id": thread_id},
+        "recursion_limit": 100,
+        "callbacks": get_tracing_callbacks(thread_id),
+    }
     resume_value = {"decision": decision, "analyst_notes": analyst_notes}
 
     graph = get_compiled_graph()
@@ -303,10 +313,6 @@ async def resume_investigation(request: Dict[str, Any]):
             "timestamp": _now(),
         })
         try:
-            # region agent log
-            import time as _t; open("/Users/mehar.grewal/Desktop/Work/Coding/Finance/Fraud/fsi-aml-fraud-detection/.cursor/debug-f0b7a1.log","a").write(json.dumps({"sessionId":"f0b7a1","location":"investigation_routes.py:resume_pre_update","message":"State before update_state","data":{"thread_id":thread_id,"next":str(getattr(graph.get_state(config),"next","N/A"))},"timestamp":int(_t.time()*1000),"hypothesisId":"C"})+"\n")
-            # endregion
-
             audit_entry = {
                 "agent": "human_review",
                 "timestamp": _now(),
@@ -314,7 +320,8 @@ async def resume_investigation(request: Dict[str, Any]):
                 "analyst_notes": analyst_notes,
             }
 
-            graph.update_state(
+            await asyncio.to_thread(
+                graph.update_state,
                 config,
                 {
                     "human_decision": resume_value,
@@ -323,10 +330,6 @@ async def resume_investigation(request: Dict[str, Any]):
                 },
                 as_node="human_review",
             )
-
-            # region agent log
-            open("/Users/mehar.grewal/Desktop/Work/Coding/Finance/Fraud/fsi-aml-fraud-detection/.cursor/debug-f0b7a1.log","a").write(json.dumps({"sessionId":"f0b7a1","location":"investigation_routes.py:resume_post_update","message":"State after update_state(as_node=human_review)","data":{"thread_id":thread_id,"next":str(getattr(graph.get_state(config),"next","N/A"))},"timestamp":int(_t.time()*1000),"hypothesisId":"C"})+"\n")
-            # endregion
 
             yield _sse({
                 "type": "agent_end",
@@ -349,12 +352,8 @@ async def resume_investigation(request: Dict[str, Any]):
                     for event in _emit_node_events(node_name, state_update):
                         yield event
 
-            final_state = graph.get_state(config)
+            final_state = await asyncio.to_thread(graph.get_state, config)
             state_values = final_state.values if final_state else {}
-
-            # region agent log
-            open("/Users/mehar.grewal/Desktop/Work/Coding/Finance/Fraud/fsi-aml-fraud-detection/.cursor/debug-f0b7a1.log","a").write(json.dumps({"sessionId":"f0b7a1","location":"investigation_routes.py:resume_final","message":"Resume stream finished","data":{"status":state_values.get("investigation_status",""),"case_id":state_values.get("case_id",""),"has_human_decision":bool(state_values.get("human_decision")),"next":str(getattr(final_state,"next","N/A"))},"timestamp":int(_t.time()*1000),"hypothesisId":"C"})+"\n")
-            # endregion
 
             yield _sse({
                 "type": "resume_complete",
@@ -550,6 +549,7 @@ async def investigation_change_stream(websocket: WebSocket):
 
     db = get_database()
 
+    heartbeat_task = None
     try:
         pipeline = [
             {"$match": {
@@ -588,11 +588,8 @@ async def investigation_change_stream(websocket: WebSocket):
     finally:
         if websocket in _cs_connections:
             _cs_connections.remove(websocket)
-        try:
-            if "heartbeat_task" in dir():
-                heartbeat_task.cancel()
-        except Exception:
-            pass
+        if heartbeat_task is not None:
+            heartbeat_task.cancel()
 
 
 async def _cs_heartbeat(ws: WebSocket):
@@ -619,6 +616,7 @@ async def alerts_change_stream(websocket: WebSocket):
 
     db = get_database()
 
+    heartbeat_task = None
     try:
         # Send recent alerts as initial state
         recent = []
@@ -677,10 +675,8 @@ async def alerts_change_stream(websocket: WebSocket):
     except Exception as exc:
         logger.error("Alerts change stream WebSocket error: %s", exc)
     finally:
-        try:
+        if heartbeat_task is not None:
             heartbeat_task.cancel()
-        except Exception:
-            pass
 
 
 # ── Analytics Aggregation ─────────────────────────────────────────────
@@ -758,7 +754,6 @@ async def search_investigations(q: str = "", limit: int = 20):
     if not q.strip():
         return {"results": [], "query": q}
 
-    query_lower = q.strip().lower()
     query_regex = {"$regex": q.strip(), "$options": "i"}
 
     results = list(db["investigations"].find(

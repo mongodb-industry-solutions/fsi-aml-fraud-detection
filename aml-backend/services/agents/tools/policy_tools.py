@@ -1,6 +1,7 @@
 """RAG tools over typology_library and compliance_policies collections."""
 
 import logging
+import re
 from langchain_core.tools import tool
 from dependencies import get_mongo_client, DB_NAME
 
@@ -25,16 +26,23 @@ def search_typologies(query: str) -> list:
     """Text search across all typology descriptions and red flags.
 
     Returns matching typologies ranked by relevance.
+    Uses MongoDB $regex for server-side filtering instead of full collection scan.
     """
+    if not query.strip():
+        return []
     client = get_mongo_client()
     coll = client[DB_NAME]["typology_library"]
-    query_lower = query.lower()
-    results = []
-    for doc in coll.find({}, {"_id": 0}):
-        text = f"{doc.get('name', '')} {doc.get('description', '')} {' '.join(doc.get('red_flags', []))}"
-        if query_lower in text.lower():
-            results.append(doc)
-    return results[:5]
+    pattern = re.escape(query)
+    regex = {"$regex": pattern, "$options": "i"}
+    results = list(coll.find(
+        {"$or": [
+            {"name": regex},
+            {"description": regex},
+            {"red_flags": regex},
+        ]},
+        {"_id": 0},
+    ).limit(5))
+    return results
 
 
 @tool
@@ -42,13 +50,19 @@ def search_compliance_policies(query: str) -> list:
     """Text search across compliance policies and SAR guidance.
 
     Returns matching policies ranked by relevance.
+    Uses MongoDB $regex for server-side filtering instead of full collection scan.
     """
+    if not query.strip():
+        return []
     client = get_mongo_client()
     coll = client[DB_NAME]["compliance_policies"]
-    query_lower = query.lower()
-    results = []
-    for doc in coll.find({}, {"_id": 0}):
-        text = f"{doc.get('title', '')} {doc.get('content', '')}"
-        if query_lower in text.lower():
-            results.append(doc)
-    return results[:5]
+    pattern = re.escape(query)
+    regex = {"$regex": pattern, "$options": "i"}
+    results = list(coll.find(
+        {"$or": [
+            {"title": regex},
+            {"content": regex},
+        ]},
+        {"_id": 0},
+    ).limit(5))
+    return results

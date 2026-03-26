@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from models.agents.investigation import SARNarrative
-from services.agents.llm import get_llm, extract_token_usage
+from services.agents.llm import get_llm, get_model_id, extract_token_usage, invoke_with_retry
 from services.agents.prompts import NARRATIVE_SYSTEM
 from services.agents.state import InvestigationState
 from services.agents.tools.policy_tools import search_compliance_policies
@@ -16,7 +16,6 @@ from services.agents.tools.policy_tools import search_compliance_policies
 logger = logging.getLogger(__name__)
 
 _MAX_TOOL_OUTPUT = 3000
-_LLM_MODEL = "bedrock/anthropic-sonnet"
 
 
 def narrative_node(state: InvestigationState) -> dict:
@@ -61,7 +60,7 @@ def narrative_node(state: InvestigationState) -> dict:
     }, default=str)[:14000]
 
     llm = get_llm().with_structured_output(SARNarrative, include_raw=True)
-    llm_result = llm.invoke([
+    llm_result = invoke_with_retry(llm, [
         SystemMessage(content=NARRATIVE_SYSTEM),
         HumanMessage(content=(
             f"COMPLIANCE POLICY CONTEXT:\n{policy_context}\n\n"
@@ -78,7 +77,7 @@ def narrative_node(state: InvestigationState) -> dict:
         "agent": "sar_author",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "duration_ms": duration_ms,
-        "llm_model": _LLM_MODEL,
+        "llm_model": get_model_id(),
         "token_usage": token_usage,
         "narrative_length": total_length,
         "citations_count": len(narrative.cited_evidence),

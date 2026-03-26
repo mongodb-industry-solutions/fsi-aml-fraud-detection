@@ -25,6 +25,7 @@ langchain-mongodb = ">=0.10.0"
 langgraph-checkpoint-mongodb = ">=0.3.1"
 voyageai = ">=0.3.2"
 websockets = "^16.0"
+tenacity = ">=8.2,<10.0"
 
 [build-system]
 requires = ["poetry-core"]

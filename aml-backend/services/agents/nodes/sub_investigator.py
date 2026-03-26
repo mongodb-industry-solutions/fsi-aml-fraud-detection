@@ -16,7 +16,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langgraph.types import Send, Command
 
 from models.agents.investigation import LeadAssessment
-from services.agents.llm import get_llm, extract_token_usage
+from services.agents.llm import get_llm, get_model_id, extract_token_usage, invoke_with_retry
 from services.agents.prompts import LEAD_ASSESSMENT_SYSTEM
 from services.agents.state import InvestigationState
 from services.agents.tools.entity_tools import get_entity_profile, screen_watchlists
@@ -26,7 +26,6 @@ from services.agents.tools.network_tools import analyze_entity_network
 logger = logging.getLogger(__name__)
 
 _MAX_TOOL_OUTPUT = 3000
-_LLM_MODEL = "bedrock/anthropic-sonnet"
 
 
 def _serialize(obj) -> str:
@@ -66,10 +65,10 @@ def dispatch_sub_investigations(state: InvestigationState) -> Command:
             },
         )
 
-    parent_context = json.dumps({
+    parent_context = {
         "subject_entity": state.get("case_file", {}).get("entity", {}),
         "typology": state.get("typology", {}),
-    }, default=str)[:4000]
+    }
 
     send_targets = []
     for lead in leads[:3]:
@@ -111,7 +110,7 @@ def mini_investigate_node(state: SubInvestigateTask) -> dict:
     entity_id = state["entity_id"]
     entity_name = state.get("entity_name", "")
     reason = state.get("reason", "")
-    parent_context = state.get("parent_context", "{}")
+    parent_context = state.get("parent_context", {})
 
     tool_calls = []
     trace_entries = []
@@ -152,12 +151,12 @@ def mini_investigate_node(state: SubInvestigateTask) -> dict:
         "watchlist_screening": watchlist,
         "transactions": transactions,
         "network": network,
-        "parent_investigation_context": json.loads(parent_context) if parent_context else {},
+        "parent_investigation_context": parent_context or {},
         "selection_reason": reason,
     }, default=str)[:10000]
 
     llm = get_llm().with_structured_output(LeadAssessment, include_raw=True)
-    llm_result = llm.invoke([
+    llm_result = invoke_with_retry(llm, [
         SystemMessage(content=LEAD_ASSESSMENT_SYSTEM),
         HumanMessage(content=evidence),
     ])
@@ -173,7 +172,7 @@ def mini_investigate_node(state: SubInvestigateTask) -> dict:
         "agent": f"mini_investigate:{entity_id}",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "duration_ms": duration_ms,
-        "llm_model": _LLM_MODEL,
+        "llm_model": get_model_id(),
         "token_usage": token_usage,
         "entity_id": entity_id,
         "risk_level": assessment.risk_level,

@@ -11,10 +11,12 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 from services.agents.chat_agent import get_chat_agent
+from services.agents.tracing import get_tracing_callbacks
+from services.agents.rate_limit import rate_limit_chat
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +39,7 @@ def _truncate(text: str, limit: int = MAX_OUTPUT_CHARS) -> str:
     return text[:limit] + f"... [{len(text) - limit} chars truncated]"
 
 
-@router.post("/chat")
+@router.post("/chat", dependencies=[Depends(rate_limit_chat)])
 async def chat(request: Dict[str, Any]):
     """Send a message to the AML compliance assistant.
 
@@ -56,7 +58,11 @@ async def chat(request: Dict[str, Any]):
         raise HTTPException(status_code=400, detail="message is required")
 
     thread_id = request.get("thread_id") or f"chat-{uuid.uuid4().hex[:12]}"
-    config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 40}
+    config = {
+        "configurable": {"thread_id": thread_id},
+        "recursion_limit": 40,
+        "callbacks": get_tracing_callbacks(thread_id),
+    }
 
     async def event_stream():
         yield _sse({"type": "thread_id", "thread_id": thread_id, "timestamp": _now()})

@@ -9,21 +9,20 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langgraph.types import Command
 
 from models.agents.investigation import ValidationResult
-from services.agents.llm import get_llm, extract_token_usage
+from services.agents.llm import get_llm, get_model_id, extract_token_usage, invoke_with_retry
 from services.agents.prompts import VALIDATION_SYSTEM
 from services.agents.state import InvestigationState
 
 logger = logging.getLogger(__name__)
 
 MAX_VALIDATION_LOOPS = 2
-_LLM_MODEL = "bedrock/anthropic-sonnet"
 
 
 def validation_node(state: InvestigationState) -> Command:
     t0 = time.perf_counter()
     loop_count = state.get("validation_count", 0) + 1
 
-    if loop_count >= MAX_VALIDATION_LOOPS:
+    if loop_count > MAX_VALIDATION_LOOPS:
         duration_ms = int((time.perf_counter() - t0) * 1000)
         forced = ValidationResult(
             is_valid=False,
@@ -57,7 +56,7 @@ def validation_node(state: InvestigationState) -> Command:
     }, default=str)[:12000]
 
     llm = get_llm().with_structured_output(ValidationResult, include_raw=True)
-    llm_result = llm.invoke([
+    llm_result = invoke_with_retry(llm, [
         SystemMessage(content=VALIDATION_SYSTEM),
         HumanMessage(content=payload),
     ])
@@ -69,7 +68,7 @@ def validation_node(state: InvestigationState) -> Command:
         "agent": "compliance_qa",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "duration_ms": duration_ms,
-        "llm_model": _LLM_MODEL,
+        "llm_model": get_model_id(),
         "token_usage": token_usage,
         "loop": loop_count,
         "score": result.score,

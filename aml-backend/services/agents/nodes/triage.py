@@ -9,13 +9,11 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langgraph.types import Command
 
 from models.agents.investigation import TriageDecision
-from services.agents.llm import get_llm, extract_token_usage
+from services.agents.llm import get_llm, get_model_id, extract_token_usage, invoke_with_retry
 from services.agents.prompts import TRIAGE_SYSTEM
 from services.agents.state import InvestigationState
 
 logger = logging.getLogger(__name__)
-
-_LLM_MODEL = "bedrock/anthropic-sonnet"
 
 
 def triage_node(state: InvestigationState) -> Command:
@@ -23,7 +21,7 @@ def triage_node(state: InvestigationState) -> Command:
     llm = get_llm().with_structured_output(TriageDecision, include_raw=True)
     alert = state.get("alert_data", {})
 
-    result = llm.invoke([
+    result = invoke_with_retry(llm, [
         SystemMessage(content=TRIAGE_SYSTEM),
         HumanMessage(content=json.dumps(alert, default=str)),
     ])
@@ -35,7 +33,7 @@ def triage_node(state: InvestigationState) -> Command:
         "agent": "triage",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "duration_ms": duration_ms,
-        "llm_model": _LLM_MODEL,
+        "llm_model": get_model_id(),
         "token_usage": token_usage,
         "decision": decision.model_dump(),
         "reasoning": decision.reasoning[:300] if hasattr(decision, "reasoning") and decision.reasoning else "",

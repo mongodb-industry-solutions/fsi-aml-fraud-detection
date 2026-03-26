@@ -429,6 +429,10 @@ const spinnerKeyframes = `
 @keyframes chat-spin {
   to { transform: rotate(360deg); }
 }
+@keyframes bubble-pulse {
+  0%, 100% { box-shadow: 0 4px 16px rgba(0,0,0,0.2), 0 0 0 0 rgba(0,98,68,0.4); }
+  50% { box-shadow: 0 4px 16px rgba(0,0,0,0.2), 0 0 0 8px rgba(0,98,68,0); }
+}
 `;
 
 // ─── Follow-up suggestions ────────────────────────────────────────────────
@@ -613,8 +617,17 @@ function MessageBubble({ msg, onAction, isLast, streaming }) {
   const followUps = isLast && !streaming ? deriveFollowUps(msg.toolCalls) : [];
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: spacing[1] }}>
-      <div style={{ maxWidth: '92%' }}>
+    <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: spacing[1], gap: 8 }}>
+      <div style={{
+        width: 26, height: 26, borderRadius: 6, flexShrink: 0, marginTop: 2,
+        background: `linear-gradient(135deg, ${palette.green.dark2}, ${palette.green.dark1})`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+        </svg>
+      </div>
+      <div style={{ maxWidth: '88%', minWidth: 0 }}>
         {msg.toolCalls?.map((tc, i) => (
           <ToolCallIndicator
             key={i}
@@ -630,11 +643,13 @@ function MessageBubble({ msg, onAction, isLast, streaming }) {
           <div className="chat-md" style={{
             padding: `${spacing[1]}px ${spacing[2]}px`,
             borderRadius: '12px 12px 12px 4px',
-            background: palette.gray.light3,
+            background: '#fff',
             color: palette.gray.dark2,
             fontSize: 13,
             fontFamily: FONT,
             lineHeight: 1.6,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+            border: `1px solid ${palette.gray.light2}`,
           }}>
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
               {msg.content}
@@ -800,25 +815,33 @@ export default function ChatBubble({ embedded = false, pageContext = null }) {
     }
   };
 
-  // Floating bubble (closed state)
   if (!open && !embedded) {
     return (
-      <div
-        onClick={() => setOpen(true)}
-        style={{
-          position: 'fixed', bottom: 24, right: 24,
-          width: 56, height: 56, borderRadius: '50%',
-          background: palette.green.dark1, color: '#fff',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          cursor: 'pointer', boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-          zIndex: 1000, transition: 'transform 0.15s ease', fontSize: 24,
-        }}
-        onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.08)'; }}
-        onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
-        title="AML Compliance Assistant"
-      >
-        💬
-      </div>
+      <>
+        <style>{spinnerKeyframes}</style>
+        <div
+          onClick={() => setOpen(true)}
+          style={{
+            position: 'fixed', bottom: 24, right: 24,
+            width: 60, height: 60, borderRadius: '50%',
+            background: `linear-gradient(135deg, ${palette.green.dark1} 0%, ${palette.green.dark2} 100%)`,
+            color: '#fff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer',
+            zIndex: 1000, transition: 'transform 0.15s ease',
+            animation: 'bubble-pulse 3s ease-in-out infinite',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; }}
+          onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+          title="AML Compliance Assistant"
+        >
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2a7 7 0 0 1 7 7c0 3-1.5 5-3 6.5V18a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1v-2.5C6.5 14 5 12 5 9a7 7 0 0 1 7-7z"/>
+            <line x1="9" y1="22" x2="15" y2="22"/>
+            <line x1="10" y1="19" x2="14" y2="19"/>
+          </svg>
+        </div>
+      </>
     );
   }
 
@@ -839,19 +862,34 @@ export default function ChatBubble({ embedded = false, pageContext = null }) {
 
       {/* Header */}
       <div style={{
-        padding: `${spacing[2]}px ${spacing[3]}px`,
-        background: palette.green.dark1,
+        padding: `10px ${spacing[3]}px`,
+        background: `linear-gradient(135deg, ${palette.green.dark2} 0%, ${palette.green.dark1} 100%)`,
         color: '#fff',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Subtitle style={{ fontFamily: FONT, color: '#fff', fontSize: 14, margin: 0 }}>
-            AML Assistant
-          </Subtitle>
-          <Badge variant="green" style={{ fontSize: 9 }}>AI</Badge>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 30, height: 30, borderRadius: 8,
+            background: 'rgba(255,255,255,0.15)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 16, flexShrink: 0,
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+            </svg>
+          </div>
+          <div>
+            <Subtitle style={{ fontFamily: FONT, color: '#fff', fontSize: 14, margin: 0, lineHeight: 1.2 }}>
+              AML Assistant
+            </Subtitle>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4caf50', display: 'inline-block' }} />
+              16 tools available
+            </div>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
           <ThreadPicker
@@ -909,19 +947,37 @@ export default function ChatBubble({ embedded = false, pageContext = null }) {
           }}
         >
           {messages.length === 0 && (
-            <div style={{ textAlign: 'center', padding: `${spacing[2]}px 0`, maxWidth: 400, margin: '0 auto' }}>
-              <Body style={{ fontFamily: FONT, color: palette.gray.dark1, fontSize: 13, marginBottom: spacing[2] }}>
-                Ask me about entities, transactions, investigations, typologies, or compliance policies.
-              </Body>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ padding: `${spacing[3]}px ${spacing[1]}px`, maxWidth: 420, margin: '0 auto' }}>
+              <div style={{ textAlign: 'center', marginBottom: spacing[3] }}>
+                <div style={{
+                  width: 44, height: 44, borderRadius: 12, margin: '0 auto 8px',
+                  background: `linear-gradient(135deg, ${palette.green.light3}, ${palette.green.light2}40)`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  border: `1px solid ${palette.green.light1}`,
+                }}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={palette.green.dark1} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+                  </svg>
+                </div>
+                <Body style={{ fontFamily: FONT, color: palette.gray.dark2, fontSize: 14, fontWeight: 600, margin: 0 }}>
+                  AML Compliance Assistant
+                </Body>
+                <Body style={{ fontFamily: FONT, color: palette.gray.dark1, fontSize: 12, marginTop: 4 }}>
+                  Ask about entities, transactions, investigations, or compliance.
+                </Body>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {PROMPT_CATEGORIES.map(cat => (
-                  <div key={cat.label}>
+                  <div key={cat.label} style={{
+                    borderRadius: 10, padding: '10px 12px',
+                    background: '#fff', border: `1px solid ${palette.gray.light2}`,
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  }}>
                     <div style={{
-                      fontSize: 10, fontWeight: 600, fontFamily: FONT, color: palette.gray.base,
-                      textTransform: 'uppercase', letterSpacing: '0.5px',
-                      marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4,
+                      fontSize: 11, fontWeight: 600, fontFamily: FONT, color: palette.gray.dark2,
+                      marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6,
                     }}>
-                      <span>{cat.icon}</span> {cat.label}
+                      <span style={{ fontSize: 14 }}>{cat.icon}</span> {cat.label}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       {cat.prompts.map(q => (
@@ -931,13 +987,15 @@ export default function ChatBubble({ embedded = false, pageContext = null }) {
                           style={{
                             background: palette.gray.light3,
                             border: `1px solid ${palette.gray.light2}`,
-                            borderRadius: 8, padding: '6px 10px', fontSize: 12, fontFamily: FONT,
+                            borderRadius: 8, padding: '7px 10px', fontSize: 12, fontFamily: FONT,
                             color: palette.gray.dark2, cursor: 'pointer', textAlign: 'left',
-                            transition: 'background 0.12s, border-color 0.12s',
+                            transition: 'all 0.15s ease',
+                            display: 'flex', alignItems: 'center', gap: 6,
                           }}
-                          onMouseEnter={e => { e.currentTarget.style.background = palette.blue.light3; e.currentTarget.style.borderColor = palette.blue.light2; }}
-                          onMouseLeave={e => { e.currentTarget.style.background = palette.gray.light3; e.currentTarget.style.borderColor = palette.gray.light2; }}
+                          onMouseEnter={e => { e.currentTarget.style.background = palette.green.light3; e.currentTarget.style.borderColor = palette.green.light1; e.currentTarget.style.color = palette.green.dark2; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = palette.gray.light3; e.currentTarget.style.borderColor = palette.gray.light2; e.currentTarget.style.color = palette.gray.dark2; }}
                         >
+                          <span style={{ color: palette.gray.base, fontSize: 11, flexShrink: 0 }}>&#8594;</span>
                           {q}
                         </button>
                       ))}
@@ -981,39 +1039,54 @@ export default function ChatBubble({ embedded = false, pageContext = null }) {
 
       {/* Input area */}
       <div style={{
-        padding: spacing[2],
+        padding: '10px 12px',
         borderTop: `1px solid ${palette.gray.light2}`,
         background: '#fff',
-        display: 'flex',
-        gap: spacing[1],
         flexShrink: 0,
       }}>
-        <input
-          ref={inputRef}
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Ask about entities, transactions, compliance..."
-          disabled={streaming}
-          style={{
-            flex: 1,
-            padding: '8px 12px',
-            borderRadius: 8,
-            border: `1px solid ${palette.gray.light2}`,
-            fontSize: 13,
-            fontFamily: FONT,
-            outline: 'none',
-          }}
-        />
-        <Button
-          size="small"
-          variant="baseGreen"
-          onClick={handleSend}
-          disabled={streaming || !input.trim()}
-        >
-          Send
-        </Button>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '6px 6px 6px 14px',
+          borderRadius: 10,
+          border: `1px solid ${palette.gray.light2}`,
+          background: '#fafbfc',
+          transition: 'border-color 0.15s',
+        }}>
+          <input
+            ref={inputRef}
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask about entities, transactions, compliance..."
+            disabled={streaming}
+            style={{
+              flex: 1,
+              padding: '6px 0',
+              border: 'none',
+              background: 'transparent',
+              fontSize: 13,
+              fontFamily: FONT,
+              outline: 'none',
+              color: palette.gray.dark3,
+            }}
+          />
+          <button
+            onClick={handleSend}
+            disabled={streaming || !input.trim()}
+            style={{
+              width: 34, height: 34, borderRadius: 8, border: 'none',
+              background: streaming || !input.trim() ? palette.gray.light2 : palette.green.dark1,
+              color: '#fff', cursor: streaming || !input.trim() ? 'default' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'background 0.15s', flexShrink: 0,
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
   );

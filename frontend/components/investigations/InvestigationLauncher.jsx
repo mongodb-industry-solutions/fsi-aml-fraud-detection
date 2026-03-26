@@ -16,8 +16,9 @@ import { Spinner } from '@leafygreen-ui/loading-indicator';
 import { launchInvestigation, resumeInvestigation, fetchInvestigableEntities } from '@/lib/agent-api';
 import AgenticPipelineGraph from './AgenticPipelineGraph';
 import InvestigationInsightsPanel from './InvestigationInsightsPanel';
+import { uiTokens, GLOBAL_KEYFRAMES } from './investigationTokens';
 
-const FONT = "'Euclid Circular A', sans-serif";
+const FONT = uiTokens.font;
 
 const INVESTIGATION_CATEGORIES = [
   {
@@ -371,22 +372,34 @@ function ProgressHeader({ steps, running }) {
           {running && (
             <span style={{ marginLeft: 8, color: palette.blue.base, fontWeight: 600 }}>
               Running
-              <span className="pulse-text">...</span>
+              <span style={{ animation: 'shimmerText 1.5s ease-in-out infinite' }}>...</span>
             </span>
           )}
         </span>
       </div>
       <div style={{
-        height: 6, borderRadius: 3, background: palette.gray.light2, overflow: 'hidden',
+        height: 6, borderRadius: 999, background: palette.gray.light2, overflow: 'hidden',
+        position: 'relative',
       }}>
         <div style={{
-          height: '100%', borderRadius: 3,
+          height: '100%', borderRadius: 999,
           background: running
-            ? `linear-gradient(90deg, ${palette.blue.base}, ${palette.blue.light1})`
+            ? `linear-gradient(90deg, ${palette.green.light1}, ${palette.green.dark1})`
             : palette.green.dark1,
           width: `${pct}%`,
           transition: 'width 0.4s ease',
-        }} />
+          position: 'relative',
+        }}>
+          {running && (
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)',
+              backgroundSize: '200% 100%',
+              animation: 'shimmerBar 1.8s linear infinite',
+              borderRadius: 999,
+            }} />
+          )}
+        </div>
       </div>
     </div>
   );
@@ -468,7 +481,7 @@ function ToolCallDetail({ tool }) {
           <span style={{
             fontSize: 10, padding: '1px 6px', borderRadius: 3,
             background: palette.blue.light3, color: palette.blue.base,
-            fontWeight: 500, animation: 'shimmer 1.5s ease-in-out infinite',
+            fontWeight: 500, animation: 'shimmerText 1.5s ease-in-out infinite',
           }}>
             processing...
           </span>
@@ -1043,7 +1056,7 @@ function ReasoningBlock({ text, open, onToggle }) {
 // AgentStepCard (enhanced with active reasoning indicator)
 // ---------------------------------------------------------------------------
 
-function AgentStepCard({ step, isLast }) {
+function AgentStepCard({ step, isLast, index = 0 }) {
   const [expanded, setExpanded] = useState(false);
   const [reasoningOpen, setReasoningOpen] = useState(false);
   const info = AGENT_LABELS[step.agent]
@@ -1063,7 +1076,11 @@ function AgentStepCard({ step, isLast }) {
     || null;
 
   return (
-    <div style={{ display: 'flex', minHeight: 48 }}>
+    <div style={{
+      display: 'flex', minHeight: 48,
+      animation: `fadeSlideIn ${uiTokens.transitionMedium} ease both`,
+      animationDelay: `${index * 50}ms`,
+    }}>
       {/* Timeline rail */}
       <div style={{
         display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -1071,16 +1088,20 @@ function AgentStepCard({ step, isLast }) {
       }}>
         <div style={{
           width: dotSize, height: dotSize, borderRadius: '50%', flexShrink: 0,
-          background: isComplete ? info.color : isRunning ? 'transparent' : palette.gray.light2,
-          border: isRunning ? `2px solid ${info.color}` : 'none',
-          boxShadow: isRunning ? `0 0 0 3px ${info.color}33` : 'none',
-          animation: isRunning ? 'pulse-dot 1.5s ease-in-out infinite' : 'none',
+          background: isComplete ? info.color : isRunning ? 'transparent' : 'transparent',
+          border: isRunning
+            ? `2px solid ${palette.blue.base}`
+            : isComplete
+              ? 'none'
+              : `2px solid ${palette.gray.light1}`,
+          boxShadow: isRunning ? `0 0 0 3px ${palette.blue.light2}` : 'none',
+          animation: isRunning ? 'dotPulse 1.5s ease-in-out infinite' : 'none',
           marginTop: 6,
         }} />
         {!isLast && (
           <div style={{
             flex: 1, width: 2, background: lineColor, marginTop: 4, marginBottom: 0,
-            opacity: isComplete ? 0.5 : 0.25,
+            opacity: isComplete ? 0.5 : 0.2,
           }} />
         )}
       </div>
@@ -1245,21 +1266,13 @@ function AgentStepTimeline({ events, running, startTime }) {
               key={`${step.agent}-${i}`}
               step={step}
               isLast={i === steps.length - 1}
+              index={i}
             />
           );
         })}
       </div>
 
-      <style>{`
-        @keyframes pulse-dot {
-          0%, 100% { box-shadow: 0 0 0 3px rgba(0,104,74,0.15); }
-          50% { box-shadow: 0 0 0 6px rgba(0,104,74,0.08); }
-        }
-        @keyframes shimmer {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
-        }
-      `}</style>
+      <style>{GLOBAL_KEYFRAMES}</style>
     </Card>
   );
 }
@@ -1368,6 +1381,7 @@ function HumanReviewPanel({ payload, accumulatedEvidence, analystNotes, onNotesC
       border: `2px solid ${palette.yellow.base}`,
       background: palette.yellow.light3,
       marginBottom: spacing[3],
+      animation: 'attentionPulse 2s ease-in-out 3',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: spacing[2], marginBottom: spacing[2] }}>
         <div style={{
@@ -1837,27 +1851,52 @@ export default function InvestigationLauncher({ onComplete }) {
             gap: spacing[2],
             marginBottom: spacing[4],
           }}>
-            {INVESTIGATION_CATEGORIES.map((cat) => {
+            {INVESTIGATION_CATEGORIES.map((cat, catIdx) => {
               const idx = categoryIndices[cat.id] || 0;
               const currentEntity = cat.entities[idx];
               const isSelected = selectedCategory === cat.id;
               return (
                 <Card key={cat.id} style={{
-                  padding: spacing[3],
-                  border: `1.5px solid ${isSelected ? palette.green.dark1 : palette.gray.light2}`,
-                  background: isSelected ? palette.green.light3 : '#fff',
+                  padding: 0,
+                  border: isSelected
+                    ? `1.5px solid ${palette.green.dark1}`
+                    : `1.5px solid ${uiTokens.borderDefault}`,
+                  background: isSelected ? '#f0faf5' : uiTokens.surface1,
+                  boxShadow: isSelected
+                    ? `inset 0 0 0 1px ${palette.green.dark1}`
+                    : 'none',
                   cursor: 'pointer',
-                  transition: 'all 0.15s ease',
+                  transition: `all ${uiTokens.transitionFast}`,
+                  overflow: 'hidden',
+                  animation: `fadeSlideIn 220ms ease both`,
+                  animationDelay: `${catIdx * 40}ms`,
                 }}
                   onClick={() => {
                     setSelectedCategory(cat.id);
                     const nextIdx = (idx + 1) % cat.entities.length;
                     setCategoryIndices(prev => ({ ...prev, [cat.id]: nextIdx }));
                   }}
+                  onMouseEnter={(e) => {
+                    if (!isSelected) {
+                      e.currentTarget.style.borderColor = palette.green.light1;
+                      e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.04)';
+                      e.currentTarget.style.transform = 'scale(1.005)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isSelected) {
+                      e.currentTarget.style.borderColor = uiTokens.borderDefault;
+                      e.currentTarget.style.boxShadow = 'none';
+                      e.currentTarget.style.transform = 'scale(1)';
+                    }
+                  }}
                 >
+                  {/* Header band */}
                   <div style={{
-                    display: 'flex', justifyContent: 'space-between',
-                    alignItems: 'flex-start', marginBottom: spacing[1],
+                    padding: '10px 14px',
+                    background: palette.gray.light3,
+                    borderBottom: `1px solid ${uiTokens.borderDefault}`,
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                   }}>
                     <Subtitle style={{ fontFamily: FONT, fontSize: '14px', margin: 0 }}>
                       {cat.title}
@@ -1867,30 +1906,36 @@ export default function InvestigationLauncher({ onComplete }) {
                       <span style={{
                         fontSize: 9, fontFamily: FONT, color: palette.gray.base,
                         padding: '1px 5px', borderRadius: 4,
-                        background: palette.gray.light3, border: `1px solid ${palette.gray.light2}`,
+                        background: uiTokens.surface1, border: `1px solid ${uiTokens.borderDefault}`,
+                        fontVariantNumeric: 'tabular-nums',
                       }}>
                         {idx + 1}/{cat.entities.length}
                       </span>
                     </div>
                   </div>
-                  <Body style={{
-                    fontSize: '12px', color: palette.gray.dark1,
-                    fontFamily: FONT, marginBottom: spacing[1], lineHeight: 1.5,
-                  }}>
-                    {cat.description}
-                  </Body>
-                  <div style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    marginTop: spacing[1],
-                  }}>
-                    <Body style={{ fontSize: '11px', color: palette.gray.base, fontFamily: FONT }}>
-                      Entity: <strong style={{ color: palette.gray.dark1 }}>{entityNameMap[currentEntity.entity_id] || currentEntity.label}</strong>
-                    </Body>
-                    <span style={{
-                      fontSize: 10, color: palette.gray.base, fontFamily: FONT, fontStyle: 'italic',
+                  {/* Body */}
+                  <div style={{ padding: '10px 14px 12px' }}>
+                    <Body style={{
+                      fontSize: '12px', color: palette.gray.dark1,
+                      fontFamily: FONT, marginBottom: spacing[1], lineHeight: 1.5,
                     }}>
-                      Click to cycle
-                    </span>
+                      {cat.description}
+                    </Body>
+                    <div style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      marginTop: spacing[1],
+                    }}>
+                      <Body style={{ fontSize: '11px', color: palette.gray.base, fontFamily: FONT }}>
+                        Entity: <strong style={{ color: palette.gray.dark1 }}>{entityNameMap[currentEntity.entity_id] || currentEntity.label}</strong>
+                      </Body>
+                      <span style={{
+                        fontSize: 10, color: palette.gray.base, fontFamily: FONT,
+                        display: 'flex', alignItems: 'center', gap: 2,
+                      }}>
+                        <Icon glyph="ChevronRight" size={10} />
+                        Cycle
+                      </span>
+                    </div>
                   </div>
                 </Card>
               );
@@ -1983,15 +2028,15 @@ export default function InvestigationLauncher({ onComplete }) {
 
       {/* Final Result Summary */}
       {finalResult && !needsReview && (
-        <>
+        <div style={{ marginBottom: spacing[4], position: 'relative' }}>
           <FinalResultCard result={finalResult} />
-          <Callout variant="tip" style={{ marginTop: spacing[2] }}>
+          <Callout variant="tip" style={{ marginTop: spacing[3] }}>
             <strong>Single Document, Complete Investigation:</strong> The final investigation &mdash; entity profile,
             360&deg; case file, typology classification, network analysis, SAR narrative, validation results, human
             decision, and full audit trail &mdash; is stored as one rich MongoDB document. In a relational database, this
             would be scattered across 12&ndash;15 normalized tables with complex JOIN queries for every retrieval.
           </Callout>
-        </>
+        </div>
       )}
 
       {/* MongoDB Operations Insights Panel */}

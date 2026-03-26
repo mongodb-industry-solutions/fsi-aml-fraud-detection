@@ -1,13 +1,15 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
+import Icon from '@leafygreen-ui/icon';
 import { Body } from '@leafygreen-ui/typography';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 
 import { connectAlertStream } from '@/lib/agent-api';
+import { uiTokens } from './investigationTokens';
 
-const FONT = "'Euclid Circular A', sans-serif";
+const FONT = uiTokens.font;
 
 const formatEventTime = (timestamp) => {
   const d = timestamp ? new Date(timestamp) : new Date();
@@ -28,24 +30,25 @@ const getEventDescription = (event) => {
   if (event.type === 'alert_change') {
     const a = event.alert || {};
     if (event.operationType === 'insert') {
-      return `New alert: entity=${a.entity_id || '?'} type=${a.alert_type || '?'} status=${a.status || 'pending'}`;
+      return `New alert: entity=${a.entity_id || '?'} type=${a.alert_type || '?'}`;
     }
     return `Alert updated: entity=${a.entity_id || '?'} status=${a.status || '?'}`;
   }
   if (event.type === 'investigation_change') {
     const inv = event.investigation || {};
     if (event.operationType === 'insert') {
-      return `Investigation filed: ${inv.case_id || '?'} entity=${inv.entity_id || '?'} status=${inv.investigation_status || '?'}`;
+      return `Investigation filed: ${inv.case_id || '?'} entity=${inv.entity_id || '?'}`;
     }
     return `Investigation updated: ${inv.case_id || '?'} status=${inv.investigation_status || '?'}`;
   }
-  return JSON.stringify(event).slice(0, 100);
+  return JSON.stringify(event).slice(0, 80);
 };
 
 export default function ChangeStreamConsole({ onInvestigationChange }) {
   const [connected, setConnected] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
   const [events, setEvents] = useState([]);
+  const [expanded, setExpanded] = useState(false);
   const consoleEndRef = useRef(null);
 
   useEffect(() => {
@@ -78,8 +81,8 @@ export default function ChangeStreamConsole({ onInvestigationChange }) {
   }, [onInvestigationChange]);
 
   useEffect(() => {
-    consoleEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [events]);
+    if (expanded) consoleEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [events, expanded]);
 
   const statusColor = connected
     ? palette.green.dark1
@@ -90,8 +93,8 @@ export default function ChangeStreamConsole({ onInvestigationChange }) {
   const statusLabel = connected
     ? 'LIVE'
     : reconnecting
-    ? 'RECONNECTING...'
-    : 'DISCONNECTED';
+    ? 'RECONNECTING'
+    : 'OFFLINE';
 
   const statusTextColor = connected
     ? palette.green.dark2
@@ -99,112 +102,153 @@ export default function ChangeStreamConsole({ onInvestigationChange }) {
     ? palette.yellow.dark2
     : palette.red.dark2;
 
+  const latestEvent = events[0];
+
   return (
     <div style={{
-      padding: spacing[2],
+      padding: `${spacing[2]}px`,
       backgroundColor: palette.green.light3,
       borderRadius: 6,
       position: 'relative',
       overflow: 'hidden',
       border: `1px solid ${palette.green.light1}`,
+      flexShrink: 0,
+      transition: `all ${uiTokens.transitionMedium}`,
     }}>
-      {/* Status indicator */}
-      <div style={{
-        position: 'absolute', top: 6, right: 8,
-        display: 'flex', alignItems: 'center',
-      }}>
-        <span style={{
-          height: 8, width: 8, borderRadius: '50%',
-          backgroundColor: statusColor, marginRight: 4,
-          animation: connected || reconnecting ? 'cs-console-pulse 2s infinite' : 'none',
-          display: 'inline-block',
-        }} />
-        <span style={{ fontSize: 11, color: statusTextColor, fontFamily: FONT, fontWeight: 600 }}>
-          {statusLabel}
-        </span>
-      </div>
-
-      <Body style={{ fontSize: 12, fontWeight: 700, fontFamily: FONT, color: palette.gray.dark2, marginBottom: spacing[1] }}>
-        Change Stream Events
-      </Body>
-
-      {/* Dark console */}
-      <div style={{
-        marginTop: spacing[1],
-        fontSize: 12,
-        fontFamily: 'monospace',
-        backgroundColor: palette.gray.dark3,
-        color: palette.gray.light3,
-        padding: spacing[2],
-        borderRadius: 4,
-        maxHeight: 200,
-        overflowY: 'auto',
-        lineHeight: 1.6,
-      }}>
-        <div style={{ color: palette.green.light2 }}>
-          {'>> '}MongoDB Change Stream watching collections: alerts, investigations
-        </div>
-        <div style={{ color: palette.yellow.light2 }}>
-          {'>> '}Watching for operations: [&quot;insert&quot;, &quot;update&quot;, &quot;replace&quot;]
-        </div>
-        <div style={{
-          color: connected ? palette.green.light2 : reconnecting ? palette.yellow.light2 : palette.red.light2,
+      {/* Header — always visible, clickable */}
+      <button
+        onClick={() => setExpanded(v => !v)}
+        style={{
+          width: '100%',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          background: 'none', border: 'none', padding: 0,
+          cursor: 'pointer', fontFamily: FONT,
+        }}
+      >
+        <Body style={{
+          fontSize: 12, fontWeight: 700, fontFamily: FONT,
+          color: palette.gray.dark2, margin: 0,
+          display: 'flex', alignItems: 'center', gap: 6,
         }}>
-          {'>> '}WebSocket connection status: {statusLabel}
-        </div>
-        {connected && events.length === 0 && (
-          <div style={{
-            borderTop: `1px solid ${palette.gray.dark2}`,
-            margin: `${spacing[1]}px 0`, paddingTop: spacing[1],
-            fontStyle: 'italic', color: palette.gray.light1,
-          }}>
-            {'>> '}Waiting for change events... Launch an investigation to see real-time updates.
-          </div>
-        )}
-
-        {events.length > 0 && (
-          <>
-            <div style={{
-              borderTop: `1px solid ${palette.gray.dark2}`,
-              margin: `${spacing[1]}px 0`, paddingTop: spacing[1],
+          Change Streams
+          <span style={{
+            height: 7, width: 7, borderRadius: '50%',
+            backgroundColor: statusColor,
+            animation: connected || reconnecting ? 'subtlePulse 2s infinite' : 'none',
+            display: 'inline-block',
+          }} />
+          <span style={{ fontSize: 10, fontWeight: 600, color: statusTextColor }}>
+            {statusLabel}
+          </span>
+          {!expanded && events.length > 0 && (
+            <span style={{
+              fontSize: 9, fontWeight: 500, color: palette.gray.base,
+              padding: '1px 5px', borderRadius: 3,
+              background: uiTokens.surface1, border: `1px solid ${uiTokens.borderDefault}`,
             }}>
-              <span style={{ color: palette.yellow.light2 }}>
-                Recent events ({events.length}):
-              </span>
-            </div>
-            {events.map((event, idx) => (
-              <div
-                key={idx}
-                className={idx === 0 ? 'cs-highlight-update' : ''}
-                style={{
-                  color: getEventColor(event.type, event.operationType),
-                  marginTop: 2,
-                  padding: '2px 0',
-                }}
-              >
-                {'>> '}{formatEventTime(event.timestamp)} [{event.operationType}] {getEventDescription(event)}
-              </div>
-            ))}
-          </>
-        )}
-        <div ref={consoleEndRef} />
-      </div>
+              {events.length} event{events.length !== 1 ? 's' : ''}
+            </span>
+          )}
+        </Body>
+        <Icon
+          glyph="ChevronDown"
+          size={14}
+          style={{
+            color: palette.gray.dark1,
+            transition: `transform ${uiTokens.transitionFast}`,
+            transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+          }}
+        />
+      </button>
 
-      {/* Educational note */}
-      <div style={{
-        marginTop: spacing[1], fontSize: 10, fontFamily: FONT,
-        color: palette.green.dark2, lineHeight: 1.5,
-      }}>
-        <strong>MongoDB Change Streams:</strong> Real-time event notifications via <code style={{ fontSize: 10 }}>db.watch()</code> on
-        the <code style={{ fontSize: 10 }}>alerts</code> and <code style={{ fontSize: 10 }}>investigations</code> collections.
-        No polling, no message queue &mdash; MongoDB pushes events as they happen.
-      </div>
+      {/* Collapsed preview: latest event */}
+      {!expanded && latestEvent && (
+        <div style={{
+          marginTop: 6,
+          fontSize: 10,
+          fontFamily: 'monospace',
+          color: palette.green.dark2,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {formatEventTime(latestEvent.timestamp)} [{latestEvent.operationType}] {getEventDescription(latestEvent)}
+        </div>
+      )}
+
+      {/* Expanded console */}
+      {expanded && (
+        <>
+          <div style={{
+            marginTop: spacing[1],
+            fontSize: 11,
+            fontFamily: 'monospace',
+            backgroundColor: palette.gray.dark3,
+            color: palette.gray.light3,
+            padding: spacing[2],
+            borderRadius: 4,
+            maxHeight: 180,
+            overflowY: 'auto',
+            lineHeight: 1.6,
+          }}>
+            <div style={{ color: palette.green.light2 }}>
+              {'>> '}Watching: alerts, investigations
+            </div>
+            <div style={{
+              color: connected ? palette.green.light2 : reconnecting ? palette.yellow.light2 : palette.red.light2,
+            }}>
+              {'>> '}Status: {statusLabel}
+            </div>
+            {connected && events.length === 0 && (
+              <div style={{
+                borderTop: `1px solid ${palette.gray.dark2}`,
+                margin: `${spacing[1]}px 0`, paddingTop: spacing[1],
+                fontStyle: 'italic', color: palette.gray.light1,
+              }}>
+                {'>> '}Waiting for change events...
+              </div>
+            )}
+
+            {events.length > 0 && (
+              <>
+                <div style={{
+                  borderTop: `1px solid ${palette.gray.dark2}`,
+                  margin: `${spacing[1]}px 0`, paddingTop: spacing[1],
+                }}>
+                  <span style={{ color: palette.yellow.light2 }}>
+                    Recent ({events.length}):
+                  </span>
+                </div>
+                {events.map((event, idx) => (
+                  <div
+                    key={idx}
+                    className={idx === 0 ? 'cs-highlight-update' : ''}
+                    style={{
+                      color: getEventColor(event.type, event.operationType),
+                      marginTop: 2,
+                      padding: '2px 0',
+                    }}
+                  >
+                    {'>> '}{formatEventTime(event.timestamp)} [{event.operationType}] {getEventDescription(event)}
+                  </div>
+                ))}
+              </>
+            )}
+            <div ref={consoleEndRef} />
+          </div>
+
+          <div style={{
+            marginTop: spacing[1], fontSize: 10, fontFamily: FONT,
+            color: palette.green.dark2, lineHeight: 1.5,
+          }}>
+            <strong>Change Streams:</strong> Real-time <code style={{ fontSize: 10 }}>db.watch()</code> on
+            alerts &amp; investigations. No polling, no message queue.
+          </div>
+        </>
+      )}
 
       <style>{`
-        @keyframes cs-console-pulse {
-          0% { opacity: 1; }
+        @keyframes subtlePulse {
+          0%, 100% { opacity: 1; }
           50% { opacity: 0.4; }
-          100% { opacity: 1; }
         }
         .cs-highlight-update {
           animation: cs-console-highlight 2s ease;

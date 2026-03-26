@@ -17,8 +17,63 @@ import AgenticPipelineGraph from './AgenticPipelineGraph';
 import InvestigationAnalytics from './InvestigationAnalytics';
 import ChangeStreamConsole from './ChangeStreamConsole';
 import ChatBubble from '@/components/chat/ChatBubble';
+import { uiTokens, getRiskAccentColor, GLOBAL_KEYFRAMES } from './investigationTokens';
 
-const FONT = "'Euclid Circular A', sans-serif";
+const FONT = uiTokens.font;
+
+const CAPABILITY_CATEGORIES = [
+  {
+    id: 'entity',
+    label: 'Entity Research',
+    icon: '👤',
+    tools: [
+      { name: 'search_entities', desc: 'Full-text search across entity collection', op: 'find()' },
+      { name: 'get_entity_profile', desc: 'Retrieve full entity profile with risk data', op: 'findOne()' },
+      { name: 'find_similar_entities', desc: 'Find entities matching risk/behavior patterns', op: 'aggregate()' },
+      { name: 'compare_entities', desc: 'Side-by-side entity comparison', op: 'find()' },
+    ],
+  },
+  {
+    id: 'txn',
+    label: 'Transaction Analysis',
+    icon: '💸',
+    tools: [
+      { name: 'query_entity_transactions', desc: 'Query and aggregate transaction history', op: 'aggregate()' },
+      { name: 'trace_fund_flow', desc: 'Follow money trail across entity chains', op: '$graphLookup' },
+      { name: 'analyze_temporal_patterns', desc: 'Detect structuring, velocity spikes, dormancy', op: '$setWindowFields' },
+    ],
+  },
+  {
+    id: 'network',
+    label: 'Network Analysis',
+    icon: '🕸',
+    tools: [
+      { name: 'analyze_entity_network', desc: 'Recursive graph traversal of entity connections', op: '$graphLookup' },
+    ],
+  },
+  {
+    id: 'compliance',
+    label: 'Compliance & Typology',
+    icon: '⚖️',
+    tools: [
+      { name: 'search_typologies', desc: 'RAG search over typology library', op: 'Atlas Search' },
+      { name: 'lookup_typology', desc: 'Retrieve specific typology definition', op: 'findOne()' },
+      { name: 'search_compliance_policies', desc: 'Search compliance policies and SAR guidelines', op: 'Atlas Search' },
+    ],
+  },
+  {
+    id: 'investigation',
+    label: 'Investigation Mgmt',
+    icon: '📋',
+    tools: [
+      { name: 'search_investigations', desc: 'Search past investigation cases', op: 'find()' },
+      { name: 'get_investigation_detail', desc: 'Full case detail with evidence and audit trail', op: 'findOne()' },
+      { name: 'get_risk_summary', desc: 'Consolidated risk assessment across data sources', op: 'aggregate()' },
+      { name: 'expand_investigation_lead', desc: 'Follow up on a lead from an existing case', op: 'aggregate()' },
+      { name: 'screen_watchlists', desc: 'Screen entity against sanctions and watchlists', op: 'find()' },
+    ],
+  },
+];
 
 const STATUS_BADGES = {
   filed: { variant: 'green', label: 'SAR Filed' },
@@ -54,6 +109,8 @@ export default function InvestigationsPage() {
   const [seeding, setSeeding] = useState(false);
   const [error, setError] = useState(null);
   const [statusFilter, setStatusFilter] = useState(null);
+  const [listPage, setListPage] = useState(0);
+  const [expandedCaps, setExpandedCaps] = useState({});
 
   const fetchInvestigations = useCallback(async () => {
     setLoading(true);
@@ -120,6 +177,15 @@ export default function InvestigationsPage() {
     return investigations.filter(inv => inv.investigation_status === statusFilter);
   }, [investigations, statusFilter]);
 
+  const LIST_PAGE_SIZE = 5;
+  const totalPages = Math.max(1, Math.ceil(filteredInvestigations.length / LIST_PAGE_SIZE));
+  const pagedInvestigations = useMemo(() => {
+    const start = listPage * LIST_PAGE_SIZE;
+    return filteredInvestigations.slice(start, start + LIST_PAGE_SIZE);
+  }, [filteredInvestigations, listPage]);
+
+  useEffect(() => { setListPage(0); }, [statusFilter]);
+
   const kpis = useMemo(() => ({
     total: investigations.length,
     filed: investigations.filter(i => i.investigation_status === 'filed').length,
@@ -127,6 +193,7 @@ export default function InvestigationsPage() {
 
   return (
     <div>
+      <style>{GLOBAL_KEYFRAMES}</style>
       <div style={{ marginBottom: spacing[3] }}>
         <H2 style={{ fontFamily: FONT, margin: 0, fontSize: '22px' }}>
           Agentic Investigations
@@ -138,7 +205,7 @@ export default function InvestigationsPage() {
         </Body>
       </div>
 
-      <div style={{ display: 'flex', gap: spacing[3], minHeight: 'calc(100vh - 220px)' }}>
+      <div style={{ display: 'flex', gap: 0, minHeight: 'calc(100vh - 220px)' }}>
         {/* LEFT SIDEBAR */}
         <aside
           aria-label="Investigation list"
@@ -147,28 +214,42 @@ export default function InvestigationsPage() {
             flexShrink: 0,
             display: 'flex',
             flexDirection: 'column',
-            gap: spacing[2],
+            gap: 0,
+            background: uiTokens.railBg,
+            borderRight: `1px solid ${uiTokens.borderDefault}`,
+            padding: `${spacing[3]}px ${spacing[3]}px ${spacing[2]}px`,
+            marginRight: spacing[3],
           }}
         >
           {/* KPI Summary */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+          <div style={{
+            display: 'flex',
+            borderRadius: 8,
+            background: uiTokens.surface1,
+            border: `1px solid ${uiTokens.borderDefault}`,
+            boxShadow: uiTokens.shadowCard,
+            overflow: 'hidden',
+            marginBottom: spacing[3],
+          }}>
             {[
-              { label: 'Total', value: kpis.total, color: palette.gray.dark2 },
+              { label: 'Total Cases', value: kpis.total, color: palette.gray.dark3 },
               { label: 'SARs Filed', value: kpis.filed, color: palette.green.dark1 },
-            ].map(kpi => (
+            ].map((kpi, i) => (
               <div key={kpi.label} style={{
-                padding: '8px 10px',
-                borderRadius: 6,
-                background: palette.gray.light3,
-                border: `1px solid ${palette.gray.light2}`,
+                flex: 1,
+                padding: '12px 14px',
+                borderRight: i === 0 ? `1px solid ${uiTokens.borderDefault}` : 'none',
               }}>
                 <div style={{
-                  fontSize: 20, fontWeight: 700, fontFamily: FONT, color: kpi.color,
-                  fontVariantNumeric: 'tabular-nums',
+                  fontSize: 28, fontWeight: 700, fontFamily: FONT, color: kpi.color,
+                  fontVariantNumeric: 'tabular-nums', lineHeight: 1.1,
                 }}>
-                  {loading ? '-' : kpi.value}
+                  {loading ? '\u2014' : kpi.value}
                 </div>
-                <div style={{ fontSize: 10, color: palette.gray.dark1, fontFamily: FONT }}>
+                <div style={{
+                  fontSize: 11, color: palette.gray.base, fontFamily: FONT,
+                  marginTop: 4, letterSpacing: '0.02em',
+                }}>
                   {kpi.label}
                 </div>
               </div>
@@ -176,7 +257,7 @@ export default function InvestigationsPage() {
           </div>
 
           {/* Action Buttons */}
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 6, marginBottom: spacing[3] }}>
             <Button
               size="small"
               variant="baseGreen"
@@ -196,42 +277,84 @@ export default function InvestigationsPage() {
               <Icon glyph="Refresh" size={14} />
             </Button>
             <Button size="xsmall" onClick={handleSeed} disabled={seeding} aria-label="Seed test data">
-              {seeding ? '...' : 'Seed'}
+              {seeding ? '...' : <Icon glyph="Database" size={14} />}
             </Button>
           </div>
 
-          {/* Status Filters */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }} role="group" aria-label="Filter by status">
-            {STATUS_FILTERS.map(f => (
-              <button
-                key={f.label}
-                onClick={() => setStatusFilter(f.value)}
-                aria-pressed={statusFilter === f.value}
-                style={{
-                  fontSize: 10,
-                  fontFamily: FONT,
-                  padding: '3px 8px',
-                  borderRadius: 4,
-                  border: `1px solid ${statusFilter === f.value ? palette.blue.base : palette.gray.light2}`,
-                  background: statusFilter === f.value ? palette.blue.light3 : '#fff',
-                  color: statusFilter === f.value ? palette.blue.dark1 : palette.gray.dark1,
-                  cursor: 'pointer',
-                  fontWeight: statusFilter === f.value ? 600 : 400,
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                {f.label}
-              </button>
-            ))}
+          {/* Section label */}
+          <div style={{
+            fontSize: 11, fontWeight: 600, fontFamily: FONT, color: palette.gray.dark1,
+            textTransform: 'uppercase', letterSpacing: '0.04em',
+            marginBottom: spacing[2],
+          }}>
+            Status
+          </div>
+
+          {/* Status Filters — segmented control */}
+          <div
+            style={{
+              display: 'flex', flexWrap: 'wrap', gap: 0,
+              background: palette.gray.light3, borderRadius: 6,
+              padding: 2, marginBottom: spacing[3],
+            }}
+            role="group"
+            aria-label="Filter by status"
+          >
+            {STATUS_FILTERS.map(f => {
+              const isActive = statusFilter === f.value;
+              return (
+                <button
+                  key={f.label}
+                  onClick={() => setStatusFilter(f.value)}
+                  aria-pressed={isActive}
+                  style={{
+                    fontSize: 10,
+                    fontFamily: FONT,
+                    padding: '4px 10px',
+                    borderRadius: 4,
+                    border: 'none',
+                    background: isActive ? uiTokens.surface1 : 'transparent',
+                    boxShadow: isActive ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                    color: isActive ? palette.gray.dark3 : palette.gray.dark1,
+                    cursor: 'pointer',
+                    fontWeight: isActive ? 600 : 400,
+                    transition: `all ${uiTokens.transitionFast}`,
+                    flex: '1 0 auto',
+                  }}
+                >
+                  {f.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Cases section label */}
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            marginBottom: spacing[2],
+          }}>
+            <span style={{
+              fontSize: 11, fontWeight: 600, fontFamily: FONT, color: palette.gray.dark1,
+              textTransform: 'uppercase', letterSpacing: '0.04em',
+            }}>
+              Cases
+            </span>
+            <span style={{
+              fontSize: 10, fontFamily: FONT, color: palette.gray.base,
+              fontVariantNumeric: 'tabular-nums',
+            }}>
+              {filteredInvestigations.length} result{filteredInvestigations.length !== 1 ? 's' : ''}
+            </span>
           </div>
 
           {/* Investigation List */}
           <div style={{
             flex: 1,
-            overflowY: 'auto',
             display: 'flex',
             flexDirection: 'column',
             gap: 6,
+            minHeight: 0,
+            overflowY: 'auto',
           }}>
             {loading ? (
               <div style={{ display: 'flex', justifyContent: 'center', padding: spacing[4] }}>
@@ -249,7 +372,7 @@ export default function InvestigationsPage() {
               </div>
             ) : filteredInvestigations.length === 0 ? (
               <div style={{
-                padding: spacing[3],
+                padding: spacing[4],
                 textAlign: 'center',
                 color: palette.gray.dark1,
                 fontSize: 13, fontFamily: FONT,
@@ -259,9 +382,10 @@ export default function InvestigationsPage() {
                   : 'No investigations yet. Launch one to get started.'}
               </div>
             ) : (
-              filteredInvestigations.map(inv => {
+              pagedInvestigations.map((inv, idx) => {
                 const isSelected = selectedCase?.case_id === inv.case_id && activeView === 'detail';
                 const riskScore = inv.triage_decision?.risk_score;
+                const accentColor = getRiskAccentColor(riskScore);
                 return (
                   <div
                     key={inv.case_id}
@@ -269,45 +393,79 @@ export default function InvestigationsPage() {
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => { if (e.key === 'Enter') handleViewDetail(inv); }}
+                    className="inv-list-card"
                     style={{
-                      padding: '10px 12px',
+                      display: 'flex',
                       borderRadius: 6,
                       cursor: 'pointer',
-                      border: `1px solid ${isSelected ? palette.blue.base : palette.gray.light2}`,
-                      background: isSelected ? palette.blue.light3 : '#fff',
-                      transition: 'all 0.15s ease',
+                      border: isSelected
+                        ? `1px solid ${palette.green.dark1}`
+                        : `1px solid ${uiTokens.borderDefault}`,
+                      background: isSelected ? '#f0faf5' : uiTokens.surface1,
+                      boxShadow: isSelected
+                        ? `0 0 0 1px ${palette.green.dark1}, ${uiTokens.shadowSelected}`
+                        : 'none',
+                      transition: `all ${uiTokens.transitionFast}`,
+                      overflow: 'hidden',
+                      animation: `fadeSlideIn 220ms ease both`,
+                      animationDelay: `${idx * 30}ms`,
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isSelected) {
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                        e.currentTarget.style.boxShadow = uiTokens.shadowHover;
+                        e.currentTarget.style.borderColor = uiTokens.borderStrong;
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected) {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = 'none';
+                        e.currentTarget.style.borderColor = uiTokens.borderDefault;
+                      }
                     }}
                   >
+                    {/* Risk accent strip */}
                     <div style={{
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      marginBottom: 4,
-                    }}>
-                      <span style={{
-                        fontSize: 12, fontWeight: 600, fontFamily: FONT, color: palette.gray.dark3,
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180,
+                      width: 3, flexShrink: 0,
+                      background: accentColor,
+                      borderRadius: '3px 0 0 3px',
+                    }} />
+                    <div style={{ flex: 1, padding: '10px 12px', lineHeight: 1.45 }}>
+                      <div style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        marginBottom: 4,
                       }}>
-                        {inv.case_id}
-                      </span>
-                      <StatusBadge status={inv.investigation_status} />
-                    </div>
-                    <div style={{
-                      fontSize: 11, color: palette.gray.dark1, fontFamily: FONT,
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}>
-                      {inv.entity_name || inv.case_file?.entity?.name || inv.entity_id || inv.alert_data?.entity_id || 'N/A'}
-                      {riskScore !== undefined && (
                         <span style={{
-                          marginLeft: 6, fontWeight: 600,
-                          color: riskScore > 70 ? palette.red.base
-                            : riskScore > 25 ? palette.yellow.dark2
-                            : palette.green.dark1,
+                          fontSize: 13, fontWeight: 600, fontFamily: FONT, color: palette.gray.dark3,
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180,
                         }}>
-                          Risk: {riskScore}
+                          {inv.case_id}
                         </span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: 10, color: palette.gray.base, fontFamily: FONT, marginTop: 2 }}>
-                      {inv.created_at ? new Date(inv.created_at).toLocaleString() : ''}
+                        <StatusBadge status={inv.investigation_status} />
+                      </div>
+                      <div style={{
+                        fontSize: 12, color: palette.gray.dark1, fontFamily: FONT,
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>
+                        {inv.entity_name || inv.case_file?.entity?.name || inv.entity_id || inv.alert_data?.entity_id || 'N/A'}
+                        {riskScore !== undefined && (
+                          <span style={{
+                            marginLeft: 8, fontWeight: 600, fontSize: 11,
+                            color: riskScore > 70 ? palette.red.dark2
+                              : riskScore > 25 ? palette.yellow.dark2
+                              : palette.green.dark1,
+                          }}>
+                            Risk {riskScore}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{
+                        fontSize: 10, color: palette.gray.base, fontFamily: FONT, marginTop: 3,
+                        fontVariantNumeric: 'tabular-nums',
+                      }}>
+                        {inv.created_at ? new Date(inv.created_at).toLocaleString() : ''}
+                      </div>
                     </div>
                   </div>
                 );
@@ -315,26 +473,92 @@ export default function InvestigationsPage() {
             )}
           </div>
 
-          {/* View Toggles */}
-          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-            <Button
-              size="xsmall"
-              variant={activeView === 'assistant' ? 'baseGreen' : 'default'}
-              onClick={() => setActiveView(v => v === 'assistant' ? 'launcher' : 'assistant')}
-              style={{ flex: 1 }}
-            >
-              <Icon glyph="Wizard" size={14} style={{ marginRight: 4 }} />
-              {activeView === 'assistant' ? 'Hide Assistant' : 'AML Assistant'}
-            </Button>
-            <Button
-              size="xsmall"
-              variant="default"
-              onClick={() => setActiveView(v => v === 'pipeline' ? 'launcher' : 'pipeline')}
-              style={{ flex: 1 }}
-            >
-              <Icon glyph="Diagram3" size={14} style={{ marginRight: 4 }} />
-              {activeView === 'pipeline' ? 'Hide Pipeline' : 'Pipeline'}
-            </Button>
+          {/* Pagination Controls */}
+          {!loading && filteredInvestigations.length > LIST_PAGE_SIZE && (
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: `${spacing[2]}px 0`, flexShrink: 0,
+              borderTop: `1px solid ${uiTokens.borderDefault}`,
+              marginTop: spacing[2],
+            }}>
+              <button
+                onClick={() => setListPage(p => Math.max(0, p - 1))}
+                disabled={listPage === 0}
+                style={{
+                  fontSize: 11, fontFamily: FONT, padding: '4px 12px', borderRadius: 4,
+                  border: `1px solid ${uiTokens.borderDefault}`, background: uiTokens.surface1,
+                  color: listPage === 0 ? palette.gray.light1 : palette.gray.dark1,
+                  cursor: listPage === 0 ? 'default' : 'pointer',
+                  transition: `all ${uiTokens.transitionFast}`,
+                }}
+              >
+                Prev
+              </button>
+              <span style={{
+                fontSize: 10, fontFamily: FONT, color: palette.gray.dark1,
+                fontVariantNumeric: 'tabular-nums',
+              }}>
+                {listPage + 1} / {totalPages}
+              </span>
+              <button
+                onClick={() => setListPage(p => Math.min(totalPages - 1, p + 1))}
+                disabled={listPage >= totalPages - 1}
+                style={{
+                  fontSize: 11, fontFamily: FONT, padding: '4px 12px', borderRadius: 4,
+                  border: `1px solid ${uiTokens.borderDefault}`, background: uiTokens.surface1,
+                  color: listPage >= totalPages - 1 ? palette.gray.light1 : palette.gray.dark1,
+                  cursor: listPage >= totalPages - 1 ? 'default' : 'pointer',
+                  transition: `all ${uiTokens.transitionFast}`,
+                }}
+              >
+                Next
+              </button>
+            </div>
+          )}
+
+          {/* Divider */}
+          <div style={{
+            height: 1, background: uiTokens.borderDefault,
+            margin: `${spacing[2]}px 0`,
+            flexShrink: 0,
+          }} />
+
+          {/* View Toggles — segmented control */}
+          <div style={{
+            display: 'flex', gap: 0,
+            background: palette.gray.light3, borderRadius: 6,
+            padding: 2, flexShrink: 0, marginBottom: spacing[2],
+          }}>
+            {[
+              { key: 'assistant', icon: 'Wizard', label: 'Assistant' },
+              { key: 'pipeline', icon: 'Diagram3', label: 'Pipeline' },
+            ].map(toggle => {
+              const isActive = activeView === toggle.key;
+              return (
+                <button
+                  key={toggle.key}
+                  onClick={() => setActiveView(v => v === toggle.key ? 'launcher' : toggle.key)}
+                  style={{
+                    flex: 1,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                    padding: '6px 8px',
+                    borderRadius: 4,
+                    border: 'none',
+                    background: isActive ? uiTokens.surface1 : 'transparent',
+                    boxShadow: isActive ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                    color: isActive ? palette.green.dark2 : palette.gray.dark1,
+                    cursor: 'pointer',
+                    fontFamily: FONT,
+                    fontSize: 11,
+                    fontWeight: isActive ? 600 : 400,
+                    transition: `all ${uiTokens.transitionFast}`,
+                  }}
+                >
+                  <Icon glyph={toggle.icon} size={14} />
+                  {toggle.label}
+                </button>
+              );
+            })}
           </div>
 
           {/* Change Stream Console */}
@@ -354,8 +578,8 @@ export default function InvestigationsPage() {
             <InvestigationAnalytics />
           )}
           {activeView === 'assistant' && (
-            <div style={{ display: 'flex', gap: spacing[3], height: '100%', minHeight: 'calc(100vh - 280px)' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', gap: spacing[3], height: 'calc(100vh - 280px)', overflow: 'hidden' }}>
+              <div style={{ flex: 1, minWidth: 0, height: '100%' }}>
                 <ChatBubble
                   embedded={true}
                   pageContext={selectedCase ? {
@@ -367,58 +591,84 @@ export default function InvestigationsPage() {
               </div>
               <aside style={{
                 width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: spacing[2],
+                overflowY: 'auto',
               }}>
                 <Card style={{ padding: spacing[2] }}>
-                  <Subtitle style={{ fontFamily: FONT, fontSize: 13, margin: 0, marginBottom: spacing[1] }}>
-                    Capabilities
-                  </Subtitle>
-                  {[
-                    { icon: '🏢', label: 'Entity profiles & risk scoring' },
-                    { icon: '💸', label: 'Transaction queries & analysis' },
-                    { icon: '🕸️', label: 'Network traversal ($graphLookup)' },
-                    { icon: '🔍', label: 'Typology & compliance search (Atlas Search)' },
-                    { icon: '📋', label: 'Investigation lookup & summaries' },
-                    { icon: '⚖️', label: 'SAR filing guidance' },
-                  ].map(cap => (
-                    <div key={cap.label} style={{
-                      display: 'flex', alignItems: 'center', gap: 8,
-                      padding: '4px 0', fontSize: 12, fontFamily: FONT,
-                      color: palette.gray.dark2,
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing[1] }}>
+                    <Subtitle style={{ fontFamily: FONT, fontSize: 13, margin: 0 }}>
+                      Tools &amp; Capabilities
+                    </Subtitle>
+                    <span style={{
+                      fontSize: 9, fontFamily: FONT, fontWeight: 600,
+                      padding: '2px 6px', borderRadius: 4,
+                      background: palette.green.light3, color: palette.green.dark1,
+                      border: `1px solid ${palette.green.light1}`,
                     }}>
-                      <span>{cap.icon}</span>
-                      <span>{cap.label}</span>
-                    </div>
-                  ))}
-                </Card>
-                <Card style={{ padding: spacing[2] }}>
-                  <Subtitle style={{ fontFamily: FONT, fontSize: 13, margin: 0, marginBottom: spacing[1] }}>
-                    MongoDB Under the Hood
-                  </Subtitle>
-                  {[
-                    { badge: 'MongoDBSaver', desc: 'Durable conversation memory — close the browser, come back tomorrow, and the conversation continues.' },
-                    { badge: 'Atlas Search', desc: 'RAG over typology library and compliance policies with fuzzy matching.' },
-                    { badge: '$graphLookup', desc: 'Recursive network traversal to map entity connections.' },
-                    { badge: 'aggregate()', desc: 'Complex transaction analysis with pipeline stages.' },
-                  ].map(item => (
-                    <div key={item.badge} style={{
-                      padding: '6px 0', borderBottom: `1px solid ${palette.gray.light3}`,
-                      fontSize: 11, fontFamily: FONT,
-                    }}>
-                      <span style={{
-                        display: 'inline-block', fontSize: 9, padding: '1px 5px', borderRadius: 3,
-                        background: palette.green.dark1, color: '#fff', fontWeight: 600,
-                        fontFamily: 'monospace', marginBottom: 3,
-                      }}>
-                        {item.badge}
-                      </span>
-                      <Body style={{
-                        fontSize: 11, fontFamily: FONT, color: palette.gray.dark1,
-                        lineHeight: 1.4, margin: 0,
-                      }}>
-                        {item.desc}
-                      </Body>
-                    </div>
-                  ))}
+                      {CAPABILITY_CATEGORIES.reduce((n, c) => n + c.tools.length, 0)} tools
+                    </span>
+                  </div>
+                  {CAPABILITY_CATEGORIES.map(cat => {
+                    const isExpanded = expandedCaps[cat.id];
+                    return (
+                      <div key={cat.id} style={{ marginBottom: 2 }}>
+                        <button
+                          onClick={() => setExpandedCaps(prev => ({ ...prev, [cat.id]: !prev[cat.id] }))}
+                          style={{
+                            width: '100%', display: 'flex', alignItems: 'center', gap: 6,
+                            padding: '6px 4px', fontSize: 12, fontFamily: FONT, fontWeight: 500,
+                            color: palette.gray.dark2, background: 'none', border: 'none',
+                            cursor: 'pointer', borderRadius: 4,
+                            transition: 'background 0.12s',
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = palette.gray.light3; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                        >
+                          <span style={{ fontSize: 14 }}>{cat.icon}</span>
+                          <span style={{ flex: 1, textAlign: 'left' }}>{cat.label}</span>
+                          <span style={{
+                            fontSize: 9, color: palette.gray.base, fontWeight: 400,
+                            marginRight: 4,
+                          }}>
+                            {cat.tools.length}
+                          </span>
+                          <span style={{ fontSize: 9, color: palette.gray.base }}>
+                            {isExpanded ? '▼' : '▶'}
+                          </span>
+                        </button>
+                        {isExpanded && (
+                          <div style={{ paddingLeft: 24, paddingBottom: 4 }}>
+                            {cat.tools.map(tool => (
+                              <div key={tool.name} style={{
+                                padding: '4px 0',
+                                borderBottom: `1px solid ${palette.gray.light3}`,
+                                fontSize: 10, fontFamily: FONT,
+                              }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                                  <code style={{
+                                    fontSize: 9, fontFamily: "'Source Code Pro', monospace",
+                                    color: palette.blue.dark1, fontWeight: 600,
+                                  }}>
+                                    {tool.name}
+                                  </code>
+                                  <span style={{
+                                    fontSize: 8, padding: '0px 4px', borderRadius: 3,
+                                    background: palette.green.light3, color: palette.green.dark2,
+                                    fontFamily: "'Source Code Pro', monospace", fontWeight: 600,
+                                    border: `1px solid ${palette.green.light1}`,
+                                  }}>
+                                    {tool.op}
+                                  </span>
+                                </div>
+                                <div style={{ color: palette.gray.dark1, lineHeight: 1.4 }}>
+                                  {tool.desc}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </Card>
                 <div style={{
                   padding: '8px 12px', borderRadius: 6,
@@ -426,8 +676,8 @@ export default function InvestigationsPage() {
                   fontSize: 10, fontFamily: FONT, lineHeight: 1.5,
                   border: `1px solid ${palette.green.dark2}44`,
                 }}>
-                  <strong style={{ color: palette.green.light2 }}>12 tools</strong> querying MongoDB collections in real-time.
-                  Each tool call maps to a MongoDB operation — <code style={{ color: palette.green.light2 }}>findOne()</code>,{' '}
+                  Every tool call maps to a MongoDB operation:{' '}
+                  <code style={{ color: palette.green.light2 }}>findOne()</code>,{' '}
                   <code style={{ color: palette.green.light2 }}>aggregate()</code>,{' '}
                   <code style={{ color: palette.green.light2 }}>$graphLookup</code>, or{' '}
                   <code style={{ color: palette.green.light2 }}>Atlas Search</code>.
@@ -466,7 +716,7 @@ export default function InvestigationsPage() {
       {/* Powered by MongoDB footer */}
       <div style={{
         marginTop: spacing[4], padding: `${spacing[3]}px 0`, textAlign: 'center',
-        borderTop: `1px solid ${palette.gray.light2}`,
+        borderTop: `1px solid ${uiTokens.borderDefault}`,
       }}>
         <Body style={{ fontSize: '12px', fontFamily: FONT, fontWeight: 600, color: palette.gray.dark1, marginBottom: 4 }}>
           Powered by MongoDB

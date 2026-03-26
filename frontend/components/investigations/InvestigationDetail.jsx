@@ -11,13 +11,13 @@ import Code from '@leafygreen-ui/code';
 import Icon from '@leafygreen-ui/icon';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
+import { uiTokens, GLOBAL_KEYFRAMES } from './investigationTokens';
 
-const FONT = "'Euclid Circular A', sans-serif";
+const FONT = uiTokens.font;
 
 const DETAIL_TABS = [
   { key: 'summary', label: 'Summary' },
   { key: 'evidence', label: 'Evidence' },
-  { key: 'narrative', label: 'Narrative' },
   { key: 'audit', label: 'Audit Trail' },
 ];
 
@@ -109,7 +109,7 @@ export default function InvestigationDetail({ investigation }) {
       {/* Tab Navigation */}
       <div style={{
         display: 'flex', gap: 0,
-        borderBottom: `2px solid ${palette.gray.light2}`,
+        borderBottom: `2px solid ${uiTokens.borderDefault}`,
       }}>
         {DETAIL_TABS.map(tab => {
           const isActive = activeTab === tab.key;
@@ -120,6 +120,12 @@ export default function InvestigationDetail({ investigation }) {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
+              onMouseEnter={(e) => {
+                if (!isActive) e.currentTarget.style.background = palette.gray.light3;
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive) e.currentTarget.style.background = 'transparent';
+              }}
               style={{
                 padding: '10px 20px',
                 fontFamily: FONT,
@@ -128,10 +134,11 @@ export default function InvestigationDetail({ investigation }) {
                 color: isActive ? palette.green.dark2 : palette.gray.dark1,
                 background: 'transparent',
                 border: 'none',
-                borderBottom: isActive ? `2px solid ${palette.green.dark2}` : '2px solid transparent',
+                borderBottom: isActive ? `3px solid ${palette.green.dark2}` : '3px solid transparent',
+                borderRadius: '4px 4px 0 0',
                 marginBottom: -2,
                 cursor: 'pointer',
-                transition: 'all 0.15s ease',
+                transition: `all ${uiTokens.transitionFast}`,
                 opacity: hasContent ? 1 : 0.5,
               }}
             >
@@ -150,6 +157,8 @@ export default function InvestigationDetail({ investigation }) {
       </div>
 
       {/* Tab Content */}
+      <style>{GLOBAL_KEYFRAMES}</style>
+      <div key={activeTab} style={{ animation: `fadeSlideIn ${uiTokens.transitionMedium} ease both`, paddingTop: spacing[1] }}>
       {activeTab === 'summary' && (
         <SummaryTab
           triage={triage_decision}
@@ -174,13 +183,10 @@ export default function InvestigationDetail({ investigation }) {
         />
       )}
 
-      {activeTab === 'narrative' && (
-        <NarrativeTab narrative={narrative} />
-      )}
-
       {activeTab === 'audit' && (
         <AuditTab auditLog={agent_audit_log} toolTrace={tool_trace_log} metrics={pipeline_metrics} />
       )}
+      </div>
 
       {/* MongoDB Document Viewer */}
       <ExpandableCard
@@ -233,14 +239,20 @@ function SummaryTab({ triage, typology, validation, humanDecision, networkAnalys
             {risk && (
               <div style={{ display: 'flex', alignItems: 'center', gap: spacing[3] }}>
                 <div style={{
-                  width: 64, height: 64, borderRadius: '50%',
-                  border: `4px solid ${risk.color}`,
+                  width: 68, height: 68, borderRadius: '50%',
+                  background: `conic-gradient(${risk.color} ${riskScore * 3.6}deg, ${palette.gray.light2} ${riskScore * 3.6}deg)`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: '#fff', flexShrink: 0,
+                  flexShrink: 0, position: 'relative',
                 }}>
-                  <span style={{ fontSize: 24, fontWeight: 700, fontFamily: FONT, color: risk.color }}>
-                    {riskScore}
-                  </span>
+                  <div style={{
+                    width: 54, height: 54, borderRadius: '50%',
+                    background: '#fff',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <span style={{ fontSize: 22, fontWeight: 700, fontFamily: FONT, color: risk.color }}>
+                      {riskScore}
+                    </span>
+                  </div>
                 </div>
                 <div>
                   <span style={{
@@ -269,10 +281,11 @@ function SummaryTab({ triage, typology, validation, humanDecision, networkAnalys
                 <Badge variant="yellow">{typology.primary_typology}</Badge>
                 {confPct !== null && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: risk ? 'flex-end' : 'flex-start', marginTop: 8 }}>
-                    <div style={{ width: 80, height: 6, borderRadius: 3, background: palette.gray.light2, overflow: 'hidden' }}>
+                    <div style={{ width: 80, height: 8, borderRadius: 999, background: palette.gray.light2, overflow: 'hidden' }}>
                       <div style={{
-                        height: '100%', borderRadius: 3, width: `${confPct}%`,
+                        height: '100%', borderRadius: 999, width: `${confPct}%`,
                         background: confPct > 70 ? palette.green.dark1 : palette.yellow.base,
+                        transition: 'width 0.5s ease',
                       }} />
                     </div>
                     <span style={{ fontSize: 12, fontFamily: FONT, fontWeight: 600 }}>{confPct}%</span>
@@ -337,6 +350,7 @@ function SummaryTab({ triage, typology, validation, humanDecision, networkAnalys
             <div style={{
               padding: `${spacing[2]}px ${spacing[3]}px`,
               borderBottom: (temporalAnalysis?.timeline_summary || trailAnalysis?.leads?.length > 0) ? `1px solid ${palette.gray.light2}` : 'none',
+              borderLeft: `3px solid ${palette.blue.dark2}`,
             }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: spacing[3], flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 12, fontWeight: 600, fontFamily: FONT, color: palette.blue.dark2, minWidth: 70 }}>Network</span>
@@ -357,6 +371,7 @@ function SummaryTab({ triage, typology, validation, humanDecision, networkAnalys
             <div style={{
               padding: `${spacing[2]}px ${spacing[3]}px`,
               borderBottom: trailAnalysis?.leads?.length > 0 ? `1px solid ${palette.gray.light2}` : 'none',
+              borderLeft: `3px solid ${palette.yellow.dark2}`,
             }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: spacing[3], flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 12, fontWeight: 600, fontFamily: FONT, color: palette.yellow.dark2, minWidth: 70 }}>Temporal</span>
@@ -372,7 +387,10 @@ function SummaryTab({ triage, typology, validation, humanDecision, networkAnalys
           )}
 
           {trailAnalysis && trailAnalysis.leads?.length > 0 && (
-            <div style={{ padding: `${spacing[2]}px ${spacing[3]}px` }}>
+            <div style={{
+              padding: `${spacing[2]}px ${spacing[3]}px`,
+              borderLeft: `3px solid ${palette.green.dark2}`,
+            }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: spacing[3], flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 12, fontWeight: 600, fontFamily: FONT, color: palette.green.dark2, minWidth: 70 }}>Trail</span>
                 <MetricInline label="Leads" value={trailAnalysis.leads.length} />
@@ -1037,6 +1055,7 @@ function AuditTab({ auditLog, toolTrace, metrics }) {
                 {/* Entry content */}
                 <div style={{
                   flex: 1, paddingLeft: 8, paddingBottom: isLast ? 0 : 10,
+                  lineHeight: 1.45,
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                     <Badge

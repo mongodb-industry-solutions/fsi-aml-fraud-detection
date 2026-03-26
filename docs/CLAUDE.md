@@ -89,7 +89,7 @@ poetry run uvicorn main:app --reload --port 8000  # Development server
 
 - `lib/`: API client libraries
   - `aml-api.js`: AML backend integration (port 8001)
-  - `agent-api.js`: Agentic investigation API (SSE streaming, CRUD, seed, analytics)
+  - `agent-api.js`: Agentic investigation API (shared `readSSEStream` helper, AbortSignal support, SSE streaming, CRUD, seed, analytics)
   - `enhanced-entity-resolution-api.js`: Enhanced resolution API client
   - `mongodb.js`: Direct MongoDB connection
 
@@ -131,6 +131,55 @@ poetry run uvicorn main:app --reload --port 8000  # Development server
 - Fluent aggregation builder pattern
 - Connection pooling and management
 - Graph operations utilities
+
+### Agentic Investigation Pipeline
+
+**LangGraph-based multi-agent pipeline** for automated AML investigations. See `docs/AGENTIC_INVESTIGATION_PIPELINE.md` for full architecture docs.
+
+**Core Modules (`services/agents/`):**
+- `graph.py`: LangGraph `StateGraph` wiring, `MongoDBSaver` checkpointer, `MongoDBStore` memory, `interrupt_before` for human review
+- `state.py`: `InvestigationState` TypedDict with custom reducers (`_merge_dicts`, `_append_only`)
+- `llm.py`: `ChatBedrockConverse` singleton (`get_llm()`), `get_model_id()` for audit logging, `invoke_with_retry()` with tenacity retry (3 attempts, exponential backoff)
+- `tracing.py`: `InvestigationTracingHandler` (`BaseCallbackHandler`) for structured JSON logging of LLM/tool calls. Wired via `config["callbacks"]` at graph invocation
+- `rate_limit.py`: Sliding-window in-memory rate limiter for `/investigate` and `/chat` endpoints. Configurable via `RATE_LIMIT_INVESTIGATE` and `RATE_LIMIT_CHAT` env vars
+- `memory.py`: `MongoDBStore` for cross-investigation learning (wired into graph compilation)
+- `chat_agent.py`: ReAct chat co-pilot with 13 tools
+- `prompts.py`: Centralized system prompts for all agent nodes
+- `seed.py`: Seeds `typology_library` (12 docs) and `compliance_policies` (6 docs)
+
+**Pipeline Nodes (`services/agents/nodes/`):**
+- `triage.py` → `data_gatherer.py` → `network_analyst.py` / `temporal_analyst.py` → `trail_follower.py` → `sub_investigator.py` → `narrative.py` → `validator.py` → `human_review.py` → `finalize.py`
+- All LLM-calling nodes use `invoke_with_retry()` for resilience and `get_model_id()` for accurate audit logging
+- `data_gatherer.py`: Uses `Send` for parallel fan-out, `_fetch_with_trace` has try/except error handling
+- `validator.py`: `MAX_VALIDATION_LOOPS = 2`, uses `>` guard (allows 2 full LLM passes before forced escalation)
+- `human_review.py`: Placeholder node; actual pause is via `interrupt_before=["human_review"]` at compile time
+
+**Tools (`services/agents/tools/`):**
+- `entity_tools.py`, `transaction_tools.py`, `network_tools.py`: MongoDB queries via sync PyMongo
+- `policy_tools.py`: `$regex` + `$or` server-side queries (not full-collection scans), with empty query guard
+- `chat_tools.py`: 9 additional tools for the chat co-pilot
+
+**Routes (`routes/agents/`):**
+- `investigation_routes.py`: SSE streaming, CRUD, analytics, search, WebSocket change streams. Uses `asyncio.to_thread()` for sync LangGraph/PyMongo calls
+- `chat_routes.py`: Chat SSE streaming
+- Both routes include rate limiting via `Depends()` and tracing callbacks
+
+**Frontend (`frontend/lib/agent-api.js`):**
+- Shared `readSSEStream()` helper for SSE parsing (DRY across 3 functions)
+- `AbortSignal` support on `launchInvestigation`, `resumeInvestigation`, `sendChatMessage`
+
+**Key Patterns:**
+- `Command`-based dynamic routing (triage, validator)
+- `Send` API for parallel fan-out (data gathering, sub-investigations)
+- `interrupt_before` at compile time for durable human-in-the-loop
+- Resume via `graph.update_state(config, value, as_node="human_review")` then `graph.astream(None, config)`
+- `_append_only` reducer for immutable audit trail
+- Pydantic `with_structured_output()` for all LLM responses
+
+**Environment Variables (agent-specific):**
+- `LLM_MODEL_ARN`: Override default Haiku 4.5 model ARN
+- `RATE_LIMIT_INVESTIGATE`: Max investigate requests per 60s (default: 10)
+- `RATE_LIMIT_CHAT`: Max chat requests per 60s (default: 30)
 
 ## Enhanced Entity Resolution Implementation
 
@@ -323,6 +372,11 @@ TRANSACTION_VECTOR_INDEX=transaction_vector_index
 # Server Configuration
 BACKEND_URL=http://localhost:8000
 AML_BACKEND_URL=http://localhost:8001
+
+# Agentic Pipeline (optional overrides)
+LLM_MODEL_ARN=arn:aws:bedrock:...    # Override default Haiku 4.5 model
+RATE_LIMIT_INVESTIGATE=10             # Max investigation requests per 60s
+RATE_LIMIT_CHAT=30                    # Max chat requests per 60s
 ```
 
 ## Common Development Patterns

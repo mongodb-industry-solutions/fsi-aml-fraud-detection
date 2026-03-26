@@ -18,6 +18,7 @@ By the end of this guide, you'll have a comprehensive fraud detection and AML/KY
 - **Real-time Fraud Detection**: Multi-factor risk assessment with AI-powered pattern recognition
 - **Intelligent Entity Resolution**: AI-powered fuzzy matching and duplicate detection for AML/KYC compliance
 - **LLM-Powered Classification**: AWS Bedrock Claude-3 Sonnet for automated entity risk assessment
+- **Agentic SAR Investigation Pipeline**: Multi-agent LangGraph pipeline that autonomously investigates AML alerts, performs parallel data gathering, typology classification, network and temporal analysis, sub-investigations, and generates FinCEN-compliant SAR narratives with human-in-the-loop review
 - **Automated Case Investigation**: AI-generated investigation reports and case documentation
 - **Network Analysis**: Relationship mapping and graph analytics for compliance investigations
 - **Vector-based Pattern Recognition**: Advanced similarity matching using MongoDB Atlas Vector Search
@@ -39,6 +40,7 @@ ThreatSight 360 uses a **dual-backend microservices architecture**:
 - **Entity Management**: Comprehensive individual and organization entity management with Customer 360 view possible due to the [MongoDB Document Model](https://www.mongodb.com/docs/manual/core/data-modeling-introduction/)
 - **Intelligent Entity Resolution**: [MongoDB Atlas Search](https://www.mongodb.com/docs/atlas/atlas-search/) fuzzy matching and duplicate detection
 - **LLM Classification Service**: AWS Bedrock Claude-3 Sonnet for entity risk assessment
+- **Agentic Investigation Pipeline**: [LangGraph](https://langchain-ai.github.io/langgraph/)-orchestrated multi-agent SAR investigation system with `MongoDBSaver` checkpointing, parallel `Send` fan-out, and `interrupt()`-based human review
 - **Investigation Service**: Automated case investigation and report generation
 - **Network Analysis**: Relationship and transaction graph traversal analytics using [MongoDB $graphLookup](https://www.mongodb.com/docs/manual/reference/operator/aggregation/graphLookup/)
 - **Atlas Search Integration**: Advanced search capabilities with [faceted filtering](https://www.mongodb.com/docs/atlas/atlas-search/facet/) and [autocomplete](https://www.mongodb.com/docs/atlas/atlas-search/autocomplete/)
@@ -49,6 +51,7 @@ ThreatSight 360 uses a **dual-backend microservices architecture**:
 - **Risk Model Management**: Dynamic risk model configuration interface and [MongoDB Change Streams](https://www.mongodb.com/docs/manual/changeStreams/) for live risk model synchronization
 - **Entity Management Dashboard**: Advanced entity 360 with relationship and transaction network visualization
 - **Intelligent Entity Resolution Workflow**: A multi-step entity onboarding workflow involving MongoDB full-text + vector + [hybrid search with $rankFusion](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-stage/#atlas-vector-search-rankfusion), network traversal using [$graphLookup](https://www.mongodb.com/docs/manual/reference/operator/aggregation/graphLookup/) and risk classification and case generation using LLMs
+- **Agentic Investigations Dashboard**: Interactive investigation control surface with live pipeline visualization (ReactFlow), real-time SSE streaming, human review workflow, and a polished "Control Room" UI built with MongoDB LeafyGreen components and centralized design tokens
 
 ## Solution Architecture
 
@@ -747,6 +750,32 @@ The Enhanced Entity Resolution feature provides a comprehensive 5-step workflow 
    - **Workflow Consolidation**: Combines all previous steps into comprehensive case file
    - **Report Generation**: Export PDF report Case Report
 
+### Agentic Investigations
+
+The Agentic Investigations page provides a full-featured control surface for launching, monitoring, and reviewing autonomous AML investigations:
+
+1. Navigate to [http://localhost:3000/investigations](http://localhost:3000/investigations).
+
+2. The page is organized as a sidebar + workspace layout:
+
+   - **Sidebar**: KPI summary (total cases, pending review, filed SARs), status filters, investigation list with risk-colored accent strips, and view toggles (All / Pending / Filed)
+   - **Launch**: Select from pre-built demo scenarios (Auto-Close False Positive, Shell Company, PEP) or enter a custom entity ID to start a new investigation
+   - **Live Pipeline**: Watch the investigation unfold in real-time via SSE streaming with an interactive ReactFlow pipeline graph that highlights active nodes
+   - **Human Review**: When the pipeline pauses at the human review gate, approve, reject, or request changes before the case is finalized
+   - **Investigation Detail**: Drill into any completed case to view the triage decision, typology classification, network and temporal analysis, sub-investigation findings, full SAR narrative, validation result, and immutable audit trail
+   - **Analytics**: View investigation status distribution, typology counts, and risk score statistics
+
+3. Key UI features:
+
+   - **Centralized design tokens** (`investigationTokens.js`) for consistent surfaces, shadows, and transitions
+   - **Micro-interactions**: Staggered fade-in animations, hover lift effects, risk-colored accents, progress bar shimmer, and active-node glow on the pipeline graph
+   - **Conic-gradient risk ring gauge** for at-a-glance risk score visualization
+   - **Collapsible Change Stream console** for monitoring real-time MongoDB Change Stream events
+   - **Accessibility**: All animations respect `prefers-reduced-motion`
+
+> [!Note]
+> Before launching investigations, click the "Seed" button to populate the `typology_library` and `compliance_policies` collections required by the pipeline agents. For full documentation of the agentic pipeline architecture, see [docs/AGENTIC_INVESTIGATION_PIPELINE.md](docs/AGENTIC_INVESTIGATION_PIPELINE.md).
+
 ### Risk Model Management
 
 The Risk Model Management interface allows administrators to configure and deploy different risk assessment models:
@@ -839,8 +868,10 @@ Check additional and accompanying resources below:
 - **Vector Search**: AI-powered similarity matching for fraud patterns and entity resolution
 - **$graphLookup**: Relationship network traversal for compliance investigations
 - **$rankFusion**: Hybrid search combining text and vector search
-- **Change Streams**: Real-time updates for risk models
+- **Change Streams**: Real-time updates for risk models and live investigation monitoring
 - **Geospatial Queries**: Location-based fraud detection
+- **MongoDBSaver / MongoDBStore**: Durable LangGraph checkpointing and cross-investigation memory for agentic pipelines
+- **Aggregation Pipelines**: Temporal pattern detection (structuring, velocity anomalies, round-trips) and investigation analytics via `$facet`
 
 ## License
 

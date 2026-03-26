@@ -79,8 +79,17 @@ poetry run uvicorn main:app --reload --port 8000  # Development server
     - `ParallelSearchInterface.jsx`: Displays Atlas, Vector, and Hybrid search results with expandable query details
     - `NetworkVisualizationCard.jsx`: Network analysis and relationship visualization
   
+- `components/investigations/`: Agentic investigation UI
+  - `investigationTokens.js`: Centralized design tokens (`uiTokens`, `getRiskAccentColor`, `GLOBAL_KEYFRAMES`)
+  - `InvestigationsPage.jsx`: Sidebar + workspace layout with KPI summary, filters, investigation list
+  - `InvestigationLauncher.jsx`: Demo scenarios, SSE progress, pipeline graph, human review
+  - `InvestigationDetail.jsx`: Case detail with tab navigation, risk ring gauge, analysis cards
+  - `AgenticPipelineGraph.jsx`: ReactFlow pipeline visualization with dot grid canvas and node glow
+  - `ChangeStreamConsole.jsx`: Collapsible MongoDB Change Stream monitor
+
 - `lib/`: API client libraries
   - `aml-api.js`: AML backend integration (port 8001)
+  - `agent-api.js`: Agentic investigation API (SSE streaming, CRUD, seed, analytics)
   - `enhanced-entity-resolution-api.js`: Enhanced resolution API client
   - `mongodb.js`: Direct MongoDB connection
 
@@ -257,6 +266,41 @@ if (bidirectional) {
   });
 }
 ```
+
+## Investigation UI Design System
+
+The Agentic Investigations page uses a centralized design token module (`components/investigations/investigationTokens.js`) to maintain visual consistency across all investigation components.
+
+**Design Tokens (`uiTokens`):**
+- `railBg`, `surface1`: Surface colors for sidebar and cards
+- `borderDefault`, `borderStrong`: Border hierarchy from `@leafygreen-ui/palette`
+- `shadowHover`, `shadowSelected`, `shadowCard`, `shadowElevated`: Elevation levels
+- `transitionFast` (150ms), `transitionMedium` (220ms): CSS transitions with `cubic-bezier(0.33, 1, 0.68, 1)` easing
+- `font`, `monoFont`: Typography stacks
+
+**Risk Accent Helper (`getRiskAccentColor(score)`):**
+- Returns `palette.red.base` for score >= 75, `#ed6c02` for >= 50, `palette.yellow.base` for >= 25, `palette.green.base` otherwise
+- Used for investigation list card left borders, risk ring gauges, and analysis section accents
+
+**CSS Keyframes (`GLOBAL_KEYFRAMES`):**
+- `fadeSlideIn`: Staggered card/list entry animation
+- `shimmerBar`: Progress bar shimmer overlay
+- `attentionPulse`: Human review panel header pulse
+- `dotPulse`, `nodePulse`: Active state indicators for timeline dots and graph nodes
+- `subtlePulse`, `shimmerText`: Loading and status indicators
+- Includes `@media (prefers-reduced-motion: reduce)` for accessibility
+
+**Styling Patterns:**
+- All investigation components use inline styles referencing `uiTokens` — no CSS modules
+- Risk-colored 3px left accent borders on list cards and analysis sections
+- Segmented controls for status filters and view toggles
+- Conic-gradient ring gauge for risk score visualization in `InvestigationDetail`
+- ReactFlow graph uses dot grid canvas (`radial-gradient`), `drop-shadow` on nodes, and `nodePulse` animation on active nodes
+
+**Key Dependencies:**
+- `@leafygreen-ui/palette` and `@leafygreen-ui/tokens` for color and spacing primitives
+- `@xyflow/react` (ReactFlow) for pipeline graph visualization
+- No animation libraries — all animations are CSS-only via `@keyframes`
 
 ## Environment Variables
 

@@ -1180,66 +1180,102 @@ Real-time alert updates via MongoDB Change Streams on the `alerts` and
 
 ### Page Structure
 
-The `/investigations` page uses a tabbed interface built with MongoDB
-LeafyGreen UI components:
+The `/investigations` page uses a **sidebar + workspace** layout built with
+MongoDB LeafyGreen UI components and a centralized design token system.
 
 ```mermaid
 flowchart TB
     subgraph Page["Investigations Page"]
-        Header["H2: Agentic Investigations<br/>+ description"]
-        Tabs["Tab Navigation"]
+        Sidebar["Sidebar Rail<br/>KPI summary, status filters,<br/>investigation list, view toggles"]
+        Workspace["Dynamic Workspace"]
     end
 
-    Tabs --> T1["Dashboard Tab"]
-    Tabs --> T2["Launch Investigation Tab"]
-    Tabs --> T3["Investigation Detail Tab"]
-    Tabs --> T4["Analytics Tab"]
+    Workspace --> T1["Dashboard View"]
+    Workspace --> T2["Launch Investigation View"]
+    Workspace --> T3["Investigation Detail View"]
+    Workspace --> T4["Analytics View"]
 
-    subgraph T1Detail["Dashboard"]
-        List["Investigation list cards<br/>Status badges, entity ID,<br/>typology, risk score, date"]
-        Actions["Refresh + Seed buttons"]
+    subgraph SidebarDetail["Sidebar"]
+        KPIs["KPI Card: Total | Pending | Filed<br/>tabular-nums, 28px numbers"]
+        Filters["Segmented status filter controls"]
+        List["Investigation list cards<br/>Risk-colored 3px left accent,<br/>hover lift + shadow, selected ring"]
+        ViewToggle["View toggle: All | Pending | Filed"]
+        Pagination["Pagination controls"]
     end
 
     subgraph T2Detail["Launch Investigation"]
-        Demos["3 Demo Scenario Cards<br/>Auto-Close FP | Shell Company | PEP"]
+        Demos["3 Demo Scenario Cards<br/>Header band, hover polish,<br/>selected inset shadow"]
         Custom["Custom Entity ID input"]
-        Stream["Agent Progress Stream<br/>Real-time SSE events"]
-        Pipeline["Pipeline Graph Visualization<br/>ReactFlow node highlighting"]
-        Review["Human Review Panel<br/>Approve | Request Changes | Reject"]
+        Progress["Progress bar<br/>Green gradient + shimmer overlay"]
+        Stream["Agent Step Timeline<br/>Staggered fadeSlideIn entry,<br/>dotPulse active states"]
+        Pipeline["Pipeline Graph Visualization<br/>Dot grid canvas, node drop-shadows,<br/>active glow, polished controls"]
+        Review["Human Review Panel<br/>attentionPulse animation"]
         Result["Final Result Card"]
     end
 
     subgraph T3Detail["Investigation Detail"]
-        SubTabs["Sub-tabs: Summary | Evidence | Narrative | Audit"]
-        CaseHeader["Case ID + status badge"]
-        TriageCard["Triage Decision"]
-        TypologyCard["Typology Classification + red flags"]
-        NetworkCard["Network Analysis"]
-        TemporalCard["Temporal Analysis"]
-        TrailCard["Trail Analysis + leads"]
-        SubInvCard["Sub-Investigation Findings"]
-        CaseFileCard["Case File summary"]
+        TabNav["Tab Navigation<br/>3px active indicator, hover bg,<br/>fadeSlideIn tab content transition"]
+        RiskGauge["Conic-gradient risk ring gauge"]
+        AnalysisCards["Analysis cards with<br/>3px colored left accent borders"]
         NarrativeCard["SAR Narrative (3 sections)"]
-        ValidationCard["Validation result"]
-        HumanCard["Human Decision"]
         AuditCard["Audit Trail + Duration Bars"]
     end
 
-    T1 --> T1Detail
+    Sidebar --> SidebarDetail
     T2 --> T2Detail
     T3 --> T3Detail
 ```
+
+### Design Token System
+
+All investigation components share a centralized design token module
+(`investigationTokens.js`) to prevent style drift and ensure visual
+consistency:
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| `railBg` | `#FAFBFA` | Sidebar background |
+| `shadowHover` | `0 4px 12px rgba(20,23,26,0.06)` | Card hover elevation |
+| `shadowSelected` | `0 8px 24px rgba(0,104,74,0.08)` | Selected card emphasis |
+| `transitionFast` | `150ms cubic-bezier(0.33,1,0.68,1)` | Hover transitions |
+| `transitionMedium` | `220ms cubic-bezier(0.33,1,0.68,1)` | Content transitions |
+
+**Risk accent colors** are computed via `getRiskAccentColor(score)`:
+
+| Score Range | Color | Meaning |
+|-------------|-------|---------|
+| ≥ 75 | `palette.red.base` | Critical |
+| ≥ 50 | `#ed6c02` | High |
+| ≥ 25 | `palette.yellow.base` | Medium |
+| < 25 | `palette.green.base` | Low |
+
+**CSS Keyframe Animations** (centralized in `GLOBAL_KEYFRAMES`):
+
+| Animation | Purpose |
+|-----------|---------|
+| `fadeSlideIn` | Staggered entry for cards, list items, and tab content |
+| `shimmerBar` | Progress bar shimmer overlay during running state |
+| `attentionPulse` | Yellow pulse on human review panel header |
+| `dotPulse` | Active step indicator in agent timeline |
+| `nodePulse` | Active node glow on pipeline graph |
+| `subtlePulse` | Status dot animation in change stream console |
+| `shimmerText` | Loading text animation |
+
+All animations respect `prefers-reduced-motion` via a global media query
+that collapses animation durations to `0.01ms`.
 
 ### Component Breakdown
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| `InvestigationsPage` | `InvestigationsPage.jsx` | Root page with tab navigation and state management |
+| `InvestigationsPage` | `InvestigationsPage.jsx` | Root page with sidebar + workspace layout, KPI summary, status filters, investigation list with risk accents, view toggles |
 | `InvestigationDashboard` | `InvestigationDashboard.jsx` | Lists investigations with status badges, supports refresh and seed |
-| `InvestigationLauncher` | `InvestigationLauncher.jsx` | Demo scenarios, custom launch, SSE progress stream, pipeline graph, human review panel |
-| `InvestigationDetail` | `InvestigationDetail.jsx` | Full case view with sub-tabs (Summary, Evidence, Narrative, Audit) |
-| `AgenticPipelineGraph` | `AgenticPipelineGraph.jsx` | ReactFlow visualization of the full pipeline graph with live node highlighting |
+| `InvestigationLauncher` | `InvestigationLauncher.jsx` | Demo scenarios with header bands, progress bar with shimmer, agent step timeline with staggered animations, pipeline graph, human review panel |
+| `InvestigationDetail` | `InvestigationDetail.jsx` | Full case view with refined tab navigation (3px indicator, hover states), conic-gradient risk ring gauge, analysis accent borders, audit trail |
+| `AgenticPipelineGraph` | `AgenticPipelineGraph.jsx` | ReactFlow pipeline visualization with dot grid canvas, node drop-shadows, active glow, polished controls and minimap |
+| `ChangeStreamConsole` | `ChangeStreamConsole.jsx` | Collapsible MongoDB Change Stream monitor with chevron toggle and compact collapsed preview |
 | `InvestigationAnalytics` | `InvestigationAnalytics.jsx` | Analytics dashboard with status distribution, typology counts, risk stats |
+| `investigationTokens` | `investigationTokens.js` | Shared design tokens (`uiTokens`), `getRiskAccentColor()` utility, and centralized `GLOBAL_KEYFRAMES` |
 
 ### Pipeline Graph Visualization
 
@@ -1251,6 +1287,11 @@ SSE events arrive. The graph includes:
 - **Worker nodes** — fetch_entity_profile, fetch_transactions, fetch_network, fetch_watchlist, mini_investigate
 - **Collection badges** — MongoDB collection names shown on relevant nodes
 - **Edge labels** — routing labels (auto_close, investigate, parallel, Send)
+- **Dot grid canvas** — subtle radial-gradient background pattern for visual depth
+- **Node drop-shadows** — `filter: drop-shadow(...)` for elevation on all node types
+- **Active glow** — `0 0 0 4px palette.blue.light2` ring on actively processing nodes with `nodePulse` animation
+- **Polished controls** — ReactFlow controls and minimap styled with `borderRadius: 8px`, white background, and `shadowElevated`
+- **Legend** — increased padding, rounded corners, and `backdropFilter: blur(8px)`
 
 ### SSE Streaming Pattern
 
@@ -1550,11 +1591,13 @@ app/investigations/
 └── page.js                     # Route entry point
 
 components/investigations/
-├── InvestigationsPage.jsx      # Root page (tabs: Dashboard | Launch | Detail | Analytics)
+├── investigationTokens.js      # Shared design tokens (uiTokens, getRiskAccentColor, GLOBAL_KEYFRAMES)
+├── InvestigationsPage.jsx      # Root page (sidebar + workspace layout, KPI summary, filters, list)
 ├── InvestigationDashboard.jsx  # Investigation list with status badges and change stream
 ├── InvestigationLauncher.jsx   # Demo scenarios + SSE progress + pipeline graph + human review
 ├── InvestigationDetail.jsx     # Full case view (sub-tabs: Summary | Evidence | Narrative | Audit)
 ├── AgenticPipelineGraph.jsx    # ReactFlow pipeline visualization with live node highlighting
+├── ChangeStreamConsole.jsx     # Collapsible MongoDB Change Stream monitor
 └── InvestigationAnalytics.jsx  # Analytics dashboard with MongoDB aggregation stats
 
 lib/

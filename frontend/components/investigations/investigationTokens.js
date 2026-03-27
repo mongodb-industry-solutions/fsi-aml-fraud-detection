@@ -11,8 +11,15 @@ export const uiTokens = {
   shadowElevated: '0 4px 16px rgba(0, 0, 0, 0.06)',
   transitionFast: '150ms cubic-bezier(0.33, 1, 0.68, 1)',
   transitionMedium: '220ms cubic-bezier(0.33, 1, 0.68, 1)',
+  transitionInteractive: 'color 0.15s ease, background-color 0.15s ease, box-shadow 0.2s ease, border-color 0.15s ease, transform 0.2s ease',
   font: "'Euclid Circular A', sans-serif",
   monoFont: "'Source Code Pro', monospace",
+  focusRing: `0 0 0 2px ${palette.blue.light2}`,
+  instrumentInsetShadow: 'inset 0 1px 2px rgba(20, 23, 26, 0.06)',
+  captionSize: 11,
+  bodySize: 13,
+  labelSize: 12,
+  displaySize: 16,
 };
 
 export function getRiskAccentColor(score) {
@@ -51,6 +58,22 @@ export const GLOBAL_KEYFRAMES = `
   @keyframes shimmerText {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
+  }
+  @keyframes fadeOverlay {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes successGlow {
+    from { box-shadow: 0 0 0 0 rgba(0, 104, 74, 0); }
+    to { box-shadow: 0 0 0 4px rgba(0, 104, 74, 0.12); }
+  }
+  @keyframes slideInRight {
+    from { opacity: 0; transform: translateX(12px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.2); }
   }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {

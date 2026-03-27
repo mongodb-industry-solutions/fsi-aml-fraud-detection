@@ -10,13 +10,12 @@ import { Body, Subtitle, H3 } from '@leafygreen-ui/typography';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 
-import Callout from '@leafygreen-ui/callout';
 import { Spinner } from '@leafygreen-ui/loading-indicator';
 
 import { launchInvestigation, resumeInvestigation, fetchInvestigableEntities } from '@/lib/agent-api';
 import AgenticPipelineGraph from './AgenticPipelineGraph';
 import InvestigationInsightsPanel from './InvestigationInsightsPanel';
-import { uiTokens, GLOBAL_KEYFRAMES } from './investigationTokens';
+import { uiTokens } from './investigationTokens';
 
 const FONT = uiTokens.font;
 
@@ -101,23 +100,23 @@ const INVESTIGATION_CATEGORIES = [
 ];
 
 const AGENT_LABELS = {
-  alert_ingestion: { label: 'Alert Ingested', icon: '📨', color: palette.green.dark1, desc: 'Alert written to MongoDB, Change Stream triggers triage' },
-  triage: { label: 'Triage Agent', icon: '🔍', color: palette.blue.base, desc: 'Risk scoring and disposition routing' },
-  data_gathering: { label: 'Data Gathering', icon: '📊', color: palette.purple.base, desc: 'Parallel evidence collection via Send API' },
-  fetch_entity_profile: { label: 'Fetching Entity', icon: '👤', color: palette.purple.light1, desc: 'Loading entity profile and KYC data' },
-  fetch_transactions: { label: 'Fetching Transactions', icon: '💳', color: palette.purple.light1, desc: 'Querying transaction history and patterns' },
-  fetch_network: { label: 'Analyzing Network', icon: '🕸', color: palette.purple.light1, desc: 'Running $graphLookup network traversal' },
-  fetch_watchlist: { label: 'Screening Watchlists', icon: '🛡', color: palette.purple.light1, desc: 'Checking sanctions and PEP databases' },
-  assemble_case: { label: 'Case Analyst', icon: '📁', color: palette.green.dark1, desc: 'LLM-powered 360° profile synthesis and crime typology classification' },
-  network_analyst: { label: 'Network Risk Analysis', icon: '🔗', color: palette.yellow.dark2, desc: 'Graph centrality and risk scoring (parallel)' },
-  temporal_analyst: { label: 'Temporal Pattern Analysis', icon: '⏱', color: palette.yellow.dark2, desc: 'Structuring, velocity, round-trips, dormancy (parallel)' },
-  trail_follower: { label: 'Trail Follower', icon: '🔎', color: palette.blue.dark2, desc: 'LLM lead selection from network + temporal' },
-  sub_investigation_dispatch: { label: 'Sub-Investigation Dispatch', icon: '📊', color: palette.purple.base, desc: 'Parallel mini-investigation fan-out' },
-  narrative: { label: 'SAR Author', icon: '📝', color: palette.green.base, desc: 'FinCEN 5Ws narrative with full evidence' },
-  validation: { label: 'Compliance QA', icon: '✓', color: palette.blue.dark1, desc: 'LLM-as-Judge quality gate' },
-  human_review: { label: 'Human Review', icon: '👁', color: palette.red.base, desc: 'interrupt() durable pause for analyst' },
-  finalize: { label: 'Finalizing Case', icon: '📋', color: palette.green.dark2, desc: 'Persist investigation to MongoDB' },
-  auto_close: { label: 'Auto-Closing', icon: '✕', color: palette.gray.dark1, desc: 'False positive auto-closure' },
+  alert_ingestion: { label: 'Alert Ingested', glyph: 'Bell', color: palette.green.dark1, desc: 'Alert written to MongoDB, Change Stream triggers triage' },
+  triage: { label: 'Triage Agent', glyph: 'MagnifyingGlass', color: palette.blue.base, desc: 'Risk scoring and disposition routing' },
+  data_gathering: { label: 'Data Gathering', glyph: 'Charts', color: palette.purple.base, desc: 'Parallel evidence collection via Send API' },
+  fetch_entity_profile: { label: 'Fetching Entity', glyph: 'Person', color: palette.purple.light1, desc: 'Loading entity profile and KYC data' },
+  fetch_transactions: { label: 'Fetching Transactions', glyph: 'CreditCard', color: palette.purple.light1, desc: 'Querying transaction history and patterns' },
+  fetch_network: { label: 'Analyzing Network', glyph: 'Diagram2', color: palette.purple.light1, desc: 'Running $graphLookup network traversal' },
+  fetch_watchlist: { label: 'Screening Watchlists', glyph: 'Lock', color: palette.purple.light1, desc: 'Checking sanctions and PEP databases' },
+  assemble_case: { label: 'Case Analyst', glyph: 'Folder', color: palette.green.dark1, desc: 'LLM-powered 360° profile synthesis and crime typology classification' },
+  network_analyst: { label: 'Network Risk Analysis', glyph: 'Connect', color: palette.yellow.dark2, desc: 'Graph centrality and risk scoring (parallel)' },
+  temporal_analyst: { label: 'Temporal Pattern Analysis', glyph: 'Clock', color: palette.yellow.dark2, desc: 'Structuring, velocity, round-trips, dormancy (parallel)' },
+  trail_follower: { label: 'Trail Follower', glyph: 'ArrowRight', color: palette.blue.dark2, desc: 'LLM lead selection from network + temporal' },
+  sub_investigation_dispatch: { label: 'Sub-Investigation Dispatch', glyph: 'Beaker', color: palette.purple.base, desc: 'Parallel mini-investigation fan-out' },
+  narrative: { label: 'SAR Author', glyph: 'Edit', color: palette.green.base, desc: 'FinCEN 5Ws narrative with full evidence' },
+  validation: { label: 'Compliance QA', glyph: 'Checkmark', color: palette.blue.dark1, desc: 'LLM-as-Judge quality gate' },
+  human_review: { label: 'Human Review', glyph: 'Visibility', color: palette.red.base, desc: 'interrupt() durable pause for analyst' },
+  finalize: { label: 'Finalizing Case', glyph: 'File', color: palette.green.dark2, desc: 'Persist investigation to MongoDB' },
+  auto_close: { label: 'Auto-Closing', glyph: 'X', color: palette.gray.dark1, desc: 'False positive auto-closure' },
 };
 
 const TYPOLOGY_LABELS = {
@@ -297,7 +296,7 @@ const TOOL_NODES = new Set([
 // SegmentedRiskBar
 // ---------------------------------------------------------------------------
 
-function SegmentedRiskBar({ score, height = 8 }) {
+function SegmentedRiskBar({ score, height = 10 }) {
   const segments = [
     { max: 25, color: palette.green.base, label: 'Low' },
     { max: 50, color: palette.yellow.base, label: 'Moderate' },
@@ -307,31 +306,46 @@ function SegmentedRiskBar({ score, height = 8 }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <div style={{
-        display: 'flex', height, borderRadius: height / 2, overflow: 'hidden',
-        background: palette.gray.light2,
-      }}>
-        {segments.map((seg, i) => {
-          const segStart = i === 0 ? 0 : segments[i - 1].max;
-          const segEnd = seg.max;
-          const filled = Math.max(0, Math.min(score - segStart, segEnd - segStart));
-          const width = (segEnd - segStart);
-          return (
-            <div key={seg.label} style={{ flex: width, position: 'relative' }}>
-              <div style={{
-                position: 'absolute', inset: 0,
-                background: seg.color,
-                opacity: 0.15,
-              }} />
-              <div style={{
-                position: 'absolute', top: 0, bottom: 0, left: 0,
-                width: `${(filled / width) * 100}%`,
-                background: seg.color,
-                transition: 'width 0.5s ease',
-              }} />
-            </div>
-          );
-        })}
+      <div style={{ position: 'relative' }}>
+        <div style={{
+          display: 'flex', height, borderRadius: height / 2, overflow: 'hidden',
+          background: palette.gray.light2,
+          boxShadow: uiTokens.instrumentInsetShadow,
+        }}>
+          {segments.map((seg, i) => {
+            const segStart = i === 0 ? 0 : segments[i - 1].max;
+            const segEnd = seg.max;
+            const filled = Math.max(0, Math.min(score - segStart, segEnd - segStart));
+            const width = (segEnd - segStart);
+            return (
+              <div key={seg.label} style={{
+                flex: width, position: 'relative',
+                boxShadow: i < segments.length - 1 ? `inset -1px 0 0 ${palette.gray.light2}` : 'none',
+              }}>
+                <div style={{
+                  position: 'absolute', inset: 0,
+                  background: seg.color,
+                  opacity: 0.15,
+                }} />
+                <div style={{
+                  position: 'absolute', top: 0, bottom: 0, left: 0,
+                  width: `${(filled / width) * 100}%`,
+                  background: seg.color,
+                  transition: 'width 0.5s ease',
+                }} />
+              </div>
+            );
+          })}
+        </div>
+        {[25, 50, 75].map(tick => (
+          <div key={tick} style={{
+            position: 'absolute', top: '50%', left: `${tick}%`,
+            transform: 'translate(-50%, -50%)',
+            width: 1, height: 4,
+            background: 'rgba(20,23,26,0.12)',
+            pointerEvents: 'none',
+          }} />
+        ))}
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, fontFamily: FONT, color: palette.gray.base }}>
         <span>0</span>
@@ -378,8 +392,9 @@ function ProgressHeader({ steps, running }) {
         </span>
       </div>
       <div style={{
-        height: 6, borderRadius: 999, background: palette.gray.light2, overflow: 'hidden',
+        height: 10, borderRadius: 999, background: palette.gray.light2, overflow: 'hidden',
         position: 'relative',
+        boxShadow: 'inset 0 1px 2px rgba(20, 23, 26, 0.06)',
       }}>
         <div style={{
           height: '100%', borderRadius: 999,
@@ -468,14 +483,20 @@ function ToolCallDetail({ tool }) {
         style={{
           display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer',
           fontFamily: FONT, fontSize: 11, color: palette.gray.dark2,
+          padding: '2px 0', borderRadius: 4,
+          transition: 'background 0.12s',
         }}
+        onMouseEnter={e => e.currentTarget.style.background = palette.blue.light3}
+        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
       >
         <span style={{
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          width: 14, height: 14, fontSize: 8, transition: 'transform 0.15s',
+          width: 14, height: 14, transition: 'transform 0.15s',
           transform: open ? 'rotate(90deg)' : 'rotate(0deg)',
-          color: palette.gray.dark1,
-        }}>&#9654;</span>
+          color: palette.blue.base,
+        }}>
+          <Icon glyph="ChevronRight" size={12} />
+        </span>
         <span style={{ fontWeight: 500 }}>{friendlyName}</span>
         {isRunning && (
           <span style={{
@@ -497,10 +518,11 @@ function ToolCallDetail({ tool }) {
               fontFamily: "'Source Code Pro', monospace",
               lineHeight: 1.6,
             }}>
-              <div style={{
-                fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px',
-                color: palette.blue.dark1, marginBottom: 4,
-              }}>Input</div>
+              <span style={{
+                display: 'inline-block', fontSize: 9, fontWeight: 700,
+                padding: '2px 6px', borderRadius: 4, marginBottom: 4,
+                background: palette.blue.light3, color: palette.blue.dark1,
+              }}>IN</span>
               {parsedInput && typeof parsedInput === 'object' && !Array.isArray(parsedInput) ? (
                 <KeyValueRows data={parsedInput} labelColor={palette.blue.dark2} />
               ) : (
@@ -518,10 +540,11 @@ function ToolCallDetail({ tool }) {
               fontFamily: "'Source Code Pro', monospace",
               lineHeight: 1.6,
             }}>
-              <div style={{
-                fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px',
-                color: palette.green.dark2, marginBottom: 4,
-              }}>Output</div>
+              <span style={{
+                display: 'inline-block', fontSize: 9, fontWeight: 700,
+                padding: '2px 6px', borderRadius: 4, marginBottom: 4,
+                background: palette.green.light3, color: palette.green.dark2,
+              }}>OUT</span>
               {parsedOutput && typeof parsedOutput === 'object' ? (
                 <>
                   <KeyValueRows
@@ -1061,8 +1084,8 @@ function AgentStepCard({ step, isLast, index = 0 }) {
   const [reasoningOpen, setReasoningOpen] = useState(false);
   const info = AGENT_LABELS[step.agent]
     || (step.agent?.startsWith('mini_investigate:')
-      ? { label: `Mini-Investigate: ${step.agent.split(':')[1] || ''}`, icon: '🔬', color: palette.purple.light1, desc: 'Sub-investigation of connected entity' }
-      : { label: step.agent, icon: '●', color: palette.gray.dark1 });
+      ? { label: `Mini-Investigate: ${step.agent.split(':')[1] || ''}`, glyph: 'Beaker', color: palette.purple.light1, desc: 'Sub-investigation of connected entity' }
+      : { label: step.agent, glyph: 'Ellipsis', color: palette.gray.dark1 });
   const isRunning = step.status === 'running';
   const isComplete = step.status === 'complete';
   const hasDetail = step.tools.length > 0 || step.llmOutputs.length > 0 || step.structuredOutput;
@@ -1100,7 +1123,7 @@ function AgentStepCard({ step, isLast, index = 0 }) {
         }} />
         {!isLast && (
           <div style={{
-            flex: 1, width: 2, background: lineColor, marginTop: 4, marginBottom: 0,
+            flex: 1, width: 3, borderRadius: 2, background: lineColor, marginTop: 4, marginBottom: 0,
             opacity: isComplete ? 0.5 : 0.2,
           }} />
         )}
@@ -1117,15 +1140,15 @@ function AgentStepCard({ step, isLast, index = 0 }) {
             userSelect: 'none',
           }}
         >
-          <span style={{ fontSize: 16 }}>{info.icon}</span>
+          <Icon glyph={info.glyph || 'Ellipsis'} size={16} fill={info.color} />
           <span style={{
-            fontSize: 13, fontWeight: 600, fontFamily: FONT, color: info.color,
+            fontSize: uiTokens.bodySize, fontWeight: 600, fontFamily: FONT, color: info.color,
           }}>
             {info.label}
           </span>
           {isRunning && (
             <span style={{
-              fontSize: 10, fontFamily: FONT, color: palette.blue.base,
+              fontSize: uiTokens.captionSize, fontFamily: FONT, color: palette.blue.base,
               display: 'flex', alignItems: 'center', gap: 4,
             }}>
               <span style={{
@@ -1137,7 +1160,7 @@ function AgentStepCard({ step, isLast, index = 0 }) {
             </span>
           )}
           {step.statusLabel && isComplete && (
-            <Badge variant="lightgray" style={{ fontSize: 9 }}>{step.statusLabel}</Badge>
+            <Badge variant="lightgray" style={{ fontSize: uiTokens.captionSize }}>{step.statusLabel}</Badge>
           )}
           {hasDetail && (
             <span style={{
@@ -1170,14 +1193,16 @@ function AgentStepCard({ step, isLast, index = 0 }) {
         {/* Expanded detail */}
         {expanded && (
           <div style={{
-            marginTop: 8, marginLeft: 0, padding: 12, borderRadius: 6,
-            background: palette.gray.light3, border: `1px solid ${palette.gray.light2}`,
+            marginTop: 8, marginLeft: 0, padding: 12, borderRadius: 8,
+            background: uiTokens.railBg, border: `1px solid ${uiTokens.borderDefault}`,
+            boxShadow: uiTokens.shadowCard,
           }}>
             {step.tools.length > 0 && (
               <div style={{ marginBottom: step.llmOutputs.length > 0 || step.structuredOutput ? 10 : 0 }}>
                 <div style={{
                   fontSize: 10, fontWeight: 600, fontFamily: FONT,
                   color: palette.gray.dark1, marginBottom: 6,
+                  paddingBottom: 4, borderBottom: `1px solid ${palette.gray.light2}`,
                   textTransform: 'uppercase', letterSpacing: '0.5px',
                 }}>
                   Tool Calls ({step.tools.length})
@@ -1191,6 +1216,7 @@ function AgentStepCard({ step, isLast, index = 0 }) {
                 <div style={{
                   fontSize: 10, fontWeight: 600, fontFamily: FONT,
                   color: palette.gray.dark1, marginBottom: 6,
+                  paddingBottom: 4, borderBottom: `1px solid ${palette.gray.light2}`,
                   textTransform: 'uppercase', letterSpacing: '0.5px',
                 }}>
                   LLM Response
@@ -1214,6 +1240,7 @@ function AgentStepCard({ step, isLast, index = 0 }) {
                 <div style={{
                   fontSize: 10, fontWeight: 600, fontFamily: FONT,
                   color: palette.gray.dark1, marginBottom: 6,
+                  paddingBottom: 4, borderBottom: `1px solid ${palette.gray.light2}`,
                   textTransform: 'uppercase', letterSpacing: '0.5px',
                 }}>
                   Agent Output
@@ -1272,7 +1299,6 @@ function AgentStepTimeline({ events, running, startTime }) {
         })}
       </div>
 
-      <style>{GLOBAL_KEYFRAMES}</style>
     </Card>
   );
 }
@@ -1378,8 +1404,8 @@ function HumanReviewPanel({ payload, accumulatedEvidence, analystNotes, onNotesC
   return (
     <Card style={{
       padding: spacing[4],
-      border: `2px solid ${palette.yellow.base}`,
-      background: palette.yellow.light3,
+      border: `1px solid ${palette.yellow.base}`,
+      background: `linear-gradient(180deg, ${palette.yellow.light3} 0%, #fff 48%)`,
       marginBottom: spacing[3],
       animation: 'attentionPulse 2s ease-in-out 3',
     }}>
@@ -1460,10 +1486,11 @@ function HumanReviewPanel({ payload, accumulatedEvidence, analystNotes, onNotesC
           </div>
           {evidenceSections.map(section => (
             <div key={section.key} style={{
-              marginBottom: 6, borderRadius: 6,
-              background: 'rgba(255,255,255,0.6)',
-              border: `1px solid ${palette.yellow.light1}`,
+              marginBottom: 8, borderRadius: 6,
+              background: '#fff',
+              border: `1px solid ${palette.gray.light2}`,
               overflow: 'hidden',
+              boxShadow: expandedSections[section.key] ? `inset 3px 0 0 ${palette.yellow.base}` : 'none',
             }}>
               <button
                 onClick={() => toggleSection(section.key)}
@@ -1521,13 +1548,14 @@ function HumanReviewPanel({ payload, accumulatedEvidence, analystNotes, onNotesC
           variant="baseGreen"
           onClick={() => onDecision('approve')}
           disabled={disabled || !evidenceReviewed}
+          style={{ flex: 1.2 }}
         >
           Approve & File SAR
         </Button>
-        <Button variant="default" onClick={() => onDecision('request_changes')} disabled={disabled}>
+        <Button variant="default" onClick={() => onDecision('request_changes')} disabled={disabled} style={{ flex: 1 }}>
           Request Changes
         </Button>
-        <Button variant="dangerOutline" onClick={() => onDecision('reject')} disabled={disabled}>
+        <Button variant="dangerOutline" onClick={() => onDecision('reject')} disabled={disabled} style={{ flex: 1 }}>
           Reject & Close
         </Button>
       </div>
@@ -1537,12 +1565,26 @@ function HumanReviewPanel({ payload, accumulatedEvidence, analystNotes, onNotesC
         </div>
       )}
 
-      <Callout variant="note" style={{ marginTop: spacing[3] }}>
-        <strong>Durable Pause with MongoDBSaver:</strong> The entire pipeline state &mdash; gathered evidence, triage
-        decision, case file, and audit trail &mdash; is checkpointed to MongoDB as a single document. This investigation
-        can be resumed hours or days later, even after server restarts. Traditional approaches require Redis for state +
-        Kafka for event replay + PostgreSQL for data &mdash; MongoDB replaces all three.
-      </Callout>
+      {/* MongoDB Before/After Strip */}
+      <div style={{
+        marginTop: spacing[3], display: 'flex', borderRadius: 6, overflow: 'hidden',
+        border: `1px solid ${palette.gray.light2}`, fontSize: uiTokens.captionSize, fontFamily: FONT,
+      }}>
+        <div style={{
+          flex: 1, padding: '8px 12px',
+          background: palette.green.light3, borderRight: `1px solid ${palette.gray.light2}`,
+        }}>
+          <div style={{ fontWeight: 700, color: palette.green.dark2, marginBottom: 2, fontFamily: uiTokens.monoFont, fontSize: 10 }}>MongoDBSaver</div>
+          <div style={{ color: palette.green.dark1 }}>State checkpoint: 1 document. Resume after hours, days, or server restarts.</div>
+        </div>
+        <div style={{
+          flex: 1, padding: '8px 12px',
+          background: palette.gray.light3,
+        }}>
+          <div style={{ fontWeight: 700, color: palette.gray.dark1, marginBottom: 2, fontSize: 10 }}>Without MongoDB</div>
+          <div style={{ color: palette.gray.base }}>Redis for state + Kafka for events + PostgreSQL for data + custom recovery.</div>
+        </div>
+      </div>
 
     </Card>
   );
@@ -1574,10 +1616,17 @@ function FinalResultCard({ result }) {
 
   return (
     <Card style={{
-      padding: spacing[3],
+      padding: 0,
       border: `1px solid ${palette.green.light1}`,
       background: palette.green.light3,
+      overflow: 'hidden',
+      animation: 'fadeSlideIn 240ms ease, successGlow 600ms ease-out',
     }}>
+      <div style={{
+        height: 4, borderRadius: '8px 8px 0 0',
+        background: `linear-gradient(90deg, ${palette.green.dark1}, ${palette.green.base})`,
+      }} />
+      <div style={{ padding: spacing[3] }}>
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         marginBottom: spacing[2],
@@ -1587,10 +1636,11 @@ function FinalResultCard({ result }) {
         </Subtitle>
         {case_id && (
           <span style={{
-            fontSize: 11, fontFamily: "'Source Code Pro', monospace",
+            fontSize: 12, fontFamily: "'Source Code Pro', monospace",
             padding: '3px 10px', borderRadius: 4,
             background: '#fff', border: `1px solid ${palette.green.light1}`,
             color: palette.gray.dark2, fontWeight: 600,
+            letterSpacing: '0.02em',
           }}>
             {case_id}
           </span>
@@ -1610,35 +1660,40 @@ function FinalResultCard({ result }) {
         </div>
         {risk && (
           <div>
-            <Body style={{ fontSize: '10px', color: palette.gray.base, fontFamily: FONT, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Risk Score</Body>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              {human_decision?.decision === 'reject' ? (
-                <>
-                  <Body style={{ fontWeight: 700, fontFamily: FONT, color: palette.gray.base, textDecoration: 'line-through' }}>
-                    {triage_decision.risk_score}
-                  </Body>
+            <Body style={{ fontSize: `${uiTokens.captionSize}px`, color: palette.gray.base, fontFamily: FONT, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Risk Score</Body>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {/* Mini Risk Gauge */}
+              <div style={{
+                width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+                background: `conic-gradient(${risk.color} ${(triage_decision.risk_score / 100) * 360}deg, ${palette.gray.light2} ${(triage_decision.risk_score / 100) * 360}deg)`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <div style={{
+                  width: 30, height: 30, borderRadius: '50%', background: '#fff',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 11, fontWeight: 700, fontFamily: FONT, color: risk.color,
+                }}>
+                  {triage_decision.risk_score}
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <span style={{
+                  fontSize: uiTokens.captionSize, padding: '1px 5px', borderRadius: 3,
+                  background: risk.bg, color: risk.color, fontFamily: FONT,
+                }}>{risk.label}</span>
+                {human_decision?.decision === 'approve' && (
                   <span style={{
-                    fontSize: 9, padding: '1px 5px', borderRadius: 3,
+                    fontSize: uiTokens.captionSize, padding: '1px 5px', borderRadius: 3,
+                    background: palette.green.light3, color: palette.green.dark2, fontFamily: FONT, fontWeight: 600,
+                  }}>Analyst Confirmed</span>
+                )}
+                {human_decision?.decision === 'reject' && (
+                  <span style={{
+                    fontSize: uiTokens.captionSize, padding: '1px 5px', borderRadius: 3,
                     background: palette.red.light3, color: palette.red.dark2, fontFamily: FONT, fontWeight: 600,
-                  }}>Analyst Override: Rejected</span>
-                </>
-              ) : (
-                <>
-                  <Body style={{ fontWeight: 700, fontFamily: FONT, color: risk.color }}>
-                    {triage_decision.risk_score}
-                  </Body>
-                  <span style={{
-                    fontSize: 9, padding: '1px 5px', borderRadius: 3,
-                    background: risk.bg, color: risk.color, fontFamily: FONT,
-                  }}>{risk.label}</span>
-                  {human_decision?.decision === 'approve' && (
-                    <span style={{
-                      fontSize: 9, padding: '1px 5px', borderRadius: 3,
-                      background: palette.green.light3, color: palette.green.dark2, fontFamily: FONT, fontWeight: 600,
-                    }}>Analyst Confirmed</span>
-                  )}
-                </>
-              )}
+                  }}>Analyst Override</span>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -1692,6 +1747,7 @@ function FinalResultCard({ result }) {
           </Body>
         </div>
       )}
+      </div>
     </Card>
   );
 }
@@ -1714,7 +1770,7 @@ export default function InvestigationLauncher({ onComplete }) {
     INVESTIGATION_CATEGORIES.forEach(cat => { initial[cat.id] = 0; });
     return initial;
   });
-  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState('shell_company');
   const [entityNameMap, setEntityNameMap] = useState({});
 
   useEffect(() => {
@@ -1759,8 +1815,6 @@ export default function InvestigationLauncher({ onComplete }) {
     }
     return Object.keys(agents).length > 0 ? agents : null;
   }, [events]);
-
-  const [showLivePipeline, setShowLivePipeline] = useState(false);
 
   const handleEvent = useCallback((data) => {
     setEvents((prev) => [...prev, data]);
@@ -1811,8 +1865,70 @@ export default function InvestigationLauncher({ onComplete }) {
     }
   };
 
+  const pipelinePhase = useMemo(() => {
+    if (events.length === 0 && !running) return 'select';
+    if (running) return 'running';
+    if (needsReview) return 'review';
+    if (finalResult && !needsReview) return 'complete';
+    return 'select';
+  }, [events.length, running, needsReview, finalResult]);
+
   return (
     <div>
+      {/* Progress Stepper */}
+      {(events.length > 0 || running || finalResult) && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 0, marginBottom: spacing[3],
+          padding: '10px 16px', borderRadius: 8,
+          background: uiTokens.railBg, border: `1px solid ${uiTokens.borderDefault}`,
+        }}>
+          {[
+            { key: 'select', label: 'Select Scenario', glyph: 'Apps' },
+            { key: 'running', label: 'Pipeline Running', glyph: 'Play' },
+            { key: 'review', label: 'Analyst Review', glyph: 'Visibility' },
+            { key: 'complete', label: 'Investigation Filed', glyph: 'Checkmark' },
+          ].map((step, i, arr) => {
+            const phases = ['select', 'running', 'review', 'complete'];
+            const currentIdx = phases.indexOf(pipelinePhase);
+            const stepIdx = phases.indexOf(step.key);
+            const isActive = step.key === pipelinePhase;
+            const isDone = stepIdx < currentIdx;
+            return (
+              <React.Fragment key={step.key}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  opacity: isDone || isActive ? 1 : 0.4,
+                }}>
+                  <div style={{
+                    width: 24, height: 24, borderRadius: '50%',
+                    background: isDone ? palette.green.dark1 : isActive ? palette.blue.base : palette.gray.light2,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'all 0.3s ease',
+                  }}>
+                    <Icon glyph={isDone ? 'Checkmark' : step.glyph} size={12} fill={isDone || isActive ? '#fff' : palette.gray.dark1} />
+                  </div>
+                  <span style={{
+                    fontSize: uiTokens.captionSize, fontFamily: FONT,
+                    fontWeight: isActive ? 600 : 400,
+                    color: isActive ? palette.gray.dark3 : palette.gray.dark1,
+                  }}>
+                    {step.label}
+                  </span>
+                </div>
+                {i < arr.length - 1 && (
+                  <div style={{
+                    flex: 1, height: 2, margin: '0 8px',
+                    background: isDone ? palette.green.dark1 : palette.gray.light2,
+                    borderRadius: 1,
+                    transition: 'background 0.3s ease',
+                  }} />
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
+      )}
+
       {/* Demo Scenarios */}
       {events.length === 0 && !running && (
         <>
@@ -1847,8 +1963,8 @@ export default function InvestigationLauncher({ onComplete }) {
           </Body>
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-            gap: spacing[2],
+            gridTemplateColumns: 'repeat(2, 1fr)',
+            gap: spacing[3],
             marginBottom: spacing[4],
           }}>
             {INVESTIGATION_CATEGORIES.map((cat, catIdx) => {
@@ -1861,12 +1977,15 @@ export default function InvestigationLauncher({ onComplete }) {
                   border: isSelected
                     ? `1.5px solid ${palette.green.dark1}`
                     : `1.5px solid ${uiTokens.borderDefault}`,
+                  borderLeft: isSelected
+                    ? `3px solid ${palette.green.dark1}`
+                    : undefined,
                   background: isSelected ? '#f0faf5' : uiTokens.surface1,
                   boxShadow: isSelected
-                    ? `inset 0 0 0 1px ${palette.green.dark1}`
-                    : 'none',
+                    ? uiTokens.shadowSelected
+                    : uiTokens.shadowCard,
                   cursor: 'pointer',
-                  transition: `all ${uiTokens.transitionFast}`,
+                  transition: uiTokens.transitionInteractive,
                   overflow: 'hidden',
                   animation: `fadeSlideIn 220ms ease both`,
                   animationDelay: `${catIdx * 40}ms`,
@@ -1898,7 +2017,7 @@ export default function InvestigationLauncher({ onComplete }) {
                     borderBottom: `1px solid ${uiTokens.borderDefault}`,
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                   }}>
-                    <Subtitle style={{ fontFamily: FONT, fontSize: '14px', margin: 0 }}>
+                    <Subtitle style={{ fontFamily: FONT, fontSize: `${uiTokens.displaySize}px`, margin: 0 }}>
                       {cat.title}
                     </Subtitle>
                     <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
@@ -1914,7 +2033,7 @@ export default function InvestigationLauncher({ onComplete }) {
                     </div>
                   </div>
                   {/* Body */}
-                  <div style={{ padding: '10px 14px 12px' }}>
+                  <div style={{ padding: '12px 14px 14px' }}>
                     <Body style={{
                       fontSize: '12px', color: palette.gray.dark1,
                       fontFamily: FONT, marginBottom: spacing[1], lineHeight: 1.5,
@@ -1929,11 +2048,11 @@ export default function InvestigationLauncher({ onComplete }) {
                         Entity: <strong style={{ color: palette.gray.dark1 }}>{entityNameMap[currentEntity.entity_id] || currentEntity.label}</strong>
                       </Body>
                       <span style={{
-                        fontSize: 10, color: palette.gray.base, fontFamily: FONT,
+                        fontSize: 10, color: palette.blue.base, fontFamily: FONT,
                         display: 'flex', alignItems: 'center', gap: 2,
                       }}>
                         <Icon glyph="ChevronRight" size={10} />
-                        Cycle
+                        Click to cycle
                       </span>
                     </div>
                   </div>
@@ -1946,13 +2065,15 @@ export default function InvestigationLauncher({ onComplete }) {
           {selectedCategory && (() => {
             const cat = INVESTIGATION_CATEGORIES.find(c => c.id === selectedCategory);
             const idx = categoryIndices[cat.id] || 0;
-            const ent = cat.entities[idx > 0 ? idx - 1 : cat.entities.length - 1];
+            const ent = cat.entities[idx];
             return (
               <div style={{
                 display: 'flex', gap: spacing[2], alignItems: 'center',
-                marginBottom: spacing[3], padding: spacing[2],
-                borderRadius: 8, background: palette.green.light3,
-                border: `1px solid ${palette.green.light1}`,
+                marginBottom: spacing[3], padding: spacing[3],
+                borderRadius: 8, background: uiTokens.railBg,
+                border: `1px solid ${uiTokens.borderDefault}`,
+                borderTop: `1px solid ${uiTokens.borderDefault}`,
+                boxShadow: uiTokens.shadowCard,
               }}>
                 <Body style={{ fontSize: '13px', fontFamily: FONT, flex: 1 }}>
                   Ready to investigate <strong>{entityNameMap[ent.entity_id] || ent.label}</strong>
@@ -1987,55 +2108,64 @@ export default function InvestigationLauncher({ onComplete }) {
         </Card>
       )}
 
-      {/* Live Pipeline Graph Toggle */}
+      {/* Live Pipeline + Timeline split during execution */}
       {events.length > 0 && (
-        <div style={{ marginBottom: spacing[2] }}>
-          <Button
-            size="xsmall"
-            variant="default"
-            onClick={() => setShowLivePipeline(v => !v)}
-            style={{ marginBottom: spacing[2] }}
-          >
-            {showLivePipeline ? 'Hide' : 'Show'} Live Pipeline
-          </Button>
-          {showLivePipeline && (
-            <div style={{
-              height: 400, marginBottom: spacing[2], borderRadius: 8,
-              overflow: 'hidden', border: `1px solid ${palette.gray.light2}`,
-            }}>
-              <AgenticPipelineGraph showTools={false} activeAgents={activeAgents} />
-            </div>
-          )}
+        <div style={{
+          display: 'flex', gap: spacing[3], marginBottom: spacing[2],
+          alignItems: 'flex-start',
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <AgentStepTimeline events={events} running={running} startTime={startTime} />
+          </div>
+          <div style={{
+            width: 380, flexShrink: 0,
+            height: 400, borderRadius: 8,
+            overflow: 'hidden', border: `1px solid ${palette.gray.light2}`,
+            boxShadow: uiTokens.shadowCard,
+          }}>
+            <AgenticPipelineGraph showTools={false} activeAgents={activeAgents} compact={true} />
+          </div>
         </div>
       )}
 
-      {/* Agent Pipeline Progress */}
-      {events.length > 0 && (
-        <AgentStepTimeline events={events} running={running} startTime={startTime} />
-      )}
-
-      {/* Human Review Panel */}
+      {/* Human Review Panel — sticky at top */}
       {needsReview && reviewPayload && (
-        <HumanReviewPanel
-          payload={reviewPayload}
-          accumulatedEvidence={accumulatedEvidence}
-          analystNotes={analystNotes}
-          onNotesChange={setAnalystNotes}
-          onDecision={handleResume}
-          disabled={running}
-        />
+        <div style={{ position: 'sticky', top: 0, zIndex: 20 }}>
+          <HumanReviewPanel
+            payload={reviewPayload}
+            accumulatedEvidence={accumulatedEvidence}
+            analystNotes={analystNotes}
+            onNotesChange={setAnalystNotes}
+            onDecision={handleResume}
+            disabled={running}
+          />
+        </div>
       )}
 
       {/* Final Result Summary */}
       {finalResult && !needsReview && (
         <div style={{ marginBottom: spacing[4], position: 'relative' }}>
           <FinalResultCard result={finalResult} />
-          <Callout variant="tip" style={{ marginTop: spacing[3] }}>
-            <strong>Single Document, Complete Investigation:</strong> The final investigation &mdash; entity profile,
-            360&deg; case file, typology classification, network analysis, SAR narrative, validation results, human
-            decision, and full audit trail &mdash; is stored as one rich MongoDB document. In a relational database, this
-            would be scattered across 12&ndash;15 normalized tables with complex JOIN queries for every retrieval.
-          </Callout>
+          {/* MongoDB Before/After Strip */}
+          <div style={{
+            marginTop: spacing[3], display: 'flex', borderRadius: 6, overflow: 'hidden',
+            border: `1px solid ${palette.gray.light2}`, fontSize: uiTokens.captionSize, fontFamily: FONT,
+          }}>
+            <div style={{
+              flex: 1, padding: '8px 12px',
+              background: palette.green.light3, borderRight: `1px solid ${palette.gray.light2}`,
+            }}>
+              <div style={{ fontWeight: 700, color: palette.green.dark2, marginBottom: 2, fontFamily: uiTokens.monoFont, fontSize: 10 }}>MongoDB</div>
+              <div style={{ color: palette.green.dark1 }}>Investigation stored: 1 document, 0 JOINs. Full lifecycle in a single rich document.</div>
+            </div>
+            <div style={{
+              flex: 1, padding: '8px 12px',
+              background: palette.gray.light3,
+            }}>
+              <div style={{ fontWeight: 700, color: palette.gray.dark1, marginBottom: 2, fontSize: 10 }}>Traditional RDBMS</div>
+              <div style={{ color: palette.gray.base }}>15 normalized tables, 8 JOINs per retrieval, schema migrations for every change.</div>
+            </div>
+          </div>
         </div>
       )}
 

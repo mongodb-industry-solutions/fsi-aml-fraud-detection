@@ -5,8 +5,9 @@ import Icon from '@leafygreen-ui/icon';
 import { Body } from '@leafygreen-ui/typography';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
+import { uiTokens } from './investigationTokens';
 
-const FONT = "'Euclid Circular A', sans-serif";
+const FONT = uiTokens.font;
 
 const TOOL_TO_MONGO_OP = {
   get_entity_profile: {
@@ -69,7 +70,7 @@ function FeatureBadge({ feature }) {
   const colors = FEATURE_COLORS[feature] || { bg: palette.gray.light3, fg: palette.gray.dark1, border: palette.gray.light2 };
   return (
     <span style={{
-      fontSize: 9, fontFamily: "'Source Code Pro', monospace", fontWeight: 600,
+      fontSize: uiTokens.captionSize, fontFamily: uiTokens.monoFont, fontWeight: 600,
       padding: '2px 6px', borderRadius: 3,
       background: colors.bg, color: colors.fg, border: `1px solid ${colors.border}`,
       whiteSpace: 'nowrap',
@@ -86,7 +87,7 @@ const TABS = [
 ];
 
 export default function InvestigationInsightsPanel({ events = [], running = false, accumulatedEvidence }) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
   const [activeTab, setActiveTab] = useState('operations');
 
   const operations = useMemo(() => {
@@ -161,12 +162,16 @@ export default function InvestigationInsightsPanel({ events = [], running = fals
       fontFamily: FONT,
     }}>
       {/* Header */}
-      <div
+      <button
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
+        aria-expanded={isOpen}
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '8px 14px', cursor: 'pointer',
-          background: palette.gray.light3,
+          padding: '10px 14px', cursor: 'pointer', width: '100%',
+          background: uiTokens.railBg,
+          border: 'none',
+          borderBottom: `1px solid ${uiTokens.borderDefault}`,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -190,10 +195,16 @@ export default function InvestigationInsightsPanel({ events = [], running = fals
             </span>
           )}
         </div>
-        <span style={{ fontSize: 10, color: palette.gray.dark1, transition: 'transform 0.15s', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
-          ▼
-        </span>
-      </div>
+        <Icon
+          glyph="ChevronDown"
+          size={14}
+          style={{
+            color: palette.gray.dark1,
+            transition: 'transform 0.15s',
+            transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+          }}
+        />
+      </button>
 
       {/* Content */}
       {isOpen && (
@@ -229,21 +240,23 @@ export default function InvestigationInsightsPanel({ events = [], running = fals
             <div style={{ maxHeight: 300, overflowY: 'auto' }}>
               {operations.map((op, i) => (
                 <div key={i} style={{
-                  display: 'flex', alignItems: 'flex-start', gap: 8,
-                  padding: '4px 0',
+                  display: 'grid', gridTemplateColumns: '72px 1fr',
+                  gap: 8, padding: '4px 0',
                   borderBottom: i < operations.length - 1 ? `1px solid ${palette.gray.light3}` : 'none',
+                  animation: `slideInRight 200ms ease both`,
+                  animationDelay: `${i * 30}ms`,
                 }}>
                   <span style={{
-                    fontSize: 9, color: palette.gray.dark1, fontFamily: "'Source Code Pro', monospace",
-                    minWidth: 60, flexShrink: 0, marginTop: 2,
+                    fontSize: 9, color: palette.gray.base, fontFamily: uiTokens.monoFont,
+                    textAlign: 'right', marginTop: 2,
                     fontVariantNumeric: 'tabular-nums',
                   }}>
                     {op.timestamp ? new Date(op.timestamp).toLocaleTimeString() : ''}
                   </span>
-                  <div style={{ flex: 1 }}>
+                  <div style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       <span style={{
-                        fontSize: 11, fontFamily: "'Source Code Pro', monospace",
+                        fontSize: 11, fontFamily: uiTokens.monoFont,
                         color: op.type === 'checkpoint' ? palette.purple.dark2 : op.type === 'query_complete' ? palette.green.dark1 : palette.blue.dark1,
                         fontWeight: 500,
                       }}>
@@ -297,10 +310,12 @@ export default function InvestigationInsightsPanel({ events = [], running = fals
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 16, flexShrink: 0 }}>
                         <div style={{
                           width: 8, height: 8, borderRadius: '50%', marginTop: 4,
-                          background: palette.green.dark1,
+                          background: '#fff',
+                          border: `2px solid ${palette.green.dark1}`,
+                          boxShadow: `0 0 0 1px ${palette.gray.light2}`,
                         }} />
                         {i < checkpointData.length - 1 && (
-                          <div style={{ flex: 1, width: 1, background: palette.gray.light2, marginTop: 2, minHeight: 16 }} />
+                          <div style={{ flex: 1, width: 3, borderRadius: 2, background: palette.gray.light2, marginTop: 2, minHeight: 16 }} />
                         )}
                       </div>
                       <div>
@@ -342,28 +357,46 @@ export default function InvestigationInsightsPanel({ events = [], running = fals
 
           {/* Summary Tab */}
           {activeTab === 'summary' && (
-            <div style={{
-              padding: '8px 12px', borderRadius: 6,
-              background: palette.green.light3,
-              border: `1px solid ${palette.green.light1}`,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <Icon glyph="Sparkle" size={12} fill={palette.green.dark1} />
-                <span style={{ fontSize: 11, fontWeight: 600, color: palette.green.dark2 }}>
-                  MongoDB Advantage
-                </span>
+            <div>
+              <div style={{
+                display: 'flex', gap: spacing[2], marginBottom: spacing[2], flexWrap: 'wrap',
+              }}>
+                <div style={{
+                  flex: 1, minWidth: 80, padding: '8px 12px', borderRadius: 6,
+                  background: palette.purple.light3, textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: palette.purple.dark2, fontFamily: FONT, fontVariantNumeric: 'tabular-nums' }}>
+                    {summary.checkpoints}
+                  </div>
+                  <div style={{ fontSize: 9, color: palette.gray.dark1, fontFamily: FONT, textTransform: 'uppercase' }}>Checkpoints</div>
+                </div>
+                <div style={{
+                  flex: 1, minWidth: 80, padding: '8px 12px', borderRadius: 6,
+                  background: palette.blue.light3, textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: palette.blue.dark1, fontFamily: FONT, fontVariantNumeric: 'tabular-nums' }}>
+                    {summary.queries}
+                  </div>
+                  <div style={{ fontSize: 9, color: palette.gray.dark1, fontFamily: FONT, textTransform: 'uppercase' }}>Queries</div>
+                </div>
+                <div style={{
+                  flex: 1, minWidth: 80, padding: '8px 12px', borderRadius: 6,
+                  background: palette.green.light3, textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: palette.green.dark2, fontFamily: FONT, fontVariantNumeric: 'tabular-nums' }}>
+                    {summary.features.length}
+                  </div>
+                  <div style={{ fontSize: 9, color: palette.gray.dark1, fontFamily: FONT, textTransform: 'uppercase' }}>Features</div>
+                </div>
               </div>
-              <Body style={{ fontSize: '11px', color: palette.gray.dark2, lineHeight: 1.5 }}>
-                This investigation used: {summary.checkpoints} MongoDBSaver checkpoint{summary.checkpoints !== 1 ? 's' : ''},
-                {' '}{summary.queries} database quer{summary.queries !== 1 ? 'ies' : 'y'}.
-                {' '}Features: {summary.features.map((f, i) => (
-                  <span key={f}>
-                    {i > 0 && ', '}
-                    <FeatureBadge feature={f} />
-                  </span>
-                ))}.
-                {' '}Single database. Zero data movement.
-              </Body>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: spacing[1] }}>
+                {summary.features.map((f) => (
+                  <FeatureBadge key={f} feature={f} />
+                ))}
+              </div>
+              <div style={{ fontSize: 10, color: palette.gray.base, fontFamily: FONT, lineHeight: 1.4 }}>
+                Single database. Zero data movement. MongoDBSaver provides durable checkpoints — no Redis, Kafka, or custom recovery logic.
+              </div>
             </div>
           )}
         </div>

@@ -79,6 +79,24 @@ function TypeBadge({ label, bg, color }) {
   );
 }
 
+function MongoDBIndicator() {
+  return (
+    <div style={{
+      position: 'absolute', top: -3, left: -3,
+      width: 16, height: 16, borderRadius: '50%',
+      background: palette.green.dark1,
+      border: '2px solid #fff',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      zIndex: 5,
+    }}>
+      <svg width="8" height="10" viewBox="0 0 8 10" fill="none">
+        <path d="M4 0.5C4 0.5 1 3 1 5.5C1 7.5 2.3 9 4 9.5C5.7 9 7 7.5 7 5.5C7 3 4 0.5 4 0.5Z" fill="#fff" />
+      </svg>
+    </div>
+  );
+}
+
 function Tooltip({ text }) {
   return (
     <div style={{
@@ -199,6 +217,7 @@ function AgentNode({ data }) {
           </div>
         )}
       </div>
+      {data.mongoBadge && <MongoDBIndicator />}
       {execState === 'completed' && <CompletedBadge />}
       {hovered && data.tooltip && <Tooltip text={data.tooltip} />}
       <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
@@ -276,6 +295,7 @@ function ComputeNode({ data }) {
           </div>
         )}
       </div>
+      {data.mongoBadge && <MongoDBIndicator />}
       {execState === 'completed' && <CompletedBadge />}
       {hovered && data.tooltip && <Tooltip text={data.tooltip} />}
       <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
@@ -330,6 +350,7 @@ function WorkerNode({ data }) {
           {data.mongoBadge}
         </div>
       )}
+      {data.mongoBadge && <MongoDBIndicator />}
       {execState === 'completed' && <CompletedBadge size={14} />}
       <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
     </div>
@@ -383,6 +404,7 @@ function WorkflowNode({ data }) {
           {data.mongoBadge}
         </div>
       )}
+      {data.mongoBadge && <MongoDBIndicator />}
       {execState === 'completed' && <CompletedBadge size={14} />}
       {hovered && data.tooltip && <Tooltip text={data.tooltip} />}
       <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
@@ -604,7 +626,7 @@ const COLLECTION_NODES = [
 
 const COL_EDGE_STYLE = { strokeWidth: 1, stroke: palette.gray.light1, strokeDasharray: '3 2' };
 const COL_EDGE_MARKER = { type: MarkerType.ArrowClosed, width: 8, height: 8, color: palette.gray.light1 };
-const COL_LABEL_STYLE = { fontSize: 7, fontWeight: 600, fontFamily: "'Source Code Pro', monospace", fill: palette.green.dark2 };
+const COL_LABEL_STYLE = { fontSize: 10, fontWeight: 600, fontFamily: "'Source Code Pro', monospace", fill: palette.green.dark2 };
 const COL_LABEL_BG = { fill: palette.green.light3, fillOpacity: 0.92 };
 
 const COLLECTION_EDGES = [
@@ -629,44 +651,44 @@ const LABEL_BG = { fill: '#fff', fillOpacity: 0.92 };
 
 const INITIAL_EDGES = [
   { id: 'e-start-triage', source: 'alertInput', target: 'triage', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.green.dark2 } },
-  { id: 'e-triage-autoclose', source: 'triage', target: 'autoClose', label: 'auto_close', labelStyle: { fontSize: 8, fontWeight: 600, fontFamily: FONT }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.gray.base } },
+  { id: 'e-triage-autoclose', source: 'triage', target: 'autoClose', label: 'auto_close', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.gray.base } },
   { id: 'e-autoclose-end', source: 'autoClose', target: 'endNode', ...EDGE_BASE, type: 'smoothstep', style: { ...EDGE_BASE.style, stroke: palette.gray.light1, strokeDasharray: '4 2' } },
-  { id: 'e-triage-dg', source: 'triage', target: 'dataGathering', label: 'investigate', labelStyle: { fontSize: 8, fontWeight: 600, fontFamily: FONT }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.blue.base } },
+  { id: 'e-triage-dg', source: 'triage', target: 'dataGathering', label: 'investigate', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.blue.base } },
   ...['fetchEntity', 'fetchTxn', 'fetchNetwork', 'fetchWatchlist'].map((target) => ({
     id: `e-dg-${target}`, source: 'dataGathering', target, ...EDGE_BASE, animated: true,
-    label: 'Send', labelStyle: { fontSize: 7, fontWeight: 600, fontFamily: FONT, fill: palette.purple.base },
+    label: 'Send', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT, fill: palette.purple.base },
     labelBgStyle: LABEL_BG, style: { ...EDGE_BASE.style, stroke: palette.purple.base, strokeDasharray: '6 3' },
   })),
   ...['fetchEntity', 'fetchTxn', 'fetchNetwork', 'fetchWatchlist'].map((source) => ({
     id: `e-${source}-assemble`, source, target: 'assembleCase', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.green.dark2 },
   })),
-  { id: 'e-assemble-network', source: 'assembleCase', target: 'networkAnalyst', label: 'parallel', labelStyle: { fontSize: 7, fontWeight: 600, fontFamily: FONT, fill: palette.yellow.dark2 }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.yellow.dark2 } },
-  { id: 'e-assemble-temporal', source: 'assembleCase', target: 'temporalAnalyst', label: 'parallel', labelStyle: { fontSize: 7, fontWeight: 600, fontFamily: FONT, fill: palette.yellow.dark2 }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.yellow.dark2 } },
+  { id: 'e-assemble-network', source: 'assembleCase', target: 'networkAnalyst', label: 'parallel', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT, fill: palette.yellow.dark2 }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.yellow.dark2 } },
+  { id: 'e-assemble-temporal', source: 'assembleCase', target: 'temporalAnalyst', label: 'parallel', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT, fill: palette.yellow.dark2 }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.yellow.dark2 } },
   { id: 'e-network-trail', source: 'networkAnalyst', target: 'trailFollower', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.blue.dark2 } },
   { id: 'e-temporal-trail', source: 'temporalAnalyst', target: 'trailFollower', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.blue.dark2 } },
   { id: 'e-trail-subdispatch', source: 'trailFollower', target: 'subDispatch', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.purple.base } },
-  { id: 'e-subdispatch-mini', source: 'subDispatch', target: 'miniInvestigate', ...EDGE_BASE, animated: true, label: 'Send (N leads)', labelStyle: { fontSize: 7, fontWeight: 600, fontFamily: FONT, fill: palette.purple.base }, labelBgStyle: LABEL_BG, style: { ...EDGE_BASE.style, stroke: palette.purple.base, strokeDasharray: '6 3' } },
+  { id: 'e-subdispatch-mini', source: 'subDispatch', target: 'miniInvestigate', ...EDGE_BASE, animated: true, label: 'Send (N leads)', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT, fill: palette.purple.base }, labelBgStyle: LABEL_BG, style: { ...EDGE_BASE.style, stroke: palette.purple.base, strokeDasharray: '6 3' } },
   { id: 'e-mini-narrative', source: 'miniInvestigate', target: 'narrative', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.green.dark1 } },
   { id: 'e-narrative-validation', source: 'narrative', target: 'validation', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.blue.dark1 } },
-  { id: 'e-validation-hr', source: 'validation', target: 'humanReview', label: 'human_review', labelStyle: { fontSize: 8, fontWeight: 600, fontFamily: FONT }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.red.base } },
+  { id: 'e-validation-hr', source: 'validation', target: 'humanReview', label: 'human_review', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.red.base } },
   {
     id: 'e-validation-dg', source: 'validation', sourceHandle: 'right', target: 'dataGathering', targetHandle: 'right',
-    label: 'data_gathering', labelStyle: { fontSize: 7, fontWeight: 600, fontFamily: FONT },
+    label: 'data_gathering', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT },
     labelBgStyle: { fill: palette.yellow.light3, fillOpacity: 0.95 },
     ...EDGE_BASE, animated: true, style: { ...EDGE_BASE.style, stroke: palette.yellow.dark2, strokeDasharray: '5 3' }, type: 'smoothstep',
   },
   {
     id: 'e-validation-narrative', source: 'validation', sourceHandle: 'right', target: 'narrative', targetHandle: 'right',
-    label: 'narrative', labelStyle: { fontSize: 7, fontWeight: 600, fontFamily: FONT },
+    label: 'narrative', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT },
     labelBgStyle: { fill: palette.yellow.light3, fillOpacity: 0.95 },
     ...EDGE_BASE, animated: true, style: { ...EDGE_BASE.style, stroke: palette.yellow.dark2, strokeDasharray: '5 3' }, type: 'smoothstep',
   },
   {
     id: 'e-validation-finalize', source: 'validation', target: 'finalize',
-    label: 'finalize (max loops)', labelStyle: { fontSize: 7, fontWeight: 600, fontFamily: FONT, fill: palette.gray.dark1 },
+    label: 'finalize (max loops)', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT, fill: palette.gray.dark1 },
     labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.gray.base, strokeDasharray: '4 2' }, type: 'smoothstep',
   },
-  { id: 'e-hr-finalize', source: 'humanReview', target: 'finalize', label: 'resume', labelStyle: { fontSize: 8, fontWeight: 600, fontFamily: FONT }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.green.dark2 } },
+  { id: 'e-hr-finalize', source: 'humanReview', target: 'finalize', label: 'resume', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.green.dark2 } },
   { id: 'e-finalize-end', source: 'finalize', target: 'endNode', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.gray.dark2 } },
 ];
 
@@ -699,44 +721,59 @@ const LEGEND_ITEMS = [
   { label: 'Tool', border: `1px dashed ${palette.purple.light1}`, bg: '#fff', badge: 'TOOL', badgeBg: `${palette.purple.base}12`, badgeColor: palette.purple.dark2 },
   { label: 'Workflow', border: `1px solid ${palette.gray.light2}`, bg: palette.gray.light3, borderRadius: 12, badge: 'WORKFLOW', badgeBg: palette.gray.light2, badgeColor: palette.gray.dark1 },
   { label: 'Collection', border: `1px dashed ${palette.gray.light1}`, bg: palette.gray.light3 },
+  { label: 'Uses MongoDB', bg: palette.green.dark1, borderRadius: '50%', isMongo: true },
 ];
 
-function PipelineLegend() {
+function PipelineLegend({ compact = false }) {
   return (
     <div style={{
       position: 'absolute', top: 10, left: 10, zIndex: 10,
-      display: 'flex', gap: 8, flexWrap: 'wrap',
-      padding: '8px 14px', borderRadius: 8,
+      display: 'flex', flexDirection: 'column', gap: 6,
+      padding: compact ? '6px 10px' : '8px 12px', borderRadius: 8,
       background: 'rgba(255,255,255,0.95)',
       border: `1px solid ${uiTokens.borderDefault}`,
       boxShadow: uiTokens.shadowElevated,
       backdropFilter: 'blur(8px)',
+      maxWidth: compact ? 200 : 260,
     }}>
-      {LEGEND_ITEMS.map(item => (
-        <div key={item.label} style={{
-          display: 'flex', alignItems: 'center', gap: 4,
-          fontSize: 9, fontFamily: FONT, color: palette.gray.dark1,
-        }}>
-          <div style={{
-            width: 16, height: 12,
-            borderRadius: item.borderRadius || 3,
-            background: item.bg,
-            border: item.border || 'none',
-            borderTop: item.borderTop || item.border || 'none',
-          }} />
-          {item.badge && (
-            <span style={{
-              fontSize: 7, fontFamily: FONT, fontWeight: 700,
-              padding: '0px 3px', borderRadius: 2,
-              background: item.badgeBg, color: item.badgeColor,
-              textTransform: 'uppercase',
-            }}>
-              {item.badge}
-            </span>
-          )}
-          <span>{item.label}</span>
-        </div>
-      ))}
+      <div style={{
+        fontSize: 9, fontWeight: 700, fontFamily: FONT,
+        color: palette.gray.dark1, letterSpacing: '0.06em',
+        textTransform: 'uppercase',
+      }}>
+        Node Types
+      </div>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: compact ? '1fr' : '1fr 1fr',
+        gap: compact ? 4 : 6,
+      }}>
+        {LEGEND_ITEMS.map(item => (
+          <div key={item.label} style={{
+            display: 'flex', alignItems: 'center', gap: 4,
+            fontSize: compact ? 9 : 10, fontFamily: FONT, color: palette.gray.dark1,
+          }}>
+            <div style={{
+              width: compact ? 14 : 20, height: compact ? 10 : 14, flexShrink: 0,
+              borderRadius: item.borderRadius || 3,
+              background: item.bg,
+              border: item.border || 'none',
+              borderTop: item.borderTop || item.border || 'none',
+            }} />
+            {item.badge && (
+              <span style={{
+                fontSize: 7, fontFamily: FONT, fontWeight: 700,
+                padding: '0px 3px', borderRadius: 2,
+                background: item.badgeBg, color: item.badgeColor,
+                textTransform: 'uppercase',
+              }}>
+                {item.badge}
+              </span>
+            )}
+            <span>{item.label}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -789,8 +826,8 @@ function PipelineFlowContent({ n, e, onNodesChange, onEdgesChange, onInit }) {
       style={{
         background: palette.gray.light3,
         borderRadius: 8,
-        backgroundImage: `radial-gradient(circle, ${palette.gray.light1} 1px, transparent 1px)`,
-        backgroundSize: '16px 16px',
+        backgroundImage: `linear-gradient(rgba(255,255,255,0.5), rgba(255,255,255,0)), radial-gradient(circle at 1px 1px, ${palette.gray.light1} 0.65px, transparent 0.65px)`,
+        backgroundSize: '100% 100%, 14px 14px',
       }}
     >
       <Background color="transparent" gap={20} size={0} />
@@ -809,18 +846,19 @@ function PipelineFlowContent({ n, e, onNodesChange, onEdgesChange, onInit }) {
           if (node.data?.executionState === 'completed') return palette.green.dark1;
           return node.data?.color || palette.gray.base;
         }}
-        maskColor="rgba(0,0,0,0.06)"
+        maskColor="rgba(0, 99, 235, 0.12)"
         style={{
           borderRadius: 8,
           border: `1px solid ${uiTokens.borderDefault}`,
           boxShadow: uiTokens.shadowElevated,
+          background: palette.gray.light3,
         }}
       />
     </ReactFlow>
   );
 }
 
-export default function AgenticPipelineGraph({ showTools = true, activeAgents = null }) {
+export default function AgenticPipelineGraph({ showTools = true, activeAgents = null, compact = false }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const nodeStates = useMemo(() => computeNodeStates(activeAgents), [activeAgents]);
 
@@ -862,7 +900,7 @@ export default function AgenticPipelineGraph({ showTools = true, activeAgents = 
   return (
     <>
       <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-        <PipelineLegend />
+        <PipelineLegend compact={compact} />
         <FullscreenButton onClick={() => setIsFullscreen(true)} isFullscreen={false} />
         <PipelineFlowContent {...flowProps} />
       </div>
@@ -870,13 +908,17 @@ export default function AgenticPipelineGraph({ showTools = true, activeAgents = 
       {isFullscreen && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 1000,
-          background: 'rgba(0,0,0,0.6)',
+          background: 'rgba(20, 23, 26, 0.72)',
+          backdropFilter: 'blur(4px)',
           display: 'flex', flexDirection: 'column',
+          animation: 'fadeOverlay 180ms ease',
         }}>
           <div style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             padding: '12px 20px',
             background: palette.gray.dark3, color: '#fff',
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
+            boxShadow: '0 1px 0 rgba(0,0,0,0.2)',
           }}>
             <span style={{ fontFamily: FONT, fontWeight: 600, fontSize: 14 }}>
               Agentic Pipeline {activeAgents ? '(Live)' : '(Architecture)'}

@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import Card from '@leafygreen-ui/card';
 import Badge from '@leafygreen-ui/badge';
-import Banner from '@leafygreen-ui/banner';
 import ExpandableCard from '@leafygreen-ui/expandable-card';
 import Code from '@leafygreen-ui/code';
 import { Body, Subtitle, H3 } from '@leafygreen-ui/typography';
@@ -11,8 +10,9 @@ import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 
 import { fetchInvestigationAnalytics } from '@/lib/agent-api';
+import { uiTokens } from './investigationTokens';
 
-const FONT = "'Euclid Circular A', sans-serif";
+const FONT = uiTokens.font;
 
 const STATUS_COLORS = {
   filed: palette.green.dark1,
@@ -134,12 +134,23 @@ export default function InvestigationAnalytics() {
         </Body>
       </div>
 
-      <Banner variant="info">
-        <strong>MongoDB Aggregation Pipelines:</strong> These analytics are computed in real-time using a
-        single <code>$facet</code> pipeline that runs <code>$group</code>, <code>$avg</code>, <code>$sort</code>,
-        and <code>$count</code> stages in parallel. No pre-computed materialized views, no separate OLAP database,
-        no ETL jobs &mdash; just MongoDB.
-      </Banner>
+      {/* MongoDB compact strip */}
+      <div style={{
+        display: 'flex', borderRadius: 6, overflow: 'hidden',
+        border: `1px solid ${palette.gray.light2}`, fontSize: uiTokens.captionSize, fontFamily: FONT,
+      }}>
+        <div style={{
+          flex: 1, padding: '8px 12px',
+          background: palette.green.light3, borderRight: `1px solid ${palette.gray.light2}`,
+        }}>
+          <span style={{ fontWeight: 700, color: palette.green.dark2, fontFamily: uiTokens.monoFont, fontSize: 10 }}>MongoDB </span>
+          <span style={{ color: palette.green.dark1 }}>Single <code>$facet</code> pipeline — <code>$group</code>, <code>$avg</code>, <code>$sort</code>, <code>$count</code> in parallel</span>
+        </div>
+        <div style={{ flex: 1, padding: '8px 12px', background: palette.gray.light3 }}>
+          <span style={{ fontWeight: 700, color: palette.gray.dark1, fontSize: 10 }}>Traditional </span>
+          <span style={{ color: palette.gray.base }}>Materialized views + OLAP database + ETL jobs</span>
+        </div>
+      </div>
 
       {/* KPI Row */}
       <div style={{ display: 'flex', gap: spacing[2], flexWrap: 'wrap' }}>
@@ -163,6 +174,64 @@ export default function InvestigationAnalytics() {
           color={palette.blue.base}
         />
       </div>
+
+      {/* SAR Funnel */}
+      {by_status.length > 0 && (() => {
+        const totalCount = by_status.reduce((s, i) => s + i.count, 0);
+        const filedCount = by_status.find(s => s._id === 'filed')?.count || 0;
+        const closedFP = by_status.find(s => s._id === 'closed_false_positive')?.count || 0;
+        const pendingCount = by_status.find(s => s._id === 'pending_review')?.count || 0;
+        const escalated = by_status.find(s => s._id === 'forced_escalation')?.count || 0;
+        const funnelSteps = [
+          { label: 'Alerts Triaged', count: totalCount, color: palette.blue.base },
+          { label: 'Auto-Closed (FP)', count: closedFP, color: palette.gray.base },
+          { label: 'Full Investigation', count: totalCount - closedFP, color: palette.yellow.dark2 },
+          { label: 'Pending Review', count: pendingCount, color: palette.yellow.base },
+          { label: 'Escalated', count: escalated, color: palette.red.base },
+          { label: 'SAR Filed', count: filedCount, color: palette.green.dark1 },
+        ];
+        return (
+          <Card style={{ padding: spacing[3], border: `1px solid ${palette.gray.light2}` }}>
+            <Subtitle style={{ fontFamily: FONT, fontSize: '14px', marginBottom: spacing[2] }}>
+              SAR Investigation Funnel
+            </Subtitle>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {funnelSteps.map((step, i) => {
+                const widthPct = totalCount > 0 ? Math.max((step.count / totalCount) * 100, 8) : 8;
+                return (
+                  <div key={step.label} style={{ display: 'flex', alignItems: 'center', gap: spacing[2] }}>
+                    <span style={{
+                      fontSize: uiTokens.captionSize, fontFamily: FONT, color: palette.gray.dark1,
+                      width: 130, textAlign: 'right', flexShrink: 0,
+                    }}>
+                      {step.label}
+                    </span>
+                    <div style={{
+                      flex: 1, height: 24, borderRadius: 4,
+                      background: palette.gray.light2, overflow: 'hidden',
+                    }}>
+                      <div style={{
+                        width: `${widthPct}%`, height: '100%', borderRadius: 4,
+                        background: step.color,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transition: 'width 0.5s ease',
+                        minWidth: 32,
+                      }}>
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, color: '#fff', fontFamily: FONT,
+                          textShadow: '0 1px 2px rgba(0,0,0,0.2)',
+                        }}>
+                          {step.count}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        );
+      })()}
 
       {/* Status Distribution */}
       {by_status.length > 0 && (

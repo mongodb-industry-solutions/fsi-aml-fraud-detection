@@ -132,12 +132,19 @@ export default function ChangeStreamConsole({ onInvestigationChange }) {
         }}>
           Change Streams
           <span style={{
-            height: 7, width: 7, borderRadius: '50%',
-            backgroundColor: statusColor,
-            animation: connected || reconnecting ? 'subtlePulse 2s infinite' : 'none',
-            display: 'inline-block',
-          }} />
-          <span style={{ fontSize: 10, fontWeight: 600, color: statusTextColor }}>
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+            padding: '2px 8px', borderRadius: 999,
+            fontSize: 10, fontWeight: 600,
+            background: connected ? palette.green.light3 : reconnecting ? palette.yellow.light3 : palette.red.light3,
+            border: `1px solid ${connected ? palette.green.light1 : reconnecting ? palette.yellow.light1 : palette.red.light1}`,
+            color: statusTextColor,
+          }}>
+            <span style={{
+              height: 6, width: 6, borderRadius: '50%',
+              backgroundColor: statusColor,
+              animation: connected || reconnecting ? 'subtlePulse 2s infinite' : 'none',
+              display: 'inline-block', flexShrink: 0,
+            }} />
             {statusLabel}
           </span>
           {!expanded && events.length > 0 && (
@@ -166,9 +173,11 @@ export default function ChangeStreamConsole({ onInvestigationChange }) {
         <div style={{
           marginTop: 6,
           fontSize: 10,
-          fontFamily: 'monospace',
-          color: palette.green.dark2,
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          fontFamily: uiTokens.monoFont,
+          color: palette.gray.dark1,
+          overflow: 'hidden', whiteSpace: 'nowrap',
+          maskImage: 'linear-gradient(90deg, #000 78%, transparent)',
+          WebkitMaskImage: 'linear-gradient(90deg, #000 78%, transparent)',
         }}>
           {formatEventTime(latestEvent.timestamp)} [{latestEvent.operationType}] {getEventDescription(latestEvent)}
         </div>

@@ -9,17 +9,26 @@ import { H1, Overline, Body } from '@leafygreen-ui/typography';
 import Icon from '@leafygreen-ui/icon';
 import IconButton from '@leafygreen-ui/icon-button';
 import { useState, useEffect } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useUser } from '@/contexts/UserContext';
 import UserSelectionModal from '@/components/UserSelection/UserSelectionModal';
 import UserProfile from '@/components/UserProfile/UserProfile';
 import ChatBubble from '@/components/chat/ChatBubble';
+
+const ROUTE_ROLES = [
+  { href: '/entities', roles: ['risk_analyst'] },
+  { href: '/entity-resolution', roles: ['risk_analyst'] },
+  { href: '/transaction-simulator', roles: ['risk_analyst'] },
+  { href: '/investigations', roles: ['risk_analyst'] },
+  { href: '/risk-models', roles: ['risk_manager'] },
+];
 
 export default function ClientLayout({ children }) {
   const [isMenuOpen, setMenuOpen] = useState(false);
   const { role, isInitialized } = useUser();
   const [showUserSelection, setShowUserSelection] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
   const isWideRoute = pathname?.startsWith('/investigations');
 
   const isActive = (href) => {
@@ -52,6 +61,14 @@ export default function ClientLayout({ children }) {
       setShowUserSelection(false);
     }
   }, [isInitialized, role]);
+
+  useEffect(() => {
+    if (!role || !pathname) return;
+    const current = ROUTE_ROLES.find(r => pathname.startsWith(r.href));
+    if (current && !current.roles.includes(role)) {
+      router.push('/');
+    }
+  }, [role, pathname, router]);
 
   return (
     <>

@@ -1275,7 +1275,7 @@ that collapses animation durations to `0.01ms`.
 | Component | File | Purpose |
 |-----------|------|---------|
 | `InvestigationsPage` | `InvestigationsPage.jsx` | Root page with sidebar + workspace layout, KPI summary, status filters, investigation list with risk accents, view toggles |
-| `InvestigationDashboard` | `InvestigationDashboard.jsx` | Lists investigations with status badges, supports refresh and seed |
+
 | `InvestigationLauncher` | `InvestigationLauncher.jsx` | Demo scenarios with header bands, progress bar with shimmer, agent step timeline with staggered animations, pipeline graph, human review panel |
 | `InvestigationDetail` | `InvestigationDetail.jsx` | Full case view with refined tab navigation (3px indicator, hover states), conic-gradient risk ring gauge, analysis accent borders, audit trail |
 | `AgenticPipelineGraph` | `AgenticPipelineGraph.jsx` | ReactFlow pipeline visualization with dot grid canvas, node drop-shadows, active glow, polished controls and minimap |
@@ -1599,7 +1599,7 @@ app/investigations/
 components/investigations/
 ├── investigationTokens.js      # Shared design tokens (uiTokens, getRiskAccentColor, GLOBAL_KEYFRAMES)
 ├── InvestigationsPage.jsx      # Root page (sidebar + workspace layout, KPI summary, filters, list)
-├── InvestigationDashboard.jsx  # Investigation list with status badges and change stream
+
 ├── InvestigationLauncher.jsx   # Demo scenarios + SSE progress + pipeline graph + human review
 ├── InvestigationDetail.jsx     # Full case view (sub-tabs: Summary | Evidence | Narrative | Audit)
 ├── AgenticPipelineGraph.jsx    # ReactFlow pipeline visualization with live node highlighting

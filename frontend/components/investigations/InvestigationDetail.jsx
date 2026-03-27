@@ -4,14 +4,12 @@ import { useState } from 'react';
 import Card from '@leafygreen-ui/card';
 import Badge from '@leafygreen-ui/badge';
 import { Body, Subtitle, H3 } from '@leafygreen-ui/typography';
-import Banner from '@leafygreen-ui/banner';
-import Callout from '@leafygreen-ui/callout';
 import ExpandableCard from '@leafygreen-ui/expandable-card';
 import Code from '@leafygreen-ui/code';
 import Icon from '@leafygreen-ui/icon';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
-import { uiTokens, GLOBAL_KEYFRAMES } from './investigationTokens';
+import { uiTokens } from './investigationTokens';
 
 const FONT = uiTokens.font;
 
@@ -88,10 +86,15 @@ export default function InvestigationDetail({ investigation }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[3] }}>
       {/* Header */}
-      <Card style={{ padding: spacing[3], border: `1px solid ${palette.gray.light2}` }}>
+      <Card style={{
+        padding: spacing[4], border: `1px solid ${uiTokens.borderDefault}`,
+        boxShadow: uiTokens.shadowElevated,
+      }}>
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           marginBottom: spacing[2],
+          paddingBottom: spacing[2],
+          borderBottom: `1px solid ${palette.gray.light2}`,
         }}>
           <H3 style={{ fontFamily: FONT, margin: 0 }}>{case_id}</H3>
           <StatusBadgeDetail status={investigation_status} />
@@ -106,37 +109,32 @@ export default function InvestigationDetail({ investigation }) {
         </div>
       </Card>
 
-      {/* Tab Navigation */}
+      {/* Tab Navigation — segmented trough */}
       <div style={{
-        display: 'flex', gap: 0,
-        borderBottom: `2px solid ${uiTokens.borderDefault}`,
+        display: 'flex', gap: 4,
+        background: palette.gray.light3,
+        borderRadius: 8, padding: 4,
       }}>
         {DETAIL_TABS.map(tab => {
           const isActive = activeTab === tab.key;
           const hasContent = tab.key === 'summary' || tab.key === 'audit'
-            || (tab.key === 'evidence' && (case_file || network_analysis || typology))
-            || (tab.key === 'narrative' && narrative?.introduction);
+            || (tab.key === 'evidence' && (case_file || network_analysis || typology));
           return (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              onMouseEnter={(e) => {
-                if (!isActive) e.currentTarget.style.background = palette.gray.light3;
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive) e.currentTarget.style.background = 'transparent';
-              }}
               style={{
-                padding: '10px 20px',
+                flex: 1,
+                padding: '8px 16px',
                 fontFamily: FONT,
                 fontSize: 13,
                 fontWeight: isActive ? 600 : 400,
                 color: isActive ? palette.green.dark2 : palette.gray.dark1,
-                background: 'transparent',
+                background: isActive ? '#fff' : 'transparent',
                 border: 'none',
-                borderBottom: isActive ? `3px solid ${palette.green.dark2}` : '3px solid transparent',
-                borderRadius: '4px 4px 0 0',
-                marginBottom: -2,
+                borderBottom: isActive ? `2px solid ${palette.green.dark2}` : '2px solid transparent',
+                borderRadius: 6,
+                boxShadow: isActive ? uiTokens.shadowCard : 'none',
                 cursor: 'pointer',
                 transition: `all ${uiTokens.transitionFast}`,
                 opacity: hasContent ? 1 : 0.5,
@@ -146,7 +144,8 @@ export default function InvestigationDetail({ investigation }) {
               {tab.key === 'audit' && agent_audit_log?.length > 0 && (
                 <span style={{
                   marginLeft: 6, fontSize: 10, padding: '1px 5px', borderRadius: 8,
-                  background: palette.gray.light2, color: palette.gray.dark1,
+                  background: isActive ? palette.gray.light2 : palette.gray.light1,
+                  color: palette.gray.dark1,
                 }}>
                   {agent_audit_log.length}
                 </span>
@@ -157,7 +156,6 @@ export default function InvestigationDetail({ investigation }) {
       </div>
 
       {/* Tab Content */}
-      <style>{GLOBAL_KEYFRAMES}</style>
       <div key={activeTab} style={{ animation: `fadeSlideIn ${uiTokens.transitionMedium} ease both`, paddingTop: spacing[1] }}>
       {activeTab === 'summary' && (
         <SummaryTab
@@ -195,15 +193,27 @@ export default function InvestigationDetail({ investigation }) {
         style={{ marginTop: spacing[1] }}
       >
         <div style={{
-          padding: spacing[2], borderRadius: 6, marginBottom: spacing[2],
-          background: palette.green.light3, border: `1px solid ${palette.green.light1}`,
-          fontSize: 12, fontFamily: FONT, color: palette.green.dark2,
+          display: 'flex', borderRadius: 6, overflow: 'hidden', marginBottom: spacing[2],
+          border: `1px solid ${palette.gray.light2}`, fontSize: uiTokens.captionSize, fontFamily: FONT,
         }}>
-          <strong>Schema Flexibility in Action:</strong> This single document contains the entire investigation lifecycle
-          &mdash; nested triage decisions, variable-length evidence arrays, dynamic typology fields, and the full audit
-          trail. No rigid table schemas, no migrations, no 15-table JOIN to reconstruct.
+          <div style={{ flex: 1, padding: '6px 10px', background: palette.green.light3 }}>
+            <span style={{ fontWeight: 700, color: palette.green.dark2, fontFamily: uiTokens.monoFont, fontSize: 10 }}>MongoDB </span>
+            <span style={{ color: palette.green.dark1 }}>1 document, nested arrays, no migrations</span>
+          </div>
+          <div style={{ flex: 1, padding: '6px 10px', background: palette.gray.light3 }}>
+            <span style={{ fontWeight: 700, color: palette.gray.dark1, fontSize: 10 }}>Traditional </span>
+            <span style={{ color: palette.gray.base }}>15 tables, rigid schemas, migrations per field change</span>
+          </div>
         </div>
-        <Code language="json" style={{ maxHeight: 500, overflow: 'auto' }}>
+        <div style={{
+          fontSize: 11, fontFamily: uiTokens.monoFont,
+          color: palette.green.light2, background: palette.gray.dark3,
+          padding: '6px 12px', borderRadius: '6px 6px 0 0',
+          letterSpacing: '0.02em',
+        }}>
+          db.investigations.findOne()
+        </div>
+        <Code language="json" style={{ maxHeight: 500, overflow: 'auto', borderRadius: '0 0 6px 6px' }}>
           {JSON.stringify(investigation, null, 2)}
         </Code>
       </ExpandableCard>
@@ -249,7 +259,7 @@ function SummaryTab({ triage, typology, validation, humanDecision, networkAnalys
                     background: '#fff',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
-                    <span style={{ fontSize: 22, fontWeight: 700, fontFamily: FONT, color: risk.color }}>
+                    <span style={{ fontSize: 22, fontWeight: 700, fontFamily: FONT, color: risk.color, fontVariantNumeric: 'tabular-nums' }}>
                       {riskScore}
                     </span>
                   </div>
@@ -349,8 +359,9 @@ function SummaryTab({ triage, typology, validation, humanDecision, networkAnalys
           {networkAnalysis && networkAnalysis.network_size > 0 && (
             <div style={{
               padding: `${spacing[2]}px ${spacing[3]}px`,
+              paddingLeft: 12,
               borderBottom: (temporalAnalysis?.timeline_summary || trailAnalysis?.leads?.length > 0) ? `1px solid ${palette.gray.light2}` : 'none',
-              borderLeft: `3px solid ${palette.blue.dark2}`,
+              borderLeft: `4px solid ${palette.blue.dark2}`,
             }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: spacing[3], flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 12, fontWeight: 600, fontFamily: FONT, color: palette.blue.dark2, minWidth: 70 }}>Network</span>
@@ -370,8 +381,9 @@ function SummaryTab({ triage, typology, validation, humanDecision, networkAnalys
           {temporalAnalysis && temporalAnalysis.timeline_summary && (
             <div style={{
               padding: `${spacing[2]}px ${spacing[3]}px`,
+              paddingLeft: 12,
               borderBottom: trailAnalysis?.leads?.length > 0 ? `1px solid ${palette.gray.light2}` : 'none',
-              borderLeft: `3px solid ${palette.yellow.dark2}`,
+              borderLeft: `4px solid ${palette.yellow.dark2}`,
             }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: spacing[3], flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 12, fontWeight: 600, fontFamily: FONT, color: palette.yellow.dark2, minWidth: 70 }}>Temporal</span>
@@ -389,7 +401,8 @@ function SummaryTab({ triage, typology, validation, humanDecision, networkAnalys
           {trailAnalysis && trailAnalysis.leads?.length > 0 && (
             <div style={{
               padding: `${spacing[2]}px ${spacing[3]}px`,
-              borderLeft: `3px solid ${palette.green.dark2}`,
+              paddingLeft: 12,
+              borderLeft: `4px solid ${palette.green.dark2}`,
             }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: spacing[3], flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 12, fontWeight: 600, fontFamily: FONT, color: palette.green.dark2, minWidth: 70 }}>Trail</span>
@@ -428,7 +441,7 @@ function SummaryTab({ triage, typology, validation, humanDecision, networkAnalys
             <Card style={{
               padding: spacing[3],
               border: `1px solid ${palette.gray.light2}`,
-              borderLeft: `3px solid ${validation.is_valid ? palette.green.dark1 : palette.yellow.dark2}`,
+              borderLeft: `4px solid ${validation.is_valid ? palette.green.dark1 : palette.yellow.dark2}`,
             }}>
               <div style={{ fontSize: 11, color: palette.gray.base, fontFamily: FONT, textTransform: 'uppercase', marginBottom: 6, letterSpacing: '0.5px' }}>
                 Validation
@@ -544,39 +557,78 @@ function EvidenceTab({ caseFile, typology, networkAnalysis, temporalAnalysis, tr
       {/* Network Analysis */}
       {networkAnalysis && networkAnalysis.network_size > 0 && (
         <Section title="Network Analysis" icon="Diagram2" accentColor={palette.blue.dark1}>
-          <div style={{ display: 'flex', gap: spacing[4], flexWrap: 'wrap', marginBottom: spacing[2] }}>
-            <InfoPair label="Network Size" value={networkAnalysis.network_size} />
-            <InfoPair label="High-Risk Connections" value={networkAnalysis.high_risk_connections} />
-            <InfoPair label="Max Depth" value={networkAnalysis.max_depth_reached} />
-            <InfoPair label="Degree Centrality" value={networkAnalysis.degree_centrality?.toFixed(3)} />
-            <InfoPair label="Network Risk" value={networkAnalysis.network_risk_score != null ? `${networkAnalysis.network_risk_score.toFixed(1)}/100` : undefined} />
-          </div>
-          {networkAnalysis.shell_structure_indicators?.length > 0 && (
-            <div style={{ marginBottom: spacing[2] }}>
-              <Body style={{ fontWeight: 600, fontSize: '13px', fontFamily: FONT, marginBottom: spacing[1] }}>
-                Shell Structure Indicators
-              </Body>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                {networkAnalysis.shell_structure_indicators.map((ind, i) => (
-                  <Badge key={i} variant="red">{ind}</Badge>
-                ))}
-              </div>
+          <div style={{ display: 'flex', gap: spacing[3], alignItems: 'flex-start' }}>
+            {/* Mini Ego-Graph */}
+            <div style={{
+              width: 200, height: 200, flexShrink: 0, borderRadius: 8,
+              border: `1px solid ${palette.gray.light2}`, background: '#fafbfc',
+              position: 'relative', overflow: 'hidden',
+            }}>
+              <MiniEgoGraph
+                networkSize={networkAnalysis.network_size}
+                highRisk={networkAnalysis.high_risk_connections}
+                connections={networkAnalysis.connected_entities}
+              />
             </div>
-          )}
-          {networkAnalysis.summary && (
-            <Body style={{ fontSize: '13px', fontFamily: FONT, color: palette.gray.dark1, lineHeight: 1.6 }}>
-              {networkAnalysis.summary}
-            </Body>
-          )}
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', gap: spacing[4], flexWrap: 'wrap', marginBottom: spacing[2] }}>
+                <InfoPair label="Network Size" value={networkAnalysis.network_size} />
+                <InfoPair label="High-Risk Connections" value={networkAnalysis.high_risk_connections} />
+                <InfoPair label="Max Depth" value={networkAnalysis.max_depth_reached} />
+                <InfoPair label="Degree Centrality" value={networkAnalysis.degree_centrality?.toFixed(3)} />
+                <InfoPair label="Network Risk" value={networkAnalysis.network_risk_score != null ? `${networkAnalysis.network_risk_score.toFixed(1)}/100` : undefined} />
+              </div>
+              {networkAnalysis.shell_structure_indicators?.length > 0 && (
+                <div style={{ marginBottom: spacing[2] }}>
+                  <Body style={{ fontWeight: 600, fontSize: `${uiTokens.bodySize}px`, fontFamily: FONT, marginBottom: spacing[1] }}>
+                    Shell Structure Indicators
+                  </Body>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {networkAnalysis.shell_structure_indicators.map((ind, i) => (
+                      <Badge key={i} variant="red">{ind}</Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {networkAnalysis.summary && (
+                <Body style={{ fontSize: `${uiTokens.bodySize}px`, fontFamily: FONT, color: palette.gray.dark1, lineHeight: 1.6 }}>
+                  {networkAnalysis.summary}
+                </Body>
+              )}
+            </div>
+          </div>
         </Section>
       )}
 
-      {/* Temporal Pattern Analysis: summary + top-3 per type */}
+      {/* Temporal Pattern Analysis: summary + sparkline + top-3 per type */}
       {temporalAnalysis && temporalAnalysis.timeline_summary && (
         <Section title="Temporal Pattern Analysis" icon="Clock" accentColor={palette.yellow.dark2}>
-          <Body style={{ fontSize: '14px', fontFamily: FONT, color: palette.gray.dark1, lineHeight: 1.7, marginBottom: spacing[2] }}>
-            {temporalAnalysis.timeline_summary}
-          </Body>
+          <div style={{ display: 'flex', gap: spacing[3], alignItems: 'flex-start', marginBottom: spacing[2] }}>
+            <div style={{ flex: 1 }}>
+              <Body style={{ fontSize: '14px', fontFamily: FONT, color: palette.gray.dark1, lineHeight: 1.7 }}>
+                {temporalAnalysis.timeline_summary}
+              </Body>
+            </div>
+            {temporalAnalysis.velocity_anomalies?.length > 0 && (
+              <div style={{
+                flexShrink: 0, padding: spacing[2], borderRadius: 8,
+                background: palette.yellow.light3, border: `1px solid ${palette.yellow.light2}`,
+              }}>
+                <div style={{
+                  fontSize: uiTokens.captionSize, fontFamily: FONT, color: palette.yellow.dark2,
+                  fontWeight: 600, marginBottom: 4,
+                }}>
+                  Transaction Velocity
+                </div>
+                <SparklineChart
+                  data={temporalAnalysis.velocity_anomalies.map(v => v.transaction_count || 0)}
+                  color={palette.yellow.dark2}
+                  width={160}
+                  height={36}
+                />
+              </div>
+            )}
+          </div>
 
           <PatternGroup
             title="Structuring Patterns"
@@ -755,8 +807,8 @@ function NarrativeTab({ narrative }) {
       {/* Introduction — accented left border */}
       {narrative.introduction && (
         <div style={{
-          borderLeft: `3px solid ${palette.green.dark1}`,
-          paddingLeft: spacing[3],
+          borderLeft: `4px solid ${palette.green.dark1}`,
+          paddingLeft: 12,
           marginBottom: spacing[4],
         }}>
           <Body style={{
@@ -847,7 +899,7 @@ function MetricCard({ label, value, sub }) {
       textAlign: 'center',
       minWidth: 100,
     }}>
-      <div style={{ fontSize: 20, fontWeight: 700, fontFamily: FONT, color: palette.gray.dark2 }}>
+      <div style={{ fontSize: 20, fontWeight: 700, fontFamily: FONT, color: palette.gray.dark2, fontVariantNumeric: 'tabular-nums' }}>
         {value ?? '—'}
       </div>
       <div style={{ fontSize: 10, color: palette.gray.base, fontFamily: FONT, textTransform: 'uppercase', marginTop: 2 }}>
@@ -948,22 +1000,22 @@ function DurationBar({ entries }) {
         })}
       </div>
       <div style={{
-        display: 'flex', justifyContent: 'space-between', marginTop: 4,
-        fontSize: 9, fontFamily: FONT, color: palette.gray.base,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6,
+        fontSize: 10, fontFamily: FONT, color: palette.gray.base,
       }}>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
           {filtered.map((entry, i) => (
-            <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+            <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <span style={{
                 width: 6, height: 6, borderRadius: '50%',
                 background: getAgentColor(entry.agent),
-                display: 'inline-block',
+                display: 'inline-block', flexShrink: 0,
               }} />
               {entry.agent}
             </span>
           ))}
         </div>
-        <span style={{ fontWeight: 600 }}>Total: {fmtTotal}</span>
+        <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>Total: {fmtTotal}</span>
       </div>
     </div>
   );
@@ -985,11 +1037,23 @@ function AuditTab({ auditLog, toolTrace, metrics }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[2] }}>
-      <Banner variant="success">
-        <strong>Append-Only Audit Trail as Nested Array:</strong> Each agent node appends its audit entry to a
-        single array within the investigation document. MongoDB&apos;s <code>$push</code> operator and flexible schema
-        make this natural &mdash; no separate audit tables, no foreign keys, no JOIN to reconstruct the timeline.
-      </Banner>
+      {/* MongoDB Before/After Strip */}
+      <div style={{
+        display: 'flex', borderRadius: 6, overflow: 'hidden',
+        border: `1px solid ${palette.gray.light2}`, fontSize: uiTokens.captionSize, fontFamily: FONT,
+      }}>
+        <div style={{
+          flex: 1, padding: '8px 12px',
+          background: palette.green.light3, borderRight: `1px solid ${palette.gray.light2}`,
+        }}>
+          <span style={{ fontWeight: 700, color: palette.green.dark2, fontFamily: uiTokens.monoFont, fontSize: 10 }}>MongoDB </span>
+          <span style={{ color: palette.green.dark1 }}>Audit trail: nested array, <code>$push</code> append, 0 JOINs to reconstruct</span>
+        </div>
+        <div style={{ flex: 1, padding: '8px 12px', background: palette.gray.light3 }}>
+          <span style={{ fontWeight: 700, color: palette.gray.dark1, fontSize: 10 }}>Traditional </span>
+          <span style={{ color: palette.gray.base }}>Separate audit tables + foreign keys + JOIN per timeline query</span>
+        </div>
+      </div>
 
       {/* Metrics Summary */}
       {metrics && (
@@ -1036,13 +1100,14 @@ function AuditTab({ auditLog, toolTrace, metrics }) {
                   width: 32, flexShrink: 0,
                 }}>
                   <div style={{
-                    width: isHuman ? 14 : 10,
-                    height: isHuman ? 14 : 10,
+                    width: isHuman ? 14 : 12,
+                    height: isHuman ? 14 : 12,
                     borderRadius: '50%',
                     background: agentColor,
                     flexShrink: 0,
                     marginTop: 6,
-                    border: isHuman ? `2px solid ${palette.yellow.base}` : 'none',
+                    border: isHuman ? `2px solid ${palette.yellow.base}` : '2px solid #fff',
+                    boxShadow: `0 0 0 1px ${palette.gray.light2}`,
                   }} />
                   {!isLast && (
                     <div style={{
@@ -1192,6 +1257,70 @@ function Section({ title, subtitle, icon, accentColor, children }) {
   );
 }
 
+function MiniEgoGraph({ networkSize, highRisk, connections }) {
+  const nodeCount = Math.min(networkSize || 5, 12);
+  const cx = 100, cy = 100, radius = 70;
+  const nodes = [];
+  for (let i = 0; i < nodeCount; i++) {
+    const angle = (2 * Math.PI * i) / nodeCount - Math.PI / 2;
+    const isHighRisk = i < (highRisk || 0);
+    nodes.push({
+      x: cx + radius * Math.cos(angle),
+      y: cy + radius * Math.sin(angle),
+      isHighRisk,
+      label: connections?.[i]?.name?.slice(0, 2)?.toUpperCase() || `N${i}`,
+    });
+  }
+  return (
+    <svg viewBox="0 0 200 200" width="100%" height="100%">
+      {nodes.map((n, i) => (
+        <line key={`e-${i}`} x1={cx} y1={cy} x2={n.x} y2={n.y}
+          stroke={n.isHighRisk ? palette.red.base : palette.gray.light1} strokeWidth={1.5} strokeOpacity={0.6} />
+      ))}
+      <circle cx={cx} cy={cy} r={14} fill={palette.blue.base} />
+      <text x={cx} y={cy + 4} textAnchor="middle" fill="#fff" fontSize={9} fontWeight={700} fontFamily={FONT}>
+        E
+      </text>
+      {nodes.map((n, i) => (
+        <g key={`n-${i}`}>
+          <circle cx={n.x} cy={n.y} r={10}
+            fill={n.isHighRisk ? palette.red.light3 : palette.gray.light3}
+            stroke={n.isHighRisk ? palette.red.base : palette.gray.light1}
+            strokeWidth={1.5}
+          />
+          <text x={n.x} y={n.y + 3} textAnchor="middle"
+            fill={n.isHighRisk ? palette.red.dark2 : palette.gray.dark1}
+            fontSize={7} fontWeight={600} fontFamily={FONT}>
+            {n.label}
+          </text>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+function SparklineChart({ data, color, width = 200, height = 40 }) {
+  if (!data || data.length < 2) return null;
+  const max = Math.max(...data);
+  const min = Math.min(...data);
+  const range = max - min || 1;
+  const points = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * width;
+    const y = height - ((v - min) / range) * (height - 4) - 2;
+    return `${x},${y}`;
+  }).join(' ');
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ display: 'block' }}>
+      <polyline points={points} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      {data.map((v, i) => {
+        const x = (i / (data.length - 1)) * width;
+        const y = height - ((v - min) / range) * (height - 4) - 2;
+        return <circle key={i} cx={x} cy={y} r={2} fill={color} />;
+      })}
+    </svg>
+  );
+}
+
 function InfoPair({ label, value, color }) {
   return (
     <div>
@@ -1234,7 +1363,8 @@ function PatternGroup({ title, items, colorBg, colorText, renderItem }) {
       {visible.map((item, i) => (
         <div key={i} style={{
           fontSize: 12, fontFamily: FONT, padding: '5px 10px', marginBottom: 3,
-          borderRadius: 4, background: colorBg, color: colorText, lineHeight: 1.5,
+          borderRadius: 4, background: uiTokens.railBg, color: colorText,
+          borderLeft: `3px solid ${colorText}`, lineHeight: 1.5,
         }}>
           {renderItem(item)}
         </div>

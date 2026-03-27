@@ -140,9 +140,10 @@ const markdownStyles = `
 .chat-md pre code { display: block; padding: 6px 8px; }
 .chat-md hr { margin: 8px 0; border: none; border-top: 1px solid rgba(0,0,0,0.1); }
 .chat-md strong { font-weight: 600; }
-.chat-md a { color: #007bff; text-decoration: none; }
+.chat-md a { color: ${palette.blue.dark1}; text-decoration: none; }
 .chat-md table { border-collapse: collapse; margin: 6px 0; font-size: 12px; }
 .chat-md th, .chat-md td { border: 1px solid rgba(0,0,0,0.1); padding: 3px 6px; }
+.chat-input-wrap:focus-within { border-color: ${palette.blue.light1} !important; box-shadow: 0 0 0 1px ${palette.blue.light1}; }
 `;
 
 const miniActionBtn = {
@@ -185,6 +186,7 @@ function EntityCard({ entity, onAction }) {
     <div style={{
       padding: '6px 8px', borderRadius: 6,
       border: `1px solid ${palette.gray.light2}`, background: '#fff',
+      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
       display: 'flex', alignItems: 'center', gap: 8,
       marginBottom: 4, fontSize: 11, fontFamily: FONT,
     }}>
@@ -337,6 +339,7 @@ function ToolCallIndicator({ tool, input, output, collapsed, onToggle, onAction 
       margin: `${spacing[1]}px 0`,
       borderRadius: 6,
       border: `1px solid ${palette.blue.light2}`,
+      borderLeft: `3px solid ${palette.blue.base}`,
       background: palette.blue.light3,
       fontSize: 11,
       fontFamily: FONT,
@@ -355,9 +358,12 @@ function ToolCallIndicator({ tool, input, output, collapsed, onToggle, onAction 
         <span style={{ color: palette.blue.dark1, fontWeight: 600 }}>
           🔧 {tool}
         </span>
-        <span style={{ color: palette.gray.base, fontSize: 10 }}>
-          {collapsed ? '▶' : '▼'}
-        </span>
+        <span style={{
+          color: palette.blue.base, fontSize: 10,
+          display: 'inline-flex', alignItems: 'center',
+          transition: 'transform 0.15s',
+          transform: collapsed ? 'rotate(0deg)' : 'rotate(180deg)',
+        }}>▾</span>
       </div>
       {!collapsed && (
         <div style={{ padding: '4px 8px 6px', borderTop: `1px solid ${palette.blue.light2}` }}>
@@ -431,7 +437,7 @@ const spinnerKeyframes = `
 }
 @keyframes bubble-pulse {
   0%, 100% { box-shadow: 0 4px 16px rgba(0,0,0,0.2), 0 0 0 0 rgba(0,98,68,0.4); }
-  50% { box-shadow: 0 4px 16px rgba(0,0,0,0.2), 0 0 0 8px rgba(0,98,68,0); }
+  50% { box-shadow: 0 4px 16px rgba(0,0,0,0.2), 0 0 0 4px rgba(0,98,68,0); }
 }
 `;
 
@@ -511,7 +517,7 @@ function ThreadPicker({ currentThreadId, onSelect, onNew }) {
           width: 260, maxHeight: 300, overflowY: 'auto',
           background: '#fff', borderRadius: 8,
           border: `1px solid ${palette.gray.light2}`,
-          boxShadow: '0 4px 16px rgba(0,0,0,0.14)',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.1)',
           zIndex: 10,
         }}>
           <div style={{
@@ -542,7 +548,7 @@ function ThreadPicker({ currentThreadId, onSelect, onNew }) {
                   background: t.threadId === currentThreadId ? palette.blue.light3 : 'transparent',
                   transition: 'background 0.1s',
                 }}
-                onMouseEnter={e => { if (t.threadId !== currentThreadId) e.currentTarget.style.background = palette.gray.light3; }}
+                onMouseEnter={e => { if (t.threadId !== currentThreadId) e.currentTarget.style.background = palette.blue.light3; }}
                 onMouseLeave={e => { if (t.threadId !== currentThreadId) e.currentTarget.style.background = 'transparent'; }}
               >
                 <div style={{
@@ -977,7 +983,7 @@ export default function ChatBubble({ embedded = false, pageContext = null }) {
                       fontSize: 11, fontWeight: 600, fontFamily: FONT, color: palette.gray.dark2,
                       marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6,
                     }}>
-                      <span style={{ fontSize: 14 }}>{cat.icon}</span> {cat.label}
+                      <span style={{ fontSize: 20, opacity: 0.85 }}>{cat.icon}</span> {cat.label}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       {cat.prompts.map(q => (
@@ -1044,13 +1050,13 @@ export default function ChatBubble({ embedded = false, pageContext = null }) {
         background: '#fff',
         flexShrink: 0,
       }}>
-        <div style={{
+        <div className="chat-input-wrap" style={{
           display: 'flex', alignItems: 'center', gap: 8,
           padding: '6px 6px 6px 14px',
           borderRadius: 10,
           border: `1px solid ${palette.gray.light2}`,
           background: '#fafbfc',
-          transition: 'border-color 0.15s',
+          transition: 'border-color 0.15s, box-shadow 0.15s',
         }}>
           <input
             ref={inputRef}

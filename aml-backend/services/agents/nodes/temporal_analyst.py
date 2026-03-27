@@ -137,7 +137,14 @@ def _detect_round_trips(db, entity_id: str) -> list[dict]:
 
 
 def _detect_time_anomalies(db, entity_id: str) -> list[dict]:
-    """Detect transactions at unusual hours (before 6 AM or after 10 PM)."""
+    """Detect transactions at unusual hours or on weekends with de-duplicated totals.
+
+    Uses mutually exclusive categories to prevent double-counting:
+    - off_hours_weekday: unusual hours on weekdays only
+    - weekend_business_hours: weekends during normal hours only
+    - off_hours_weekend: both off-hours AND weekend (the overlap)
+    Each category includes percentage of total volume for context.
+    """
     pipeline = [
         {"$match": {
             "$or": [{"fromEntityId": entity_id}, {"toEntityId": entity_id}],
@@ -145,17 +152,22 @@ def _detect_time_anomalies(db, entity_id: str) -> list[dict]:
         {"$addFields": {
             "hour": {"$hour": "$timestamp"},
             "day_of_week": {"$dayOfWeek": "$timestamp"},
+            "is_off_hours": {"$or": [
+                {"$lt": [{"$hour": "$timestamp"}, 6]},
+                {"$gte": [{"$hour": "$timestamp"}, 22]},
+            ]},
+            "is_weekend": {"$in": [{"$dayOfWeek": "$timestamp"}, [1, 7]]},
         }},
         {"$facet": {
-            "hour_distribution": [
-                {"$group": {"_id": "$hour", "count": {"$sum": 1}}},
-                {"$sort": {"_id": 1}},
+            "totals": [
+                {"$group": {
+                    "_id": None,
+                    "count": {"$sum": 1},
+                    "total_amount": {"$sum": "$amount"},
+                }},
             ],
-            "off_hours": [
-                {"$match": {"$or": [
-                    {"hour": {"$lt": 6}},
-                    {"hour": {"$gte": 22}},
-                ]}},
+            "off_hours_weekday": [
+                {"$match": {"is_off_hours": True, "is_weekend": False}},
                 {"$group": {
                     "_id": None,
                     "count": {"$sum": 1},
@@ -163,12 +175,22 @@ def _detect_time_anomalies(db, entity_id: str) -> list[dict]:
                     "sample_ids": {"$push": "$transactionId"},
                 }},
             ],
-            "weekend": [
-                {"$match": {"day_of_week": {"$in": [1, 7]}}},
+            "weekend_business_hours": [
+                {"$match": {"is_weekend": True, "is_off_hours": False}},
                 {"$group": {
                     "_id": None,
                     "count": {"$sum": 1},
                     "total_amount": {"$sum": "$amount"},
+                    "sample_ids": {"$push": "$transactionId"},
+                }},
+            ],
+            "off_hours_weekend": [
+                {"$match": {"is_off_hours": True, "is_weekend": True}},
+                {"$group": {
+                    "_id": None,
+                    "count": {"$sum": 1},
+                    "total_amount": {"$sum": "$amount"},
+                    "sample_ids": {"$push": "$transactionId"},
                 }},
             ],
         }},
@@ -178,25 +200,61 @@ def _detect_time_anomalies(db, entity_id: str) -> list[dict]:
         return []
 
     facets = result[0]
+    totals = facets.get("totals", [])
+    total_count = totals[0]["count"] if totals else 0
+    total_amount = totals[0]["total_amount"] if totals else 0
+    if total_count == 0:
+        return []
+
+    def _pct(value: float) -> float:
+        return round(value / total_amount * 100, 2) if total_amount > 0 else 0.0
+
     anomalies = []
 
-    off_hours = facets.get("off_hours", [])
-    if off_hours and off_hours[0].get("count", 0) > 0:
-        oh = off_hours[0]
-        anomalies.append({
-            "type": "off_hours_activity",
-            "count": oh["count"],
-            "total_amount": round(oh.get("total_amount", 0), 2),
-            "sample_ids": oh.get("sample_ids", [])[:5],
-        })
+    oh_wd = facets.get("off_hours_weekday", [])
+    wk_bh = facets.get("weekend_business_hours", [])
+    oh_wk = facets.get("off_hours_weekend", [])
 
-    weekend = facets.get("weekend", [])
-    if weekend and weekend[0].get("count", 0) > 0:
-        wk = weekend[0]
+    oh_wd_count = oh_wd[0]["count"] if oh_wd else 0
+    oh_wd_amt = oh_wd[0].get("total_amount", 0) if oh_wd else 0
+    wk_bh_count = wk_bh[0]["count"] if wk_bh else 0
+    wk_bh_amt = wk_bh[0].get("total_amount", 0) if wk_bh else 0
+    oh_wk_count = oh_wk[0]["count"] if oh_wk else 0
+    oh_wk_amt = oh_wk[0].get("total_amount", 0) if oh_wk else 0
+
+    combined_off_hours_count = oh_wd_count + oh_wk_count
+    combined_off_hours_amt = oh_wd_amt + oh_wk_amt
+    combined_weekend_count = wk_bh_count + oh_wk_count
+    combined_weekend_amt = wk_bh_amt + oh_wk_amt
+    any_unusual_count = oh_wd_count + wk_bh_count + oh_wk_count
+    any_unusual_amt = oh_wd_amt + wk_bh_amt + oh_wk_amt
+
+    if any_unusual_count > 0:
         anomalies.append({
-            "type": "weekend_activity",
-            "count": wk["count"],
-            "total_amount": round(wk.get("total_amount", 0), 2),
+            "type": "unusual_timing_summary",
+            "total_transactions": total_count,
+            "total_volume": round(total_amount, 2),
+            "unusual_timing_count": any_unusual_count,
+            "unusual_timing_volume": round(any_unusual_amt, 2),
+            "unusual_timing_pct_of_volume": _pct(any_unusual_amt),
+            "off_hours_count": combined_off_hours_count,
+            "off_hours_volume": round(combined_off_hours_amt, 2),
+            "off_hours_pct_of_volume": _pct(combined_off_hours_amt),
+            "weekend_count": combined_weekend_count,
+            "weekend_volume": round(combined_weekend_amt, 2),
+            "weekend_pct_of_volume": _pct(combined_weekend_amt),
+            "overlap_count": oh_wk_count,
+            "overlap_volume": round(oh_wk_amt, 2),
+            "note": (
+                "off_hours and weekend counts overlap by "
+                f"{oh_wk_count} transactions (${oh_wk_amt:,.2f}). "
+                "unusual_timing totals are de-duplicated."
+            ),
+            "sample_ids": (
+                (oh_wd[0].get("sample_ids", []) if oh_wd else [])
+                + (wk_bh[0].get("sample_ids", []) if wk_bh else [])
+                + (oh_wk[0].get("sample_ids", []) if oh_wk else [])
+            )[:5],
         })
 
     return anomalies
@@ -245,6 +303,42 @@ def _detect_dormancy_bursts(db, entity_id: str) -> list[dict]:
             })
 
     return sorted(bursts, key=lambda x: x["dormancy_days"], reverse=True)[:5]
+
+
+def _build_entity_context(state: InvestigationState) -> str:
+    """Extract entity type and jurisdiction for contextualizing temporal patterns."""
+    gathered = state.get("gathered_data", {})
+    entity_profile = gathered.get("entity_profile", {})
+    case_file = state.get("case_file", {})
+    entity_section = case_file.get("entity", {})
+
+    entity_type = (
+        entity_profile.get("entityType")
+        or entity_section.get("entity_type")
+        or ""
+    )
+    addresses = (
+        entity_profile.get("addresses")
+        or entity_section.get("addresses")
+        or []
+    )
+    raw_name = entity_profile.get("name") or entity_section.get("name") or ""
+    if isinstance(raw_name, dict):
+        name = " ".join(str(v) for v in raw_name.values() if v)
+    else:
+        name = str(raw_name)
+
+    parts = []
+    if entity_type:
+        parts.append(f"Entity type: {entity_type}.")
+    if addresses:
+        jurisdictions = addresses if isinstance(addresses, list) else [addresses]
+        parts.append(f"Jurisdictions/addresses: {', '.join(str(a) for a in jurisdictions[:3])}.")
+    if any(kw in name.lower() for kw in ("global", "international", "trade", "import", "export")):
+        parts.append("Entity name suggests cross-border or multi-timezone operations.")
+    if not parts:
+        parts.append("No entity context available.")
+    return " ".join(parts)
 
 
 def temporal_analyst_node(state: InvestigationState) -> dict:
@@ -307,12 +401,15 @@ def temporal_analyst_node(state: InvestigationState) -> dict:
     if not summary_parts:
         summary_parts.append("No significant temporal anomalies detected.")
 
+    entity_context = _build_entity_context(state)
+
     profile = TemporalAnalysis(
         structuring_indicators=structuring,
         velocity_anomalies=velocity,
         round_trip_patterns=round_trips,
         time_anomalies=time_anomalies,
         dormancy_bursts=dormancy,
+        entity_context=entity_context,
         timeline_summary=" ".join(summary_parts),
     )
 

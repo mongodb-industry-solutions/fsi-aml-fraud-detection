@@ -12,6 +12,7 @@ from services.agents.llm import get_llm, get_model_id, extract_token_usage, invo
 from services.agents.prompts import NARRATIVE_SYSTEM
 from services.agents.state import InvestigationState
 from services.agents.tools.policy_tools import search_compliance_policies
+from services.agents.truncation import truncate_payload
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,7 @@ def narrative_node(state: InvestigationState) -> dict:
     t_tool = time.perf_counter()
     policies = search_compliance_policies.invoke(tool_input)
     tool_dur = int((time.perf_counter() - t_tool) * 1000)
-    policy_context = json.dumps(policies, default=str)[:3000] if policies else "Follow standard FinCEN SAR narrative guidelines."
+    policy_context = truncate_payload({"policies": policies}, max_chars=3000) if policies else "Follow standard FinCEN SAR narrative guidelines."
 
     output_text = json.dumps(policies, default=str) if policies else "[]"
     truncated = output_text[:_MAX_TOOL_OUTPUT] + "..." if len(output_text) > _MAX_TOOL_OUTPUT else output_text
@@ -50,14 +51,14 @@ def narrative_node(state: InvestigationState) -> dict:
     trail = state.get("trail_analysis", {})
     sub_findings = state.get("sub_investigation_findings", {})
 
-    evidence_payload = json.dumps({
+    evidence_payload = truncate_payload({
         "case_file": case_file,
         "typology_classification": typology,
         "network_analysis": network,
         "temporal_analysis": temporal,
         "trail_analysis": trail,
         "sub_investigation_findings": sub_findings,
-    }, default=str)[:14000]
+    }, max_chars=14000)
 
     llm = get_llm().with_structured_output(SARNarrative, include_raw=True)
     llm_result = invoke_with_retry(llm, [
@@ -67,9 +68,13 @@ def narrative_node(state: InvestigationState) -> dict:
             f"INVESTIGATION EVIDENCE:\n{evidence_payload}"
         )),
     ])
-    narrative: SARNarrative = llm_result["parsed"]
+    narrative: SARNarrative | None = llm_result["parsed"]
     token_usage = extract_token_usage(llm_result["raw"])
     duration_ms = int((time.perf_counter() - t0) * 1000)
+
+    if narrative is None:
+        logger.warning("SAR narrative LLM returned unparseable output — using empty fallback")
+        narrative = SARNarrative(introduction="LLM failed to return structured output.")
 
     total_length = len(narrative.introduction) + len(narrative.body) + len(narrative.conclusion)
 

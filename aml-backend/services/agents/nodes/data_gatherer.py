@@ -18,6 +18,7 @@ from services.agents.tools.entity_tools import get_entity_profile, screen_watchl
 from services.agents.tools.transaction_tools import query_entity_transactions
 from services.agents.tools.network_tools import analyze_entity_network
 from services.agents.tools.policy_tools import search_typologies
+from services.agents.truncation import truncate_payload
 
 logger = logging.getLogger(__name__)
 
@@ -178,9 +179,9 @@ def assemble_case_node(state: InvestigationState) -> dict:
             "timestamp": datetime.now(timezone.utc).isoformat(),
         })
         if relevant_typologies:
-            typology_context = json.dumps(relevant_typologies, default=str)[:4000]
+            typology_context = truncate_payload({"typologies": relevant_typologies}, max_chars=4000)
 
-    gathered_text = json.dumps(gathered, default=str)[:12000]
+    gathered_text = truncate_payload(gathered, max_chars=12000)
 
     llm = get_llm().with_structured_output(CaseAssemblyOutput, include_raw=True)
     result = invoke_with_retry(llm, [

@@ -407,6 +407,107 @@ async def list_investigations(
     return {"investigations": investigations, "total": total, "skip": skip, "limit": limit}
 
 
+# ── Analytics Aggregation ─────────────────────────────────────────────
+
+@router.get("/investigations/analytics")
+async def investigation_analytics():
+    """Compute investigation analytics using MongoDB aggregation pipelines.
+
+    Returns status distribution, typology counts, and average risk scores
+    using $facet, $group, and $avg stages.
+    """
+    client = get_mongo_client()
+    db = client[DB_NAME]
+
+    pipeline = [
+        {"$facet": {
+            "by_status": [
+                {"$group": {"_id": "$investigation_status", "count": {"$sum": 1}}},
+                {"$sort": {"count": -1}},
+            ],
+            "by_typology": [
+                {"$match": {"typology.primary_typology": {"$exists": True, "$ne": None}}},
+                {"$group": {"_id": "$typology.primary_typology", "count": {"$sum": 1}}},
+                {"$sort": {"count": -1}},
+                {"$limit": 10},
+            ],
+            "risk_stats": [
+                {"$match": {"triage_decision.risk_score": {"$exists": True}}},
+                {"$group": {
+                    "_id": None,
+                    "avg_risk": {"$avg": "$triage_decision.risk_score"},
+                    "max_risk": {"$max": "$triage_decision.risk_score"},
+                    "min_risk": {"$min": "$triage_decision.risk_score"},
+                    "total": {"$sum": 1},
+                }},
+            ],
+            "recent_7d": [
+                {"$match": {"created_at": {"$gte": (datetime.now(timezone.utc).replace(hour=0, minute=0, second=0) - timedelta(days=7)).isoformat()}}},
+                {"$count": "count"},
+            ],
+        }},
+    ]
+
+    results = list(db["investigations"].aggregate(pipeline))
+    facets = results[0] if results else {}
+
+    risk = facets.get("risk_stats", [{}])[0] if facets.get("risk_stats") else {}
+    recent = facets.get("recent_7d", [{}])[0] if facets.get("recent_7d") else {}
+
+    return {
+        "by_status": facets.get("by_status", []),
+        "by_typology": facets.get("by_typology", []),
+        "risk_stats": {
+            "avg": round(risk.get("avg_risk", 0), 1) if risk.get("avg_risk") else None,
+            "max": risk.get("max_risk"),
+            "min": risk.get("min_risk"),
+            "total_scored": risk.get("total", 0),
+        },
+        "recent_7d": recent.get("count", 0),
+        "aggregation_pipeline": json.dumps(pipeline, indent=2, default=str),
+    }
+
+
+# ── Investigation Search ──────────────────────────────────────────────
+
+@router.get("/investigations/search")
+async def search_investigations(q: str = "", limit: int = 20):
+    """Search investigations by entity_id, case_id, typology, or narrative text.
+
+    Uses MongoDB text matching on key investigation fields.
+    """
+    client = get_mongo_client()
+    db = client[DB_NAME]
+
+    if not q.strip():
+        return {"results": [], "query": q}
+
+    query_regex = {"$regex": q.strip(), "$options": "i"}
+
+    results = list(db["investigations"].find(
+        {"$or": [
+            {"case_id": query_regex},
+            {"entity_id": query_regex},
+            {"typology.primary_typology": query_regex},
+            {"narrative.introduction": query_regex},
+            {"case_file.key_findings": query_regex},
+            {"alert_data.alert_type": query_regex},
+        ]},
+        {
+            "_id": 0,
+            "case_id": 1,
+            "entity_id": 1,
+            "investigation_status": 1,
+            "created_at": 1,
+            "typology.primary_typology": 1,
+            "triage_decision.risk_score": 1,
+            "narrative.introduction": 1,
+        },
+    ).sort("created_at", -1).limit(limit))
+
+    return {"results": results, "query": q, "count": len(results)}
+
+
 # ── Get investigation detail ─────────────────────────────────────────
 
 @router.get("/investigations/{case_id}")
@@ -677,107 +778,6 @@ async def alerts_change_stream(websocket: WebSocket):
     finally:
         if heartbeat_task is not None:
             heartbeat_task.cancel()
-
-
-# ── Analytics Aggregation ─────────────────────────────────────────────
-
-@router.get("/investigations/analytics")
-async def investigation_analytics():
-    """Compute investigation analytics using MongoDB aggregation pipelines.
-
-    Returns status distribution, typology counts, and average risk scores
-    using $facet, $group, and $avg stages.
-    """
-    client = get_mongo_client()
-    db = client[DB_NAME]
-
-    pipeline = [
-        {"$facet": {
-            "by_status": [
-                {"$group": {"_id": "$investigation_status", "count": {"$sum": 1}}},
-                {"$sort": {"count": -1}},
-            ],
-            "by_typology": [
-                {"$match": {"typology.primary_typology": {"$exists": True, "$ne": None}}},
-                {"$group": {"_id": "$typology.primary_typology", "count": {"$sum": 1}}},
-                {"$sort": {"count": -1}},
-                {"$limit": 10},
-            ],
-            "risk_stats": [
-                {"$match": {"triage_decision.risk_score": {"$exists": True}}},
-                {"$group": {
-                    "_id": None,
-                    "avg_risk": {"$avg": "$triage_decision.risk_score"},
-                    "max_risk": {"$max": "$triage_decision.risk_score"},
-                    "min_risk": {"$min": "$triage_decision.risk_score"},
-                    "total": {"$sum": 1},
-                }},
-            ],
-            "recent_7d": [
-                {"$match": {"created_at": {"$gte": (datetime.now(timezone.utc).replace(hour=0, minute=0, second=0) - timedelta(days=7)).isoformat()}}},
-                {"$count": "count"},
-            ],
-        }},
-    ]
-
-    results = list(db["investigations"].aggregate(pipeline))
-    facets = results[0] if results else {}
-
-    risk = facets.get("risk_stats", [{}])[0] if facets.get("risk_stats") else {}
-    recent = facets.get("recent_7d", [{}])[0] if facets.get("recent_7d") else {}
-
-    return {
-        "by_status": facets.get("by_status", []),
-        "by_typology": facets.get("by_typology", []),
-        "risk_stats": {
-            "avg": round(risk.get("avg_risk", 0), 1) if risk.get("avg_risk") else None,
-            "max": risk.get("max_risk"),
-            "min": risk.get("min_risk"),
-            "total_scored": risk.get("total", 0),
-        },
-        "recent_7d": recent.get("count", 0),
-        "aggregation_pipeline": json.dumps(pipeline, indent=2, default=str),
-    }
-
-
-# ── Investigation Search ──────────────────────────────────────────────
-
-@router.get("/investigations/search")
-async def search_investigations(q: str = "", limit: int = 20):
-    """Search investigations by entity_id, case_id, typology, or narrative text.
-
-    Uses MongoDB text matching on key investigation fields.
-    """
-    client = get_mongo_client()
-    db = client[DB_NAME]
-
-    if not q.strip():
-        return {"results": [], "query": q}
-
-    query_regex = {"$regex": q.strip(), "$options": "i"}
-
-    results = list(db["investigations"].find(
-        {"$or": [
-            {"case_id": query_regex},
-            {"entity_id": query_regex},
-            {"typology.primary_typology": query_regex},
-            {"narrative.introduction": query_regex},
-            {"case_file.key_findings": query_regex},
-            {"alert_data.alert_type": query_regex},
-        ]},
-        {
-            "_id": 0,
-            "case_id": 1,
-            "entity_id": 1,
-            "investigation_status": 1,
-            "created_at": 1,
-            "typology.primary_typology": 1,
-            "triage_decision.risk_score": 1,
-            "narrative.introduction": 1,
-        },
-    ).sort("created_at", -1).limit(limit))
-
-    return {"results": results, "query": q, "count": len(results)}
 
 
 # ── Health check ─────────────────────────────────────────────────────

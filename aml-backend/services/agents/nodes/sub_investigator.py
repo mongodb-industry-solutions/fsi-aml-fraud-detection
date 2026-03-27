@@ -22,6 +22,7 @@ from services.agents.state import InvestigationState
 from services.agents.tools.entity_tools import get_entity_profile, screen_watchlists
 from services.agents.tools.transaction_tools import query_entity_transactions
 from services.agents.tools.network_tools import analyze_entity_network
+from services.agents.truncation import truncate_payload
 
 logger = logging.getLogger(__name__)
 
@@ -146,23 +147,27 @@ def mini_investigate_node(state: SubInvestigateTask) -> dict:
     network = _run_tool("analyze_entity_network", analyze_entity_network,
                         {"entity_id": entity_id, "max_depth": 1})
 
-    evidence = json.dumps({
+    evidence = truncate_payload({
         "entity_profile": profile,
         "watchlist_screening": watchlist,
         "transactions": transactions,
         "network": network,
         "parent_investigation_context": parent_context or {},
         "selection_reason": reason,
-    }, default=str)[:10000]
+    }, max_chars=10000)
 
     llm = get_llm().with_structured_output(LeadAssessment, include_raw=True)
     llm_result = invoke_with_retry(llm, [
         SystemMessage(content=LEAD_ASSESSMENT_SYSTEM),
         HumanMessage(content=evidence),
     ])
-    assessment: LeadAssessment = llm_result["parsed"]
+    assessment: LeadAssessment | None = llm_result["parsed"]
     token_usage = extract_token_usage(llm_result["raw"])
     duration_ms = int((time.perf_counter() - t0) * 1000)
+
+    if assessment is None:
+        logger.warning("Mini-investigate LLM returned unparseable output for %s — using empty fallback", entity_id)
+        assessment = LeadAssessment(entity_id=entity_id, summary="LLM failed to return structured output.")
 
     assessment_dict = assessment.model_dump()
     assessment_dict["entity_id"] = entity_id

@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState, useEffect } from 'react';
 import {
   ReactFlow,
-  MiniMap,
+
   Controls,
   Background,
   useNodesState,
@@ -30,8 +30,9 @@ const AGENT_TO_NODE = {
   network_analyst: 'networkAnalyst',
   temporal_analyst: 'temporalAnalyst',
   trail_follower: 'trailFollower',
-  sub_investigation_dispatch: 'subDispatch',
-  mini_investigate: 'miniInvestigate',
+  mini_investigate: ['miniInvest1', 'miniInvest2', 'miniInvest3'],
+  sub_investigation_dispatch: 'trailFollower',
+  dispatch_sub_investigations: 'trailFollower',
   narrative: 'narrative',
   validation: 'validation',
   human_review: 'humanReview',
@@ -82,7 +83,7 @@ function TypeBadge({ label, bg, color }) {
 function MongoDBIndicator() {
   return (
     <div style={{
-      position: 'absolute', top: -3, left: -3,
+      position: 'absolute', top: 5, left: 5,
       width: 16, height: 16, borderRadius: '50%',
       background: palette.green.dark1,
       border: '2px solid #fff',
@@ -329,17 +330,6 @@ function WorkerNode({ data }) {
       <div style={{ fontSize: 10, fontWeight: 600, color: palette.gray.dark3 }}>
         {data.label}
       </div>
-      {data.toolName && (
-        <div style={{
-          fontSize: 8, fontFamily: "'Source Code Pro', monospace",
-          padding: '1px 5px', borderRadius: 3,
-          background: `${palette.purple.base}10`, color: palette.purple.dark2,
-          border: `1px solid ${palette.purple.base}25`,
-          marginTop: 3, display: 'inline-block', fontWeight: 500,
-        }}>
-          {data.toolName}
-        </div>
-      )}
       {data.mongoBadge && (
         <div style={{
           fontSize: 7, fontFamily: "'Source Code Pro', monospace", fontWeight: 600,
@@ -413,30 +403,12 @@ function WorkflowNode({ data }) {
   );
 }
 
-function CollectionNode({ data }) {
-  return (
-    <div style={{
-      background: palette.gray.light3, borderRadius: 4,
-      padding: '4px 8px', textAlign: 'center',
-      fontFamily: "'Source Code Pro', monospace",
-      fontSize: 8, fontWeight: 500, color: palette.gray.dark1,
-      border: `1px dashed ${palette.gray.light1}`,
-    }}>
-      <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
-      <div style={{ fontSize: 10, marginBottom: 1 }}>{data.icon}</div>
-      <div>{data.label}</div>
-      <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
-    </div>
-  );
-}
-
 const NODE_TYPES = {
   terminal: TerminalNode,
   agent: AgentNode,
   compute: ComputeNode,
   worker: WorkerNode,
   workflow: WorkflowNode,
-  collection: CollectionNode,
 };
 
 // ---------------------------------------------------------------------------
@@ -486,22 +458,22 @@ const INITIAL_NODES = [
   {
     id: 'fetchEntity', type: 'worker',
     position: { x: 50, y: 370 },
-    data: { label: 'Fetch Entity', icon: '👤', toolName: 'get_entity_profile', mongoBadge: 'findOne()' },
+    data: { label: 'Fetch Entity', icon: '👤', mongoBadge: 'findOne()' },
   },
   {
     id: 'fetchTxn', type: 'worker',
     position: { x: 195, y: 370 },
-    data: { label: 'Fetch Txns', icon: '💳', toolName: 'query_entity_transactions', mongoBadge: 'aggregate()' },
+    data: { label: 'Fetch Txns', icon: '💳', mongoBadge: 'aggregate()' },
   },
   {
     id: 'fetchNetwork', type: 'worker',
     position: { x: 355, y: 370 },
-    data: { label: 'Fetch Network', icon: '🕸', toolName: 'analyze_entity_network', mongoBadge: '$graphLookup' },
+    data: { label: 'Fetch Network', icon: '🕸', mongoBadge: '$graphLookup' },
   },
   {
     id: 'fetchWatchlist', type: 'worker',
     position: { x: 510, y: 370 },
-    data: { label: 'Fetch Watchlist', icon: '🛡', toolName: 'screen_watchlists', mongoBadge: 'find()' },
+    data: { label: 'Fetch Watchlist', icon: '🛡', mongoBadge: 'find()' },
   },
   {
     id: 'assembleCase', type: 'agent',
@@ -509,7 +481,6 @@ const INITIAL_NODES = [
     data: {
       label: 'Case Analyst Agent', icon: '📁', color: palette.green.dark2,
       subtitle: 'LLM \u2192 CaseFile + TypologyResult',
-      tools: ['search_typologies'],
       mongoBadge: 'Document Model + Atlas Search',
       tooltip: 'Fan-in node. LLM synthesizes gathered evidence into a 360\u00b0 CaseFile and classifies typology. RAG over typology_library via Atlas Search.',
     },
@@ -520,7 +491,6 @@ const INITIAL_NODES = [
     data: {
       label: 'Network Analyst', icon: '🔗', color: palette.yellow.dark2,
       subtitle: 'Centrality + Risk Scoring',
-      tools: ['compute_network_metrics'],
       mongoBadge: '$graphLookup',
       tooltip: 'Pure compute \u2014 no LLM. Computes degree centrality and network risk via $graphLookup. Runs in PARALLEL with Temporal Analyst.',
     },
@@ -542,43 +512,38 @@ const INITIAL_NODES = [
     data: {
       label: 'Trail Follower Agent', icon: '🔎', color: palette.blue.dark2,
       subtitle: 'Conditional LLM Lead Selection',
-      tools: ['trace_ownership_chains'],
       mongoBadge: '$graphLookup',
       tooltip: 'LLM analyses network + temporal results to rank and select top suspicious entities for sub-investigation.',
     },
   },
   {
-    id: 'subDispatch', type: 'workflow',
-    position: { x: CX - 30, y: 800 },
-    data: {
-      label: 'Sub-Investigation Dispatch', icon: '📊', color: palette.purple.base,
-      subtitle: 'Send API Fan-out (Leads)',
-      tooltip: 'Orchestration dispatcher. Fans out parallel mini-investigations per lead via LangGraph Send. No LLM.',
-    },
+    id: 'miniInvest1', type: 'worker',
+    position: { x: 50, y: 800 },
+    data: { label: 'Mini-Investigate', icon: '🔬', mongoBadge: 'parallel workers' },
   },
   {
-    id: 'miniInvestigate', type: 'worker',
-    position: { x: CX - 30, y: 895 },
-    data: {
-      label: 'Mini-Investigate', icon: '🔬',
-      toolName: '4 tools + LLM assess',
-      mongoBadge: 'parallel workers',
-    },
+    id: 'miniInvest2', type: 'worker',
+    position: { x: CX - 30, y: 800 },
+    data: { label: 'Mini-Investigate', icon: '🔬', mongoBadge: 'parallel workers' },
+  },
+  {
+    id: 'miniInvest3', type: 'worker',
+    position: { x: 510, y: 800 },
+    data: { label: 'Mini-Investigate', icon: '🔬', mongoBadge: 'parallel workers' },
   },
   {
     id: 'narrative', type: 'agent',
-    position: { x: CX - 30, y: 990 },
+    position: { x: CX - 30, y: 895 },
     data: {
       label: 'SAR Author Agent', icon: '📝', color: palette.green.dark1,
       subtitle: 'RAG \u2192 SARNarrative (5Ws)',
-      tools: ['search_compliance_policies'],
       mongoBadge: 'Atlas Search RAG',
       tooltip: 'LLM generates FinCEN-compliant SAR narrative from full evidence corpus via RAG over compliance policies.',
     },
   },
   {
     id: 'validation', type: 'agent',
-    position: { x: CX - 30, y: 1095 },
+    position: { x: CX - 30, y: 1000 },
     data: {
       label: 'Compliance QA Agent', icon: '\u2713', color: palette.blue.dark1,
       subtitle: 'ValidationResult \u2192 Command',
@@ -587,7 +552,7 @@ const INITIAL_NODES = [
   },
   {
     id: 'humanReview', type: 'workflow',
-    position: { x: CX - 30, y: 1205 },
+    position: { x: CX - 30, y: 1110 },
     data: {
       label: 'Human Review', icon: '👁', color: palette.red.base,
       subtitle: 'interrupt() \u2192 pause/resume',
@@ -597,7 +562,7 @@ const INITIAL_NODES = [
   },
   {
     id: 'finalize', type: 'workflow',
-    position: { x: CX - 30, y: 1315 },
+    position: { x: CX - 30, y: 1220 },
     data: {
       label: 'Finalize Case', icon: '📋', color: palette.green.dark2,
       subtitle: 'Persist to MongoDB',
@@ -607,38 +572,9 @@ const INITIAL_NODES = [
   },
   {
     id: 'endNode', type: 'terminal',
-    position: { x: CX + 20, y: 1415 },
+    position: { x: CX + 20, y: 1320 },
     data: { label: 'END', color: palette.gray.dark2 },
   },
-];
-
-const COLLECTION_NODES = [
-  { id: 'col-entities', type: 'collection', position: { x: 30, y: 445 }, data: { icon: '🗄', label: 'entities' } },
-  { id: 'col-txns', type: 'collection', position: { x: 185, y: 445 }, data: { icon: '🗄', label: 'transactionsv2' } },
-  { id: 'col-rels', type: 'collection', position: { x: 345, y: 445 }, data: { icon: '🗄', label: 'relationships' } },
-  { id: 'col-watchlist', type: 'collection', position: { x: 510, y: 445 }, data: { icon: '🗄', label: 'entities' } },
-  { id: 'col-typology-lib', type: 'collection', position: { x: 70, y: 540 }, data: { icon: '🗄', label: 'typology_library' } },
-  { id: 'col-rels2', type: 'collection', position: { x: 30, y: 635 }, data: { icon: '🗄', label: 'entities + relationships' } },
-  { id: 'col-txns2', type: 'collection', position: { x: 560, y: 635 }, data: { icon: '🗄', label: 'transactionsv2' } },
-  { id: 'col-rels3', type: 'collection', position: { x: 560, y: 740 }, data: { icon: '🗄', label: 'relationships' } },
-  { id: 'col-policies', type: 'collection', position: { x: 560, y: 1030 }, data: { icon: '🗄', label: 'compliance_policies' } },
-];
-
-const COL_EDGE_STYLE = { strokeWidth: 1, stroke: palette.gray.light1, strokeDasharray: '3 2' };
-const COL_EDGE_MARKER = { type: MarkerType.ArrowClosed, width: 8, height: 8, color: palette.gray.light1 };
-const COL_LABEL_STYLE = { fontSize: 10, fontWeight: 600, fontFamily: "'Source Code Pro', monospace", fill: palette.green.dark2 };
-const COL_LABEL_BG = { fill: palette.green.light3, fillOpacity: 0.92 };
-
-const COLLECTION_EDGES = [
-  { id: 'ce-entity', source: 'fetchEntity', target: 'col-entities', style: COL_EDGE_STYLE, markerEnd: COL_EDGE_MARKER, label: 'findOne()', labelStyle: COL_LABEL_STYLE, labelBgStyle: COL_LABEL_BG },
-  { id: 'ce-txn', source: 'fetchTxn', target: 'col-txns', style: COL_EDGE_STYLE, markerEnd: COL_EDGE_MARKER, label: 'aggregate()', labelStyle: COL_LABEL_STYLE, labelBgStyle: COL_LABEL_BG },
-  { id: 'ce-rels', source: 'fetchNetwork', target: 'col-rels', style: COL_EDGE_STYLE, markerEnd: COL_EDGE_MARKER, label: '$graphLookup', labelStyle: COL_LABEL_STYLE, labelBgStyle: COL_LABEL_BG },
-  { id: 'ce-wl', source: 'fetchWatchlist', target: 'col-watchlist', style: COL_EDGE_STYLE, markerEnd: COL_EDGE_MARKER, label: 'find()', labelStyle: COL_LABEL_STYLE, labelBgStyle: COL_LABEL_BG },
-  { id: 'ce-typolib', source: 'assembleCase', target: 'col-typology-lib', style: COL_EDGE_STYLE, markerEnd: COL_EDGE_MARKER, label: 'Atlas Search', labelStyle: COL_LABEL_STYLE, labelBgStyle: COL_LABEL_BG },
-  { id: 'ce-network-db', source: 'networkAnalyst', target: 'col-rels2', style: COL_EDGE_STYLE, markerEnd: COL_EDGE_MARKER, label: '$graphLookup', labelStyle: COL_LABEL_STYLE, labelBgStyle: COL_LABEL_BG },
-  { id: 'ce-temporal-db', source: 'temporalAnalyst', target: 'col-txns2', style: COL_EDGE_STYLE, markerEnd: COL_EDGE_MARKER, label: '$setWindowFields', labelStyle: COL_LABEL_STYLE, labelBgStyle: COL_LABEL_BG },
-  { id: 'ce-trail-db', source: 'trailFollower', target: 'col-rels3', style: COL_EDGE_STYLE, markerEnd: COL_EDGE_MARKER, label: '$graphLookup', labelStyle: COL_LABEL_STYLE, labelBgStyle: COL_LABEL_BG },
-  { id: 'ce-policies', source: 'narrative', target: 'col-policies', style: COL_EDGE_STYLE, markerEnd: COL_EDGE_MARKER, label: 'Atlas Search', labelStyle: COL_LABEL_STYLE, labelBgStyle: COL_LABEL_BG },
 ];
 
 // ---------------------------------------------------------------------------
@@ -666,9 +602,14 @@ const INITIAL_EDGES = [
   { id: 'e-assemble-temporal', source: 'assembleCase', target: 'temporalAnalyst', label: 'parallel', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT, fill: palette.yellow.dark2 }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.yellow.dark2 } },
   { id: 'e-network-trail', source: 'networkAnalyst', target: 'trailFollower', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.blue.dark2 } },
   { id: 'e-temporal-trail', source: 'temporalAnalyst', target: 'trailFollower', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.blue.dark2 } },
-  { id: 'e-trail-subdispatch', source: 'trailFollower', target: 'subDispatch', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.purple.base } },
-  { id: 'e-subdispatch-mini', source: 'subDispatch', target: 'miniInvestigate', ...EDGE_BASE, animated: true, label: 'Send (N leads)', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT, fill: palette.purple.base }, labelBgStyle: LABEL_BG, style: { ...EDGE_BASE.style, stroke: palette.purple.base, strokeDasharray: '6 3' } },
-  { id: 'e-mini-narrative', source: 'miniInvestigate', target: 'narrative', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.green.dark1 } },
+  ...['miniInvest1', 'miniInvest2', 'miniInvest3'].map((target) => ({
+    id: `e-trail-${target}`, source: 'trailFollower', target, ...EDGE_BASE, animated: true,
+    label: 'Send', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT, fill: palette.purple.base },
+    labelBgStyle: LABEL_BG, style: { ...EDGE_BASE.style, stroke: palette.purple.base, strokeDasharray: '6 3' },
+  })),
+  ...['miniInvest1', 'miniInvest2', 'miniInvest3'].map((source) => ({
+    id: `e-${source}-narrative`, source, target: 'narrative', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.green.dark1 },
+  })),
   { id: 'e-narrative-validation', source: 'narrative', target: 'validation', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.blue.dark1 } },
   { id: 'e-validation-hr', source: 'validation', target: 'humanReview', label: 'human_review', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.red.base } },
   {
@@ -700,11 +641,21 @@ function computeNodeStates(activeAgents) {
   if (!activeAgents || Object.keys(activeAgents).length === 0) return {};
   const states = {};
   for (const [agentName, status] of Object.entries(activeAgents)) {
-    const nodeId = AGENT_TO_NODE[agentName];
-    if (nodeId) states[nodeId] = status;
+    const mapping = AGENT_TO_NODE[agentName];
+    if (!mapping) continue;
+    if (Array.isArray(mapping)) {
+      mapping.forEach(id => { states[id] = status; });
+    } else {
+      states[mapping] = status;
+    }
   }
   if (Object.keys(states).length > 0) {
-    for (const nodeId of Object.values(AGENT_TO_NODE)) {
+    const allNodeIds = new Set();
+    for (const v of Object.values(AGENT_TO_NODE)) {
+      if (Array.isArray(v)) v.forEach(id => allNodeIds.add(id));
+      else allNodeIds.add(v);
+    }
+    for (const nodeId of allNodeIds) {
       if (!states[nodeId]) states[nodeId] = 'pending';
     }
   }
@@ -720,7 +671,6 @@ const LEGEND_ITEMS = [
   { label: 'Compute', borderTop: `3px solid ${palette.yellow.dark2}`, bg: '#fff', badge: 'COMPUTE', badgeBg: `${palette.yellow.dark2}18`, badgeColor: palette.yellow.dark2 },
   { label: 'Tool', border: `1px dashed ${palette.purple.light1}`, bg: '#fff', badge: 'TOOL', badgeBg: `${palette.purple.base}12`, badgeColor: palette.purple.dark2 },
   { label: 'Workflow', border: `1px solid ${palette.gray.light2}`, bg: palette.gray.light3, borderRadius: 12, badge: 'WORKFLOW', badgeBg: palette.gray.light2, badgeColor: palette.gray.dark1 },
-  { label: 'Collection', border: `1px dashed ${palette.gray.light1}`, bg: palette.gray.light3 },
   { label: 'Uses MongoDB', bg: palette.green.dark1, borderRadius: '50%', isMongo: true },
 ];
 
@@ -840,43 +790,25 @@ function PipelineFlowContent({ n, e, onNodesChange, onEdgesChange, onInit }) {
           background: '#fff',
         }}
       />
-      <MiniMap
-        nodeColor={(node) => {
-          if (node.data?.executionState === 'active') return palette.blue.base;
-          if (node.data?.executionState === 'completed') return palette.green.dark1;
-          return node.data?.color || palette.gray.base;
-        }}
-        maskColor="rgba(0, 99, 235, 0.12)"
-        style={{
-          borderRadius: 8,
-          border: `1px solid ${uiTokens.borderDefault}`,
-          boxShadow: uiTokens.shadowElevated,
-          background: palette.gray.light3,
-        }}
-      />
     </ReactFlow>
   );
 }
 
-export default function AgenticPipelineGraph({ showTools = true, activeAgents = null, compact = false }) {
+export default function AgenticPipelineGraph({ activeAgents = null, compact = false }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const nodeStates = useMemo(() => computeNodeStates(activeAgents), [activeAgents]);
 
   const nodes = useMemo(() => {
-    const base = INITIAL_NODES.map(node => {
+    return INITIAL_NODES.map(node => {
       const execState = nodeStates[node.id];
       if (execState) {
         return { ...node, data: { ...node.data, executionState: execState } };
       }
       return node;
     });
-    return showTools ? [...base, ...COLLECTION_NODES] : base;
-  }, [showTools, nodeStates]);
+  }, [nodeStates]);
 
-  const edges = useMemo(
-    () => (showTools ? [...INITIAL_EDGES, ...COLLECTION_EDGES] : INITIAL_EDGES),
-    [showTools],
-  );
+  const edges = useMemo(() => INITIAL_EDGES, []);
 
   const [n, setN, onNodesChange] = useNodesState(nodes);
   const [e, setE, onEdgesChange] = useEdgesState(edges);

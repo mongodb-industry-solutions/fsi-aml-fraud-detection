@@ -128,6 +128,10 @@ class TemporalAnalysis(BaseModel):
     round_trip_patterns: List[dict] = Field(default_factory=list)
     time_anomalies: List[dict] = Field(default_factory=list)
     dormancy_bursts: List[dict] = Field(default_factory=list)
+    entity_context: str = Field(
+        default="",
+        description="Entity type and jurisdiction context for interpreting temporal patterns",
+    )
     timeline_summary: str = ""
 
 

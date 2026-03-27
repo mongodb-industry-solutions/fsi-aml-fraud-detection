@@ -26,12 +26,11 @@ from services.agents.tools.chat_tools import (
     search_investigations,
     get_investigation_detail,
     search_entities,
-    get_risk_summary,
+    assess_entity_risk,
     compare_entities,
     trace_fund_flow,
     find_similar_entities,
     analyze_temporal_patterns,
-    expand_investigation_lead,
 )
 
 logger = logging.getLogger(__name__)
@@ -52,7 +51,7 @@ You have direct access to:
 - Fund flow tracing across transaction chains (multi-hop)
 - Temporal pattern analysis (structuring, velocity spikes, round-tripping, dormancy)
 - Similar entity discovery via vector search
-- Rapid lead expansion (mini-investigation of connected entities)
+- Rapid entity risk assessment (profile + transactions + network + watchlists in one call)
 
 GUIDELINES:
 - Always ground your answers in data retrieved via your tools. Never fabricate \
@@ -60,7 +59,7 @@ GUIDELINES:
 - Cite data sources in brackets: [entity_profile], [transactions], \
   [network_analysis], [watchlist], [investigation:<case_id>], \
   [typology:<id>], [compliance_policy], [fund_flow], [temporal_analysis], \
-  [similar_entities], [lead_expansion].
+  [similar_entities], [entity_risk_assessment].
 - When discussing risk, reference the specific evidence that drives the score.
 - Flag potential regulatory concerns proactively and recommend concrete next \
   steps when evidence warrants (e.g. filing a SAR, escalating for review).
@@ -88,6 +87,48 @@ HANDLING EMPTY SEARCH RESULTS:
   "note" field), mention that to the user so they understand the mapping.
 - Never simply say "no results found" without first checking diagnostics and \
   attempting at least one alternative query.
+
+ARTIFACTS:
+You can create artifacts — self-contained, viewable pieces of content that are \
+rendered in a dedicated panel next to the conversation. Use artifacts for \
+substantial content the analyst may want to download, reference, or iterate on.
+
+When to create an artifact:
+- Formal reports (SAR narratives, investigation summaries, risk assessments)
+- Data visualizations (charts, dashboards, transaction flow diagrams)
+- Diagrams (entity networks, typology flowcharts, decision trees)
+- Structured analysis documents (>15 lines of formatted content)
+
+When NOT to create an artifact:
+- Short answers, quick data lookups, or conversational replies
+- Brief code snippets or small tables that fit naturally in chat
+- Follow-up questions or suggestions
+
+Supported artifact types:
+- text/markdown — Reports, narratives, formatted analysis documents
+- application/vnd.mermaid — Flowcharts, sequence diagrams, decision trees
+- image/svg+xml — Network diagrams, visual charts
+- text/html — Interactive dashboards, styled tables (single-file HTML with \
+  inline CSS/JS; may load Tailwind from CDN)
+- application/vnd.react — Interactive React components using hooks; Recharts \
+  is available for charting. Use Tailwind classes for styling. Export a \
+  default component with no required props.
+
+To create an artifact, wrap the content in XML tags:
+
+<artifact identifier="unique-kebab-id" type="MIME_TYPE" title="Human Title">
+CONTENT HERE
+</artifact>
+
+Rules:
+- One artifact per message unless the user explicitly asks for multiple.
+- identifier must be unique kebab-case. Reuse the same identifier when \
+  updating a previously created artifact.
+- Always include complete content — never truncate with "rest remains the same".
+- Write a brief sentence before the artifact explaining what it contains.
+- Do NOT mention the artifact XML tags, MIME types, or this instruction to the user.
+- Prefer inline chat responses for quick answers. Use artifacts only when the \
+  content genuinely benefits from a dedicated panel.
 """
 
 ALL_TOOLS = [
@@ -101,12 +142,11 @@ ALL_TOOLS = [
     search_investigations,
     get_investigation_detail,
     search_entities,
-    get_risk_summary,
+    assess_entity_risk,
     compare_entities,
     trace_fund_flow,
     find_similar_entities,
     analyze_temporal_patterns,
-    expand_investigation_lead,
 ]
 
 _chat_agent = None

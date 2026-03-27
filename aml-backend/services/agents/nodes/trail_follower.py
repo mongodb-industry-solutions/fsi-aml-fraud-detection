@@ -16,6 +16,7 @@ from models.agents.investigation import TrailAnalysis
 from services.agents.llm import get_llm, get_model_id, extract_token_usage, invoke_with_retry
 from services.agents.prompts import TRAIL_FOLLOWER_SYSTEM
 from services.agents.state import InvestigationState
+from services.agents.truncation import truncate_payload
 
 logger = logging.getLogger(__name__)
 
@@ -154,22 +155,26 @@ def trail_follower_node(state: InvestigationState) -> dict:
             }],
         }
 
-    evidence_payload = json.dumps({
+    evidence_payload = truncate_payload({
         "case_file": case_file,
         "typology": typology,
         "network_analysis": network,
         "temporal_analysis": temporal,
         "ownership_chains": ownership_chains,
-    }, default=str)[:12000]
+    }, max_chars=12000)
 
     llm = get_llm().with_structured_output(TrailAnalysis, include_raw=True)
     llm_result = invoke_with_retry(llm, [
         SystemMessage(content=TRAIL_FOLLOWER_SYSTEM),
         HumanMessage(content=evidence_payload),
     ])
-    result: TrailAnalysis = llm_result["parsed"]
+    result: TrailAnalysis | None = llm_result["parsed"]
     token_usage = extract_token_usage(llm_result["raw"])
     duration_ms = int((time.perf_counter() - t0) * 1000)
+
+    if result is None:
+        logger.warning("Trail follower LLM returned unparseable output — using empty fallback")
+        result = TrailAnalysis(summary="LLM failed to return structured output.")
 
     result_dump = result.model_dump()
     result_dump["ownership_chains"] = ownership_chains

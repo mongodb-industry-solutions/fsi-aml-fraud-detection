@@ -27,10 +27,11 @@ const CAPABILITY_CATEGORIES = [
     label: 'Entity Research',
     icon: 'Person',
     tools: [
-      { name: 'search_entities', desc: 'Full-text search across entity collection', op: 'find()' },
-      { name: 'get_entity_profile', desc: 'Retrieve full entity profile with risk data', op: 'findOne()' },
-      { name: 'find_similar_entities', desc: 'Find entities matching risk/behavior patterns', op: 'aggregate()' },
-      { name: 'compare_entities', desc: 'Side-by-side entity comparison', op: 'find()' },
+      { name: 'search_entities', desc: 'Filter entities by type, risk level, or name', op: 'find()' },
+      { name: 'get_entity_profile', desc: 'Retrieve full entity profile by ID', op: 'findOne()' },
+      { name: 'find_similar_entities', desc: 'Vector similarity search on behavioral embeddings', op: '$vectorSearch' },
+      { name: 'compare_entities', desc: 'Side-by-side entity comparison with txn and network stats', op: 'aggregate()' },
+      { name: 'screen_watchlists', desc: 'Screen entity against sanctions and PEP watchlists', op: 'findOne()' },
     ],
   },
   {
@@ -38,9 +39,9 @@ const CAPABILITY_CATEGORIES = [
     label: 'Transaction Analysis',
     icon: 'CreditCard',
     tools: [
-      { name: 'query_entity_transactions', desc: 'Query and aggregate transaction history', op: 'aggregate()' },
-      { name: 'trace_fund_flow', desc: 'Follow money trail across entity chains', op: '$graphLookup' },
-      { name: 'analyze_temporal_patterns', desc: 'Detect structuring, velocity spikes, dormancy', op: '$setWindowFields' },
+      { name: 'query_entity_transactions', desc: 'Query and rank transaction history by risk', op: 'find()' },
+      { name: 'trace_fund_flow', desc: 'Follow money trail across entity chains', op: 'find()' },
+      { name: 'analyze_temporal_patterns', desc: 'Detect structuring, velocity spikes, dormancy', op: 'aggregate()' },
     ],
   },
   {
@@ -56,9 +57,9 @@ const CAPABILITY_CATEGORIES = [
     label: 'Compliance & Typology',
     icon: 'Lock',
     tools: [
-      { name: 'search_typologies', desc: 'RAG search over typology library', op: 'Atlas Search' },
+      { name: 'search_typologies', desc: 'Search typology library by keyword', op: '$regex' },
       { name: 'lookup_typology', desc: 'Retrieve specific typology definition', op: 'findOne()' },
-      { name: 'search_compliance_policies', desc: 'Search compliance policies and SAR guidelines', op: 'Atlas Search' },
+      { name: 'search_compliance_policies', desc: 'Search compliance policies and SAR guidelines', op: '$regex' },
     ],
   },
   {
@@ -68,9 +69,7 @@ const CAPABILITY_CATEGORIES = [
     tools: [
       { name: 'search_investigations', desc: 'Search past investigation cases', op: 'find()' },
       { name: 'get_investigation_detail', desc: 'Full case detail with evidence and audit trail', op: 'findOne()' },
-      { name: 'get_risk_summary', desc: 'Consolidated risk assessment across data sources', op: 'aggregate()' },
-      { name: 'expand_investigation_lead', desc: 'Follow up on a lead from an existing case', op: 'aggregate()' },
-      { name: 'screen_watchlists', desc: 'Screen entity against sanctions and watchlists', op: 'find()' },
+      { name: 'assess_entity_risk', desc: 'Rapid entity risk dossier: profile, txn stats, network, watchlists', op: 'aggregate()' },
     ],
   },
 ];
@@ -196,7 +195,7 @@ export default function InvestigationsPage() {
     return investigations.filter(inv => inv.investigation_status === statusFilter);
   }, [investigations, statusFilter]);
 
-  const LIST_PAGE_SIZE = 10;
+  const LIST_PAGE_SIZE = 5;
   const totalPages = Math.max(1, Math.ceil(filteredInvestigations.length / LIST_PAGE_SIZE));
   const pagedInvestigations = useMemo(() => {
     const start = listPage * LIST_PAGE_SIZE;
@@ -768,7 +767,7 @@ export default function InvestigationsPage() {
                 overflow: 'hidden',
                 border: `1px solid ${palette.gray.light2}`,
               }}>
-                <AgenticPipelineGraph showTools={true} />
+                <AgenticPipelineGraph />
               </div>
             </Card>
           )}

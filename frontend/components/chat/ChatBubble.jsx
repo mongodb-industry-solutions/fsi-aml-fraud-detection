@@ -12,6 +12,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 import { sendChatMessage } from '@/lib/agent-api';
+import { getArtifactMeta } from '@/lib/artifact-utils';
+import ArtifactPanel from './ArtifactPanel';
 
 const FONT = "'Euclid Circular A', sans-serif";
 
@@ -27,12 +29,11 @@ const TOOL_STATUS_LABELS = {
   search_investigations:     'Searching investigations',
   get_entity_profile:        'Loading entity profile',
   get_investigation_detail:  'Loading case details',
-  get_risk_summary:          'Analyzing risk',
+  assess_entity_risk:        'Assessing entity risk',
   compare_entities:          'Comparing entities',
   trace_fund_flow:           'Tracing fund flows',
   find_similar_entities:     'Finding similar entities',
   analyze_temporal_patterns: 'Analyzing temporal patterns',
-  expand_investigation_lead: 'Expanding lead',
   query_entity_transactions: 'Querying transactions',
   analyze_entity_network:    'Analyzing network',
   screen_watchlists:         'Screening watchlists',
@@ -101,7 +102,7 @@ function deriveFollowUps(toolCalls) {
       suggestions.push(`Analyze transactions for ${eid}`);
       suggestions.push(`Find entities similar to ${eid}`);
     }
-    if (tc.tool === 'get_risk_summary' && data.entity_id) {
+    if (tc.tool === 'assess_entity_risk' && data.entity_id) {
       suggestions.push(`Trace fund flows for ${data.entity_id}`);
       suggestions.push(`Analyze temporal patterns for ${data.entity_id}`);
     }
@@ -320,7 +321,7 @@ function RichToolOutput({ tool, output, onAction }) {
     );
   }
 
-  if (tool === 'get_risk_summary' && (data.risk_assessment || data.entity_id)) {
+  if (tool === 'assess_entity_risk' && (data.risk_assessment || data.entity_id)) {
     return <RiskSummaryCard data={data} />;
   }
 
@@ -479,6 +480,76 @@ function FollowUpSuggestions({ suggestions, onSelect }) {
   );
 }
 
+// ─── Inline artifact reference card ────────────────────────────────────────
+
+function ArtifactReferenceCard({ artifact, onClick, isActive }) {
+  const [hovered, setHovered] = useState(false);
+  const meta = getArtifactMeta(artifact.type);
+  const isStreaming = artifact.status === 'streaming';
+
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        width: '100%', textAlign: 'left',
+        padding: '8px 10px', margin: `${spacing[1]}px 0`,
+        borderRadius: 8,
+        border: `1px solid ${isActive ? palette.green.dark1 : hovered ? palette.green.light1 : palette.gray.light2}`,
+        background: isActive ? palette.green.light3 : hovered ? '#f8faf8' : '#fff',
+        cursor: 'pointer',
+        fontFamily: FONT, fontSize: 12,
+        transition: 'all 0.15s ease',
+        boxShadow: isActive ? `0 0 0 1px ${palette.green.dark1}` : '0 1px 3px rgba(0,0,0,0.04)',
+      }}
+    >
+      <div style={{
+        width: 32, height: 32, borderRadius: 6,
+        background: `${meta.color}14`,
+        border: `1px solid ${meta.color}30`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 16, flexShrink: 0,
+      }}>
+        {meta.icon}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontWeight: 600, color: palette.gray.dark3,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {artifact.title}
+        </div>
+        <div style={{ fontSize: 10, color: palette.gray.dark1, marginTop: 1 }}>
+          {meta.label}
+          {isStreaming && (
+            <span style={{ color: palette.green.dark1, marginLeft: 6 }}>
+              generating...
+            </span>
+          )}
+          {artifact.status === 'truncated' && (
+            <span style={{ color: '#b45309', marginLeft: 6 }}>
+              truncated
+            </span>
+          )}
+          {artifact.status === 'error' && (
+            <span style={{ color: '#991b1b', marginLeft: 6 }}>
+              failed
+            </span>
+          )}
+        </div>
+      </div>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+        stroke={isActive ? palette.green.dark1 : palette.gray.base}
+        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+        style={{ flexShrink: 0 }}>
+        <polyline points="9 18 15 12 9 6" />
+      </svg>
+    </button>
+  );
+}
+
 // ─── Thread picker dropdown ───────────────────────────────────────────────
 
 function ThreadPicker({ currentThreadId, onSelect, onNew }) {
@@ -597,7 +668,7 @@ function PageContextBanner({ context }) {
 
 // ─── Message bubble ───────────────────────────────────────────────────────
 
-function MessageBubble({ msg, onAction, isLast, streaming }) {
+function MessageBubble({ msg, onAction, isLast, streaming, artifacts, activeArtifactId, onArtifactClick }) {
   const [toolCollapsed, setToolCollapsed] = useState({});
 
   if (msg.role === 'user') {
@@ -621,6 +692,7 @@ function MessageBubble({ msg, onAction, isLast, streaming }) {
   }
 
   const followUps = isLast && !streaming ? deriveFollowUps(msg.toolCalls) : [];
+  const msgArtifacts = artifacts?.filter(a => msg.artifactIds?.includes(a.identifier)) || [];
 
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: spacing[1], gap: 8 }}>
@@ -662,6 +734,14 @@ function MessageBubble({ msg, onAction, isLast, streaming }) {
             </ReactMarkdown>
           </div>
         )}
+        {msgArtifacts.map(a => (
+          <ArtifactReferenceCard
+            key={a.identifier}
+            artifact={a}
+            isActive={a.identifier === activeArtifactId}
+            onClick={() => onArtifactClick?.(a.identifier)}
+          />
+        ))}
         <FollowUpSuggestions suggestions={followUps} onSelect={onAction} />
       </div>
     </div>
@@ -706,8 +786,15 @@ export default function ChatBubble({ embedded = false, pageContext = null }) {
   const [streaming, setStreaming] = useState(false);
   const [threadId, setThreadId] = useState(null);
   const [activeTool, setActiveTool] = useState(null);
+  const [artifacts, setArtifacts] = useState([]);
+  const [activeArtifactId, setActiveArtifactId] = useState(null);
   const inputRef = useRef(null);
   const { scrollRef, contentRef, scrollToBottom, isAtBottom } = useStickToBottom();
+
+  const activeArtifact = useMemo(
+    () => artifacts.find(a => a.identifier === activeArtifactId) || null,
+    [artifacts, activeArtifactId]
+  );
 
   useEffect(() => {
     if (open && inputRef.current) inputRef.current.focus();
@@ -727,6 +814,7 @@ export default function ChatBubble({ embedded = false, pageContext = null }) {
     let assistantContent = '';
     const toolCalls = [];
     let currentToolIdx = -1;
+    const msgArtifactIds = [];
 
     const messageWithContext = pageContext
       ? `[Context: ${pageContext.type === 'investigation'
@@ -735,7 +823,20 @@ export default function ChatBubble({ embedded = false, pageContext = null }) {
         }]\n${text}`
       : text;
 
-    setMessages(prev => [...prev, { role: 'assistant', content: '', toolCalls: [] }]);
+    setMessages(prev => [...prev, { role: 'assistant', content: '', toolCalls: [], artifactIds: [] }]);
+
+    const updateLastMsg = () => {
+      setMessages(prev => {
+        const msgs = [...prev];
+        msgs[msgs.length - 1] = {
+          role: 'assistant',
+          content: assistantContent,
+          toolCalls: [...toolCalls],
+          artifactIds: [...msgArtifactIds],
+        };
+        return msgs;
+      });
+    };
 
     try {
       await sendChatMessage(messageWithContext, threadId, (event) => {
@@ -744,38 +845,53 @@ export default function ChatBubble({ embedded = false, pageContext = null }) {
           upsertThread(event.thread_id, text);
         } else if (event.type === 'token') {
           assistantContent += event.content;
-          setMessages(prev => {
-            const msgs = [...prev];
-            msgs[msgs.length - 1] = { role: 'assistant', content: assistantContent, toolCalls: [...toolCalls] };
-            return msgs;
-          });
+          updateLastMsg();
           setActiveTool(null);
         } else if (event.type === 'tool_call') {
           currentToolIdx = toolCalls.length;
           toolCalls.push({ tool: event.tool, input: event.input, output: null });
           setActiveTool(event.tool);
-          setMessages(prev => {
-            const msgs = [...prev];
-            msgs[msgs.length - 1] = { role: 'assistant', content: assistantContent, toolCalls: [...toolCalls] };
-            return msgs;
-          });
+          updateLastMsg();
         } else if (event.type === 'tool_result') {
           if (currentToolIdx >= 0 && currentToolIdx < toolCalls.length) {
             toolCalls[currentToolIdx].output = event.output;
           }
           setActiveTool(null);
-          setMessages(prev => {
-            const msgs = [...prev];
-            msgs[msgs.length - 1] = { role: 'assistant', content: assistantContent, toolCalls: [...toolCalls] };
-            return msgs;
-          });
+          updateLastMsg();
+
+        } else if (event.type === 'artifact_start') {
+          msgArtifactIds.push(event.identifier);
+          setArtifacts(prev => [
+            ...prev.filter(a => a.identifier !== event.identifier),
+            {
+              identifier: event.identifier,
+              type: event.artifact_type,
+              title: event.title,
+              content: '',
+              status: 'streaming',
+            },
+          ]);
+          setActiveArtifactId(event.identifier);
+          updateLastMsg();
+        } else if (event.type === 'artifact_delta') {
+          setArtifacts(prev => prev.map(a =>
+            a.identifier === event.identifier
+              ? { ...a, content: a.content + event.content }
+              : a
+          ));
+        } else if (event.type === 'artifact_end') {
+          setArtifacts(prev => prev.map(a =>
+            a.identifier === event.identifier
+              ? { ...a, status: event.truncated ? 'truncated' : 'complete' }
+              : a
+          ));
+
         } else if (event.type === 'error') {
           assistantContent += `\n⚠ Error: ${event.message}`;
-          setMessages(prev => {
-            const msgs = [...prev];
-            msgs[msgs.length - 1] = { role: 'assistant', content: assistantContent, toolCalls: [...toolCalls] };
-            return msgs;
-          });
+          updateLastMsg();
+          setArtifacts(prev => prev.map(a =>
+            a.status === 'streaming' ? { ...a, status: 'error' } : a
+          ));
         }
       });
     } catch (err) {
@@ -785,9 +901,13 @@ export default function ChatBubble({ embedded = false, pageContext = null }) {
           role: 'assistant',
           content: assistantContent || `Error: ${err.message}`,
           toolCalls: [...toolCalls],
+          artifactIds: [...msgArtifactIds],
         };
         return msgs;
       });
+      setArtifacts(prev => prev.map(a =>
+        a.status === 'streaming' ? { ...a, status: 'error' } : a
+      ));
     } finally {
       setStreaming(false);
       setActiveTool(null);
@@ -806,12 +926,16 @@ export default function ChatBubble({ embedded = false, pageContext = null }) {
     setMessages([]);
     setThreadId(null);
     setActiveTool(null);
+    setArtifacts([]);
+    setActiveArtifactId(null);
   }, []);
 
   const handleSwitchThread = useCallback((tid) => {
     setMessages([]);
     setThreadId(tid);
     setActiveTool(null);
+    setArtifacts([]);
+    setActiveArtifactId(null);
   }, []);
 
   const handleKeyDown = (e) => {
@@ -851,21 +975,17 @@ export default function ChatBubble({ embedded = false, pageContext = null }) {
     );
   }
 
-  return (
+  const showArtifactPanel = activeArtifact && embedded;
+
+  const chatPanel = (
     <div style={{
-      ...(embedded
-        ? { width: '100%', height: '100%' }
-        : { position: 'fixed', bottom: 24, right: 24, width: 420, height: 560, zIndex: 1000, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }
-      ),
-      borderRadius: 12,
-      overflow: 'hidden',
       display: 'flex',
       flexDirection: 'column',
-      border: `1px solid ${palette.gray.light2}`,
-      background: '#fff',
+      height: '100%',
+      width: '100%',
+      minWidth: 0,
+      overflow: 'hidden',
     }}>
-      <style>{markdownStyles}{spinnerKeyframes}</style>
-
       {/* Header */}
       <div style={{
         padding: `10px ${spacing[3]}px`,
@@ -893,7 +1013,7 @@ export default function ChatBubble({ embedded = false, pageContext = null }) {
             </Subtitle>
             <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4caf50', display: 'inline-block' }} />
-              16 tools available
+              15 tools available
             </div>
           </div>
         </div>
@@ -1018,6 +1138,9 @@ export default function ChatBubble({ embedded = false, pageContext = null }) {
               onAction={handleAction}
               isLast={i === messages.length - 1}
               streaming={streaming}
+              artifacts={artifacts}
+              activeArtifactId={activeArtifactId}
+              onArtifactClick={(id) => setActiveArtifactId(prev => prev === id ? null : id)}
             />
           ))}
           {streaming && (
@@ -1094,6 +1217,64 @@ export default function ChatBubble({ embedded = false, pageContext = null }) {
           </button>
         </div>
       </div>
+    </div>
+  );
+
+  return (
+    <div style={{
+      ...(embedded
+        ? { width: '100%', height: '100%' }
+        : { position: 'fixed', bottom: 24, right: 24, width: activeArtifact ? 860 : 420, height: activeArtifact ? 620 : 560, zIndex: 1000, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }
+      ),
+      borderRadius: 12,
+      overflow: 'hidden',
+      display: 'flex',
+      flexDirection: 'row',
+      border: `1px solid ${palette.gray.light2}`,
+      background: '#fff',
+      transition: 'width 0.2s ease, height 0.2s ease',
+    }}>
+      <style>{markdownStyles}{spinnerKeyframes}</style>
+
+      <div style={{
+        flex: showArtifactPanel ? '0 0 55%' : '1 1 100%',
+        minWidth: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        transition: 'flex 0.2s ease',
+      }}>
+        {chatPanel}
+      </div>
+
+      {showArtifactPanel && (
+        <div style={{
+          flex: '0 0 45%',
+          minWidth: 0,
+          height: '100%',
+          overflow: 'hidden',
+        }}>
+          <ArtifactPanel
+            artifact={activeArtifact}
+            onClose={() => setActiveArtifactId(null)}
+          />
+        </div>
+      )}
+
+      {/* Floating artifact panel for non-embedded (popup) mode */}
+      {activeArtifact && !embedded && (
+        <div style={{
+          flex: '0 0 440px',
+          minWidth: 0,
+          height: '100%',
+          overflow: 'hidden',
+        }}>
+          <ArtifactPanel
+            artifact={activeArtifact}
+            onClose={() => setActiveArtifactId(null)}
+          />
+        </div>
+      )}
     </div>
   );
 }

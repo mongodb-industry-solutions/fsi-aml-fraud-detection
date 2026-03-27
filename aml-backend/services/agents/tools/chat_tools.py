@@ -172,21 +172,25 @@ def search_entities(
 
 
 @tool
-def get_risk_summary(entity_id: str) -> dict:
-    """Generate a composite risk breakdown for an entity.
+def assess_entity_risk(entity_id: str) -> dict:
+    """Generate a comprehensive risk dossier for an entity in a single call.
 
-    Returns the full risk assessment (overall score, geographic risk, industry
-    risk, transaction risk), watchlist hit count, transaction stats (flagged
-    count, total volume), and network metrics (size, high-risk connections).
+    Combines entity profile, watchlist screening, transaction statistics,
+    and network analysis. Returns the full risk assessment, watchlist details,
+    transaction stats (volume, flagged count, avg/max risk), relationship type
+    breakdown, and high-risk connection count.
     """
     client = get_mongo_client()
     db = client[DB_NAME]
 
-    entity = db["entities"].find_one(
+    profile = db["entities"].find_one(
         {"entityId": entity_id},
-        {"_id": 0, "name": 1, "entityType": 1, "riskAssessment": 1, "watchlistMatches": 1},
+        {
+            "_id": 0, "entityId": 1, "entityType": 1, "name": 1,
+            "riskAssessment": 1, "watchlistMatches": 1, "status": 1,
+        },
     )
-    if not entity:
+    if not profile:
         return {"error": f"Entity {entity_id} not found"}
 
     txn_pipeline = [
@@ -203,26 +207,46 @@ def get_risk_summary(entity_id: str) -> dict:
     txn_stats = list(db["transactionsv2"].aggregate(txn_pipeline))
     txn = txn_stats[0] if txn_stats else {}
 
-    rel_pipeline = [
+    rel_type_pipeline = [
+        {"$match": {"$or": [
+            {"source.entityId": entity_id},
+            {"target.entityId": entity_id},
+        ]}},
+        {"$group": {
+            "_id": "$type",
+            "count": {"$sum": 1},
+        }},
+        {"$sort": {"count": -1}},
+        {"$limit": 10},
+    ]
+    relationships = list(db["relationships"].aggregate(rel_type_pipeline))
+
+    rel_risk_pipeline = [
         {"$match": {"$or": [
             {"source.entityId": entity_id},
             {"target.entityId": entity_id},
         ]}},
         {"$group": {
             "_id": None,
-            "network_size": {"$sum": 1},
+            "total": {"$sum": 1},
             "high_risk": {"$sum": {"$cond": [{"$lt": ["$confidence", 0.5]}, 1, 0]}},
         }},
     ]
-    rel_stats = list(db["relationships"].aggregate(rel_pipeline))
-    rel = rel_stats[0] if rel_stats else {}
+    rel_risk = list(db["relationships"].aggregate(rel_risk_pipeline))
+    rr = rel_risk[0] if rel_risk else {}
+
+    watchlist = profile.get("watchlistMatches", [])
 
     return {
         "entity_id": entity_id,
-        "name": entity.get("name", {}).get("full", ""),
-        "entity_type": entity.get("entityType", ""),
-        "risk_assessment": entity.get("riskAssessment", {}),
-        "watchlist_hits": len(entity.get("watchlistMatches", [])),
+        "name": profile.get("name", {}).get("full", ""),
+        "entity_type": profile.get("entityType", ""),
+        "risk_assessment": profile.get("riskAssessment", {}),
+        "watchlist_hits": len(watchlist),
+        "watchlist_details": [
+            {"list_id": m.get("listId"), "score": m.get("matchScore")}
+            for m in watchlist[:5]
+        ],
         "transaction_stats": {
             "total_count": txn.get("total_count", 0),
             "total_volume": round(txn.get("total_volume", 0), 2),
@@ -230,9 +254,13 @@ def get_risk_summary(entity_id: str) -> dict:
             "max_risk_score": txn.get("max_risk", 0),
             "avg_risk_score": round(txn.get("avg_risk", 0), 2),
         },
+        "relationship_types": [
+            {"type": r["_id"], "count": r["count"]}
+            for r in relationships
+        ],
         "network_stats": {
-            "total_relationships": rel.get("network_size", 0),
-            "high_risk_connections": rel.get("high_risk", 0),
+            "total_relationships": rr.get("total", 0),
+            "high_risk_connections": rr.get("high_risk", 0),
         },
     }
 
@@ -470,77 +498,4 @@ def analyze_temporal_patterns(entity_id: str, days_back: int = 90) -> dict:
         "time_anomalies": time_anomalies,
         "dormancy_bursts": dormancy,
         "summary": "; ".join(summary_parts),
-    }
-
-
-@tool
-def expand_investigation_lead(entity_id: str) -> dict:
-    """Perform a rapid mini-investigation on a connected entity.
-
-    Fetches entity profile, watchlist screening, transaction summary, and
-    immediate network connections in a single call. Use this to quickly
-    assess whether a connected entity warrants deeper investigation.
-    """
-    client = get_mongo_client()
-    db = client[DB_NAME]
-
-    profile = db["entities"].find_one(
-        {"entityId": entity_id},
-        {
-            "_id": 0, "entityId": 1, "entityType": 1, "name": 1,
-            "riskAssessment": 1, "watchlistMatches": 1, "status": 1,
-        },
-    )
-    if not profile:
-        return {"error": f"Entity {entity_id} not found"}
-
-    txn_pipeline = [
-        {"$match": {"$or": [{"fromEntityId": entity_id}, {"toEntityId": entity_id}]}},
-        {"$group": {
-            "_id": None,
-            "total_count": {"$sum": 1},
-            "total_volume": {"$sum": "$amount"},
-            "flagged_count": {"$sum": {"$cond": ["$flagged", 1, 0]}},
-            "max_risk": {"$max": "$riskScore"},
-        }},
-    ]
-    txn_stats = list(db["transactionsv2"].aggregate(txn_pipeline))
-    txn = txn_stats[0] if txn_stats else {}
-
-    rel_pipeline = [
-        {"$match": {"$or": [
-            {"source.entityId": entity_id},
-            {"target.entityId": entity_id},
-        ]}},
-        {"$group": {
-            "_id": "$type",
-            "count": {"$sum": 1},
-        }},
-        {"$sort": {"count": -1}},
-        {"$limit": 10},
-    ]
-    relationships = list(db["relationships"].aggregate(rel_pipeline))
-
-    watchlist = profile.get("watchlistMatches", [])
-
-    return {
-        "entity_id": entity_id,
-        "name": profile.get("name", {}).get("full", ""),
-        "entity_type": profile.get("entityType", ""),
-        "risk_assessment": profile.get("riskAssessment", {}),
-        "watchlist_hits": len(watchlist),
-        "watchlist_details": [
-            {"list_id": m.get("listId"), "score": m.get("matchScore")}
-            for m in watchlist[:5]
-        ],
-        "transaction_stats": {
-            "total_count": txn.get("total_count", 0),
-            "total_volume": round(txn.get("total_volume", 0), 2),
-            "flagged_count": txn.get("flagged_count", 0),
-            "max_risk_score": txn.get("max_risk", 0),
-        },
-        "relationship_types": [
-            {"type": r["_id"], "count": r["count"]}
-            for r in relationships
-        ],
     }

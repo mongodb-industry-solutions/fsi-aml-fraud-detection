@@ -63,10 +63,10 @@ YOUR TASK:
 4. Recommend a course of action: no_concern, monitor, escalate, or investigate_further.
 5. Be concise — this is a rapid triage, not a full investigation."""
 
-NARRATIVE_SYSTEM = """You are an expert SAR narrative writer. Generate a regulatory-compliant narrative using ONLY facts from the provided case file.
+NARRATIVE_SYSTEM = """You are an expert SAR narrative writer. Generate a regulatory-compliant narrative using ONLY facts from the provided investigation evidence.
 
 You will receive the full investigation evidence including:
-- Case file (entity profile, transactions, sanctions, network)
+- Case file (entity profile, transactions, sanctions, network summary)
 - Typology classification and red flags
 - Network analysis (graph metrics, suspicious connections)
 - Temporal analysis (structuring, velocity, round-tripping, dormancy patterns)
@@ -86,18 +86,53 @@ identify the highest-risk connections, and weave their evidence into the narrati
 9. Use plain language — no unexplained acronyms or institution jargon.
 10. For each factual claim, cite the evidence source in brackets: [entity_profile], \
 [transaction:<id>], [relationship:<type>], [watchlist:<list>], [network_analysis], \
-[temporal_analysis], [sub_investigation:<entity_id>].
+[temporal_analysis], [trail_analysis], [sub_investigation:<entity_id>].
+11. Do NOT report ownership or control percentages unless an explicit percentage value \
+appears in the evidence. Relationship "strength" values represent data confidence, NOT \
+ownership stakes — never convert strength to a percentage.
+12. When discussing off-hours or weekend activity from temporal analysis, consider the \
+entity type and jurisdiction. Global trade finance entities, multinational corporations, \
+and cross-timezone businesses may legitimately transact outside local business hours. \
+Note this context rather than asserting all off-hours activity is suspicious.
+13. If any evidence category is empty or states no data was found (e.g., adverse media, \
+sanctions), explicitly acknowledge the gap rather than omitting it silently.
+14. Always complete all three sections (Introduction, Body, Conclusion). The conclusion \
+MUST include actions taken or recommended and available supporting documentation.
+15. Target 1500-3000 characters total across all sections. Be precise and concise — \
+avoid speculative analysis not grounded in the evidence.
 
 FORMAT: Introduction (reason for filing, summary) → Body (chronological detail) → Conclusion (actions taken, docs available)"""
 
-VALIDATION_SYSTEM = """You are a quality assurance specialist for AML investigations. Review the generated SAR narrative against the case file evidence.
+VALIDATION_SYSTEM = """You are a quality assurance specialist for AML investigations. Review the generated SAR narrative against ALL provided evidence.
+
+You will receive the following evidence sections alongside the narrative:
+- case_file: entity profile, transactions, sanctions, adverse media, network summary
+- typology: crime classification and red flags
+- network_analysis: graph metrics, key connections, shell indicators
+- temporal_analysis: structuring, velocity anomalies, round-trip flows, dormancy bursts
+- trail_analysis: ownership chains, shell patterns, investigation leads
+- sub_investigation_findings: assessments of connected entities
+
+VALID CITATION TAGS in the narrative:
+[entity_profile], [transaction:<id>], [relationship:<type>], [watchlist:<list>], \
+[network_analysis], [temporal_analysis], [trail_analysis], [sub_investigation:<entity_id>]
 
 CHECK FOR:
-1. Completeness: Does the narrative address who, what, when, where, why, how?
-2. Factual accuracy: Every claim must be traceable to the case_file. Flag any statement not supported by evidence.
-3. Missing data: Are there evidence gaps that should be filled before filing?
-4. Citation quality: Are evidence sources properly cited in brackets?
-5. Regulatory compliance: Does the narrative meet FinCEN SAR formatting requirements?
+1. Completeness: Does the narrative address who, what, when, where, why, how? \
+Are all three sections (Introduction, Body, Conclusion) present and complete?
+2. Factual accuracy: Every claim must be traceable to one of the provided evidence \
+sections listed above. Flag any statement not supported by evidence in ANY section.
+3. Mathematical consistency: Verify that numeric totals (amounts, counts, percentages) \
+are consistent and do not contradict each other or the source data.
+4. Missing data acknowledgment: Does the narrative explicitly address evidence gaps \
+(e.g., empty adverse media, missing sanctions data) rather than ignoring them?
+5. Citation quality: Are evidence sources cited using the valid citation tags above? \
+Flag citations referencing sections that do not exist in the evidence.
+6. No fabrication: Flag any specific values (entity IDs, percentages, scores, amounts) \
+that do not appear in the provided evidence. Relationship strength values must not be \
+presented as ownership percentages.
+7. Regulatory compliance: Does the narrative meet FinCEN SAR formatting requirements? \
+Is it an appropriate length (not excessively verbose)?
 
 ROUTING RULES:
 - route_to "human_review": narrative is valid and ready for analyst approval.

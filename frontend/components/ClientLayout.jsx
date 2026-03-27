@@ -29,7 +29,6 @@ export default function ClientLayout({ children }) {
   const [showUserSelection, setShowUserSelection] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  const isWideRoute = pathname?.startsWith('/investigations');
 
   const isActive = (href) => {
     if (href === '/') return pathname === '/';
@@ -86,14 +85,13 @@ export default function ClientLayout({ children }) {
       >
         <div
           style={{
-            maxWidth: isWideRoute ? '1600px' : '1200px',
+            maxWidth: '1600px',
             margin: '0 auto',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             flexWrap: isMenuOpen ? 'wrap' : 'nowrap',
             padding: `${spacing[3]}px ${spacing[3]}px`,
-            transition: 'max-width 0.3s ease',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
@@ -213,12 +211,11 @@ export default function ClientLayout({ children }) {
       <main>
         <div style={{ backgroundColor: palette.gray.light3, minHeight: 'calc(100vh - 74px)', padding: spacing[3] }}>
           <Card style={{ 
-            maxWidth: isWideRoute ? '1600px' : '1200px', 
+            maxWidth: '1600px', 
             margin: '0 auto', 
-            padding: isWideRoute ? spacing[3] : spacing[4],
+            padding: spacing[4],
             boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
             border: `1px solid ${palette.gray.light2}`,
-            transition: 'max-width 0.3s ease',
           }}>
             {children}
           </Card>

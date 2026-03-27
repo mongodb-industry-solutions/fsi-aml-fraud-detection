@@ -50,8 +50,7 @@ const TOOL_TO_MONGO_OP = {
 const AGENT_MONGO_OPS = {
   triage: { op: 'MongoDBSaver checkpoint', feature: 'MongoDBSaver', desc: 'Checkpointing triage decision and risk score to durable state' },
   data_gathering: { op: 'MongoDBSaver checkpoint', feature: 'MongoDBSaver', desc: 'Saving pre-gather state before parallel fan-out' },
-  assemble_case: { op: 'MongoDBSaver checkpoint', feature: 'MongoDBSaver', desc: 'Persisting assembled 360° case file to graph state' },
-  typology: { op: 'MongoDBSaver checkpoint', feature: 'MongoDBSaver', desc: 'Saving typology classification result' },
+  assemble_case: { op: 'MongoDBSaver checkpoint', feature: 'MongoDBSaver', desc: 'Persisting assembled 360° case file and typology classification to graph state' },
   narrative: { op: 'MongoDBSaver checkpoint', feature: 'MongoDBSaver', desc: 'Persisting generated SAR narrative' },
   validation: { op: 'MongoDBSaver checkpoint', feature: 'MongoDBSaver', desc: 'Checkpointing validation result and routing decision' },
   human_review: { op: 'MongoDBSaver interrupt()', feature: 'MongoDBSaver', desc: 'Durable pipeline pause — full state persisted for resume' },
@@ -134,20 +133,29 @@ export default function InvestigationInsightsPanel({ events = [], running = fals
   const summary = useMemo(() => {
     const checkpoints = operations.filter(o => o.type === 'checkpoint').length;
     const queries = operations.filter(o => o.type === 'query').length;
+    const completions = operations.filter(o => o.type === 'query_complete').length;
     const features = new Set(operations.map(o => o.feature));
-    return { checkpoints, queries, features: [...features] };
+    return { checkpoints, queries, completions, features: [...features] };
   }, [operations]);
 
   const checkpointData = useMemo(() => {
     const cps = [];
     if (accumulatedEvidence?.triage_decision) cps.push({ node: 'triage', label: 'Triage Decision', keys: Object.keys(accumulatedEvidence.triage_decision) });
-    if (accumulatedEvidence?.gathered_data) cps.push({ node: 'data_gathering', label: 'Data Gathering (4 parallel)', keys: ['entity_profile', 'transactions', 'network', 'watchlist'] });
-    if (accumulatedEvidence?.case_file) cps.push({ node: 'assemble_case', label: 'Case File Assembly', keys: Object.keys(accumulatedEvidence.case_file) });
-    if (accumulatedEvidence?.typology) cps.push({ node: 'typology', label: 'Typology Classification', keys: Object.keys(accumulatedEvidence.typology) });
+    if (accumulatedEvidence?.gathered_data) cps.push({ node: 'data_gathering', label: 'Data Gathering (4 parallel)', keys: Object.keys(accumulatedEvidence.gathered_data) });
+    if (accumulatedEvidence?.case_file || accumulatedEvidence?.typology) {
+      const keys = [
+        ...Object.keys(accumulatedEvidence.case_file || {}),
+        ...Object.keys(accumulatedEvidence.typology || {}).map(k => `typology.${k}`),
+      ];
+      cps.push({ node: 'assemble_case', label: 'Case File + Typology', keys });
+    }
     if (accumulatedEvidence?.narrative) cps.push({ node: 'narrative', label: 'SAR Narrative', keys: Object.keys(accumulatedEvidence.narrative) });
     if (accumulatedEvidence?.validation_result) cps.push({ node: 'validation', label: 'Quality Validation', keys: Object.keys(accumulatedEvidence.validation_result) });
+    if (accumulatedEvidence?.human_decision) cps.push({ node: 'human_review', label: 'Human Review (HITL Interrupt)', keys: Object.keys(accumulatedEvidence.human_decision) });
+    const hasFinalize = accumulatedEvidence?.case_id || events.some(e => e.type === 'agent_end' && e.agent === 'finalize');
+    if (hasFinalize) cps.push({ node: 'finalize', label: 'Case Persistence', keys: ['case_id', 'investigation_status', 'db.investigations.insertOne()'] });
     return cps;
-  }, [accumulatedEvidence]);
+  }, [accumulatedEvidence, events]);
 
   if (events.length === 0) return null;
 
@@ -179,12 +187,15 @@ export default function InvestigationInsightsPanel({ events = [], running = fals
           <span style={{ fontSize: 12, fontWeight: 600, color: palette.gray.dark3, letterSpacing: '0.5px' }}>
             MongoDB Operations
           </span>
-          <span style={{
-            fontSize: 10, padding: '1px 6px', borderRadius: 8,
-            background: palette.green.light3, color: palette.green.dark2,
-            border: `1px solid ${palette.green.light1}`,
-          }}>
-            {operations.length}
+          <span
+            title={`${summary.checkpoints} checkpoints + ${summary.queries} queries`}
+            style={{
+              fontSize: 10, padding: '1px 6px', borderRadius: 8,
+              background: palette.green.light3, color: palette.green.dark2,
+              border: `1px solid ${palette.green.light1}`,
+            }}
+          >
+            {summary.checkpoints + summary.queries}
           </span>
           {running && (
             <span style={{

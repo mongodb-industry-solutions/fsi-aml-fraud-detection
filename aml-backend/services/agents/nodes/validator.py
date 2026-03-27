@@ -1,6 +1,5 @@
 """Validation Agent – quality-checks the investigation and routes dynamically."""
 
-import json
 import logging
 import time
 from datetime import datetime, timezone
@@ -12,6 +11,7 @@ from models.agents.investigation import ValidationResult
 from services.agents.llm import get_llm, get_model_id, extract_token_usage, invoke_with_retry
 from services.agents.prompts import VALIDATION_SYSTEM
 from services.agents.state import InvestigationState
+from services.agents.truncation import truncate_payload
 
 logger = logging.getLogger(__name__)
 
@@ -48,21 +48,28 @@ def validation_node(state: InvestigationState) -> Command:
             },
         )
 
-    payload = json.dumps({
+    payload = truncate_payload({
         "case_file": state.get("case_file", {}),
         "narrative": state.get("narrative", {}),
         "typology": state.get("typology", {}),
         "network_analysis": state.get("network_analysis", {}),
-    }, default=str)[:12000]
+        "temporal_analysis": state.get("temporal_analysis", {}),
+        "trail_analysis": state.get("trail_analysis", {}),
+        "sub_investigation_findings": state.get("sub_investigation_findings", {}),
+    }, max_chars=16000)
 
     llm = get_llm().with_structured_output(ValidationResult, include_raw=True)
     llm_result = invoke_with_retry(llm, [
         SystemMessage(content=VALIDATION_SYSTEM),
         HumanMessage(content=payload),
     ])
-    result: ValidationResult = llm_result["parsed"]
+    result: ValidationResult | None = llm_result["parsed"]
     token_usage = extract_token_usage(llm_result["raw"])
     duration_ms = int((time.perf_counter() - t0) * 1000)
+
+    if result is None:
+        logger.warning("Validation LLM returned unparseable output — using empty fallback")
+        result = ValidationResult(route_to="human_review", issues=["LLM failed to return structured output"])
 
     audit_entry = {
         "agent": "compliance_qa",

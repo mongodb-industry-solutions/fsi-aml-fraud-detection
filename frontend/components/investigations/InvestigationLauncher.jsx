@@ -107,13 +107,14 @@ const AGENT_LABELS = {
   fetch_transactions: { label: 'Fetching Transactions', glyph: 'CreditCard', color: palette.purple.light1, desc: 'Querying transaction history and patterns' },
   fetch_network: { label: 'Analyzing Network', glyph: 'Diagram2', color: palette.purple.light1, desc: 'Running $graphLookup network traversal' },
   fetch_watchlist: { label: 'Screening Watchlists', glyph: 'Lock', color: palette.purple.light1, desc: 'Checking sanctions and PEP databases' },
-  assemble_case: { label: 'Case Analyst', glyph: 'Folder', color: palette.green.dark1, desc: 'LLM-powered 360° profile synthesis and crime typology classification' },
+  assemble_case: { label: 'Case Analyst Agent', glyph: 'Folder', color: palette.green.dark1, desc: 'LLM-powered 360° profile synthesis and crime typology classification' },
   network_analyst: { label: 'Network Risk Analysis', glyph: 'Connect', color: palette.yellow.dark2, desc: 'Graph centrality and risk scoring (parallel)' },
   temporal_analyst: { label: 'Temporal Pattern Analysis', glyph: 'Clock', color: palette.yellow.dark2, desc: 'Structuring, velocity, round-trips, dormancy (parallel)' },
-  trail_follower: { label: 'Trail Follower', glyph: 'ArrowRight', color: palette.blue.dark2, desc: 'LLM lead selection from network + temporal' },
-  sub_investigation_dispatch: { label: 'Sub-Investigation Dispatch', glyph: 'Beaker', color: palette.purple.base, desc: 'Parallel mini-investigation fan-out' },
-  narrative: { label: 'SAR Author', glyph: 'Edit', color: palette.green.base, desc: 'FinCEN 5Ws narrative with full evidence' },
-  validation: { label: 'Compliance QA', glyph: 'Checkmark', color: palette.blue.dark1, desc: 'LLM-as-Judge quality gate' },
+  trail_follower: { label: 'Trail Follower Agent', glyph: 'ArrowRight', color: palette.blue.dark2, desc: 'LLM lead selection from network + temporal' },
+  sub_investigation_dispatch: { label: 'Sub-Investigation Fan-out', glyph: 'Beaker', color: palette.purple.base, desc: 'Parallel mini-investigation fan-out' },
+  dispatch_sub_investigations: { label: 'Sub-Investigation Fan-out', glyph: 'Beaker', color: palette.purple.base, desc: 'Parallel mini-investigation fan-out' },
+  narrative: { label: 'SAR Author Agent', glyph: 'Edit', color: palette.green.base, desc: 'FinCEN 5Ws narrative with full evidence' },
+  validation: { label: 'Compliance QA Agent', glyph: 'Checkmark', color: palette.blue.dark1, desc: 'LLM-as-Judge quality gate' },
   human_review: { label: 'Human Review', glyph: 'Visibility', color: palette.red.base, desc: 'interrupt() durable pause for analyst' },
   finalize: { label: 'Finalizing Case', glyph: 'File', color: palette.green.dark2, desc: 'Persist investigation to MongoDB' },
   auto_close: { label: 'Auto-Closing', glyph: 'X', color: palette.gray.dark1, desc: 'False positive auto-closure' },
@@ -1794,11 +1795,22 @@ export default function InvestigationLauncher({ onComplete }) {
       if (evt.type === 'agent_end' && evt.output) {
         if (evt.output.case_file) evidence.case_file = evt.output.case_file;
         if (evt.output.network_analysis) evidence.network_analysis = evt.output.network_analysis;
-        if (evt.output.gathered_data) evidence.gathered_data = evt.output.gathered_data;
+        if (evt.output.gathered_data) {
+          evidence.gathered_data = { ...evidence.gathered_data, ...evt.output.gathered_data };
+        }
         if (evt.output.triage_decision) evidence.triage_decision = evt.output.triage_decision;
         if (evt.output.typology) evidence.typology = evt.output.typology;
         if (evt.output.narrative) evidence.narrative = evt.output.narrative;
         if (evt.output.validation_result) evidence.validation_result = evt.output.validation_result;
+        if (evt.output.human_decision) evidence.human_decision = evt.output.human_decision;
+        if (evt.output.temporal_analysis) evidence.temporal_analysis = evt.output.temporal_analysis;
+        if (evt.output.trail_analysis) evidence.trail_analysis = evt.output.trail_analysis;
+        if (evt.output.sub_investigation_findings) {
+          evidence.sub_investigation_findings = { ...evidence.sub_investigation_findings, ...evt.output.sub_investigation_findings };
+        }
+      }
+      if ((evt.type === 'investigation_complete' || evt.type === 'resume_complete') && evt.case_id) {
+        evidence.case_id = evt.case_id;
       }
     }
     return evidence;
@@ -2123,7 +2135,7 @@ export default function InvestigationLauncher({ onComplete }) {
             overflow: 'hidden', border: `1px solid ${palette.gray.light2}`,
             boxShadow: uiTokens.shadowCard,
           }}>
-            <AgenticPipelineGraph showTools={false} activeAgents={activeAgents} compact={true} />
+            <AgenticPipelineGraph activeAgents={activeAgents} compact={true} />
           </div>
         </div>
       )}

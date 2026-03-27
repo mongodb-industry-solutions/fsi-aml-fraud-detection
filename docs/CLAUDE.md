@@ -143,7 +143,7 @@ poetry run uvicorn main:app --reload --port 8000  # Development server
 - `tracing.py`: `InvestigationTracingHandler` (`BaseCallbackHandler`) for structured JSON logging of LLM/tool calls. Wired via `config["callbacks"]` at graph invocation
 - `rate_limit.py`: Sliding-window in-memory rate limiter for `/investigate` and `/chat` endpoints. Configurable via `RATE_LIMIT_INVESTIGATE` and `RATE_LIMIT_CHAT` env vars
 - `memory.py`: `MongoDBStore` for cross-investigation learning (wired into graph compilation)
-- `chat_agent.py`: ReAct chat co-pilot with 13 tools
+- `chat_agent.py`: ReAct chat co-pilot with 15 tools
 - `prompts.py`: Centralized system prompts for all agent nodes
 - `seed.py`: Seeds `typology_library` (12 docs) and `compliance_policies` (6 docs)
 
@@ -157,7 +157,7 @@ poetry run uvicorn main:app --reload --port 8000  # Development server
 **Tools (`services/agents/tools/`):**
 - `entity_tools.py`, `transaction_tools.py`, `network_tools.py`: MongoDB queries via sync PyMongo
 - `policy_tools.py`: `$regex` + `$or` server-side queries (not full-collection scans), with empty query guard
-- `chat_tools.py`: 9 additional tools for the chat co-pilot
+- `chat_tools.py`: 8 additional tools for the chat co-pilot
 
 **Routes (`routes/agents/`):**
 - `investigation_routes.py`: SSE streaming, CRUD, analytics, search, WebSocket change streams. Uses `asyncio.to_thread()` for sync LangGraph/PyMongo calls

@@ -585,12 +585,11 @@ access to all investigation tools plus specialized chat tools:
 | `search_investigations` | Search past investigation cases |
 | `get_investigation_detail` | Retrieve full case details |
 | `search_entities` | Find entities by name, type, or risk |
-| `get_risk_summary` | Compute risk summary for an entity |
+| `assess_entity_risk` | Comprehensive risk dossier: profile + txn stats + network + watchlists |
 | `compare_entities` | Side-by-side entity comparison |
-| `trace_fund_flow` | Recursive MongoDB aggregation for fund tracing |
+| `trace_fund_flow` | Multi-hop fund flow tracing via iterative find |
 | `find_similar_entities` | Atlas Vector Search on `profileEmbedding` for semantic similarity |
 | `analyze_temporal_patterns` | Interactive temporal pattern analysis (reuses temporal analyst logic) |
-| `expand_investigation_lead` | Rapid lead assessment: profile + watchlist + transactions + 1-hop network |
 
 ---
 
@@ -803,12 +802,11 @@ flowchart TB
 | `search_investigations` | `investigations` | Regex search across case_id, entity_id, typology, narrative |
 | `get_investigation_detail` | `investigations` | Full case document retrieval by case_id |
 | `search_entities` | `entities` | Entity search by name, type, or risk criteria |
-| `get_risk_summary` | `entities`, `transactionsv2` | Aggregated risk profile for an entity |
-| `compare_entities` | `entities` | Side-by-side comparison of two entities |
-| `trace_fund_flow` | `transactionsv2` | Recursive aggregation for multi-hop fund flow tracing |
+| `assess_entity_risk` | `entities`, `transactionsv2`, `relationships` | Comprehensive risk dossier: profile + txn stats + network + watchlists |
+| `compare_entities` | `entities`, `transactionsv2`, `relationships` | Side-by-side comparison of two entities |
+| `trace_fund_flow` | `transactionsv2` | Multi-hop fund flow tracing via iterative find |
 | `find_similar_entities` | `entities` | Atlas Vector Search on `profileEmbedding` |
 | `analyze_temporal_patterns` | `transactionsv2` | MongoDB aggregations for structuring, velocity, round-trips |
-| `expand_investigation_lead` | `entities`, `transactionsv2`, `relationships` | Rapid mini-assessment: profile + watchlist + transactions + 1-hop network |
 
 ---
 
@@ -1558,7 +1556,7 @@ services/agents/
 ├── llm.py                      # ChatBedrockConverse singleton
 ├── embeddings.py               # AtlasVoyageEmbeddings wrapper (voyage-4 via Atlas API)
 ├── memory.py                   # MongoDBStore for cross-investigation learning
-├── chat_agent.py               # ReAct chat co-pilot (13 tools, system prompt)
+├── chat_agent.py               # ReAct chat co-pilot (15 tools, system prompt)
 ├── prompts.py                  # Centralized system prompts (6 prompts)
 ├── seed.py                     # Seed script (12 typologies + 6 policies)
 ├── nodes/

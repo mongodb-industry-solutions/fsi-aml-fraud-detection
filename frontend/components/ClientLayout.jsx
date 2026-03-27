@@ -16,10 +16,10 @@ import UserProfile from '@/components/UserProfile/UserProfile';
 import ChatBubble from '@/components/chat/ChatBubble';
 
 const ROUTE_ROLES = [
+  { href: '/investigations', roles: ['risk_analyst'] },
   { href: '/entities', roles: ['risk_analyst'] },
   { href: '/entity-resolution', roles: ['risk_analyst'] },
   { href: '/transaction-simulator', roles: ['risk_analyst'] },
-  { href: '/investigations', roles: ['risk_analyst'] },
   { href: '/risk-models', roles: ['risk_manager'] },
 ];
 
@@ -174,10 +174,10 @@ export default function ClientLayout({ children }) {
               >
                 {[
                   { href: '/', icon: 'Home', label: 'Home', roles: null },
+                  { href: '/investigations', icon: 'ActivityFeed', label: 'Agentic Investigation', roles: ['risk_analyst'] },
                   { href: '/entities', icon: 'Person', label: 'Entity Management', roles: ['risk_analyst'] },
                   { href: '/entity-resolution/enhanced', icon: 'Relationship', label: 'Entity Resolution', roles: ['risk_analyst'] },
                   { href: '/transaction-simulator', icon: 'CreditCard', label: 'Transaction Simulator', roles: ['risk_analyst'] },
-                  { href: '/investigations', icon: 'ActivityFeed', label: 'Agentic Investigation', roles: ['risk_analyst'] },
                   { href: '/risk-models', icon: 'Settings', label: 'Risk Models', roles: ['risk_manager'] },
                 ].filter(link => !link.roles || link.roles.includes(role)).map(link => (
                   <li key={link.href}>

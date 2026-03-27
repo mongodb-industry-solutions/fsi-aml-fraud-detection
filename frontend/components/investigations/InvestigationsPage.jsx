@@ -110,7 +110,7 @@ function getContextualSubtitle(activeView, selectedCase) {
     case 'launcher': return 'Select a scenario to investigate';
     case 'detail': return selectedCase ? `Reviewing ${selectedCase.case_id}` : 'Select a case from the queue';
     case 'analytics': return 'Pipeline metrics and investigation analytics';
-    case 'assistant': return 'AI-powered compliance copilot';
+    case 'assistant': return 'Investigate entities, trace fund flows, and generate reports with ThreatSight';
     case 'pipeline': return 'LangGraph multi-agent architecture';
     default: return '';
   }
@@ -653,7 +653,7 @@ export default function InvestigationsPage() {
             <InvestigationAnalytics />
           )}
           {activeView === 'assistant' && (
-            <div style={{ display: 'flex', gap: spacing[3], height: 'calc(100vh - 320px)', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', gap: spacing[3], height: 'calc(100vh - 180px)', overflow: 'hidden' }}>
               <div style={{ flex: 1, minWidth: 0, height: '100%' }}>
                 <ChatBubble
                   embedded={true}

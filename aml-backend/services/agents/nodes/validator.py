@@ -51,7 +51,7 @@ def validation_node(state: InvestigationState) -> Command:
     payload = truncate_payload({
         "case_file": state.get("case_file", {}),
         "narrative": state.get("narrative", {}),
-        "typology": state.get("typology", {}),
+        "typology_classification": state.get("typology", {}),
         "network_analysis": state.get("network_analysis", {}),
         "temporal_analysis": state.get("temporal_analysis", {}),
         "trail_analysis": state.get("trail_analysis", {}),

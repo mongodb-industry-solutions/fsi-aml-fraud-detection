@@ -808,6 +808,33 @@ flowchart TB
 | `find_similar_entities` | `entities` | Atlas Vector Search on `profileEmbedding` |
 | `analyze_temporal_patterns` | `transactionsv2` | MongoDB aggregations for structuring, velocity, round-trips |
 
+#### Artifact Streaming
+
+The chat co-pilot supports **structured artifacts** — rich content blocks (Markdown,
+Mermaid diagrams, SVG, HTML, React components) embedded inline in the LLM's
+response stream. The system uses a two-part architecture:
+
+**Backend — `ArtifactStreamParser`** (`services/agents/artifact_parser.py`):
+- Streaming XML parser that recognizes `<artifact identifier="..." type="..." title="...">` tags in LLM output
+- Emits SSE events: `text` (plain content), `artifact_start` (metadata), `artifact_delta` (~400-char body chunks), `artifact_end` (close or truncated)
+- Handles partial tags and streams that end mid-artifact gracefully (marks `truncated: true`)
+
+**Frontend — `ArtifactPanel`** (`components/chat/ArtifactPanel.jsx`):
+- Side panel with Source/Preview toggle, Copy, and Download toolbar
+- Renders Markdown (GFM), Mermaid (lazy-loaded, strict security), and SVG (DOMPurify sanitized)
+- HTML and React artifacts render in a sandboxed iframe (`public/artifact-sandbox.html`) that communicates via `postMessage`
+- Streaming indicator while content is still arriving
+
+**Supported Artifact Types** (defined in `lib/artifact-utils.js`):
+
+| Type | Renderer | Notes |
+|------|----------|-------|
+| `application/vnd.markdown` | `react-markdown` + GFM | Default for text-heavy artifacts |
+| `application/vnd.mermaid` | Mermaid.js (lazy) | Exportable as SVG |
+| `image/svg+xml` | DOMPurify → `dangerouslySetInnerHTML` | Sanitized before render |
+| `text/html` | Sandboxed iframe | CSP-restricted, Tailwind available |
+| `application/vnd.react` | Sandboxed iframe + Babel | React 18, Recharts available |
+
 ---
 
 ## 7. Structured Output Models
@@ -1276,10 +1303,13 @@ that collapses animation durations to `0.01ms`.
 
 | `InvestigationLauncher` | `InvestigationLauncher.jsx` | Demo scenarios with header bands, progress bar with shimmer, agent step timeline with staggered animations, pipeline graph, human review panel |
 | `InvestigationDetail` | `InvestigationDetail.jsx` | Full case view with refined tab navigation (3px indicator, hover states), conic-gradient risk ring gauge, analysis accent borders, audit trail |
-| `AgenticPipelineGraph` | `AgenticPipelineGraph.jsx` | ReactFlow pipeline visualization with dot grid canvas, node drop-shadows, active glow, polished controls and minimap |
+| `AgenticPipelineGraph` | `AgenticPipelineGraph.jsx` | ReactFlow pipeline visualization with dot grid canvas, node drop-shadows, active glow, and polished controls |
 | `ChangeStreamConsole` | `ChangeStreamConsole.jsx` | Collapsible MongoDB Change Stream monitor with chevron toggle and compact collapsed preview |
 | `InvestigationAnalytics` | `InvestigationAnalytics.jsx` | Analytics dashboard with status distribution, typology counts, risk stats |
 | `investigationTokens` | `investigationTokens.js` | Shared design tokens (`uiTokens`), `getRiskAccentColor()` utility, and centralized `GLOBAL_KEYFRAMES` |
+| `ArtifactPanel` | `chat/ArtifactPanel.jsx` | Side panel for typed artifacts (Markdown, Mermaid, SVG, HTML, React) with sandboxed iframe preview, Source/Preview toggle, Copy, Download |
+| `artifact-utils` | `lib/artifact-utils.js` | Artifact type constants (`ARTIFACT_TYPES`), labels/icons/colors/extensions, `downloadArtifact`, `copyToClipboard` |
+| `artifact-sandbox` | `public/artifact-sandbox.html` | Isolated preview document with CSP, Tailwind, React 18, Recharts, Babel for safe HTML/React artifact rendering |
 
 ### Pipeline Graph Visualization
 
@@ -1294,7 +1324,7 @@ SSE events arrive. The graph includes:
 - **Dot grid canvas** — subtle radial-gradient background pattern for visual depth
 - **Node drop-shadows** — `filter: drop-shadow(...)` for elevation on all node types
 - **Active glow** — `0 0 0 4px palette.blue.light2` ring on actively processing nodes with `nodePulse` animation
-- **Polished controls** — ReactFlow controls and minimap styled with `borderRadius: 8px`, white background, and `shadowElevated`
+- **Polished controls** — ReactFlow controls styled with `borderRadius: 8px`, white background, and `shadowElevated`
 - **Legend** — increased padding, rounded corners, and `backdropFilter: blur(8px)`
 
 ### SSE Streaming Pattern
@@ -1534,7 +1564,8 @@ use MongoDB aggregations directly — no LLM overhead.
 |-------------|------|------------|
 | Hallucinated SAR facts | Critical | Ground in structured JSON case_file; require source citations; temperature 0.1; validation agent fact-checks against evidence |
 | Infinite validation loops | High | Hard cap `MAX_VALIDATION_LOOPS = 2`; forced escalation to human review |
-| Context window overflow | Medium | Hierarchical summarization in data gathering: summaries for bulk data, detail only for most suspicious items; payload truncation with `[:14000]` |
+| LLM returns unparseable structured output | High | All four LLM agent nodes (`trail_follower`, `sub_investigator`, `narrative`, `validator`) guard `llm_result["parsed"]` against `None`; fallback to empty Pydantic instances with logged warnings; validator fallback routes to `human_review` to prevent silent auto-approval |
+| Context window overflow | Medium | Hierarchical summarization in data gathering; JSON-safe `truncate_payload()` (`truncation.py`) progressively shrinks large lists/strings and drops non-essential keys while preserving valid JSON structure |
 | Tool call failures | Medium | Each tool catches exceptions and returns structured error dicts; agents reason about missing data gracefully |
 | State loss during interrupt | Medium | `MongoDBSaver` persists state durably; pipeline resumes from exact checkpoint |
 | No leads found by trail follower | Low | Dispatcher routes directly to SAR Author; pipeline continues without sub-investigations |
@@ -1557,6 +1588,8 @@ services/agents/
 ├── embeddings.py               # AtlasVoyageEmbeddings wrapper (voyage-4 via Atlas API)
 ├── memory.py                   # MongoDBStore for cross-investigation learning
 ├── chat_agent.py               # ReAct chat co-pilot (15 tools, system prompt)
+├── artifact_parser.py          # Streaming XML parser for <artifact> tags → SSE events
+├── truncation.py               # JSON-safe truncate_payload() for evidence shrinking
 ├── prompts.py                  # Centralized system prompts (6 prompts)
 ├── seed.py                     # Seed script (12 typologies + 6 policies)
 ├── nodes/
@@ -1581,7 +1614,8 @@ services/agents/
 
 routes/agents/
 ├── __init__.py
-└── investigation_routes.py     # 10 endpoints (SSE streaming, CRUD, analytics, search, WebSocket streams, seed, health)
+├── investigation_routes.py     # 10 endpoints (SSE streaming, CRUD, analytics, search, WebSocket streams, seed, health)
+└── chat_routes.py              # Chat SSE streaming with artifact event forwarding
 
 models/agents/
 ├── __init__.py
@@ -1604,8 +1638,15 @@ components/investigations/
 ├── ChangeStreamConsole.jsx     # Collapsible MongoDB Change Stream monitor
 └── InvestigationAnalytics.jsx  # Analytics dashboard with MongoDB aggregation stats
 
+components/chat/
+└── ArtifactPanel.jsx           # Side panel for typed artifacts (Markdown, Mermaid, SVG, HTML, React)
+
 lib/
-└── agent-api.js                # API functions (SSE streaming, CRUD, seed, analytics)
+├── agent-api.js                # API functions (SSE streaming, CRUD, seed, analytics)
+└── artifact-utils.js           # Artifact type constants, download/copy helpers
+
+public/
+└── artifact-sandbox.html       # Sandboxed iframe for HTML/React artifact preview (CSP, Tailwind, React 18, Recharts)
 ```
 
 ---

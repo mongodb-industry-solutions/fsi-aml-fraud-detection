@@ -14,6 +14,22 @@ logger = logging.getLogger(__name__)
 
 _TRUNCATED = "[truncated — evidence available in full state]"
 
+_PRESERVE_KEYS = {
+    "case_file", "narrative",
+    "network_analysis", "temporal_analysis", "trail_analysis",
+    "typology", "typology_classification",
+}
+
+_DROP_ORDER = [
+    "sub_investigation_findings",
+    "typology_classification", "typology",
+    "trail_analysis",
+    "temporal_analysis",
+    "network_analysis",
+    "narrative",
+    "case_file",
+]
+
 
 def _estimate_size(obj: Any) -> int:
     """Byte-length of the JSON serialization of *obj*."""
@@ -36,10 +52,10 @@ def truncate_payload(payload: dict, max_chars: int) -> str:
     1. Serialize the full payload. If it fits, return as-is.
     2. Otherwise, identify the largest list/dict values and progressively
        shrink them (halving lists, trimming long strings) until the output fits.
-    3. If still over budget, drop the largest non-essential keys entirely
-       (replaced with a truncation marker).
-    4. As a final fallback, replace ALL keys with truncation markers until
-       the output fits. The result is always valid JSON.
+    3. If still over budget, drop unprotected keys by size (largest first),
+       then drop protected keys in a defined priority order (_DROP_ORDER).
+    4. As a final fallback, replace ALL keys with truncation markers.
+       The result is always valid JSON.
     """
     full = json.dumps(payload, default=str)
     if len(full) <= max_chars:
@@ -84,17 +100,19 @@ def truncate_payload(payload: dict, max_chars: int) -> str:
         if not shrunk:
             break
 
-    sizes = [(k, _estimate_size(v)) for k, v in working.items()]
-    sizes.sort(key=lambda x: x[1], reverse=True)
-    for key, _ in sizes:
-        if key in ("case_file", "narrative"):
-            continue
+    unprotected = [k for k in working if k not in _PRESERVE_KEYS]
+    sizes_unprotected = [(k, _estimate_size(working[k])) for k in unprotected]
+    sizes_unprotected.sort(key=lambda x: x[1], reverse=True)
+    for key, _ in sizes_unprotected:
         working[key] = _TRUNCATED
         candidate = json.dumps(working, default=str)
         if len(candidate) <= max_chars:
             return candidate
 
-    for key, _ in sizes:
+    drop_order = [k for k in _DROP_ORDER if k in working]
+    remaining = [k for k in working if k not in set(_DROP_ORDER) and k not in set(unprotected)]
+    drop_order.extend(remaining)
+    for key in drop_order:
         working[key] = _TRUNCATED
         candidate = json.dumps(working, default=str)
         if len(candidate) <= max_chars:

@@ -87,11 +87,18 @@ poetry run uvicorn main:app --reload --port 8000  # Development server
   - `AgenticPipelineGraph.jsx`: ReactFlow pipeline visualization with dot grid canvas and node glow
   - `ChangeStreamConsole.jsx`: Collapsible MongoDB Change Stream monitor
 
+- `components/chat/`: Chat co-pilot UI
+  - `ArtifactPanel.jsx`: Side panel for typed artifacts (Markdown, Mermaid, SVG, HTML, React) with sandboxed iframe preview
+
 - `lib/`: API client libraries
   - `aml-api.js`: AML backend integration (port 8001)
   - `agent-api.js`: Agentic investigation API (shared `readSSEStream` helper, AbortSignal support, SSE streaming, CRUD, seed, analytics)
+  - `artifact-utils.js`: Artifact type constants (`ARTIFACT_TYPES`), labels/icons/colors/extensions, `downloadArtifact`, `copyToClipboard`
   - `enhanced-entity-resolution-api.js`: Enhanced resolution API client
   - `mongodb.js`: Direct MongoDB connection
+
+- `public/`: Static assets
+  - `artifact-sandbox.html`: Isolated preview document with CSP, Tailwind, React 18, Recharts, Babel for safe HTML/React artifact rendering
 
 **Frontend State Management:**
 - React hooks (useState, useEffect)
@@ -144,12 +151,15 @@ poetry run uvicorn main:app --reload --port 8000  # Development server
 - `rate_limit.py`: Sliding-window in-memory rate limiter for `/investigate` and `/chat` endpoints. Configurable via `RATE_LIMIT_INVESTIGATE` and `RATE_LIMIT_CHAT` env vars
 - `memory.py`: `MongoDBStore` for cross-investigation learning (wired into graph compilation)
 - `chat_agent.py`: ReAct chat co-pilot with 15 tools
+- `artifact_parser.py`: Streaming XML parser for `<artifact>` tags in LLM output; emits SSE events (`artifact_start`, `artifact_delta`, `artifact_end`)
+- `truncation.py`: JSON-safe `truncate_payload()` for shrinking evidence payloads without corrupting JSON structure
 - `prompts.py`: Centralized system prompts for all agent nodes
 - `seed.py`: Seeds `typology_library` (12 docs) and `compliance_policies` (6 docs)
 
 **Pipeline Nodes (`services/agents/nodes/`):**
 - `triage.py` → `data_gatherer.py` → `network_analyst.py` / `temporal_analyst.py` → `trail_follower.py` → `sub_investigator.py` → `narrative.py` → `validator.py` → `human_review.py` → `finalize.py`
 - All LLM-calling nodes use `invoke_with_retry()` for resilience and `get_model_id()` for accurate audit logging
+- All LLM-calling nodes guard `llm_result["parsed"]` against `None` with fallback Pydantic instances and logger warnings (validator fallback routes to `human_review`)
 - `data_gatherer.py`: Uses `Send` for parallel fan-out, `_fetch_with_trace` has try/except error handling
 - `validator.py`: `MAX_VALIDATION_LOOPS = 2`, uses `>` guard (allows 2 full LLM passes before forced escalation)
 - `human_review.py`: Placeholder node; actual pause is via `interrupt_before=["human_review"]` at compile time
@@ -161,7 +171,7 @@ poetry run uvicorn main:app --reload --port 8000  # Development server
 
 **Routes (`routes/agents/`):**
 - `investigation_routes.py`: SSE streaming, CRUD, analytics, search, WebSocket change streams. Uses `asyncio.to_thread()` for sync LangGraph/PyMongo calls
-- `chat_routes.py`: Chat SSE streaming
+- `chat_routes.py`: Chat SSE streaming with artifact event forwarding via `ArtifactStreamParser`
 - Both routes include rate limiting via `Depends()` and tracing callbacks
 
 **Frontend (`frontend/lib/agent-api.js`):**

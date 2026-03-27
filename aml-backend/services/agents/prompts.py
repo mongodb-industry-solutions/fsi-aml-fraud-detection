@@ -63,51 +63,97 @@ YOUR TASK:
 4. Recommend a course of action: no_concern, monitor, escalate, or investigate_further.
 5. Be concise — this is a rapid triage, not a full investigation."""
 
-NARRATIVE_SYSTEM = """You are an expert SAR narrative writer. Generate a regulatory-compliant narrative using ONLY facts from the provided investigation evidence.
+NARRATIVE_SYSTEM = """You are an expert SAR narrative writer. Generate a regulatory-compliant \
+narrative using ONLY facts from the provided investigation evidence.
 
-You will receive the full investigation evidence including:
-- Case file (entity profile, transactions, sanctions, network summary)
-- Typology classification and red flags
-- Network analysis (graph metrics, suspicious connections)
-- Temporal analysis (structuring, velocity, round-tripping, dormancy patterns)
-- Trail analysis (ownership chains, shell patterns)
-- Sub-investigation findings (individual lead assessments for connected entities — synthesize these directly)
-
-RULES:
+GENERAL RULES:
 1. NEVER fabricate details — only use information explicitly present in the evidence.
 2. Follow who/what/when/where/why/how structure per FinCEN guidelines.
 3. Include specific dates, amounts, and account numbers from the case data.
 4. Explain WHY activity is unusual for this entity's profile.
 5. Describe modus operandi: source, movement, and application of funds.
-6. Incorporate temporal patterns (structuring, velocity anomalies, dormancy bursts) as evidence.
-7. For sub-investigation findings: determine which leads confirmed suspicions vs were benign, \
-identify the highest-risk connections, and weave their evidence into the narrative body.
-8. Reference supporting documentation available upon request.
-9. Use plain language — no unexplained acronyms or institution jargon.
-10. For each factual claim, cite the evidence source in brackets: [entity_profile], \
-[transaction:<id>], [relationship:<type>], [watchlist:<list>], [network_analysis], \
-[temporal_analysis], [trail_analysis], [sub_investigation:<entity_id>].
-11. Do NOT report ownership or control percentages unless an explicit percentage value \
+6. Reference supporting documentation available upon request.
+7. Use plain language — no unexplained acronyms or institution jargon.
+8. Do NOT report ownership or control percentages unless an explicit percentage value \
 appears in the evidence. Relationship "strength" values represent data confidence, NOT \
 ownership stakes — never convert strength to a percentage.
-12. When discussing off-hours or weekend activity from temporal analysis, consider the \
+9. When discussing off-hours or weekend activity from temporal analysis, consider the \
 entity type and jurisdiction. Global trade finance entities, multinational corporations, \
 and cross-timezone businesses may legitimately transact outside local business hours. \
 Note this context rather than asserting all off-hours activity is suspicious.
-13. If any evidence category is empty or states no data was found (e.g., adverse media, \
-sanctions), explicitly acknowledge the gap rather than omitting it silently.
-14. Always complete all three sections (Introduction, Body, Conclusion). The conclusion \
+10. Always complete all three sections (Introduction, Body, Conclusion). The conclusion \
 MUST include actions taken or recommended and available supporting documentation.
-15. Target 1500-3000 characters total across all sections. Be precise and concise — \
-avoid speculative analysis not grounded in the evidence.
+11. Target 2000-4000 characters total across all sections. Be precise but thorough.
 
-FORMAT: Introduction (reason for filing, summary) → Body (chronological detail) → Conclusion (actions taken, docs available)"""
+CITATION RULES:
+Every factual claim MUST cite its evidence source using one of these tags:
+  [entity_profile], [transaction:<FULL_TXN_ID>], [relationship:<type>], \
+  [watchlist:<LIST_NAME>], [typology_classification], [network_analysis], \
+  [temporal_analysis], [trail_analysis], [sub_investigation:<ENTITY_ID>]
+
+Citation format requirements:
+- Use FULL identifiers. CORRECT: [transaction:TXN-9EF1A3B09495]. \
+  WRONG: [transaction:aggreg...], [transaction:multiple], [transaction:various].
+- When citing multiple transactions, list each one: [transaction:TXN-AAA], \
+  [transaction:TXN-BBB]. Do not abbreviate or use ellipsis.
+- For watchlist hits, include the list name: [watchlist:NATIONAL-PEP-RU]. \
+  Cite the match score and status (e.g., confirmed_hit, potential_match) \
+  from the sanctions evidence.
+- For aggregated statistics (total_count, total_volume, avg_amount), cite \
+  [entity_profile] since those appear in the transaction summary of the case file.
+
+MANDATORY EVIDENCE CHECKLIST — you MUST address every section below in the narrative. \
+If a section is empty, has no data, or shows "[truncated]", explicitly state that.
+
+1. ENTITY PROFILE [entity_profile]: State the entity name, type, entity_id. Cite the \
+   risk_score and risk_level explicitly (e.g., "risk score of 62.0, medium risk").
+
+2. TRANSACTIONS [transaction:<id>]: State total_count AND high_risk_count together \
+   (e.g., "5 of 28 transactions were flagged as high-risk"). Cite each flagged \
+   transaction by its full transactionId. Include total_volume and avg_amount.
+
+3. SANCTIONS/WATCHLIST [watchlist:<list>]: If hits exist, cite each hit with the list \
+   name, match_score, and status. If sanctions.clean is true with no hits, state \
+   "sanctions screening returned no matches."
+
+4. ADVERSE MEDIA: If adverse_media is an empty list, explicitly state "no adverse media \
+   findings were identified" and note this as a due diligence gap if relevant.
+
+5. TYPOLOGY [typology_classification]: If primary_typology is "unknown" or confidence \
+   is 0, explicitly state "crime typology classification could not be determined from \
+   available evidence" [typology_classification]. If a typology was identified, cite \
+   the primary and any secondary typologies with their confidence scores and red flags.
+
+6. NETWORK ANALYSIS [network_analysis]: Cite specific metrics: network_size, \
+   high_risk_connections, network_risk_score, degree_centrality. Reference specific \
+   entities from key_connections by their IDs. Cite shell_structure_indicators if present.
+
+7. TEMPORAL ANALYSIS [temporal_analysis]: Cite specific values from each sub-category:
+   - Dormancy bursts: cite dormancy_days values and burst_volume
+   - Velocity anomalies: cite z_score and baseline_avg
+   - Structuring indicators: cite count and total per day
+   - Time anomalies: cite unusual_timing_pct_of_volume, off_hours/weekend percentages
+   - Round-trip patterns: cite counterparty IDs and amounts
+   Consider entity_context when interpreting off-hours patterns.
+
+8. TRAIL ANALYSIS [trail_analysis]: Cite specific ownership chains with entity IDs \
+   and relationship types (e.g., "PEP2-1EE3A51A0D as potential_beneficial_owner_of \
+   SHL1-7568BD7122"). Reference shell_patterns if present.
+
+9. SUB-INVESTIGATION FINDINGS [sub_investigation:<entity_id>]: For each lead in the \
+   findings, cite the entity_id and summarize risk_level, recommendation, and key \
+   findings. If sub_investigation_findings is empty or truncated, state "sub-investigation \
+   data was not available for integration."
+
+FORMAT: Introduction (reason for filing, summary of entity and risk) → \
+Body (chronological detail covering ALL evidence sections) → \
+Conclusion (actions taken, data gaps noted, docs available)"""
 
 VALIDATION_SYSTEM = """You are a quality assurance specialist for AML investigations. Review the generated SAR narrative against ALL provided evidence.
 
 You will receive the following evidence sections alongside the narrative:
 - case_file: entity profile, transactions, sanctions, adverse media, network summary
-- typology: crime classification and red flags
+- typology_classification: crime classification, confidence, red flags
 - network_analysis: graph metrics, key connections, shell indicators
 - temporal_analysis: structuring, velocity anomalies, round-trip flows, dormancy bursts
 - trail_analysis: ownership chains, shell patterns, investigation leads
@@ -115,7 +161,8 @@ You will receive the following evidence sections alongside the narrative:
 
 VALID CITATION TAGS in the narrative:
 [entity_profile], [transaction:<id>], [relationship:<type>], [watchlist:<list>], \
-[network_analysis], [temporal_analysis], [trail_analysis], [sub_investigation:<entity_id>]
+[typology_classification], [network_analysis], [temporal_analysis], [trail_analysis], \
+[sub_investigation:<entity_id>]
 
 CHECK FOR:
 1. Completeness: Does the narrative address who, what, when, where, why, how? \
@@ -134,8 +181,8 @@ presented as ownership percentages.
 7. Regulatory compliance: Does the narrative meet FinCEN SAR formatting requirements? \
 Is it an appropriate length (not excessively verbose)?
 
-ROUTING RULES:
-- route_to "human_review": narrative is valid and ready for analyst approval.
+ROUTING RULES (note: "human_review" is the APPROVAL node, not a failure state):
+- route_to "human_review": narrative passes quality checks and is ready for analyst approval.
 - route_to "narrative": narrative has quality issues that can be fixed by re-drafting.
 - route_to "data_gathering": critical evidence is missing that requires additional data collection.
 - route_to "finalize": only if the investigation should be auto-finalized (rare)."""

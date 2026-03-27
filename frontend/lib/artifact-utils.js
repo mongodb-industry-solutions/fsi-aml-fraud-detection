@@ -5,16 +5,12 @@
 export const ARTIFACT_TYPES = {
   MARKDOWN: 'text/markdown',
   HTML: 'text/html',
-  REACT: 'application/vnd.react',
-  SVG: 'image/svg+xml',
   MERMAID: 'application/vnd.mermaid',
 };
 
 const TYPE_META = {
   [ARTIFACT_TYPES.MARKDOWN]: { label: 'Report', icon: '📄', ext: '.md', color: '#3b82f6' },
   [ARTIFACT_TYPES.HTML]:     { label: 'HTML',   icon: '🌐', ext: '.html', color: '#f59e0b' },
-  [ARTIFACT_TYPES.REACT]:    { label: 'React',  icon: '⚛️',  ext: '.jsx', color: '#06b6d4' },
-  [ARTIFACT_TYPES.SVG]:      { label: 'SVG',    icon: '🎨', ext: '.svg', color: '#8b5cf6' },
   [ARTIFACT_TYPES.MERMAID]:  { label: 'Diagram', icon: '📊', ext: '.mmd', color: '#10b981' },
 };
 

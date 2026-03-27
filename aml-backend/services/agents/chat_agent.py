@@ -107,12 +107,8 @@ When NOT to create an artifact:
 Supported artifact types:
 - text/markdown — Reports, narratives, formatted analysis documents
 - application/vnd.mermaid — Flowcharts, sequence diagrams, decision trees
-- image/svg+xml — Network diagrams, visual charts
 - text/html — Interactive dashboards, styled tables (single-file HTML with \
   inline CSS/JS; may load Tailwind from CDN)
-- application/vnd.react — Interactive React components using hooks; Recharts \
-  is available for charting. Use Tailwind classes for styling. Export a \
-  default component with no required props.
 
 To create an artifact, wrap the content in XML tags:
 

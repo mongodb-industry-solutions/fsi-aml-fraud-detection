@@ -188,14 +188,14 @@ export default function InvestigationInsightsPanel({ events = [], running = fals
             MongoDB Operations
           </span>
           <span
-            title={`${summary.checkpoints} checkpoints + ${summary.queries} queries`}
+            title={`${checkpointData.length} checkpoints + ${summary.queries} queries`}
             style={{
               fontSize: 10, padding: '1px 6px', borderRadius: 8,
               background: palette.green.light3, color: palette.green.dark2,
               border: `1px solid ${palette.green.light1}`,
             }}
           >
-            {summary.checkpoints + summary.queries}
+            {checkpointData.length + summary.queries}
           </span>
           {running && (
             <span style={{
@@ -377,7 +377,7 @@ export default function InvestigationInsightsPanel({ events = [], running = fals
                   background: palette.purple.light3, textAlign: 'center',
                 }}>
                   <div style={{ fontSize: 20, fontWeight: 700, color: palette.purple.dark2, fontFamily: FONT, fontVariantNumeric: 'tabular-nums' }}>
-                    {summary.checkpoints}
+                    {checkpointData.length}
                   </div>
                   <div style={{ fontSize: 9, color: palette.gray.dark1, fontFamily: FONT, textTransform: 'uppercase' }}>Checkpoints</div>
                 </div>

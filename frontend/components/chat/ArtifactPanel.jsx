@@ -5,8 +5,6 @@ import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import DOMPurify from 'dompurify';
-
 import {
   ARTIFACT_TYPES,
   getArtifactMeta,
@@ -116,44 +114,7 @@ function MermaidRenderer({ code }) {
   );
 }
 
-// ─── SVG renderer ─────────────────────────────────────────────────────────
-
-function SvgRenderer({ code }) {
-  const containerRef = useRef(null);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    if (!code || !containerRef.current) return;
-    try {
-      const clean = DOMPurify.sanitize(code, { USE_PROFILES: { svg: true, svgFilters: true } });
-      containerRef.current.innerHTML = clean;
-      setError(null);
-    } catch (err) {
-      setError(err.message);
-    }
-  }, [code]);
-
-  if (error) {
-    return (
-      <div style={{
-        padding: spacing[3], background: '#fef2f2',
-        border: '1px solid #fecaca', borderRadius: 6,
-        fontSize: 12, color: '#991b1b',
-      }}>
-        SVG error: {error}
-      </div>
-    );
-  }
-
-  return (
-    <div
-      ref={containerRef}
-      style={{ display: 'flex', justifyContent: 'center', overflow: 'auto', padding: spacing[2] }}
-    />
-  );
-}
-
-// ─── Sandboxed iframe renderer (HTML / React) ─────────────────────────────
+// ─── Sandboxed iframe renderer (HTML) ─────────────────────────────────────
 
 function SandboxedRenderer({ code, artifactType, isComplete }) {
   const iframeRef = useRef(null);
@@ -340,11 +301,7 @@ export default function ArtifactPanel({ artifact, onClose }) {
       case ARTIFACT_TYPES.MERMAID:
         return <MermaidRenderer code={content} />;
 
-      case ARTIFACT_TYPES.SVG:
-        return <SvgRenderer code={content} />;
-
       case ARTIFACT_TYPES.HTML:
-      case ARTIFACT_TYPES.REACT:
         return <SandboxedRenderer key={artifact.identifier} code={content} artifactType={artifact.type} isComplete={!isStreaming} />;
 
       default:

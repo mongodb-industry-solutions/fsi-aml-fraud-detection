@@ -755,24 +755,40 @@ const PROMPT_CATEGORIES = [
     label: 'Entity Research',
     icon: '👤',
     prompts: [
-      'Show me high-risk entities',
-      'Search for entities named "Global"',
+      'Which entities have the highest risk scores and why?',
+      'Find entities similar to a high-risk entity and compare their profiles',
+    ],
+  },
+  {
+    label: 'Fund Flow & Patterns',
+    icon: '💸',
+    prompts: [
+      'Trace the money trail for the most recently escalated entity and flag suspicious hops',
+      'Are there any entities showing structuring or velocity spike patterns?',
+    ],
+  },
+  {
+    label: 'Network & Watchlists',
+    icon: '🔗',
+    prompts: [
+      'Map the network around a recently flagged entity and check for sanctions hits',
+      'Which entities are within 2 hops of a watchlist match?',
     ],
   },
   {
     label: 'Investigations',
     icon: '📋',
     prompts: [
-      'Summarize recent investigations',
-      'Show investigations with SAR filings',
+      'Summarize investigations that resulted in SAR filings',
+      "What's the status and evidence for the most recent escalated case?",
     ],
   },
   {
-    label: 'Compliance',
-    icon: '⚖️',
+    label: 'Reports & Diagrams',
+    icon: '📄',
     prompts: [
-      'What are the red flags for structuring?',
-      'Explain the layering typology',
+      'Generate a SAR narrative report for the highest-risk entity',
+      'Create a flowchart showing the layering money laundering typology',
     ],
   },
 ];
@@ -963,7 +979,7 @@ export default function ChatBubble({ embedded = false, pageContext = null }) {
           }}
           onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; }}
           onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
-          title="AML Compliance Assistant"
+          title="ThreatSight Copilot"
         >
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 2a7 7 0 0 1 7 7c0 3-1.5 5-3 6.5V18a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1v-2.5C6.5 14 5 12 5 9a7 7 0 0 1 7-7z"/>
@@ -1009,7 +1025,7 @@ export default function ChatBubble({ embedded = false, pageContext = null }) {
           </div>
           <div>
             <Subtitle style={{ fontFamily: FONT, color: '#fff', fontSize: 14, margin: 0, lineHeight: 1.2 }}>
-              AML Assistant
+              ThreatSight Copilot
             </Subtitle>
             <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4caf50', display: 'inline-block' }} />
@@ -1086,10 +1102,10 @@ export default function ChatBubble({ embedded = false, pageContext = null }) {
                   </svg>
                 </div>
                 <Body style={{ fontFamily: FONT, color: palette.gray.dark2, fontSize: 14, fontWeight: 600, margin: 0 }}>
-                  AML Compliance Assistant
+                  ThreatSight Copilot
                 </Body>
                 <Body style={{ fontFamily: FONT, color: palette.gray.dark1, fontSize: 12, marginTop: 4 }}>
-                  Ask about entities, transactions, investigations, or compliance.
+                  Trace fund flows, assess risk, screen watchlists, analyze patterns, and generate reports.
                 </Body>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1187,7 +1203,7 @@ export default function ChatBubble({ embedded = false, pageContext = null }) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask about entities, transactions, compliance..."
+            placeholder="Ask about entities, fund flows, risk, investigations..."
             disabled={streaming}
             style={{
               flex: 1,

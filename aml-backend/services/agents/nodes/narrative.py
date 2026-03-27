@@ -58,7 +58,37 @@ def narrative_node(state: InvestigationState) -> dict:
         "temporal_analysis": temporal,
         "trail_analysis": trail,
         "sub_investigation_findings": sub_findings,
-    }, max_chars=14000)
+    }, max_chars=18000)
+
+    validation_feedback = state.get("validation_result", {})
+    revision_context = ""
+    if validation_feedback:
+        all_issues = validation_feedback.get("issues", [])
+        factual_errors = validation_feedback.get("factual_errors", [])
+        missing_data = validation_feedback.get("missing_data", [])
+        is_valid = validation_feedback.get("is_valid", True)
+        score = validation_feedback.get("score", 1.0)
+
+        has_specific_feedback = all_issues or factual_errors or missing_data
+        needs_revision = has_specific_feedback or (not is_valid and score < 0.8)
+
+        if needs_revision:
+            parts = ["\n\nREVISION REQUIRED — the previous draft had these quality issues:"]
+            if not has_specific_feedback:
+                parts.append(f"- Validation failed (score: {score}) without specific issues listed. "
+                             "Re-check all 9 evidence sections for completeness and citation accuracy.")
+            parts.extend(f"- {issue}" for issue in all_issues)
+            if factual_errors:
+                parts.append("\nFactual errors to correct:")
+                parts.extend(f"- {err}" for err in factual_errors)
+            if missing_data:
+                parts.append("\nMissing data to address:")
+                parts.extend(f"- {gap}" for gap in missing_data)
+            parts.append(
+                "\nFix ALL listed issues in this revision. Cite every evidence section "
+                "with specific values and proper citation tags. Do not repeat the same mistakes."
+            )
+            revision_context = "\n".join(parts)
 
     llm = get_llm().with_structured_output(SARNarrative, include_raw=True)
     llm_result = invoke_with_retry(llm, [
@@ -66,6 +96,7 @@ def narrative_node(state: InvestigationState) -> dict:
         HumanMessage(content=(
             f"COMPLIANCE POLICY CONTEXT:\n{policy_context}\n\n"
             f"INVESTIGATION EVIDENCE:\n{evidence_payload}"
+            f"{revision_context}"
         )),
     ])
     narrative: SARNarrative | None = llm_result["parsed"]
@@ -78,6 +109,7 @@ def narrative_node(state: InvestigationState) -> dict:
 
     total_length = len(narrative.introduction) + len(narrative.body) + len(narrative.conclusion)
 
+    is_revision = bool(revision_context)
     audit_entry = {
         "agent": "sar_author",
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -86,7 +118,8 @@ def narrative_node(state: InvestigationState) -> dict:
         "token_usage": token_usage,
         "narrative_length": total_length,
         "citations_count": len(narrative.cited_evidence),
-        "output_summary": f"{total_length} chars, {len(narrative.cited_evidence)} citations, 3 sections",
+        "is_revision": is_revision,
+        "output_summary": f"{'REVISION ' if is_revision else ''}{total_length} chars, {len(narrative.cited_evidence)} citations, 3 sections",
     }
 
     return {

@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data:;
-                 script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://unpkg.com;
+        content="default-src 'self' 'unsafe-inline' blob: data:;
+                 script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;
                  style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;
                  font-src 'self' https://cdn.jsdelivr.net https://fonts.googleapis.com https://fonts.gstatic.com;
                  img-src 'self' data: blob:;" />
@@ -13,16 +13,6 @@
 
   <!-- Tailwind CSS -->
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-
-  <!-- React 18 -->
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-
-  <!-- Recharts for charting -->
-  <script crossorigin src="https://unpkg.com/recharts@2/umd/Recharts.js"></script>
-
-  <!-- Babel for JSX transpilation -->
-  <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
   <style>
     *, *::before, *::after { box-sizing: border-box; }
@@ -61,37 +51,14 @@
   <script>
     (function () {
       var root = document.getElementById('root');
-      var currentReactRoot = null;
-      var lastMode = null; // 'html' | 'react'
-
-      function resetRoot() {
-        if (currentReactRoot) {
-          try { currentReactRoot.unmount(); } catch (_) {}
-          currentReactRoot = null;
-        }
-        root.innerHTML = '';
-        lastMode = null;
-      }
-
-      function ensureReactRoot() {
-        if (lastMode !== 'react') {
-          resetRoot();
-          currentReactRoot = ReactDOM.createRoot(root);
-          lastMode = 'react';
-        }
-        return currentReactRoot;
-      }
 
       function showError(msg) {
-        resetRoot();
         root.innerHTML = '<div class="sandbox-error">' +
           msg.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
         window.parent.postMessage({ type: 'sandbox_error', message: msg }, '*');
       }
 
       function renderHTML(code) {
-        resetRoot();
-        lastMode = 'html';
         root.innerHTML = code;
         root.querySelectorAll('script').forEach(function (oldScript) {
           var newScript = document.createElement('script');
@@ -101,45 +68,6 @@
           newScript.textContent = oldScript.textContent;
           oldScript.parentNode.replaceChild(newScript, oldScript);
         });
-      }
-
-      function renderReact(code) {
-        var transformed = Babel.transform(code, {
-          presets: ['react'],
-          filename: 'artifact.jsx',
-        }).code;
-
-        var moduleExports = {};
-        var moduleObj = { exports: moduleExports };
-
-        var requireShim = function (name) {
-          if (name === 'react' || name === 'React') return React;
-          if (name === 'react-dom' || name === 'ReactDOM') return ReactDOM;
-          if (name === 'recharts') return Recharts;
-          throw new Error('Module not available: ' + name);
-        };
-
-        var wrappedCode = '(function(require, module, exports, React, ReactDOM, Recharts) {' +
-          'var useState = React.useState, useEffect = React.useEffect, ' +
-          'useCallback = React.useCallback, useMemo = React.useMemo, ' +
-          'useRef = React.useRef, useReducer = React.useReducer, ' +
-          'useContext = React.useContext, Fragment = React.Fragment, ' +
-          'createElement = React.createElement;' +
-          transformed +
-          '\n})';
-
-        var fn = eval(wrappedCode);
-        fn(requireShim, moduleObj, moduleExports, React, ReactDOM, Recharts);
-
-        var Component = moduleObj.exports.default || moduleObj.exports;
-        var reactRoot = ensureReactRoot();
-        if (typeof Component === 'function') {
-          reactRoot.render(React.createElement(Component));
-        } else if (React.isValidElement(Component)) {
-          reactRoot.render(Component);
-        } else {
-          throw new Error('Artifact did not export a valid React component.');
-        }
       }
 
       window.addEventListener('message', function (event) {
@@ -152,9 +80,6 @@
           try {
             if (data.artifactType === 'text/html') {
               renderHTML(data.code);
-              success = true;
-            } else if (data.artifactType === 'application/vnd.react') {
-              renderReact(data.code);
               success = true;
             } else {
               showError('Unsupported artifact type: ' + data.artifactType);

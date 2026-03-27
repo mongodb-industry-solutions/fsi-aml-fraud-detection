@@ -19,7 +19,7 @@ By the end of this guide, you'll have a comprehensive fraud detection and AML/KY
 - **Intelligent Entity Resolution**: AI-powered fuzzy matching and duplicate detection for AML/KYC compliance
 - **LLM-Powered Classification**: AWS Bedrock Claude-3 Sonnet for automated entity risk assessment
 - **Agentic SAR Investigation Pipeline**: Multi-agent LangGraph pipeline that autonomously investigates AML alerts, performs parallel data gathering, typology classification, network and temporal analysis, sub-investigations, and generates FinCEN-compliant SAR narratives with human-in-the-loop review
-- **Interactive Chat Co-Pilot**: ReAct agent with fund flow tracing, temporal analysis, entity similarity search, and rich artifact rendering (Markdown, Mermaid diagrams, interactive React/HTML) for analyst-driven exploration
+- **ThreatSight Copilot**: ReAct agent with fund flow tracing, temporal analysis, entity similarity search, and rich artifact rendering (Markdown, Mermaid diagrams, interactive HTML) for analyst-driven exploration
 - **Automated Case Investigation**: AI-generated investigation reports and case documentation
 - **Network Analysis**: Relationship mapping and graph analytics for compliance investigations
 - **Vector-based Pattern Recognition**: Advanced similarity matching using MongoDB Atlas Vector Search
@@ -53,7 +53,7 @@ ThreatSight 360 uses a **dual-backend microservices architecture**:
 - **Entity Management Dashboard**: Advanced entity 360 with relationship and transaction network visualization
 - **Intelligent Entity Resolution Workflow**: A multi-step entity onboarding workflow involving MongoDB full-text + vector + [hybrid search with $rankFusion](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-stage/#atlas-vector-search-rankfusion), network traversal using [$graphLookup](https://www.mongodb.com/docs/manual/reference/operator/aggregation/graphLookup/) and risk classification and case generation using LLMs
 - **Agentic Investigations Dashboard**: Interactive investigation control surface with live pipeline visualization (ReactFlow), real-time SSE streaming, human review workflow, and a polished "Control Room" UI built with MongoDB LeafyGreen components and centralized design tokens
-  - **Chat Co-Pilot**: Conversational assistant with tool access for fund flow tracing, temporal analysis, entity similarity, and lead expansion — includes an artifact panel that renders Markdown, Mermaid diagrams, SVG, and sandboxed HTML/React previews
+  - **ThreatSight Copilot**: Conversational assistant with tool access for fund flow tracing, temporal analysis, entity similarity, and lead expansion — includes an artifact panel that renders Markdown, Mermaid diagrams, and sandboxed HTML previews
 
 ## Solution Architecture
 

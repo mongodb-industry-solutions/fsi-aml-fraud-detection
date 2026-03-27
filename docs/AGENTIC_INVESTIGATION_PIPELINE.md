@@ -492,9 +492,11 @@ Critical design constraints:
 2. **Grounded exclusively** in the JSON evidence — never fabricates facts
 3. **Bracket citations** — every factual claim cites its evidence source:
    `[entity_profile]`, `[transaction:<id>]`, `[relationship:<type>]`,
-   `[watchlist:<list>]`, `[network_analysis]`, `[temporal_analysis]`,
-   `[sub_investigation:<entity_id>]`
+   `[watchlist:<list>]`, `[typology_classification]`, `[network_analysis]`,
+   `[temporal_analysis]`, `[trail_analysis]`, `[sub_investigation:<entity_id>]`
 4. **Policy-aware** — retrieves SAR formatting guidance from `compliance_policies`
+5. **Mandatory 9-section evidence checklist** — the prompt requires explicit coverage of entity profile, transactions, sanctions/watchlist, adverse media, typology, network, temporal, trail, and sub-investigation findings
+6. **Revision-aware** — when the validator rejects a draft, validation feedback (issues, factual errors, missing data) is injected as revision context for the re-draft
 
 **Narrative Structure:**
 
@@ -810,30 +812,29 @@ flowchart TB
 
 #### Artifact Streaming
 
-The chat co-pilot supports **structured artifacts** — rich content blocks (Markdown,
-Mermaid diagrams, SVG, HTML, React components) embedded inline in the LLM's
-response stream. The system uses a two-part architecture:
+The ThreatSight Copilot supports **structured artifacts** — rich content blocks (Markdown,
+Mermaid diagrams, interactive HTML) embedded inline in the LLM's response stream.
+The system uses a two-part architecture:
 
 **Backend — `ArtifactStreamParser`** (`services/agents/artifact_parser.py`):
 - Streaming XML parser that recognizes `<artifact identifier="..." type="..." title="...">` tags in LLM output
 - Emits SSE events: `text` (plain content), `artifact_start` (metadata), `artifact_delta` (~400-char body chunks), `artifact_end` (close or truncated)
 - Handles partial tags and streams that end mid-artifact gracefully (marks `truncated: true`)
+- Distinguishes close-tag prefixes (`</artifact>`) from literal `<` in artifact body content
 
 **Frontend — `ArtifactPanel`** (`components/chat/ArtifactPanel.jsx`):
 - Side panel with Source/Preview toggle, Copy, and Download toolbar
-- Renders Markdown (GFM), Mermaid (lazy-loaded, strict security), and SVG (DOMPurify sanitized)
-- HTML and React artifacts render in a sandboxed iframe (`public/artifact-sandbox.html`) that communicates via `postMessage`
-- Streaming indicator while content is still arriving
+- Renders Markdown (GFM via `react-markdown`) and Mermaid diagrams (lazy-loaded, strict security)
+- HTML artifacts render in a sandboxed iframe (`public/artifact-sandbox.html`) that communicates via `postMessage`
+- Streaming indicator while content is still arriving; HTML rendering deferred until artifact is complete
 
 **Supported Artifact Types** (defined in `lib/artifact-utils.js`):
 
 | Type | Renderer | Notes |
 |------|----------|-------|
-| `application/vnd.markdown` | `react-markdown` + GFM | Default for text-heavy artifacts |
-| `application/vnd.mermaid` | Mermaid.js (lazy) | Exportable as SVG |
-| `image/svg+xml` | DOMPurify → `dangerouslySetInnerHTML` | Sanitized before render |
+| `text/markdown` | `react-markdown` + GFM | Reports, narratives, formatted analysis |
+| `application/vnd.mermaid` | Mermaid.js (lazy) | Flowcharts, decision trees; exportable as SVG |
 | `text/html` | Sandboxed iframe | CSP-restricted, Tailwind available |
-| `application/vnd.react` | Sandboxed iframe + Babel | React 18, Recharts available |
 
 ---
 
@@ -1307,9 +1308,9 @@ that collapses animation durations to `0.01ms`.
 | `ChangeStreamConsole` | `ChangeStreamConsole.jsx` | Collapsible MongoDB Change Stream monitor with chevron toggle and compact collapsed preview |
 | `InvestigationAnalytics` | `InvestigationAnalytics.jsx` | Analytics dashboard with status distribution, typology counts, risk stats |
 | `investigationTokens` | `investigationTokens.js` | Shared design tokens (`uiTokens`), `getRiskAccentColor()` utility, and centralized `GLOBAL_KEYFRAMES` |
-| `ArtifactPanel` | `chat/ArtifactPanel.jsx` | Side panel for typed artifacts (Markdown, Mermaid, SVG, HTML, React) with sandboxed iframe preview, Source/Preview toggle, Copy, Download |
+| `ArtifactPanel` | `chat/ArtifactPanel.jsx` | Side panel for typed artifacts (Markdown, Mermaid, HTML) with sandboxed iframe preview, Source/Preview toggle, Copy, Download |
 | `artifact-utils` | `lib/artifact-utils.js` | Artifact type constants (`ARTIFACT_TYPES`), labels/icons/colors/extensions, `downloadArtifact`, `copyToClipboard` |
-| `artifact-sandbox` | `public/artifact-sandbox.html` | Isolated preview document with CSP, Tailwind, React 18, Recharts, Babel for safe HTML/React artifact rendering |
+| `artifact-sandbox` | `public/artifact-sandbox.html` | Isolated preview document with CSP and Tailwind for safe HTML artifact rendering |
 
 ### Pipeline Graph Visualization
 
@@ -1565,7 +1566,7 @@ use MongoDB aggregations directly — no LLM overhead.
 | Hallucinated SAR facts | Critical | Ground in structured JSON case_file; require source citations; temperature 0.1; validation agent fact-checks against evidence |
 | Infinite validation loops | High | Hard cap `MAX_VALIDATION_LOOPS = 2`; forced escalation to human review |
 | LLM returns unparseable structured output | High | All four LLM agent nodes (`trail_follower`, `sub_investigator`, `narrative`, `validator`) guard `llm_result["parsed"]` against `None`; fallback to empty Pydantic instances with logged warnings; validator fallback routes to `human_review` to prevent silent auto-approval |
-| Context window overflow | Medium | Hierarchical summarization in data gathering; JSON-safe `truncate_payload()` (`truncation.py`) progressively shrinks large lists/strings and drops non-essential keys while preserving valid JSON structure |
+| Context window overflow | Medium | Hierarchical summarization in data gathering; JSON-safe `truncate_payload()` (`truncation.py`) progressively shrinks large lists/strings, then drops unprotected keys by size, then drops protected keys in priority order (`_DROP_ORDER`) while preserving valid JSON structure |
 | Tool call failures | Medium | Each tool catches exceptions and returns structured error dicts; agents reason about missing data gracefully |
 | State loss during interrupt | Medium | `MongoDBSaver` persists state durably; pipeline resumes from exact checkpoint |
 | No leads found by trail follower | Low | Dispatcher routes directly to SAR Author; pipeline continues without sub-investigations |
@@ -1589,7 +1590,7 @@ services/agents/
 ├── memory.py                   # MongoDBStore for cross-investigation learning
 ├── chat_agent.py               # ReAct chat co-pilot (15 tools, system prompt)
 ├── artifact_parser.py          # Streaming XML parser for <artifact> tags → SSE events
-├── truncation.py               # JSON-safe truncate_payload() for evidence shrinking
+├── truncation.py               # JSON-safe truncate_payload() with preserve-key priority and ordered drop strategy
 ├── prompts.py                  # Centralized system prompts (6 prompts)
 ├── seed.py                     # Seed script (12 typologies + 6 policies)
 ├── nodes/
@@ -1639,14 +1640,14 @@ components/investigations/
 └── InvestigationAnalytics.jsx  # Analytics dashboard with MongoDB aggregation stats
 
 components/chat/
-└── ArtifactPanel.jsx           # Side panel for typed artifacts (Markdown, Mermaid, SVG, HTML, React)
+└── ArtifactPanel.jsx           # Side panel for typed artifacts (Markdown, Mermaid, HTML)
 
 lib/
 ├── agent-api.js                # API functions (SSE streaming, CRUD, seed, analytics)
 └── artifact-utils.js           # Artifact type constants, download/copy helpers
 
 public/
-└── artifact-sandbox.html       # Sandboxed iframe for HTML/React artifact preview (CSP, Tailwind, React 18, Recharts)
+└── artifact-sandbox.html       # Sandboxed iframe for HTML artifact preview (CSP, Tailwind)
 ```
 
 ---

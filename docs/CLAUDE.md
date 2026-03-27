@@ -87,8 +87,8 @@ poetry run uvicorn main:app --reload --port 8000  # Development server
   - `AgenticPipelineGraph.jsx`: ReactFlow pipeline visualization with dot grid canvas and node glow
   - `ChangeStreamConsole.jsx`: Collapsible MongoDB Change Stream monitor
 
-- `components/chat/`: Chat co-pilot UI
-  - `ArtifactPanel.jsx`: Side panel for typed artifacts (Markdown, Mermaid, SVG, HTML, React) with sandboxed iframe preview
+- `components/chat/`: ThreatSight Copilot UI
+  - `ArtifactPanel.jsx`: Side panel for typed artifacts (Markdown, Mermaid, HTML) with sandboxed iframe preview for HTML
 
 - `lib/`: API client libraries
   - `aml-api.js`: AML backend integration (port 8001)
@@ -98,7 +98,7 @@ poetry run uvicorn main:app --reload --port 8000  # Development server
   - `mongodb.js`: Direct MongoDB connection
 
 - `public/`: Static assets
-  - `artifact-sandbox.html`: Isolated preview document with CSP, Tailwind, React 18, Recharts, Babel for safe HTML/React artifact rendering
+  - `artifact-sandbox.html`: Isolated preview document with CSP and Tailwind for safe HTML artifact rendering
 
 **Frontend State Management:**
 - React hooks (useState, useEffect)
@@ -152,7 +152,7 @@ poetry run uvicorn main:app --reload --port 8000  # Development server
 - `memory.py`: `MongoDBStore` for cross-investigation learning (wired into graph compilation)
 - `chat_agent.py`: ReAct chat co-pilot with 15 tools
 - `artifact_parser.py`: Streaming XML parser for `<artifact>` tags in LLM output; emits SSE events (`artifact_start`, `artifact_delta`, `artifact_end`)
-- `truncation.py`: JSON-safe `truncate_payload()` for shrinking evidence payloads without corrupting JSON structure
+- `truncation.py`: JSON-safe `truncate_payload()` for shrinking evidence payloads with preserve-key priority and ordered drop strategy
 - `prompts.py`: Centralized system prompts for all agent nodes
 - `seed.py`: Seeds `typology_library` (12 docs) and `compliance_policies` (6 docs)
 

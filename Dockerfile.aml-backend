@@ -23,9 +23,6 @@ RUN poetry install --no-interaction --no-cache --only=main
 # Copy application code
 COPY ./aml-backend/ .
 
-# Re-regenerate lock file since COPY overwrote it with the Poetry 2.x version
-RUN poetry lock --no-update
-
 # Expose port (default 8080 for Kanopy, but can be overridden via PORT env var)
 EXPOSE 8080
 

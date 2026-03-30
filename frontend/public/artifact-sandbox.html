@@ -61,14 +61,44 @@
 
       function renderHTML(code) {
         root.innerHTML = code;
-        root.querySelectorAll('script').forEach(function (oldScript) {
+
+        // Separate external (src) and inline scripts — externals must load first
+        var scripts = Array.from(root.querySelectorAll('script'));
+        var externalScripts = [];
+        var inlineScripts = [];
+
+        scripts.forEach(function (oldScript) {
           var newScript = document.createElement('script');
           Array.from(oldScript.attributes).forEach(function (attr) {
             newScript.setAttribute(attr.name, attr.value);
           });
           newScript.textContent = oldScript.textContent;
-          oldScript.parentNode.replaceChild(newScript, oldScript);
+          oldScript.parentNode.removeChild(oldScript);
+
+          if (newScript.src) {
+            externalScripts.push(newScript);
+          } else {
+            inlineScripts.push(newScript);
+          }
         });
+
+        // Load external scripts sequentially, then run inline scripts
+        function loadNext(idx) {
+          if (idx >= externalScripts.length) {
+            // All externals loaded — now execute inline scripts
+            inlineScripts.forEach(function (s) { root.appendChild(s); });
+            return;
+          }
+          var script = externalScripts[idx];
+          script.onload = function () { loadNext(idx + 1); };
+          script.onerror = function () {
+            console.warn('Failed to load external script:', script.src);
+            loadNext(idx + 1); // continue with remaining scripts
+          };
+          document.head.appendChild(script);
+        }
+
+        loadNext(0);
       }
 
       window.addEventListener('message', function (event) {
@@ -77,20 +107,16 @@
         if (!data || !data.type) return;
 
         if (data.type === 'render') {
-          var success = false;
           try {
             if (data.artifactType === 'text/html') {
               renderHTML(data.code);
-              success = true;
+              window.parent.postMessage({ type: 'rendered' }, '*');
             } else {
               showError('Unsupported artifact type: ' + data.artifactType);
             }
           } catch (err) {
             showError('Render error:\n' + err.message +
               (err.stack ? '\n\n' + err.stack.split('\n').slice(0, 4).join('\n') : ''));
-          }
-          if (success) {
-            window.parent.postMessage({ type: 'rendered' }, '*');
           }
         }
       });

@@ -87,8 +87,8 @@ steps:
         - 'ingress.enabled=true'
         - 'ingress.hosts[0]=fsi-fraud-detection.industrysolutions.staging.corp.mongodb.com'
         # WebSocket support via nginx ingress
-        - 'ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-read-timeout=3600'
-        - 'ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-send-timeout=3600'
+        - 'ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-read-timeout="3600"'
+        - 'ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-send-timeout="3600"'
         # Service mesh
         - 'mesh.enabled=true'
         # Resource limits for frontend
@@ -209,8 +209,8 @@ steps:
         - 'ingress.enabled=true'
         - 'ingress.hosts[0]=fsi-fraud-detection.industrysolutions.prod.corp.mongodb.com'
         # WebSocket support via nginx ingress
-        - 'ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-read-timeout=3600'
-        - 'ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-send-timeout=3600'
+        - 'ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-read-timeout="3600"'
+        - 'ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-send-timeout="3600"'
         # Service mesh
         - 'mesh.enabled=true'
         # Resource limits for frontend

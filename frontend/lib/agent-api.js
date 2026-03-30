@@ -182,33 +182,88 @@ export async function searchInvestigations(query, limit = 20) {
 }
 
 /**
+ * Create a resilient WebSocket connection with exponential backoff reconnection.
+ * Mirrors the retry logic used by the risk model change stream in ModelAdminPanel.
+ *
+ * @param {string} path - WebSocket endpoint path (e.g. '/agents/alerts/stream')
+ * @param {Function} onEvent - callback for each parsed event
+ * @param {object} [opts]
+ * @param {number} [opts.maxAttempts=20] - max reconnection attempts before giving up
+ * @param {number} [opts.maxDelay=30000] - ceiling for backoff delay in ms
+ * @returns {{ close: Function }} - control handle; call close() to stop reconnecting
+ */
+function _connectWithRetry(path, onEvent, { maxAttempts = 20, maxDelay = 30000 } = {}) {
+  let ws = null;
+  let reconnectTimer = null;
+  let attempts = 0;
+  let closed = false;
+
+  function connect() {
+    if (closed) return;
+
+    const wsUrl = _buildWsUrl(path);
+    ws = new WebSocket(wsUrl);
+    let hadError = false;
+
+    ws.onopen = () => {
+      if (closed) return;
+      attempts = 0;
+      onEvent({ type: '_connected' });
+    };
+
+    ws.onmessage = (event) => {
+      if (closed) return;
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type !== 'heartbeat') {
+          onEvent(data);
+        }
+      } catch { /* ignore parse errors */ }
+    };
+
+    ws.onerror = () => {
+      if (closed) return;
+      hadError = true;
+      onEvent({ type: '_error' });
+    };
+
+    ws.onclose = () => {
+      if (closed) return;
+      if (!hadError) onEvent({ type: '_disconnected' });
+
+      if (attempts < maxAttempts) {
+        const delay = Math.min(1000 * Math.pow(2, attempts), maxDelay);
+        onEvent({ type: '_reconnecting', attempt: attempts + 1, maxAttempts, delay });
+        reconnectTimer = setTimeout(() => {
+          attempts += 1;
+          connect();
+        }, delay);
+      } else {
+        onEvent({ type: '_max_retries' });
+      }
+    };
+  }
+
+  connect();
+
+  return {
+    close: () => {
+      closed = true;
+      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+      if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+        ws.close();
+      }
+    },
+  };
+}
+
+/**
  * Connect to the investigation Change Stream via WebSocket
  * @param {Function} onEvent - callback for each change event
  * @returns {{ close: Function }} - control handle
  */
 export function connectInvestigationStream(onEvent) {
-  const wsUrl = _buildWsUrl('/agents/investigations/stream');
-  const ws = new WebSocket(wsUrl);
-
-  ws.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      if (data.type !== 'heartbeat') {
-        onEvent(data);
-      }
-    } catch { /* ignore parse errors */ }
-  };
-
-  ws.onerror = () => {};
-  ws.onclose = () => {};
-
-  return {
-    close: () => {
-      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-        ws.close();
-      }
-    },
-  };
+  return _connectWithRetry('/agents/investigations/stream', onEvent);
 }
 
 /**
@@ -217,40 +272,7 @@ export function connectInvestigationStream(onEvent) {
  * @returns {{ close: Function }} - control handle
  */
 export function connectAlertStream(onEvent) {
-  const wsUrl = _buildWsUrl('/agents/alerts/stream');
-  const ws = new WebSocket(wsUrl);
-
-  let reconnectTimer = null;
-
-  ws.onopen = () => {
-    onEvent({ type: '_connected' });
-  };
-
-  ws.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      if (data.type !== 'heartbeat') {
-        onEvent(data);
-      }
-    } catch { /* ignore parse errors */ }
-  };
-
-  ws.onerror = () => {
-    onEvent({ type: '_error' });
-  };
-
-  ws.onclose = () => {
-    onEvent({ type: '_disconnected' });
-  };
-
-  return {
-    close: () => {
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-        ws.close();
-      }
-    },
-  };
+  return _connectWithRetry('/agents/alerts/stream', onEvent);
 }
 
 /**

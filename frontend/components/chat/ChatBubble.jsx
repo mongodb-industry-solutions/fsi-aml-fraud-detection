@@ -16,6 +16,7 @@ import { getArtifactMeta } from '@/lib/artifact-utils';
 import ArtifactPanel from './ArtifactPanel';
 
 const FONT = "'Euclid Circular A', sans-serif";
+const MAX_ARTIFACT_RETRIES = 5;
 
 const RISK_COLORS = {
   critical: { bg: '#fce4ec', text: '#b71c1c', border: '#ef9a9a' },
@@ -824,6 +825,7 @@ export default function ChatBubble({ embedded = false, pageContext = null, initi
   const [artifacts, setArtifacts] = useState([]);
   const [activeArtifactId, setActiveArtifactId] = useState(null);
   const [splitPct, setSplitPct] = useState(55); // chat panel percentage
+  const [artifactRetries, setArtifactRetries] = useState({});
   const inputRef = useRef(null);
   const activeThreadRef = useRef(null);
   const containerRef = useRef(null);
@@ -979,6 +981,7 @@ export default function ChatBubble({ embedded = false, pageContext = null, initi
     setActiveTool(null);
     setArtifacts([]);
     setActiveArtifactId(null);
+    setArtifactRetries({});
   }, []);
 
   const handleSwitchThread = useCallback(async (tid) => {
@@ -1026,14 +1029,25 @@ export default function ChatBubble({ embedded = false, pageContext = null, initi
     if (!container) return;
     const containerWidth = container.offsetWidth;
 
+    // Prevent text selection and iframe event stealing during drag
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+    const iframes = container.querySelectorAll('iframe');
+    iframes.forEach(f => { f.style.pointerEvents = 'none'; });
+
     const onMove = (moveEvt) => {
       if (!isDraggingRef.current) return;
       const delta = moveEvt.clientX - startX;
-      const newPct = Math.min(80, Math.max(25, startPct + (delta / containerWidth) * 100));
+      // Account for the 6px handle: usable width = containerWidth - 6
+      const usable = containerWidth - 6;
+      const newPct = Math.min(80, Math.max(25, startPct + (delta / usable) * 100));
       setSplitPct(newPct);
     };
     const onUp = () => {
       isDraggingRef.current = false;
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      iframes.forEach(f => { f.style.pointerEvents = ''; });
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
@@ -1045,12 +1059,40 @@ export default function ChatBubble({ embedded = false, pageContext = null, initi
   // Cleanup drag listeners on unmount
   useEffect(() => {
     return () => {
-      isDraggingRef.current = false;
+      if (isDraggingRef.current) {
+        isDraggingRef.current = false;
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+        const container = containerRef.current;
+        if (container) container.querySelectorAll('iframe').forEach(f => { f.style.pointerEvents = ''; });
+      }
       const { onMove, onUp } = dragListenersRef.current;
       if (onMove) document.removeEventListener('mousemove', onMove);
       if (onUp) document.removeEventListener('mouseup', onUp);
     };
   }, []);
+
+  // Auto-correct artifact errors by sending the error back to the LLM
+  const handleArtifactError = useCallback((artifactId, errorMessage) => {
+    if (streaming) return;
+
+    const currentCount = artifactRetries[artifactId] || 0;
+    if (currentCount >= MAX_ARTIFACT_RETRIES) return;
+
+    setArtifactRetries(prev => ({ ...prev, [artifactId]: (prev[artifactId] || 0) + 1 }));
+
+    const artifact = artifacts.find(a => a.identifier === artifactId);
+    const artifactType = artifact?.type || 'unknown';
+    const artifactTitle = artifact?.title || artifactId;
+    const safeError = String(errorMessage).slice(0, 300).replace(/[\u0000-\u001F]/g, ' ');
+
+    const correctionPrompt =
+      `The ${artifactType === 'application/vnd.mermaid' ? 'Mermaid diagram' : 'HTML artifact'} ` +
+      `"${artifactTitle}" (identifier: ${artifactId}) failed to render with this error:\n\n` +
+      `${safeError}\n\n` +
+      `Please fix the syntax error and regenerate the artifact using the same identifier "${artifactId}".`;
+    sendMessage(correctionPrompt);
+  }, [streaming, artifactRetries, artifacts, sendMessage]);
 
   if (!open && !embedded) {
     return (
@@ -1344,7 +1386,7 @@ export default function ChatBubble({ embedded = false, pageContext = null, initi
       <style>{markdownStyles}{spinnerKeyframes}</style>
 
       <div style={{
-        flex: hasArtifact ? `0 0 ${splitPct}%` : '1 1 100%',
+        flex: hasArtifact ? `0 0 calc(${splitPct}% - 3px)` : '1 1 100%',
         minWidth: 0,
         display: 'flex',
         flexDirection: 'column',
@@ -1360,12 +1402,13 @@ export default function ChatBubble({ embedded = false, pageContext = null, initi
             onMouseDown={handleDragStart}
             style={{
               width: 6, cursor: 'col-resize', flexShrink: 0,
-              background: palette.gray.light2, position: 'relative',
+              background: isDraggingRef.current ? palette.green.light1 : palette.gray.light2,
+              position: 'relative',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               transition: 'background 0.15s',
             }}
             onMouseEnter={e => { e.currentTarget.style.background = palette.green.light1; }}
-            onMouseLeave={e => { e.currentTarget.style.background = palette.gray.light2; }}
+            onMouseLeave={e => { if (!isDraggingRef.current) e.currentTarget.style.background = palette.gray.light2; }}
           >
             <div style={{
               width: 2, height: 24, borderRadius: 1,
@@ -1373,7 +1416,7 @@ export default function ChatBubble({ embedded = false, pageContext = null, initi
             }} />
           </div>
           <div style={{
-            flex: `0 0 ${100 - splitPct}%`,
+            flex: `0 0 calc(${100 - splitPct}% - 3px)`,
             minWidth: 0,
             height: '100%',
             overflow: 'hidden',
@@ -1381,6 +1424,9 @@ export default function ChatBubble({ embedded = false, pageContext = null, initi
             <ArtifactPanel
               artifact={activeArtifact}
               onClose={() => setActiveArtifactId(null)}
+              onError={handleArtifactError}
+              retryCount={activeArtifact ? (artifactRetries[activeArtifact.identifier] || 0) : 0}
+              maxRetries={MAX_ARTIFACT_RETRIES}
             />
           </div>
         </>

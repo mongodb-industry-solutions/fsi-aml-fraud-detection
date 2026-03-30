@@ -60,7 +60,7 @@ const markdownPanelStyles = `
 
 let _mermaidInitialized = false;
 
-function MermaidRenderer({ code }) {
+function MermaidRenderer({ code, artifactId, onError, retryCount = 0, maxRetries = 5, isComplete = false }) {
   const containerRef = useRef(null);
   const [error, setError] = useState(null);
   const idRef = useRef(`mermaid-${Math.random().toString(36).slice(2, 10)}`);
@@ -90,7 +90,11 @@ function MermaidRenderer({ code }) {
           setError(null);
         }
       } catch (err) {
-        if (!cancelled) setError(err.message || 'Failed to render diagram');
+        if (!cancelled) {
+          const msg = err.message || 'Failed to render diagram';
+          setError(msg);
+          if (isComplete) onError?.(artifactId, msg);
+        }
       }
     })();
 
@@ -107,6 +111,11 @@ function MermaidRenderer({ code }) {
         whiteSpace: 'pre-wrap',
       }}>
         Diagram error: {error}
+        {retryCount < maxRetries && (
+          <div style={{ marginTop: 8, color: '#b45309', fontSize: 11, fontFamily: FONT }}>
+            Auto-correcting... (attempt {retryCount + 1}/{maxRetries})
+          </div>
+        )}
       </div>
     );
   }
@@ -121,7 +130,7 @@ function MermaidRenderer({ code }) {
 
 // ─── Sandboxed iframe renderer (HTML) ─────────────────────────────────────
 
-function SandboxedRenderer({ code, artifactType, isComplete }) {
+function SandboxedRenderer({ code, artifactType, isComplete, artifactId, onError, retryCount = 0, maxRetries = 3 }) {
   const iframeRef = useRef(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState(null);
@@ -132,7 +141,10 @@ function SandboxedRenderer({ code, artifactType, isComplete }) {
       const data = event.data;
       if (!data) return;
       if (data.type === 'sandbox_ready') setReady(true);
-      if (data.type === 'sandbox_error') setError(data.message);
+      if (data.type === 'sandbox_error') {
+        setError(data.message);
+        onError?.(artifactId, data.message);
+      }
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
@@ -156,6 +168,11 @@ function SandboxedRenderer({ code, artifactType, isComplete }) {
           fontSize: 12, color: '#991b1b', margin: spacing[2],
         }}>
           {error}
+          {retryCount < maxRetries && (
+            <div style={{ marginTop: 8, color: '#b45309', fontSize: 11, fontFamily: FONT }}>
+              Auto-correcting... (attempt {retryCount + 1}/{maxRetries})
+            </div>
+          )}
         </div>
       )}
       <iframe
@@ -247,7 +264,7 @@ function StreamingIndicator() {
 
 // ─── Main ArtifactPanel ───────────────────────────────────────────────────
 
-export default function ArtifactPanel({ artifact, onClose }) {
+export default function ArtifactPanel({ artifact, onClose, onError, retryCount = 0, maxRetries = 5 }) {
   const [showSource, setShowSource] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState(false);
   const containerRef = useRef(null);
@@ -304,10 +321,10 @@ export default function ArtifactPanel({ artifact, onClose }) {
         );
 
       case ARTIFACT_TYPES.MERMAID:
-        return <MermaidRenderer code={content} />;
+        return <MermaidRenderer code={content} artifactId={artifact.identifier} onError={onError} retryCount={retryCount} maxRetries={maxRetries} isComplete={!isStreaming} />;
 
       case ARTIFACT_TYPES.HTML:
-        return <SandboxedRenderer key={artifact.identifier} code={content} artifactType={artifact.type} isComplete={!isStreaming} />;
+        return <SandboxedRenderer key={artifact.identifier} code={content} artifactType={artifact.type} isComplete={!isStreaming} artifactId={artifact.identifier} onError={onError} retryCount={retryCount} maxRetries={maxRetries} />;
 
       default:
         return <CodeView code={content} />;

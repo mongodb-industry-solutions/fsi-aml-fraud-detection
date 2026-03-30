@@ -8,6 +8,22 @@ const AML_API_URL =
   'https://threatsight-aml.api.mongodb-industry-solutions.com';
 
 /**
+ * Build a WebSocket URL for AML backend endpoints.
+ * In deployment, AML_API_URL is a relative path like /api/aml — route through
+ * the /ws/aml proxy so server.js handles the upgrade (Next.js API routes are HTTP-only).
+ * In local dev (absolute URL), connect directly to the backend.
+ */
+function _buildWsUrl(path) {
+  if (AML_API_URL.startsWith('/')) {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    const wsPath = AML_API_URL.replace(/^\/api\//, '/ws/');
+    return `${protocol}//${host}${wsPath}${path}`;
+  }
+  return AML_API_URL.replace(/^http/, 'ws') + path;
+}
+
+/**
  * Read an SSE stream from a fetch Response, parsing each `data: ...` line
  * and dispatching parsed JSON to the onEvent callback.
  * @param {Response} response - fetch Response with SSE body
@@ -171,8 +187,8 @@ export async function searchInvestigations(query, limit = 20) {
  * @returns {{ close: Function }} - control handle
  */
 export function connectInvestigationStream(onEvent) {
-  const wsBase = AML_API_URL.replace(/^http/, 'ws');
-  const ws = new WebSocket(`${wsBase}/agents/investigations/stream`);
+  const wsUrl = _buildWsUrl('/agents/investigations/stream');
+  const ws = new WebSocket(wsUrl);
 
   ws.onmessage = (event) => {
     try {
@@ -201,8 +217,8 @@ export function connectInvestigationStream(onEvent) {
  * @returns {{ close: Function }} - control handle
  */
 export function connectAlertStream(onEvent) {
-  const wsBase = AML_API_URL.replace(/^http/, 'ws');
-  const ws = new WebSocket(`${wsBase}/agents/alerts/stream`);
+  const wsUrl = _buildWsUrl('/agents/alerts/stream');
+  const ws = new WebSocket(wsUrl);
 
   let reconnectTimer = null;
 

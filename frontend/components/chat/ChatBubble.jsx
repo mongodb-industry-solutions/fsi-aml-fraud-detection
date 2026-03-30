@@ -16,7 +16,7 @@ import { getArtifactMeta } from '@/lib/artifact-utils';
 import ArtifactPanel from './ArtifactPanel';
 
 const FONT = "'Euclid Circular A', sans-serif";
-const MAX_ARTIFACT_RETRIES = 5;
+const MAX_ARTIFACT_RETRIES = 15;
 
 const RISK_COLORS = {
   critical: { bg: '#fce4ec', text: '#b71c1c', border: '#ef9a9a' },
@@ -132,6 +132,36 @@ function extractSuggestions(content) {
       suggestions: parsed.filter(s => typeof s === 'string').slice(0, 3),
     };
   } catch { return { clean: stripped, suggestions: [] }; }
+}
+
+// ─── Extract artifact blocks from message content ────────────────────────
+
+const ARTIFACT_TAG_RE = /<artifact\s+(?=.*?identifier\s*=\s*"([^"]*)")(?=.*?type\s*=\s*"([^"]*)")(?=.*?title\s*=\s*"([^"]*)")[\s\S]*?>([\s\S]*?)<\/artifact>/g;
+
+function extractArtifactsFromContent(content) {
+  if (!content) return { clean: content, artifacts: [] };
+  const artifacts = [];
+  let clean = content;
+
+  let match;
+  // Reset regex state
+  ARTIFACT_TAG_RE.lastIndex = 0;
+  while ((match = ARTIFACT_TAG_RE.exec(content)) !== null) {
+    artifacts.push({
+      identifier: match[1],
+      type: match[2],
+      title: match[3],
+      content: match[4].trim(),
+      status: 'complete',
+    });
+  }
+
+  if (artifacts.length > 0) {
+    // Remove all artifact tags from the display content
+    clean = content.replace(/<artifact\s+[\s\S]*?<\/artifact>/g, '').trim();
+  }
+
+  return { clean, artifacts };
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────
@@ -992,19 +1022,29 @@ export default function ChatBubble({ embedded = false, pageContext = null, initi
     setActiveTool(null);
     setArtifacts([]);
     setActiveArtifactId(null);
+    setArtifactRetries({});
 
     try {
       const { messages: history } = await getChatHistory(tid);
       if (activeThreadRef.current !== tid) return; // user switched again
       if (history?.length) {
+        const restoredArtifacts = [];
         const cleaned = history.map(msg => {
           if (msg.role === 'assistant' && msg.content) {
-            const { clean } = extractSuggestions(msg.content);
-            return { ...msg, content: clean };
+            // Extract and strip suggestion tags
+            const { clean: noSuggestions } = extractSuggestions(msg.content);
+            // Extract and strip artifact blocks, reconstruct artifact objects
+            const { clean: finalContent, artifacts: msgArtifacts } = extractArtifactsFromContent(noSuggestions);
+            const artifactIds = msgArtifacts.map(a => a.identifier);
+            restoredArtifacts.push(...msgArtifacts);
+            return { ...msg, content: finalContent, artifactIds };
           }
           return msg;
         });
         setMessages(cleaned);
+        if (restoredArtifacts.length > 0) {
+          setArtifacts(restoredArtifacts);
+        }
       }
     } catch {
       // History unavailable — user can still send new messages in this thread
@@ -1072,27 +1112,39 @@ export default function ChatBubble({ embedded = false, pageContext = null, initi
     };
   }, []);
 
-  // Auto-correct artifact errors by sending the error back to the LLM
-  const handleArtifactError = useCallback((artifactId, errorMessage) => {
-    if (streaming) return;
+  // Refs for artifact auto-correction to keep the callback stable
+  const streamingRef = useRef(streaming);
+  useEffect(() => { streamingRef.current = streaming; }, [streaming]);
+  const artifactRetriesRef = useRef(artifactRetries);
+  useEffect(() => { artifactRetriesRef.current = artifactRetries; }, [artifactRetries]);
+  const artifactsRef = useRef(artifacts);
+  useEffect(() => { artifactsRef.current = artifacts; }, [artifacts]);
+  const sendMessageRef = useRef(sendMessage);
+  useEffect(() => { sendMessageRef.current = sendMessage; }, [sendMessage]);
 
-    const currentCount = artifactRetries[artifactId] || 0;
+  // Auto-correct artifact errors by sending the error back to the LLM
+  // Stable callback (empty deps) — reads from refs to avoid recreation cascades
+  const handleArtifactError = useCallback((artifactId, errorMessage) => {
+    if (streamingRef.current) return;
+
+    const currentCount = artifactRetriesRef.current[artifactId] || 0;
     if (currentCount >= MAX_ARTIFACT_RETRIES) return;
 
     setArtifactRetries(prev => ({ ...prev, [artifactId]: (prev[artifactId] || 0) + 1 }));
 
-    const artifact = artifacts.find(a => a.identifier === artifactId);
+    const artifact = artifactsRef.current.find(a => a.identifier === artifactId);
     const artifactType = artifact?.type || 'unknown';
     const artifactTitle = artifact?.title || artifactId;
-    const safeError = String(errorMessage).slice(0, 300).replace(/[\u0000-\u001F]/g, ' ');
+    const safeError = String(errorMessage).slice(0, 500).replace(/[\u0000-\u001F]/g, ' ');
 
     const correctionPrompt =
       `The ${artifactType === 'application/vnd.mermaid' ? 'Mermaid diagram' : 'HTML artifact'} ` +
       `"${artifactTitle}" (identifier: ${artifactId}) failed to render with this error:\n\n` +
       `${safeError}\n\n` +
-      `Please fix the syntax error and regenerate the artifact using the same identifier "${artifactId}".`;
-    sendMessage(correctionPrompt);
-  }, [streaming, artifactRetries, artifacts, sendMessage]);
+      `Please fix the syntax error and regenerate the artifact using the same identifier "${artifactId}". ` +
+      `This is auto-correction attempt ${currentCount + 1}/${MAX_ARTIFACT_RETRIES}.`;
+    sendMessageRef.current(correctionPrompt);
+  }, []);
 
   if (!open && !embedded) {
     return (

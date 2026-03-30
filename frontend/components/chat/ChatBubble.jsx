@@ -117,6 +117,22 @@ function deriveFollowUps(toolCalls) {
   return [...new Set(suggestions)].slice(0, 3);
 }
 
+// ─── Extract LLM-generated suggestions from message content ──────────────
+
+function extractSuggestions(content) {
+  const match = content?.match(/<!--suggestions:(\[[\s\S]*?\])-->/);
+  if (!match) return { clean: content, suggestions: [] };
+  const stripped = content.replace(match[0], '').trimEnd();
+  try {
+    const parsed = JSON.parse(match[1]);
+    if (!Array.isArray(parsed)) return { clean: stripped, suggestions: [] };
+    return {
+      clean: stripped,
+      suggestions: parsed.filter(s => typeof s === 'string').slice(0, 3),
+    };
+  } catch { return { clean: stripped, suggestions: [] }; }
+}
+
 // ─── Styles ───────────────────────────────────────────────────────────────
 
 const markdownStyles = `
@@ -691,7 +707,10 @@ function MessageBubble({ msg, onAction, isLast, streaming, artifacts, activeArti
     );
   }
 
-  const followUps = isLast && !streaming ? deriveFollowUps(msg.toolCalls) : [];
+  const { clean: displayContent, suggestions: llmSuggestions } = extractSuggestions(msg.content);
+  const followUps = isLast && !streaming
+    ? (llmSuggestions.length > 0 ? llmSuggestions : deriveFollowUps(msg.toolCalls))
+    : [];
   const msgArtifacts = artifacts?.filter(a => msg.artifactIds?.includes(a.identifier)) || [];
 
   return (
@@ -730,7 +749,7 @@ function MessageBubble({ msg, onAction, isLast, streaming, artifacts, activeArti
             border: `1px solid ${palette.gray.light2}`,
           }}>
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {msg.content}
+              {displayContent}
             </ReactMarkdown>
           </div>
         )}
@@ -805,7 +824,7 @@ export default function ChatBubble({ embedded = false, pageContext = null }) {
   const [artifacts, setArtifacts] = useState([]);
   const [activeArtifactId, setActiveArtifactId] = useState(null);
   const inputRef = useRef(null);
-  const { scrollRef, contentRef, scrollToBottom, isAtBottom } = useStickToBottom();
+  const { scrollRef, contentRef, scrollToBottom, isAtBottom } = useStickToBottom({ initial: false });
 
   const activeArtifact = useMemo(
     () => artifacts.find(a => a.identifier === activeArtifactId) || null,
@@ -1083,7 +1102,7 @@ export default function ChatBubble({ embedded = false, pageContext = null }) {
           style={{
             display: 'flex',
             flexDirection: 'column',
-            justifyContent: 'flex-end',
+            justifyContent: messages.length === 0 ? 'flex-start' : 'flex-end',
             minHeight: '100%',
             padding: spacing[2],
           }}

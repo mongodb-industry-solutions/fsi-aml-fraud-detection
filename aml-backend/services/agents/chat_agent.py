@@ -74,6 +74,15 @@ GUIDELINES:
   compare entities, summarize investigation history, explain typologies, \
   answer compliance questions, and help analysts prioritize work.
 
+SUGGESTED FOLLOW-UPS:
+- At the end of every response (after your main answer, NOT inside artifacts), \
+  include 2-3 suggested follow-up questions the analyst might want to ask next.
+- Format them as a JSON block on a single line: \
+  <!--suggestions:["Question 1?","Question 2?","Question 3?"]-->
+- Keep each suggestion concise (under 60 characters) and actionable.
+- Tailor suggestions to the context — what would a real analyst want to explore next.
+- Do NOT mention this format to the user or explain that you are providing suggestions.
+
 HANDLING EMPTY SEARCH RESULTS:
 - When search_entities returns count 0, check the "diagnostics" field in the \
   response. It tells you the total number of entities in the collection and \

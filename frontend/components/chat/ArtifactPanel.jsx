@@ -60,14 +60,20 @@ const markdownPanelStyles = `
 
 let _mermaidInitialized = false;
 
-function MermaidRenderer({ code, artifactId, onError, retryCount = 0, maxRetries = 5, isComplete = false }) {
+function MermaidRenderer({ code, artifactId, onError, retryCount = 0, maxRetries = 15, isComplete = false }) {
   const containerRef = useRef(null);
   const [error, setError] = useState(null);
-  const idRef = useRef(`mermaid-${Math.random().toString(36).slice(2, 10)}`);
+  const renderCountRef = useRef(0);
+  // Track whether we already fired onError for the current code to avoid duplicate calls
+  const errorFiredForCodeRef = useRef(null);
 
+  // Only attempt render when code is complete (not mid-stream)
   useEffect(() => {
-    if (!code) return;
+    if (!code || !isComplete) return;
     let cancelled = false;
+    // Generate unique id per render attempt (Mermaid caches by id)
+    renderCountRef.current += 1;
+    const renderId = `mermaid-${artifactId?.slice(0, 8) || 'x'}-${renderCountRef.current}`;
 
     (async () => {
       try {
@@ -81,25 +87,30 @@ function MermaidRenderer({ code, artifactId, onError, retryCount = 0, maxRetries
           });
           _mermaidInitialized = true;
         }
-        const { svg } = await mermaid.render(idRef.current, code.trim());
+        const { svg } = await mermaid.render(renderId, code.trim());
         if (!cancelled && containerRef.current) {
           containerRef.current.innerHTML = DOMPurify.sanitize(svg, {
             USE_PROFILES: { svg: true, svgFilters: true },
             ADD_TAGS: ['foreignObject'],
           });
           setError(null);
+          errorFiredForCodeRef.current = null;
         }
       } catch (err) {
         if (!cancelled) {
           const msg = err.message || 'Failed to render diagram';
           setError(msg);
-          if (isComplete) onError?.(artifactId, msg);
+          // Only fire onError once per unique code content
+          if (errorFiredForCodeRef.current !== code) {
+            errorFiredForCodeRef.current = code;
+            onError?.(artifactId, msg);
+          }
         }
       }
     })();
 
     return () => { cancelled = true; };
-  }, [code]);
+  }, [code, isComplete]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (error) {
     return (
@@ -111,7 +122,11 @@ function MermaidRenderer({ code, artifactId, onError, retryCount = 0, maxRetries
         whiteSpace: 'pre-wrap',
       }}>
         Diagram error: {error}
-        {retryCount < maxRetries && (
+        {retryCount >= maxRetries ? (
+          <div style={{ marginTop: 8, color: '#991b1b', fontSize: 11, fontFamily: FONT }}>
+            Auto-correction failed after {maxRetries} attempts.
+          </div>
+        ) : (
           <div style={{ marginTop: 8, color: '#b45309', fontSize: 11, fontFamily: FONT }}>
             Auto-correcting... (attempt {retryCount + 1}/{maxRetries})
           </div>
@@ -130,10 +145,15 @@ function MermaidRenderer({ code, artifactId, onError, retryCount = 0, maxRetries
 
 // ─── Sandboxed iframe renderer (HTML) ─────────────────────────────────────
 
-function SandboxedRenderer({ code, artifactType, isComplete, artifactId, onError, retryCount = 0, maxRetries = 3 }) {
+function SandboxedRenderer({ code, artifactType, isComplete, artifactId, onError, retryCount = 0, maxRetries = 15 }) {
   const iframeRef = useRef(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState(null);
+  const errorFiredForCodeRef = useRef(null);
+  const codeRef = useRef(code);
+  useEffect(() => { codeRef.current = code; }, [code]);
+  // Reset error dedup when code changes (new correction arrived)
+  useEffect(() => { errorFiredForCodeRef.current = null; }, [code]);
 
   useEffect(() => {
     const handler = (event) => {
@@ -143,12 +163,15 @@ function SandboxedRenderer({ code, artifactType, isComplete, artifactId, onError
       if (data.type === 'sandbox_ready') setReady(true);
       if (data.type === 'sandbox_error') {
         setError(data.message);
-        onError?.(artifactId, data.message);
+        if (errorFiredForCodeRef.current !== codeRef.current) {
+          errorFiredForCodeRef.current = codeRef.current;
+          onError?.(artifactId, data.message);
+        }
       }
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!ready || !code || !iframeRef.current) return;
@@ -264,7 +287,7 @@ function StreamingIndicator() {
 
 // ─── Main ArtifactPanel ───────────────────────────────────────────────────
 
-export default function ArtifactPanel({ artifact, onClose, onError, retryCount = 0, maxRetries = 5 }) {
+export default function ArtifactPanel({ artifact, onClose, onError, retryCount = 0, maxRetries = 15 }) {
   const [showSource, setShowSource] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState(false);
   const containerRef = useRef(null);

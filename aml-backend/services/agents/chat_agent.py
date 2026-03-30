@@ -11,6 +11,7 @@ import os
 from pymongo import MongoClient
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.mongodb import MongoDBSaver
+from langchain_core.messages import trim_messages
 
 from services.agents.llm import get_llm
 
@@ -215,6 +216,48 @@ ALL_TOOLS = [
 
 _chat_agent = None
 
+# Trim message history to stay within Bedrock's 200K token context window.
+# Budget: ~160K tokens for history, leaving ~40K for system prompt, tool
+# schemas, and the LLM's response. Uses char-length / 4 as a rough token
+# estimate (1 token ≈ 4 chars for English/code).
+def _estimate_tokens(messages) -> int:
+    """Approximate token count for a list of messages.
+
+    Uses ~4 chars/token which is accurate for English prose but underestimates
+    dense JSON by ~20-25%. The 40K headroom (200K - 160K) is intentionally
+    oversized to absorb this undercount. Do not raise max_tokens above ~175K.
+    """
+    total = 0
+    for msg in messages:
+        content = getattr(msg, "content", "")
+        if isinstance(content, str):
+            total += len(content) // 4
+        elif isinstance(content, list):
+            total += sum(len(b.get("text", "")) for b in content if isinstance(b, dict)) // 4
+        # Account for tool call arguments on AIMessages (tool results are in
+        # ToolMessage.content, already counted above via the content branch)
+        tool_calls = getattr(msg, "tool_calls", None)
+        if tool_calls:
+            for tc in tool_calls:
+                total += len(str(tc.get("args", {}))) // 4
+    return total
+
+
+_message_trimmer = trim_messages(
+    max_tokens=160_000,
+    strategy="last",
+    token_counter=_estimate_tokens,
+    start_on="human",
+    allow_partial=False,
+    include_system=True,
+)
+
+
+def _trim_hook(state: dict) -> dict:
+    """Trim message history before each LLM call without modifying checkpoint."""
+    trimmed = _message_trimmer.invoke(state["messages"])
+    return {"llm_input_messages": trimmed}
+
 
 def get_chat_agent():
     """Build and return the compiled chat agent (singleton)."""
@@ -229,6 +272,7 @@ def get_chat_agent():
             tools=ALL_TOOLS,
             checkpointer=checkpointer,
             prompt=CHAT_SYSTEM_PROMPT,
+            pre_model_hook=_trim_hook,
         )
         logger.info("Chat agent compiled with %d tools", len(ALL_TOOLS))
     return _chat_agent

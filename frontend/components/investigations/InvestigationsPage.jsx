@@ -74,6 +74,30 @@ const CAPABILITY_CATEGORIES = [
   },
 ];
 
+const CAPABILITY_CARDS = [
+  { id: 'trace', label: 'Trace Money Trails', icon: 'Diagram2',
+    desc: 'Follow multi-hop fund flows across entity chains',
+    prompt: 'Trace the money trail for the most recently escalated entity and flag suspicious hops' },
+  { id: 'sar', label: 'Generate SAR Reports', icon: 'File',
+    desc: 'Create structured SAR narratives with evidence citations',
+    prompt: 'Generate a SAR narrative report for the highest-risk entity' },
+  { id: 'risk', label: 'Assess Entity Risk', icon: 'Warning',
+    desc: 'Rapid risk dossier combining profile, transactions, network, and watchlists',
+    prompt: 'Which entities have the highest risk scores and why?' },
+  { id: 'network', label: 'Visualize Networks', icon: 'Connect',
+    desc: 'Map entity connections and identify hidden relationships',
+    prompt: 'Map the network around the highest-risk entity and check for sanctions hits' },
+  { id: 'watchlist', label: 'Screen Watchlists', icon: 'Lock',
+    desc: 'Screen entities against sanctions, PEP, and adverse media lists',
+    prompt: 'Which entities are within 2 hops of a watchlist match?' },
+];
+
+const ARTIFACT_SHOWCASE = [
+  { label: 'Reports', icon: '\u{1F4C4}', desc: 'SAR narratives, risk assessments' },
+  { label: 'Diagrams', icon: '\u{1F4CA}', desc: 'Flowcharts, entity networks' },
+  { label: 'Dashboards', icon: '\u{1F310}', desc: 'Interactive tables, visualizations' },
+];
+
 const STATUS_BADGES = {
   filed: { variant: 'green', label: 'SAR Filed' },
   closed: { variant: 'gray', label: 'Closed' },
@@ -129,6 +153,8 @@ export default function InvestigationsPage() {
   const [statusFilter, setStatusFilter] = useState(null);
   const [listPage, setListPage] = useState(0);
   const [expandedCaps, setExpandedCaps] = useState({});
+  const [pendingPrompt, setPendingPrompt] = useState(null);
+  const [showAllTools, setShowAllTools] = useState(false);
 
   const fetchInvestigations = useCallback(async () => {
     setLoading(true);
@@ -665,86 +691,158 @@ export default function InvestigationsPage() {
                     caseId: selectedCase.case_id,
                     entityId: selectedCase.entity_id,
                   } : null}
+                  initialPrompt={pendingPrompt}
                 />
               </div>
               <aside style={{
                 width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: spacing[2],
-                overflowY: 'auto',
+                overflowY: 'auto', height: '100%', minHeight: 0,
               }}>
+                {/* Section 1: What I Can Do */}
                 <Card style={{ padding: spacing[2] }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing[1] }}>
-                    <Subtitle style={{ fontFamily: FONT, fontSize: uiTokens.bodySize, margin: 0 }}>
-                      Tools &amp; Capabilities
-                    </Subtitle>
-                    <span style={{
-                      fontSize: uiTokens.captionSize, fontFamily: FONT, fontWeight: 600,
-                      padding: '2px 6px', borderRadius: 4,
-                      background: palette.green.light3, color: palette.green.dark1,
-                      border: `1px solid ${palette.green.light1}`,
-                    }}>
-                      {CAPABILITY_CATEGORIES.reduce((n, c) => n + c.tools.length, 0)} tools
-                    </span>
-                  </div>
-                  {CAPABILITY_CATEGORIES.map(cat => {
-                    const isExpanded = expandedCaps[cat.id];
-                    return (
-                      <div key={cat.id} style={{ marginBottom: 2 }}>
-                        <button
-                          onClick={() => setExpandedCaps(prev => ({ ...prev, [cat.id]: !prev[cat.id] }))}
-                          style={{
-                            width: '100%', display: 'flex', alignItems: 'center', gap: 6,
-                            padding: '6px 4px', fontSize: uiTokens.labelSize, fontFamily: FONT, fontWeight: 500,
-                            color: palette.gray.dark2, background: 'none', border: 'none',
-                            cursor: 'pointer', borderRadius: 4,
-                            transition: uiTokens.transitionInteractive,
-                          }}
-                          onMouseEnter={e => { e.currentTarget.style.background = palette.gray.light3; }}
-                          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                        >
-                          <Icon glyph={cat.icon} size={14} />
-                          <span style={{ flex: 1, textAlign: 'left' }}>{cat.label}</span>
-                          <span style={{
-                            fontSize: uiTokens.captionSize, color: palette.gray.base, fontWeight: 400,
-                            marginRight: 4,
-                          }}>
-                            {cat.tools.length}
-                          </span>
-                          <Icon glyph={isExpanded ? 'ChevronDown' : 'ChevronRight'} size={12} />
-                        </button>
-                        {isExpanded && (
-                          <div style={{ paddingLeft: 24, paddingBottom: 4 }}>
-                            {cat.tools.map(tool => (
-                              <div key={tool.name} style={{
-                                padding: '4px 0',
-                                borderBottom: `1px solid ${palette.gray.light3}`,
-                                fontSize: uiTokens.captionSize, fontFamily: FONT,
-                              }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
-                                  <code style={{
-                                    fontSize: 10, fontFamily: uiTokens.monoFont,
-                                    color: palette.blue.dark1, fontWeight: 600,
-                                  }}>
-                                    {tool.name}
-                                  </code>
-                                  <span style={{
-                                    fontSize: 10, padding: '0px 4px', borderRadius: 3,
-                                    background: palette.green.light3, color: palette.green.dark2,
-                                    fontFamily: uiTokens.monoFont, fontWeight: 600,
-                                    border: `1px solid ${palette.green.light1}`,
-                                  }}>
-                                    {tool.op}
-                                  </span>
-                                </div>
-                                <div style={{ color: palette.gray.dark1, lineHeight: 1.4 }}>
-                                  {tool.desc}
-                                </div>
-                              </div>
-                            ))}
+                  <Subtitle style={{ fontFamily: FONT, fontSize: uiTokens.bodySize, margin: 0, marginBottom: spacing[1] }}>
+                    What I Can Do
+                  </Subtitle>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {CAPABILITY_CARDS.map(cap => (
+                      <button
+                        key={cap.id}
+                        onClick={() => setPendingPrompt({ text: cap.prompt, ts: Date.now() })}
+                        style={{
+                          display: 'flex', alignItems: 'flex-start', gap: 8,
+                          padding: '8px 10px', borderRadius: 8,
+                          background: '#fff', border: `1px solid ${palette.gray.light2}`,
+                          cursor: 'pointer', textAlign: 'left',
+                          transition: uiTokens.transitionInteractive,
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = palette.green.light1; e.currentTarget.style.background = palette.green.light3 + '40'; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = palette.gray.light2; e.currentTarget.style.background = '#fff'; }}
+                      >
+                        <Icon glyph={cap.icon} size={16} style={{ color: palette.green.dark1, flexShrink: 0, marginTop: 1 }} />
+                        <div>
+                          <div style={{ fontSize: uiTokens.labelSize, fontFamily: FONT, fontWeight: 600, color: palette.gray.dark2 }}>
+                            {cap.label}
                           </div>
-                        )}
+                          <div style={{ fontSize: uiTokens.captionSize, fontFamily: FONT, color: palette.gray.dark1, lineHeight: 1.4, marginTop: 1 }}>
+                            {cap.desc}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </Card>
+
+                {/* Section 2: Output Types */}
+                <Card style={{ padding: spacing[2] }}>
+                  <Subtitle style={{ fontFamily: FONT, fontSize: uiTokens.bodySize, margin: 0, marginBottom: spacing[1] }}>
+                    Output Types
+                  </Subtitle>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {ARTIFACT_SHOWCASE.map(at => (
+                      <div key={at.label} style={{
+                        display: 'flex', alignItems: 'center', gap: 4,
+                        padding: '4px 8px', borderRadius: 6,
+                        background: palette.gray.light3, border: `1px solid ${palette.gray.light2}`,
+                        fontSize: uiTokens.captionSize, fontFamily: FONT,
+                      }}>
+                        <span style={{ fontSize: 13 }}>{at.icon}</span>
+                        <div>
+                          <div style={{ fontWeight: 600, color: palette.gray.dark2, fontSize: 10 }}>{at.label}</div>
+                          <div style={{ color: palette.gray.dark1, fontSize: 10 }}>{at.desc}</div>
+                        </div>
                       </div>
-                    );
-                  })}
+                    ))}
+                  </div>
+                </Card>
+
+                {/* Section 3: All Tools (collapsed by default) */}
+                <Card style={{ padding: spacing[2] }}>
+                  <button
+                    onClick={() => setShowAllTools(prev => !prev)}
+                    style={{
+                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: 0, background: 'none', border: 'none', cursor: 'pointer',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Subtitle style={{ fontFamily: FONT, fontSize: uiTokens.bodySize, margin: 0 }}>
+                        All Tools
+                      </Subtitle>
+                      <span style={{
+                        fontSize: uiTokens.captionSize, fontFamily: FONT, fontWeight: 600,
+                        padding: '2px 6px', borderRadius: 4,
+                        background: palette.green.light3, color: palette.green.dark1,
+                        border: `1px solid ${palette.green.light1}`,
+                      }}>
+                        {CAPABILITY_CATEGORIES.reduce((n, c) => n + c.tools.length, 0)}
+                      </span>
+                    </div>
+                    <Icon glyph={showAllTools ? 'ChevronDown' : 'ChevronRight'} size={12} />
+                  </button>
+                  {showAllTools && (
+                    <div style={{ marginTop: spacing[1] }}>
+                      {CAPABILITY_CATEGORIES.map(cat => {
+                        const isExpanded = expandedCaps[cat.id];
+                        return (
+                          <div key={cat.id} style={{ marginBottom: 2 }}>
+                            <button
+                              onClick={() => setExpandedCaps(prev => ({ ...prev, [cat.id]: !prev[cat.id] }))}
+                              style={{
+                                width: '100%', display: 'flex', alignItems: 'center', gap: 6,
+                                padding: '6px 4px', fontSize: uiTokens.labelSize, fontFamily: FONT, fontWeight: 500,
+                                color: palette.gray.dark2, background: 'none', border: 'none',
+                                cursor: 'pointer', borderRadius: 4,
+                                transition: uiTokens.transitionInteractive,
+                              }}
+                              onMouseEnter={e => { e.currentTarget.style.background = palette.gray.light3; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                            >
+                              <Icon glyph={cat.icon} size={14} />
+                              <span style={{ flex: 1, textAlign: 'left' }}>{cat.label}</span>
+                              <span style={{
+                                fontSize: uiTokens.captionSize, color: palette.gray.base, fontWeight: 400,
+                                marginRight: 4,
+                              }}>
+                                {cat.tools.length}
+                              </span>
+                              <Icon glyph={isExpanded ? 'ChevronDown' : 'ChevronRight'} size={12} />
+                            </button>
+                            {isExpanded && (
+                              <div style={{ paddingLeft: 24, paddingBottom: 4 }}>
+                                {cat.tools.map(tool => (
+                                  <div key={tool.name} style={{
+                                    padding: '4px 0',
+                                    borderBottom: `1px solid ${palette.gray.light3}`,
+                                    fontSize: uiTokens.captionSize, fontFamily: FONT,
+                                  }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                                      <code style={{
+                                        fontSize: 10, fontFamily: uiTokens.monoFont,
+                                        color: palette.blue.dark1, fontWeight: 600,
+                                      }}>
+                                        {tool.name}
+                                      </code>
+                                      <span style={{
+                                        fontSize: 10, padding: '0px 4px', borderRadius: 3,
+                                        background: palette.green.light3, color: palette.green.dark2,
+                                        fontFamily: uiTokens.monoFont, fontWeight: 600,
+                                        border: `1px solid ${palette.green.light1}`,
+                                      }}>
+                                        {tool.op}
+                                      </span>
+                                    </div>
+                                    <div style={{ color: palette.gray.dark1, lineHeight: 1.4 }}>
+                                      {tool.desc}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </Card>
               </aside>
             </div>

@@ -134,6 +134,65 @@ Rules:
 - Do NOT mention the artifact XML tags, MIME types, or this instruction to the user.
 - Prefer inline chat responses for quick answers. Use artifacts only when the \
   content genuinely benefits from a dedicated panel.
+
+MERMAID SYNTAX RULES (application/vnd.mermaid):
+Diagram types:
+- For flowcharts use: graph TD (top-down) or graph LR (left-right).
+- Prefer "graph" over "flowchart" — both work but "graph" is more portable.
+- For sequence diagrams use: sequenceDiagram. The node/style rules below \
+  apply to flowcharts only, NOT sequence diagrams.
+
+Node labels:
+- ALWAYS wrap node labels in double quotes: A["Entity Profile"] --> B["Risk Score"]
+- NEVER use <br/>, HTML tags, or markdown inside labels — they cause parse errors.
+- For decision diamonds use single braces with a quoted label: C{"Risk > 75?"}
+- To include a quote inside a label use #quot; entity: A["Entity #quot;Alpha#quot;"]
+- To include parentheses use #lpar; and #rpar;: A["Step #lpar;1#rpar;"]
+
+Node IDs:
+- Keep IDs simple alphanumeric: A1, entityNode, riskCheck
+- NEVER use spaces, dots, colons, or hyphens in IDs. Use camelCase or underscores.
+- Wrong: risk-score, node.1, step:2 — Right: riskScore, node1, step2
+
+Edges and links:
+- Use --> for arrows, --- for lines, -.-> for dotted, ==> for thick arrows.
+- Edge labels go in pipes: A -->|"Yes"| B — always quote edge labels too.
+- Prefer no space between arrow and pipe: A -->|"Yes"| B is cleanest.
+
+Subgraphs:
+- Subgraph labels must be quoted if they contain spaces: subgraph SG["My Group"]
+- Always close with: end
+
+Styling:
+- Style statements go on their own separate lines AFTER all nodes and edges.
+- Format: style nodeId fill:#color,stroke:#color,color:#textcolor
+- For class definitions: classDef className fill:#color,stroke:#color
+- Then apply: class nodeId className
+- NEVER put style statements between node definitions.
+
+Common mistakes to avoid:
+- Do NOT use square brackets inside square brackets: A["array [1,2]"] breaks — \
+  use A["array 1, 2"] instead.
+- Do NOT use pipe | inside labels — it terminates the label. Spell out "or".
+- Do NOT start a label with a keyword (end, graph, subgraph, style, class).
+- Do NOT use triple dashes --- as a separator — Mermaid reads it as an edge.
+- Do NOT mix graph directions mid-diagram (e.g. graph TD then LR in subgraph).
+
+Example:
+  graph TD
+    A["Customer Onboarding"] --> B["Transaction Monitoring"]
+    B --> C{"Risk Score Above 75?"}
+    C -->|"Yes"| D["Generate SAR Report"]
+    C -->|"No"| E["Standard Review"]
+    D --> F["Regulatory Filing"]
+    subgraph SG["Detection Layer"]
+      B
+      C
+    end
+    style D fill:#fee2e2,stroke:#dc2626
+    style F fill:#fef3c7,stroke:#f59e0b
+    classDef highlight fill:#ecfdf5,stroke:#059669
+    class A,E highlight
 """
 
 ALL_TOOLS = [

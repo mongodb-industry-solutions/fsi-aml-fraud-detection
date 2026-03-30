@@ -839,6 +839,7 @@ const PROMPT_CATEGORIES = [
     prompts: [
       'Generate a SAR narrative report for the highest-risk entity',
       'Create a flowchart showing the layering money laundering typology',
+      'Create an interactive dashboard summarizing all past SAR filings',
     ],
   },
 ];

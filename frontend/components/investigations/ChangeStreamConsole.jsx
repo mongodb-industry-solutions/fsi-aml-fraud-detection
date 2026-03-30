@@ -62,6 +62,16 @@ export default function ChangeStreamConsole({ onInvestigationChange }) {
         setConnected(false);
         return;
       }
+      if (event.type === '_reconnecting') {
+        setConnected(false);
+        setReconnecting(true);
+        return;
+      }
+      if (event.type === '_max_retries') {
+        setConnected(false);
+        setReconnecting(false);
+        return;
+      }
       if (event.type === '_error') {
         setConnected(false);
         return;

@@ -155,6 +155,9 @@ export default function InvestigationsPage() {
         if (event.type === 'change') {
           setRefreshKey(k => k + 1);
         }
+        if (event.type === '_max_retries') {
+          console.warn('Investigation stream: max reconnection attempts reached');
+        }
       });
     } catch { /* stream unavailable */ }
     return () => { handle?.close(); };

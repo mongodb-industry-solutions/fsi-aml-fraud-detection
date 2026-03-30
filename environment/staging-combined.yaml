@@ -121,3 +121,12 @@ serviceAccount:
   irsa:
     accountId: '275662791714'
     roleName: 'kanopy-staging-cicd-irsa'
+
+# Kanopy security and ownership (requires web-app chart v4.30.0+)
+security:
+  dataClassification: "Internal"
+  dataDesignation:
+    - "MI"
+
+ownership:
+  driEmail: mehar.grewal@mongodb.com

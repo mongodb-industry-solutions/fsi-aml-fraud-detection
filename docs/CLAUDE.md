@@ -10,38 +10,35 @@ ThreatSight 360 is a comprehensive financial fraud detection system with a **dua
 - **AML Backend** (port 8001): AML/KYC compliance, entity resolution, network analysis  
 - **Frontend** (port 3000): Next.js 15+ with MongoDB LeafyGreen UI components
 
+## Project Documentation
+
+See the full documentation index in the root [README.md](../README.md#documentation), or jump directly to:
+
+- [Solution Architecture](SOLUTION_ARCHITECTURE.md) -- Mermaid architecture diagrams
+- [Agentic System Overview](AGENTIC_SYSTEM_OVERVIEW.md) -- All AI agent capabilities
+- [Investigation Pipeline](AGENTIC_INVESTIGATION_PIPELINE.md) -- LangGraph SAR pipeline
+- [Copilot Architecture](COPILOT_ARCHITECTURE.md) -- ReAct chat agent
+- [Data Model](DATA_MODEL.md) -- MongoDB collections, indexes, and schemas
+- [Fraud Backend](../backend/README.md) -- Fraud detection API
+- [AML Backend](../aml-backend/README.md) -- AML/KYC compliance API
+- [Frontend](../frontend/README.md) -- Next.js UI application
+
 ## Essential Development Commands
 
 ### Quick Start
 ```bash
 # Install Poetry (if needed)
-make install_poetry
+curl -sSL https://install.python-poetry.org | python3 -
 
 # Setup all components
-make setup_all
+cd backend && poetry install && cd ..
+cd aml-backend && poetry install && cd ..
+cd frontend && npm install && cd ..
 
-# Start all services in development
-make dev_all
-
-# Or start individual services
-make dev_fraud      # Main backend (port 8000)
-make dev_aml        # AML backend (port 8001)  
-make dev_frontend   # Frontend (port 3000)
-```
-
-### Testing Commands
-```bash
-# Test MongoDB connectivity
-make test_mongodb
-
-# Test AML API endpoints  
-make test_aml_api
-
-# Test entity resolution
-make test_entity_resolution
-
-# Run all tests
-make test_all
+# Start all services in development (in separate terminals)
+cd backend && poetry run uvicorn main:app --reload --port 8000       # Terminal 1
+cd aml-backend && poetry run uvicorn main:app --reload --port 8001   # Terminal 2
+cd frontend && npm run dev                                            # Terminal 3
 ```
 
 ### Frontend Commands
@@ -57,7 +54,7 @@ npm start      # Production server (after build)
 ```bash
 cd backend  # or cd aml-backend
 poetry install                                      # Install dependencies
-poetry run uvicorn main:app --reload --port 8000  # Development server
+poetry run uvicorn main:app --reload --port 8000    # Development server (8000 for fraud, 8001 for AML)
 ```
 
 ## Architecture & Code Structure

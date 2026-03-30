@@ -27,6 +27,23 @@ By the end of this guide, you'll have a comprehensive fraud detection and AML/KY
 
 We will walk you through the process of configuring and using [MongoDB Atlas](https://www.mongodb.com/atlas/database) as your backend with [AWS Bedrock](https://aws.amazon.com/bedrock/) for AI-powered risk assessment and entity resolution in your [Next.js](https://nextjs.org/) and [FastAPI](https://fastapi.tiangolo.com/) application.
 
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Solution Architecture](docs/SOLUTION_ARCHITECTURE.md) | System architecture diagrams (mermaid) |
+| [Agentic System Overview](docs/AGENTIC_SYSTEM_OVERVIEW.md) | All AI agent capabilities at a glance |
+| [Investigation Pipeline](docs/AGENTIC_INVESTIGATION_PIPELINE.md) | LangGraph SAR pipeline deep-dive |
+| [Copilot Architecture](docs/COPILOT_ARCHITECTURE.md) | ReAct chat agent and artifact system |
+| [Data Model](docs/DATA_MODEL.md) | MongoDB collections, indexes, and schemas |
+| [Fraud Backend](backend/README.md) | Fraud detection API documentation |
+| [AML Backend](aml-backend/README.md) | AML/KYC compliance API documentation |
+| [Frontend](frontend/README.md) | Next.js UI application documentation |
+| [Risk Models](backend/README-RISK-MODEL.md) | Risk model management system |
+| [Vector Search](backend/VECTOR_SEARCH_IMPLEMENTATION.md) | Fraud pattern vector search |
+| [Hybrid Search](aml-backend/HYBRID_SEARCH_SCORE_CALCULATION_INSIGHTS.md) | $rankFusion scoring insights |
+| [Entity Resolution](aml-backend/reference/entity_resolution_implementation.md) | Resolution system design |
+
 ## Architecture Overview
 
 ThreatSight 360 uses a **dual-backend microservices architecture**:
@@ -42,6 +59,7 @@ ThreatSight 360 uses a **dual-backend microservices architecture**:
 - **Intelligent Entity Resolution**: [MongoDB Atlas Search](https://www.mongodb.com/docs/atlas/atlas-search/) fuzzy matching and duplicate detection
 - **LLM Classification Service**: AWS Bedrock Claude-3 Sonnet for entity risk assessment
 - **Agentic Investigation Pipeline**: [LangGraph](https://langchain-ai.github.io/langgraph/)-orchestrated multi-agent SAR investigation system with `MongoDBSaver` checkpointing, parallel `Send` fan-out, and `interrupt()`-based human review
+- **ThreatSight Copilot**: ReAct agent with 15 tools for fund flow tracing, temporal analysis, entity similarity, and lead expansion with rich artifact rendering
 - **Investigation Service**: Automated case investigation and report generation
 - **Network Analysis**: Relationship and transaction graph traversal analytics using [MongoDB $graphLookup](https://www.mongodb.com/docs/manual/reference/operator/aggregation/graphLookup/)
 - **Atlas Search Integration**: Advanced search capabilities with [faceted filtering](https://www.mongodb.com/docs/atlas/atlas-search/facet/) and [autocomplete](https://www.mongodb.com/docs/atlas/atlas-search/autocomplete/)
@@ -57,7 +75,7 @@ ThreatSight 360 uses a **dual-backend microservices architecture**:
 
 ## Solution Architecture
 
-ThreatSight 360 employs a microservices architecture with four key components working in tandem:
+ThreatSight 360 employs a microservices architecture with multiple key components working in tandem. For expanded mermaid-based architecture diagrams covering the full system (including agentic pipelines, Copilot, and deployment topology), see [docs/SOLUTION_ARCHITECTURE.md](docs/SOLUTION_ARCHITECTURE.md).
 
 ### Fraud Detection Flow
 
@@ -438,7 +456,7 @@ poetry run uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 > [!Note]
-> For detailed backend configuration and API documentation, see [backend/README.md](backend/README.md)
+> For detailed backend configuration and API documentation, see [backend/README.md](backend/README.md). For risk model specifics, see [backend/README-RISK-MODEL.md](backend/README-RISK-MODEL.md). For vector search details, see [backend/VECTOR_SEARCH_IMPLEMENTATION.md](backend/VECTOR_SEARCH_IMPLEMENTATION.md).
 
 ### AML Backend (Entity Resolution & Compliance) Setup
 
@@ -778,6 +796,35 @@ The Agentic Investigations page provides a full-featured control surface for lau
 > [!Note]
 > Before launching investigations, click the "Seed" button to populate the `typology_library` and `compliance_policies` collections required by the pipeline agents. For full documentation of the agentic pipeline architecture, see [docs/AGENTIC_INVESTIGATION_PIPELINE.md](docs/AGENTIC_INVESTIGATION_PIPELINE.md).
 
+### ThreatSight Copilot
+
+The ThreatSight Copilot is a global conversational AI assistant available on every page via the floating chat bubble in the bottom-right corner:
+
+1. Click the chat bubble icon to open the Copilot panel.
+
+2. The Copilot is powered by a **ReAct agent** (LangGraph `create_react_agent`) with access to **15 specialized tools** for AML/KYC analysis:
+
+   - **Entity Tools**: `get_entity_profile`, `screen_watchlists`, `search_entities`, `find_similar_entities` (vector search), `compare_entities`, `assess_entity_risk`
+   - **Transaction Tools**: `query_entity_transactions`, `trace_fund_flow`, `analyze_temporal_patterns`
+   - **Network Tools**: `analyze_entity_network`
+   - **Policy Tools**: `lookup_typology`, `search_typologies`, `search_compliance_policies`
+   - **Investigation Tools**: `search_investigations`, `get_investigation_detail`
+
+3. The Copilot supports **rich artifact rendering** in a side panel:
+
+   - **Markdown**: Formatted analysis reports and summaries
+   - **Mermaid Diagrams**: Visual fund flow graphs, network diagrams, and timelines
+   - **Interactive HTML**: Sandboxed HTML previews with Tailwind CSS styling
+
+4. Key features:
+   - Persistent thread history stored in `localStorage`
+   - Durable state via `MongoDBSaver` checkpoints (conversations survive page refreshes)
+   - Rate-limited to prevent abuse (configurable via `RATE_LIMIT_CHAT` environment variable)
+   - SSE streaming for real-time response delivery
+
+> [!Note]
+> For full documentation of the Copilot architecture, tools, and artifact system, see [docs/COPILOT_ARCHITECTURE.md](docs/COPILOT_ARCHITECTURE.md). For the broader agentic system overview, see [docs/AGENTIC_SYSTEM_OVERVIEW.md](docs/AGENTIC_SYSTEM_OVERVIEW.md).
+
 ### Risk Model Management
 
 The Risk Model Management interface allows administrators to configure and deploy different risk assessment models:
@@ -823,23 +870,27 @@ For containerized deployment in production environments:
 3. Build and run the containers:
 
    ```bash
-   # Build all images
-   docker-compose build
-
-   # Start all services
-   docker-compose up -d
-
-   # Or build and start in one command
+   # Using docker-compose (frontend + fraud backend)
+   cd docker
    docker-compose up --build -d
+
+   # To also run the AML backend, build and start it separately
+   docker build -f Dockerfile.aml-backend -t threatsight-aml:latest .
+   docker run -d -p 8001:8001 --name threatsight-aml \
+     -v ~/.aws/credentials:/root/.aws/credentials:ro \
+     threatsight-aml:latest
    ```
 
 4. This will run containers for:
 
-   - Frontend (port 3000)
-   - Fraud Detection Backend (port 8000)
-   - AML/KYC Backend (port 8001)
+   - Frontend (port 3000) -- `docker/Dockerfile.frontend`
+   - Fraud Detection Backend (port 8000) -- `Dockerfile.backend`
+   - AML/KYC Backend (port 8001) -- `Dockerfile.aml-backend`
 
 5. Access the application at [http://localhost:3000](http://localhost:3000).
+
+> [!Note]
+> The `docker/docker-compose.yml` currently wires the frontend and fraud backend. The AML backend has a separate Dockerfile (`Dockerfile.aml-backend`) at the repo root. For Kubernetes-style unified pod deployment (all three services as sidecars), see the manifests under `environment/`.
 
 > [!Note]
 > The Docker configuration uses production settings by default. Check the `docker-compose.yml` file and individual Dockerfiles for details.

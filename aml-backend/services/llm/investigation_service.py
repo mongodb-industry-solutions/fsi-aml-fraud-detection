@@ -7,6 +7,7 @@ and generates basic LLM investigation summaries.
 
 import json
 import logging
+import os
 from typing import Dict, Any, Optional
 from datetime import datetime
 
@@ -291,7 +292,11 @@ Write in professional compliance language suitable for case documentation."""
             
             # Make API call
             response = bedrock_runtime.invoke_model(
-                modelId="arn:aws:bedrock:us-east-1:275662791714:application-inference-profile/n5kazy9gif2u",
+                modelId=os.getenv(
+                    "LLM_MODEL_ARN",
+                    "arn:aws:bedrock:us-east-1:275662791714:"
+                    "inference-profile/global.anthropic.claude-haiku-4-5-20251001-v1:0",
+                ),
                 body=json.dumps(request_body),
                 contentType="application/json"
             )

@@ -1,0 +1,97 @@
+"""Validation Agent – quality-checks the investigation and routes dynamically."""
+
+import logging
+import time
+from datetime import datetime, timezone
+
+from langchain_core.messages import SystemMessage, HumanMessage
+from langgraph.types import Command
+
+from models.agents.investigation import ValidationResult
+from services.agents.llm import get_llm, get_model_id, extract_token_usage, invoke_with_retry
+from services.agents.prompts import VALIDATION_SYSTEM
+from services.agents.state import InvestigationState
+from services.agents.truncation import truncate_payload
+
+logger = logging.getLogger(__name__)
+
+MAX_VALIDATION_LOOPS = 2
+
+
+def validation_node(state: InvestigationState) -> Command:
+    t0 = time.perf_counter()
+    loop_count = state.get("validation_count", 0) + 1
+
+    if loop_count > MAX_VALIDATION_LOOPS:
+        duration_ms = int((time.perf_counter() - t0) * 1000)
+        forced = ValidationResult(
+            is_valid=False,
+            score=0.0,
+            issues=["Maximum validation loops exceeded — forced escalation"],
+            route_to="human_review",
+        )
+        audit_entry = {
+            "agent": "compliance_qa",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "duration_ms": duration_ms,
+            "loop": loop_count,
+            "forced_escalation": True,
+            "reasoning": "Max validation loops exceeded, forcing human review",
+        }
+        return Command(
+            goto="human_review",
+            update={
+                "validation_result": forced.model_dump(),
+                "validation_count": loop_count,
+                "investigation_status": "forced_escalation",
+                "agent_audit_log": [audit_entry],
+            },
+        )
+
+    payload = truncate_payload({
+        "case_file": state.get("case_file", {}),
+        "narrative": state.get("narrative", {}),
+        "typology_classification": state.get("typology", {}),
+        "network_analysis": state.get("network_analysis", {}),
+        "temporal_analysis": state.get("temporal_analysis", {}),
+        "trail_analysis": state.get("trail_analysis", {}),
+        "sub_investigation_findings": state.get("sub_investigation_findings", {}),
+    }, max_chars=16000)
+
+    llm = get_llm().with_structured_output(ValidationResult, include_raw=True)
+    llm_result = invoke_with_retry(llm, [
+        SystemMessage(content=VALIDATION_SYSTEM),
+        HumanMessage(content=payload),
+    ])
+    result: ValidationResult | None = llm_result["parsed"]
+    token_usage = extract_token_usage(llm_result["raw"])
+    duration_ms = int((time.perf_counter() - t0) * 1000)
+
+    if result is None:
+        logger.warning("Validation LLM returned unparseable output — using empty fallback")
+        result = ValidationResult(route_to="human_review", issues=["LLM failed to return structured output"])
+
+    audit_entry = {
+        "agent": "compliance_qa",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "duration_ms": duration_ms,
+        "llm_model": get_model_id(),
+        "token_usage": token_usage,
+        "loop": loop_count,
+        "score": result.score,
+        "route_to": result.route_to,
+        "issues": result.issues,
+        "reasoning": f"Validation score {result.score}, routing to {result.route_to}" + (
+            f" — issues: {', '.join(result.issues[:2])}" if result.issues else ""
+        ),
+        "output_summary": f"score={result.score}, route={result.route_to}, issues={len(result.issues)}",
+    }
+
+    update = {
+        "validation_result": result.model_dump(),
+        "validation_count": loop_count,
+        "investigation_status": f"validation_{result.route_to}",
+        "agent_audit_log": [audit_entry],
+    }
+
+    return Command(goto=result.route_to, update=update)

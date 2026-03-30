@@ -38,7 +38,8 @@ class StreamingClassificationService:
             'claude-sonnet-4': 'arn:aws:bedrock:us-east-1:275662791714:application-inference-profile/n5kazy9gif2u',
             'claude-3.5-sonnet-v2': 'arn:aws:bedrock:us-east-1:275662791714:application-inference-profile/n5kazy9gif2u',
             'claude-3-sonnet': 'arn:aws:bedrock:us-east-1:275662791714:application-inference-profile/n5kazy9gif2u',
-            'claude-3-haiku': 'arn:aws:bedrock:us-east-1:275662791714:application-inference-profile/w1qp69dyf4ml'
+            'claude-haiku-4.5': 'arn:aws:bedrock:us-east-1:275662791714:inference-profile/global.anthropic.claude-haiku-4-5-20251001-v1:0',
+            'claude-3-haiku': 'arn:aws:bedrock:us-east-1:275662791714:application-inference-profile/w1qp69dyf4ml',
         }
         logger.info("StreamingClassificationService initialized for transparent AI classification")
     

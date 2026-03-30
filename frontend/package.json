@@ -49,6 +49,7 @@
     "cytoscape-dagre": "^2.5.0",
     "cytoscape-fcose": "^2.2.0",
     "cytoscape-panzoom": "^2.5.3",
+    "dompurify": "^3.3.3",
     "geist": "^1.4.2",
     "http-proxy": "^1.18.1",
     "mermaid": "^11.13.0",

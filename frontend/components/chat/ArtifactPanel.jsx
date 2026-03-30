@@ -14,6 +14,8 @@ import {
   copyToClipboard,
 } from '@/lib/artifact-utils';
 
+import DOMPurify from 'dompurify';
+
 const FONT = "'Euclid Circular A', sans-serif";
 
 const markdownPanelStyles = `
@@ -81,7 +83,10 @@ function MermaidRenderer({ code }) {
         }
         const { svg } = await mermaid.render(idRef.current, code.trim());
         if (!cancelled && containerRef.current) {
-          containerRef.current.innerHTML = svg;
+          containerRef.current.innerHTML = DOMPurify.sanitize(svg, {
+            USE_PROFILES: { svg: true, svgFilters: true },
+            ADD_TAGS: ['foreignObject'],
+          });
           setError(null);
         }
       } catch (err) {

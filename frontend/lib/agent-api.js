@@ -299,3 +299,18 @@ export async function sendChatMessage(message, threadId, onEvent, signal) {
 
   await readSSEStream(response, onEvent);
 }
+
+/**
+ * Retrieve conversation history for a chat thread
+ * @param {string} threadId - Thread ID to fetch history for
+ * @returns {Promise<{ messages: Array, thread_id: string }>}
+ */
+export async function getChatHistory(threadId) {
+  const url = `${AML_API_URL}/agents/chat/history?thread_id=${encodeURIComponent(threadId)}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    console.warn(`getChatHistory: ${response.status} for thread ${threadId}`);
+    return { messages: [] };
+  }
+  return response.json();
+}

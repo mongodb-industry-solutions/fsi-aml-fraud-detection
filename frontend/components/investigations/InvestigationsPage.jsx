@@ -154,7 +154,7 @@ export default function InvestigationsPage() {
   const [listPage, setListPage] = useState(0);
   const [expandedCaps, setExpandedCaps] = useState({});
   const [pendingPrompt, setPendingPrompt] = useState(null);
-  const [showAllTools, setShowAllTools] = useState(false);
+  const [showAllTools, setShowAllTools] = useState(true);
 
   const fetchInvestigations = useCallback(async () => {
     setLoading(true);
@@ -699,7 +699,7 @@ export default function InvestigationsPage() {
                 overflowY: 'auto', height: '100%', minHeight: 0,
               }}>
                 {/* Section 1: What I Can Do */}
-                <Card style={{ padding: spacing[2] }}>
+                <Card style={{ padding: spacing[2], flexShrink: 0 }}>
                   <Subtitle style={{ fontFamily: FONT, fontSize: uiTokens.bodySize, margin: 0, marginBottom: spacing[1] }}>
                     What I Can Do
                   </Subtitle>
@@ -733,30 +733,37 @@ export default function InvestigationsPage() {
                 </Card>
 
                 {/* Section 2: Output Types */}
-                <Card style={{ padding: spacing[2] }}>
+                <Card style={{ padding: spacing[2], flexShrink: 0 }}>
                   <Subtitle style={{ fontFamily: FONT, fontSize: uiTokens.bodySize, margin: 0, marginBottom: spacing[1] }}>
                     Output Types
                   </Subtitle>
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {ARTIFACT_SHOWCASE.map(at => (
                       <div key={at.label} style={{
-                        display: 'flex', alignItems: 'center', gap: 4,
-                        padding: '4px 8px', borderRadius: 6,
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '8px 10px', borderRadius: 8,
                         background: palette.gray.light3, border: `1px solid ${palette.gray.light2}`,
-                        fontSize: uiTokens.captionSize, fontFamily: FONT,
+                        fontFamily: FONT,
                       }}>
-                        <span style={{ fontSize: 13 }}>{at.icon}</span>
-                        <div>
-                          <div style={{ fontWeight: 600, color: palette.gray.dark2, fontSize: 10 }}>{at.label}</div>
-                          <div style={{ color: palette.gray.dark1, fontSize: 10 }}>{at.desc}</div>
+                        <div style={{
+                          width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                          background: '#fff', border: `1px solid ${palette.gray.light2}`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 16,
+                        }}>
+                          {at.icon}
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, color: palette.gray.dark2, fontSize: uiTokens.labelSize }}>{at.label}</div>
+                          <div style={{ color: palette.gray.dark1, fontSize: uiTokens.captionSize, lineHeight: 1.3 }}>{at.desc}</div>
                         </div>
                       </div>
                     ))}
                   </div>
                 </Card>
 
-                {/* Section 3: All Tools (collapsed by default) */}
-                <Card style={{ padding: spacing[2] }}>
+                {/* Section 3: All Tools (open by default) */}
+                <Card style={{ padding: spacing[2], flex: '1 1 0', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
                   <button
                     onClick={() => setShowAllTools(prev => !prev)}
                     style={{
@@ -780,7 +787,7 @@ export default function InvestigationsPage() {
                     <Icon glyph={showAllTools ? 'ChevronDown' : 'ChevronRight'} size={12} />
                   </button>
                   {showAllTools && (
-                    <div style={{ marginTop: spacing[1] }}>
+                    <div style={{ marginTop: spacing[1], overflowY: 'auto', flex: '1 1 0', minHeight: 0 }}>
                       {CAPABILITY_CATEGORIES.map(cat => {
                         const isExpanded = expandedCaps[cat.id];
                         return (

@@ -11,7 +11,7 @@ import { useStickToBottom } from 'use-stick-to-bottom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-import { sendChatMessage } from '@/lib/agent-api';
+import { sendChatMessage, getChatHistory } from '@/lib/agent-api';
 import { getArtifactMeta } from '@/lib/artifact-utils';
 import ArtifactPanel from './ArtifactPanel';
 
@@ -122,7 +122,7 @@ function deriveFollowUps(toolCalls) {
 function extractSuggestions(content) {
   const match = content?.match(/<!--suggestions:(\[[\s\S]*?\])-->/);
   if (!match) return { clean: content, suggestions: [] };
-  const stripped = content.replace(match[0], '').trimEnd();
+  const stripped = content.replace(/<!--suggestions:\[[\s\S]*?\]-->/g, '').trimEnd();
   try {
     const parsed = JSON.parse(match[1]);
     if (!Array.isArray(parsed)) return { clean: stripped, suggestions: [] };
@@ -823,7 +823,13 @@ export default function ChatBubble({ embedded = false, pageContext = null, initi
   const [activeTool, setActiveTool] = useState(null);
   const [artifacts, setArtifacts] = useState([]);
   const [activeArtifactId, setActiveArtifactId] = useState(null);
+  const [splitPct, setSplitPct] = useState(55); // chat panel percentage
   const inputRef = useRef(null);
+  const activeThreadRef = useRef(null);
+  const containerRef = useRef(null);
+  const splitPctRef = useRef(splitPct);
+  const isDraggingRef = useRef(false);
+  const dragListenersRef = useRef({ onMove: null, onUp: null });
   const { scrollRef, contentRef, scrollToBottom, isAtBottom } = useStickToBottom({ initial: false });
 
   const activeArtifact = useMemo(
@@ -967,6 +973,7 @@ export default function ChatBubble({ embedded = false, pageContext = null, initi
   }, [streaming, sendMessage]);
 
   const handleNewChat = useCallback(() => {
+    activeThreadRef.current = null;
     setMessages([]);
     setThreadId(null);
     setActiveTool(null);
@@ -974,13 +981,32 @@ export default function ChatBubble({ embedded = false, pageContext = null, initi
     setActiveArtifactId(null);
   }, []);
 
-  const handleSwitchThread = useCallback((tid) => {
+  const handleSwitchThread = useCallback(async (tid) => {
+    if (streaming) return;
+    activeThreadRef.current = tid;
     setMessages([]);
     setThreadId(tid);
     setActiveTool(null);
     setArtifacts([]);
     setActiveArtifactId(null);
-  }, []);
+
+    try {
+      const { messages: history } = await getChatHistory(tid);
+      if (activeThreadRef.current !== tid) return; // user switched again
+      if (history?.length) {
+        const cleaned = history.map(msg => {
+          if (msg.role === 'assistant' && msg.content) {
+            const { clean } = extractSuggestions(msg.content);
+            return { ...msg, content: clean };
+          }
+          return msg;
+        });
+        setMessages(cleaned);
+      }
+    } catch {
+      // History unavailable — user can still send new messages in this thread
+    }
+  }, [streaming]);
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -988,6 +1014,43 @@ export default function ChatBubble({ embedded = false, pageContext = null, initi
       handleSend();
     }
   };
+
+  useEffect(() => { splitPctRef.current = splitPct; }, [splitPct]);
+
+  const handleDragStart = useCallback((e) => {
+    e.preventDefault();
+    isDraggingRef.current = true;
+    const startX = e.clientX;
+    const startPct = splitPctRef.current;
+    const container = containerRef.current;
+    if (!container) return;
+    const containerWidth = container.offsetWidth;
+
+    const onMove = (moveEvt) => {
+      if (!isDraggingRef.current) return;
+      const delta = moveEvt.clientX - startX;
+      const newPct = Math.min(80, Math.max(25, startPct + (delta / containerWidth) * 100));
+      setSplitPct(newPct);
+    };
+    const onUp = () => {
+      isDraggingRef.current = false;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    dragListenersRef.current = { onMove, onUp };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }, []);
+
+  // Cleanup drag listeners on unmount
+  useEffect(() => {
+    return () => {
+      isDraggingRef.current = false;
+      const { onMove, onUp } = dragListenersRef.current;
+      if (onMove) document.removeEventListener('mousemove', onMove);
+      if (onUp) document.removeEventListener('mouseup', onUp);
+    };
+  }, []);
 
   if (!open && !embedded) {
     return (
@@ -1019,7 +1082,7 @@ export default function ChatBubble({ embedded = false, pageContext = null, initi
     );
   }
 
-  const showArtifactPanel = activeArtifact && embedded;
+  const hasArtifact = !!activeArtifact;
 
   const chatPanel = (
     <div style={{
@@ -1265,7 +1328,7 @@ export default function ChatBubble({ embedded = false, pageContext = null, initi
   );
 
   return (
-    <div style={{
+    <div ref={containerRef} style={{
       ...(embedded
         ? { width: '100%', height: '100%' }
         : { position: 'fixed', bottom: 24, right: 24, width: activeArtifact ? 860 : 420, height: activeArtifact ? 620 : 560, zIndex: 1000, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }
@@ -1276,48 +1339,51 @@ export default function ChatBubble({ embedded = false, pageContext = null, initi
       flexDirection: 'row',
       border: `1px solid ${palette.gray.light2}`,
       background: '#fff',
-      transition: 'width 0.2s ease, height 0.2s ease',
+      transition: hasArtifact ? 'none' : 'width 0.2s ease, height 0.2s ease',
     }}>
       <style>{markdownStyles}{spinnerKeyframes}</style>
 
       <div style={{
-        flex: showArtifactPanel ? '0 0 55%' : '1 1 100%',
+        flex: hasArtifact ? `0 0 ${splitPct}%` : '1 1 100%',
         minWidth: 0,
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
-        transition: 'flex 0.2s ease',
       }}>
         {chatPanel}
       </div>
 
-      {showArtifactPanel && (
-        <div style={{
-          flex: '0 0 45%',
-          minWidth: 0,
-          height: '100%',
-          overflow: 'hidden',
-        }}>
-          <ArtifactPanel
-            artifact={activeArtifact}
-            onClose={() => setActiveArtifactId(null)}
-          />
-        </div>
-      )}
-
-      {/* Floating artifact panel for non-embedded (popup) mode */}
-      {activeArtifact && !embedded && (
-        <div style={{
-          flex: '0 0 440px',
-          minWidth: 0,
-          height: '100%',
-          overflow: 'hidden',
-        }}>
-          <ArtifactPanel
-            artifact={activeArtifact}
-            onClose={() => setActiveArtifactId(null)}
-          />
-        </div>
+      {hasArtifact && (
+        <>
+          {/* Drag handle */}
+          <div
+            onMouseDown={handleDragStart}
+            style={{
+              width: 6, cursor: 'col-resize', flexShrink: 0,
+              background: palette.gray.light2, position: 'relative',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = palette.green.light1; }}
+            onMouseLeave={e => { e.currentTarget.style.background = palette.gray.light2; }}
+          >
+            <div style={{
+              width: 2, height: 24, borderRadius: 1,
+              background: palette.gray.base, opacity: 0.5,
+            }} />
+          </div>
+          <div style={{
+            flex: `0 0 ${100 - splitPct}%`,
+            minWidth: 0,
+            height: '100%',
+            overflow: 'hidden',
+          }}>
+            <ArtifactPanel
+              artifact={activeArtifact}
+              onClose={() => setActiveArtifactId(null)}
+            />
+          </div>
+        </>
       )}
     </div>
   );

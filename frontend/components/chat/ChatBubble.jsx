@@ -814,7 +814,7 @@ const PROMPT_CATEGORIES = [
 
 // ─── Main component ───────────────────────────────────────────────────────
 
-export default function ChatBubble({ embedded = false, pageContext = null }) {
+export default function ChatBubble({ embedded = false, pageContext = null, initialPrompt = null }) {
   const [open, setOpen] = useState(embedded);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -948,6 +948,15 @@ export default function ChatBubble({ embedded = false, pageContext = null }) {
       setActiveTool(null);
     }
   }, [streaming, threadId, scrollToBottom, pageContext]);
+
+  // Handle external prompt injection from parent (e.g. capability cards)
+  const lastPromptTs = useRef(null);
+  useEffect(() => {
+    if (initialPrompt?.text && initialPrompt.ts !== lastPromptTs.current && !streaming) {
+      lastPromptTs.current = initialPrompt.ts;
+      sendMessage(initialPrompt.text);
+    }
+  }, [initialPrompt, sendMessage, streaming]);
 
   const handleSend = useCallback(() => { sendMessage(input); }, [input, sendMessage]);
 

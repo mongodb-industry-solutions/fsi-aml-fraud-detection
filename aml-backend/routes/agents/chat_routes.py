@@ -1,8 +1,9 @@
 """
 Chat API Routes for the conversational AML/Compliance Assistant.
 
-Endpoint:
-  POST /agents/chat  -- Send a message and receive SSE-streamed response
+Endpoints:
+  POST /agents/chat           -- Send a message and receive SSE-streamed response
+  GET  /agents/chat/history   -- Retrieve conversation history for a thread
 """
 
 import json
@@ -11,7 +12,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from services.agents.chat_agent import get_chat_agent
@@ -32,6 +33,18 @@ def _now() -> str:
 
 def _sse(payload: dict) -> str:
     return f"data: {json.dumps(payload, default=str)}\n\n"
+
+
+def _extract_text_content(content) -> str:
+    """Extract text from a message content field (string or list of blocks)."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(
+            block["text"] for block in content
+            if isinstance(block, dict) and block.get("type") == "text"
+        )
+    return ""
 
 
 def _truncate(text: str, limit: int = MAX_OUTPUT_CHARS) -> str:
@@ -163,3 +176,69 @@ async def chat(request: Dict[str, Any]):
             yield _sse({"type": "done", "thread_id": thread_id, "timestamp": _now()})
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@router.get("/chat/history", dependencies=[Depends(rate_limit_chat)])
+async def get_chat_history(thread_id: str = Query(..., min_length=4, description="Thread ID to retrieve")):
+    """Retrieve conversation history for a thread from the LangGraph checkpoint."""
+    agent = get_chat_agent()
+    config = {"configurable": {"thread_id": thread_id}}
+
+    try:
+        state = await agent.aget_state(config)
+    except Exception as exc:
+        logger.error("Failed to retrieve thread state: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to retrieve thread history")
+
+    if not state or not state.values:
+        return {"messages": [], "thread_id": thread_id}
+
+    messages = []
+    for msg in state.values.get("messages", []):
+        msg_type = getattr(msg, "type", None)
+
+        if msg_type == "human":
+            messages.append({"role": "user", "content": _extract_text_content(msg.content)})
+
+        elif msg_type == "ai":
+            entry = {
+                "role": "assistant",
+                "content": _extract_text_content(msg.content),
+            }
+            if hasattr(msg, "tool_calls") and msg.tool_calls:
+                entry["toolCalls"] = [
+                    {
+                        "id": tc.get("id", ""),
+                        "tool": tc.get("name", ""),
+                        "input": json.dumps(tc.get("args", {}), default=str),
+                        "output": None,
+                    }
+                    for tc in msg.tool_calls
+                ]
+            messages.append(entry)
+
+        elif msg_type == "tool":
+            # Match tool result to the correct tool call by tool_call_id
+            tool_call_id = getattr(msg, "tool_call_id", None)
+            if not messages or not messages[-1].get("toolCalls"):
+                logger.warning("ToolMessage id=%s has no matching AI message in history", tool_call_id)
+            else:
+                matched = False
+                if tool_call_id:
+                    for tc in messages[-1]["toolCalls"]:
+                        if tc.get("id") == tool_call_id and tc["output"] is None:
+                            tc["output"] = _truncate(
+                                msg.content if isinstance(msg.content, str) else json.dumps(msg.content, default=str)
+                            )
+                            matched = True
+                            break
+                # Fallback for legacy checkpoints without tool_call_id
+                if not matched:
+                    for tc in messages[-1]["toolCalls"]:
+                        if tc["output"] is None:
+                            tc["output"] = _truncate(
+                                msg.content if isinstance(msg.content, str) else json.dumps(msg.content, default=str)
+                            )
+                            break
+
+    return {"messages": messages, "thread_id": thread_id}

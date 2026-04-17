@@ -29,20 +29,20 @@ We will walk you through the process of configuring and using [MongoDB Atlas](ht
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [Solution Architecture](docs/SOLUTION_ARCHITECTURE.md) | System architecture diagrams (mermaid) |
-| [Agentic System Overview](docs/AGENTIC_SYSTEM_OVERVIEW.md) | All AI agent capabilities at a glance |
-| [Investigation Pipeline](docs/AGENTIC_INVESTIGATION_PIPELINE.md) | LangGraph SAR pipeline deep-dive |
-| [Copilot Architecture](docs/COPILOT_ARCHITECTURE.md) | ReAct chat agent and artifact system |
-| [Data Model](docs/DATA_MODEL.md) | MongoDB collections, indexes, and schemas |
-| [Fraud Backend](backend/README.md) | Fraud detection API documentation |
-| [AML Backend](aml-backend/README.md) | AML/KYC compliance API documentation |
-| [Frontend](frontend/README.md) | Next.js UI application documentation |
-| [Risk Models](backend/README-RISK-MODEL.md) | Risk model management system |
-| [Vector Search](backend/VECTOR_SEARCH_IMPLEMENTATION.md) | Fraud pattern vector search |
-| [Hybrid Search](aml-backend/HYBRID_SEARCH_SCORE_CALCULATION_INSIGHTS.md) | $rankFusion scoring insights |
-| [Entity Resolution](aml-backend/reference/entity_resolution_implementation.md) | Resolution system design |
+| Document                                                                       | Description                               |
+| ------------------------------------------------------------------------------ | ----------------------------------------- |
+| [Solution Architecture](docs/SOLUTION_ARCHITECTURE.md)                         | System architecture diagrams (mermaid)    |
+| [Agentic System Overview](docs/AGENTIC_SYSTEM_OVERVIEW.md)                     | All AI agent capabilities at a glance     |
+| [Investigation Pipeline](docs/AGENTIC_INVESTIGATION_PIPELINE.md)               | LangGraph SAR pipeline deep-dive          |
+| [Copilot Architecture](docs/COPILOT_ARCHITECTURE.md)                           | ReAct chat agent and artifact system      |
+| [Data Model](docs/DATA_MODEL.md)                                               | MongoDB collections, indexes, and schemas |
+| [Fraud Backend](backend/README.md)                                             | Fraud detection API documentation         |
+| [AML Backend](aml-backend/README.md)                                           | AML/KYC compliance API documentation      |
+| [Frontend](frontend/README.md)                                                 | Next.js UI application documentation      |
+| [Risk Models](backend/README-RISK-MODEL.md)                                    | Risk model management system              |
+| [Vector Search](backend/VECTOR_SEARCH_IMPLEMENTATION.md)                       | Fraud pattern vector search               |
+| [Hybrid Search](aml-backend/HYBRID_SEARCH_SCORE_CALCULATION_INSIGHTS.md)       | $rankFusion scoring insights              |
+| [Entity Resolution](aml-backend/reference/entity_resolution_implementation.md) | Resolution system design                  |
 
 ## Architecture Overview
 
@@ -112,7 +112,6 @@ Before you begin working with this project, ensure that you have the following p
 - **Poetry**: Both backend services use Poetry for dependency management. Install it by following the instructions on the [Poetry website](https://python-poetry.org/docs/#installation).
 
 - **MongoDB Atlas Account**: This project uses MongoDB Atlas for data storage, Atlas Search, and vector search capabilities. If you don't have an account, you can sign up for free at [MongoDB Atlas](https://www.mongodb.com/cloud/atlas/register). Once you have an account, follow these steps to set up a M10 tier cluster:
-
   - Log in to your MongoDB Atlas account.
   - Create a new project or use an existing one, and then click "create a new database".
   - Choose the M10 tier option.
@@ -576,7 +575,6 @@ The [Transaction Synthetic Data Generation notebook](docs/ThreatSight360%20-%20T
   - Device information for device fingerprinting
   - Risk assessments with scores and flags
 - **5 Fraud Patterns** with AWS Bedrock embeddings:
-
   - Account Takeover
   - Card Testing
   - Transaction Laundering
@@ -676,7 +674,6 @@ The Transaction Simulator allows you to test and visualize how the fraud detecti
 2. Select a customer from the dropdown menu.
 
 3. Choose a predefined fraud scenario or configure your own:
-
    - Normal Transaction
    - Unusual Amount
    - Unusual Location
@@ -684,7 +681,6 @@ The Transaction Simulator allows you to test and visualize how the fraud detecti
    - Multiple Red Flags
 
 4. Customize transaction details if needed:
-
    - Transaction type (purchase, withdrawal, transfer, deposit)
    - Payment method
    - Amount
@@ -706,7 +702,7 @@ The Transaction Simulator allows you to test and visualize how the fraud detecti
    - **Multi-factor Risk Scoring**: Comprehensive risk evaluation with detailed explanations
 
 > [!Note]
-> The simulator is a powerful tool for understanding how the system works and for demonstrating the capabilities to stakeholders.
+> The simulator is a powerful tool for understanding how the system works and demonstrating the capabilities to stakeholders.
 
 ### Entity Management Dashboard
 
@@ -715,13 +711,11 @@ The Entity Management interface provides comprehensive AML/KYC capabilities:
 1. Navigate to [http://localhost:3000/entities](http://localhost:3000/entities).
 
 2. Key capabilities include:
-
    - **Advanced Search**: Multi-strategy search with Atlas Search, autocomplete, and faceted filtering
    - **Entity Resolution**: AI-powered fuzzy matching and duplicate detection with vector search during onboarding
    - **Network Visualization**: Interactive relationship graphs using Cytoscape.js
 
 3. Search and filter entities using:
-
    - Name-based fuzzy search with autocomplete
    - Entity type filters (Individual, Organization)
    - Risk level filters (Low, Medium, High, Critical)
@@ -741,24 +735,20 @@ The Enhanced Entity Resolution feature provides a comprehensive 5-step workflow 
 1. Navigate to [http://localhost:3000/entity-resolution/enhanced](http://localhost:3000/entity-resolution/enhanced).
 
 2. **Step 0 - Entity Input**: Enter new entity information using the simplified onboarding form:
-
    - Entity Type (Individual or Organization)
    - Full Name
    - Address
 
 3. **Step 1 - Parallel Search**: The system performs AI-powered search using three methods simultaneously:
-
    - **Atlas Search**: Text-based fuzzy matching on names and addresses
    - **Vector Search**: Semantic similarity analysis using AWS Bedrock AI embeddings
    - **Hybrid Search**: MongoDB $rankFusion combining both approaches with contribution analysis
 
 4. **Step 2 - Network Analysis**: Comprehensive network risk assessment for top 3 hybrid search matches:
-
    - **Relationship Networks**: Graph analysis with depth-2 traversal
    - **Transaction Networks**: Transaction pattern analysis with depth-1 traversal
 
 5. **Step 3 - AI Classification**: LLM-powered entity classification using AWS Bedrock Claude Haiku 4.5:
-
    - **Comprehensive Analysis**: Evaluates entity data, search results, and network analysis
    - **Risk Assessment**: Generates risk scores, confidence levels, and recommended actions
    - **AML/KYC Compliance**: Identifies compliance flags and concerns
@@ -777,7 +767,6 @@ The Agentic Investigations page provides a full-featured control surface for lau
 1. Navigate to [http://localhost:3000/investigations](http://localhost:3000/investigations).
 
 2. The page is organized as a sidebar + workspace layout:
-
    - **Sidebar**: KPI summary (total cases, pending review, filed SARs), status filters, investigation list with risk-colored accent strips, and view toggles (All / Pending / Filed)
    - **Launch**: Select from pre-built demo scenarios (Auto-Close False Positive, Shell Company, PEP) or enter a custom entity ID to start a new investigation
    - **Live Pipeline**: Watch the investigation unfold in real-time via SSE streaming with an interactive ReactFlow pipeline graph that highlights active nodes
@@ -786,7 +775,6 @@ The Agentic Investigations page provides a full-featured control surface for lau
    - **Analytics**: View investigation status distribution, typology counts, and risk score statistics
 
 3. Key UI features:
-
    - **Centralized design tokens** (`investigationTokens.js`) for consistent surfaces, shadows, and transitions
    - **Micro-interactions**: Staggered fade-in animations, hover lift effects, risk-colored accents, progress bar shimmer, and active-node glow on the pipeline graph
    - **Conic-gradient risk ring gauge** for at-a-glance risk score visualization
@@ -803,7 +791,6 @@ The ThreatSight Copilot is a global conversational AI assistant available on eve
 1. Click the chat bubble icon to open the Copilot panel.
 
 2. The Copilot is powered by a **ReAct agent** (LangGraph `create_react_agent`) with access to **15 specialized tools** for AML/KYC analysis:
-
    - **Entity Tools**: `get_entity_profile`, `screen_watchlists`, `search_entities`, `find_similar_entities` (vector search), `compare_entities`, `assess_entity_risk`
    - **Transaction Tools**: `query_entity_transactions`, `trace_fund_flow`, `analyze_temporal_patterns`
    - **Network Tools**: `analyze_entity_network`
@@ -811,7 +798,6 @@ The ThreatSight Copilot is a global conversational AI assistant available on eve
    - **Investigation Tools**: `search_investigations`, `get_investigation_detail`
 
 3. The Copilot supports **rich artifact rendering** in a side panel:
-
    - **Markdown**: Formatted analysis reports and summaries
    - **Mermaid Diagrams**: Visual fund flow graphs, network diagrams, and timelines
    - **Interactive HTML**: Sandboxed HTML previews with Tailwind CSS styling
@@ -834,7 +820,6 @@ The Risk Model Management interface allows administrators to configure and deplo
 2. View and select from available risk models in the system.
 
 3. Key capabilities include:
-
    - **Dynamic Risk Factor Management**: Add or modify risk factors without system changes
    - **Real-Time Updates**: See changes instantly using MongoDB Change Streams
    - **Version Control**: Create and manage multiple versions of risk models
@@ -844,7 +829,6 @@ The Risk Model Management interface allows administrators to configure and deplo
    - **Model Reset Functionality**: Reset models to clean state by removing version 2 models and setting default configurations
 
 4. To create a new risk model:
-
    - Click "Create New Model"
    - Configure basic information (name, description)
    - Add risk factors with appropriate weights and thresholds
@@ -882,7 +866,6 @@ For containerized deployment in production environments:
    ```
 
 4. This will run containers for:
-
    - Frontend (port 3000) -- `docker/Dockerfile.frontend`
    - Fraud Detection Backend (port 8000) -- `Dockerfile.backend`
    - AML/KYC Backend (port 8001) -- `Dockerfile.aml-backend`

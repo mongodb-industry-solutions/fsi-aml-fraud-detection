@@ -2,10 +2,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Tabs, Tab } from '@leafygreen-ui/tabs';
-import Badge from '@leafygreen-ui/badge';
 import Icon from '@leafygreen-ui/icon';
 import Code from '@leafygreen-ui/code';
-import { Body, Subtitle } from '@leafygreen-ui/typography';
+import { Body } from '@leafygreen-ui/typography';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 import { uiTokens } from './investigationTokens';
@@ -13,10 +12,9 @@ import { uiTokens } from './investigationTokens';
 const FONT = uiTokens.font;
 const MONO = uiTokens.monoFont;
 
-// Tab indices used for cross-referencing
-const TAB_AGENTS = 0;
+// Tab indices used for cross-referencing navigation targets.
+// Only LANGGRAPH and MONGODB are referenced — agents and HITL have no inbound chips today.
 const TAB_LANGGRAPH = 1;
-const TAB_HITL = 2;
 const TAB_MONGODB = 3;
 
 // ---------------------------------------------------------------------------
@@ -836,36 +834,45 @@ function MongoDBTab({ highlightedItem, registerRef }) {
 // Main Export
 // ---------------------------------------------------------------------------
 
-export default function PipelineInfoPanel() {
+export default function ArchitectureReferencePanel({ active = true }) {
   const [selectedTab, setSelectedTab] = useState(0);
   const [highlightedItem, setHighlightedItem] = useState(null);
   const itemRefs = useRef({});
 
-  // Clear highlight after 2.5s
+  // Clear highlight after 2.5s — but only while the panel is visible. When the user
+  // navigates away, we pause the timer so they see the highlight on return. The
+  // effect re-fires when `active` flips back to true and starts a fresh 2.5s window.
   useEffect(() => {
-    if (!highlightedItem) return;
+    if (!active || !highlightedItem) return;
     const t = setTimeout(() => setHighlightedItem(null), 2500);
     return () => clearTimeout(t);
-  }, [highlightedItem]);
+  }, [highlightedItem, active]);
 
-  // Scroll to highlighted item on tab change.
-  // Refs populate in the commit phase before this effect runs, so no timeout is needed;
-  // the small delay remains as a defensive buffer in case LG Tabs internals change.
+  // Scroll to highlighted item on tab change. Skipped while panel is hidden
+  // (display: none) — Firefox would otherwise scroll the nearest visible ancestor.
+  // Re-fires when user returns to the panel, re-performing the scroll for demo clarity.
   useEffect(() => {
-    if (!highlightedItem) return;
+    if (!active || !highlightedItem) return;
     const t = setTimeout(() => {
       const el = itemRefs.current[`${selectedTab}:${highlightedItem}`];
       if (el && typeof el.scrollIntoView === 'function') {
+        // Scroll container (panel root) contains the movement so the page viewport
+        // does not jump. 'center' guarantees the target is fully visible.
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }, 80);
     return () => clearTimeout(t);
-  }, [selectedTab, highlightedItem]);
+  }, [selectedTab, highlightedItem, active]);
 
   // Ref map is keyed by `${tabIdx}:${name}` so that items sharing a name across tabs
   // (e.g. MongoDBSaver appears in both LangGraph and MongoDB tabs) do not collide.
   const registerRef = (tabIdx, name, el) => {
-    if (el) itemRefs.current[`${tabIdx}:${name}`] = el;
+    const key = `${tabIdx}:${name}`;
+    if (el) {
+      itemRefs.current[key] = el;
+    } else {
+      delete itemRefs.current[key];
+    }
   };
 
   const navigate = (tabIdx, itemName) => {
@@ -874,38 +881,21 @@ export default function PipelineInfoPanel() {
   };
 
   return (
+    // Scroll container: contains cross-ref chip scrollIntoView() so it moves inside
+    // the panel rather than scrolling the whole page viewport.
     <div style={{
-      padding: spacing[3],
-      background: '#fff',
-      border: `1px solid ${uiTokens.borderDefault}`,
-      borderRadius: 8,
-      boxShadow: uiTokens.shadowCard,
+      // Matches the height budget used by the assistant workspace tab (calc(100vh - 180px)
+      // in InvestigationsPage.jsx) with a small extra margin for safety.
+      maxHeight: 'calc(100vh - 200px)',
+      overflowY: 'auto',
+      paddingRight: spacing[2],
     }}>
-      {/* Header */}
-      <div style={{ marginBottom: spacing[3] }}>
-        <Subtitle style={{ fontFamily: FONT, fontSize: 18, margin: 0, marginBottom: 4 }}>
-          Agentic Investigation Pipeline
-        </Subtitle>
-        <Body style={{ fontSize: 12, fontFamily: FONT, color: palette.gray.dark1, margin: 0 }}>
-          12 AI agents orchestrated by LangGraph, powered by MongoDB — with durable human-in-the-loop review
-        </Body>
-        <div style={{ display: 'flex', gap: 6, marginTop: spacing[2], flexWrap: 'wrap' }}>
-          <Badge variant="blue">LangGraph</Badge>
-          <Badge variant="green">MongoDB</Badge>
-          <Badge variant="red">Human-in-the-Loop</Badge>
-          <Badge variant="purple">Claude on Bedrock</Badge>
-          <Badge variant="yellow">Atlas Search RAG</Badge>
-        </div>
-      </div>
-
-      {/* Hero Stats */}
       <HeroStats />
 
-      {/* Tabbed content */}
       <Tabs
         selected={selectedTab}
         setSelected={setSelectedTab}
-        aria-label="Pipeline information"
+        aria-label="Architecture reference"
       >
         <Tab name="Agent Pipeline">
           <AgentPipelineTab onNavigate={navigate} />

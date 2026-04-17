@@ -15,6 +15,7 @@ import { Spinner } from '@leafygreen-ui/loading-indicator';
 import { launchInvestigation, resumeInvestigation, fetchInvestigableEntities } from '@/lib/agent-api';
 import AgenticPipelineGraph from './AgenticPipelineGraph';
 import InvestigationInsightsPanel from './InvestigationInsightsPanel';
+import PipelineInfoButton from './PipelineInfoModal';
 import { uiTokens } from './investigationTokens';
 
 const FONT = uiTokens.font;
@@ -1887,6 +1888,11 @@ export default function InvestigationLauncher({ onComplete }) {
 
   return (
     <div>
+      {/* Pipeline Info Button */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: spacing[2] }}>
+        <PipelineInfoButton />
+      </div>
+
       {/* Progress Stepper */}
       {(events.length > 0 || running || finalResult) && (
         <div style={{
@@ -1944,31 +1950,10 @@ export default function InvestigationLauncher({ onComplete }) {
       {/* Demo Scenarios */}
       {events.length === 0 && !running && (
         <>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: spacing[2] }}>
+          <div style={{ marginBottom: spacing[2] }}>
             <Subtitle style={{ fontFamily: FONT, margin: 0 }}>
               Investigation Scenarios
             </Subtitle>
-            <details style={{ fontSize: 11, fontFamily: FONT, color: palette.gray.dark1 }}>
-              <summary style={{ cursor: 'pointer', color: palette.blue.base, fontWeight: 500 }}>
-                About this pipeline
-              </summary>
-              <div style={{
-                marginTop: spacing[1], padding: spacing[2], borderRadius: 6,
-                background: palette.gray.light3, border: `1px solid ${palette.gray.light2}`,
-                fontSize: 11, lineHeight: 1.6,
-              }}>
-                <p style={{ margin: '0 0 6px' }}>
-                  <strong>MongoDB + LangGraph:</strong> <code>MongoDBSaver</code> checkpoints durable agent state for
-                  human-in-the-loop pause/resume, the flexible document model stores evolving evidence without schema
-                  migrations, and <code>$graphLookup</code> powers real-time network traversal.
-                </p>
-                <p style={{ margin: 0 }}>
-                  <strong>Event-Driven Trigger:</strong> In production, a Change Stream on <code>alerts</code> watches
-                  for new alerts. When <code>db.alerts.insertOne()</code> fires, triage starts automatically. This demo
-                  simulates that flow.
-                </p>
-              </div>
-            </details>
           </div>
           <Body style={{ fontSize: '12px', color: palette.gray.dark1, fontFamily: FONT, marginBottom: spacing[2] }}>
             Select a scenario category, then click to cycle through entity variants. Each category tests a different investigation path.

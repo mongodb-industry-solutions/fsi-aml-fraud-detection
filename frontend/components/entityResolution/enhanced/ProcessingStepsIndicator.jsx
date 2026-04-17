@@ -114,7 +114,7 @@ const PROCESSING_STEPS = {
     {
       id: 'bedrock_connection',
       title: 'AWS Bedrock Connection',
-      description: 'Connecting to AWS Bedrock Claude-3 Sonnet model',
+      description: 'Connecting to AWS Bedrock Claude Haiku 4.5 model',
       icon: 'Cloud',
       estimatedTime: 800
     },
@@ -166,7 +166,7 @@ const PROCESSING_STEPS = {
     {
       id: 'llm_summary_generation',
       title: 'LLM Summary Generation',
-      description: 'Generating professional investigation summary using Claude-3 Sonnet',
+      description: 'Generating professional investigation summary using Claude Haiku 4.5',
       icon: 'Bulb',
       estimatedTime: 15000  // Main LLM processing step
     },

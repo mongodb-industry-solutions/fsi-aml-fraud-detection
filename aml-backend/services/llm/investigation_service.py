@@ -144,7 +144,7 @@ class InvestigationService:
             "investigation": {
                 "summary": llm_summary,
                 "createdAt": datetime.utcnow().isoformat(),
-                "model": "claude-3-sonnet"
+                "model": "claude-haiku-4.5"
             },
             
             # Case metrics
@@ -226,7 +226,7 @@ Address: {entity_input.get('address', 'Not provided')}
 - Risk Level: {classification_result.get('overall_risk_level', 'unknown')}
 - Recommended Action: {classification_result.get('recommended_action', 'review')}
 - Confidence: {classification_result.get('confidence_score', 0)}%
-- Model Used: {streaming_metadata.get('model_used', 'claude-3-sonnet')}
+- Model Used: {streaming_metadata.get('model_used', 'claude-haiku-4.5')}
 - Analysis Duration: {streaming_metadata.get('total_time', 0):.1f}s
 
 INSTRUCTIONS:
@@ -295,7 +295,7 @@ Write in professional compliance language suitable for case documentation."""
                 modelId=os.getenv(
                     "LLM_MODEL_ARN",
                     "arn:aws:bedrock:us-east-1:275662791714:"
-                    "inference-profile/global.anthropic.claude-haiku-4-5-20251001-v1:0",
+                    "application-inference-profile/x432h1swrb25",
                 ),
                 body=json.dumps(request_body),
                 contentType="application/json"

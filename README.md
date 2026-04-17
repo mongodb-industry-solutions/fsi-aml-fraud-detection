@@ -17,7 +17,7 @@ By the end of this guide, you'll have a comprehensive fraud detection and AML/KY
 
 - **Real-time Fraud Detection**: Multi-factor risk assessment with AI-powered pattern recognition
 - **Intelligent Entity Resolution**: AI-powered fuzzy matching and duplicate detection for AML/KYC compliance
-- **LLM-Powered Classification**: AWS Bedrock Claude-3 Sonnet for automated entity risk assessment
+- **LLM-Powered Classification**: AWS Bedrock Claude Haiku 4.5 for automated entity risk assessment
 - **Agentic SAR Investigation Pipeline**: Multi-agent LangGraph pipeline that autonomously investigates AML alerts, performs parallel data gathering, typology classification, network and temporal analysis, sub-investigations, and generates FinCEN-compliant SAR narratives with human-in-the-loop review
 - **ThreatSight Copilot**: ReAct agent with fund flow tracing, temporal analysis, entity similarity search, and rich artifact rendering (Markdown, Mermaid diagrams, interactive HTML) for analyst-driven exploration
 - **Automated Case Investigation**: AI-generated investigation reports and case documentation
@@ -57,7 +57,7 @@ ThreatSight 360 uses a **dual-backend microservices architecture**:
 
 - **Entity Management**: Comprehensive individual and organization entity management with Customer 360 view possible due to the [MongoDB Document Model](https://www.mongodb.com/docs/manual/core/data-modeling-introduction/)
 - **Intelligent Entity Resolution**: [MongoDB Atlas Search](https://www.mongodb.com/docs/atlas/atlas-search/) fuzzy matching and duplicate detection
-- **LLM Classification Service**: AWS Bedrock Claude-3 Sonnet for entity risk assessment
+- **LLM Classification Service**: AWS Bedrock Claude Haiku 4.5 for entity risk assessment
 - **Agentic Investigation Pipeline**: [LangGraph](https://langchain-ai.github.io/langgraph/)-orchestrated multi-agent SAR investigation system with `MongoDBSaver` checkpointing, parallel `Send` fan-out, and `interrupt()`-based human review
 - **ThreatSight Copilot**: ReAct agent with 15 tools for fund flow tracing, temporal analysis, entity similarity, and lead expansion with rich artifact rendering
 - **Investigation Service**: Automated case investigation and report generation
@@ -757,7 +757,7 @@ The Enhanced Entity Resolution feature provides a comprehensive 5-step workflow 
    - **Relationship Networks**: Graph analysis with depth-2 traversal
    - **Transaction Networks**: Transaction pattern analysis with depth-1 traversal
 
-5. **Step 3 - AI Classification**: LLM-powered entity classification using AWS Bedrock Claude-3 Sonnet:
+5. **Step 3 - AI Classification**: LLM-powered entity classification using AWS Bedrock Claude Haiku 4.5:
 
    - **Comprehensive Analysis**: Evaluates entity data, search results, and network analysis
    - **Risk Assessment**: Generates risk scores, confidence levels, and recommended actions

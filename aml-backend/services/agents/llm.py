@@ -2,8 +2,7 @@
 LLM configuration for the agentic investigation pipeline.
 
 The model is controlled by the LLM_MODEL_ARN env var and defaults to
-Haiku 4.5 (fast + cheap, good for demos).  Set LLM_MODEL_ARN to the
-Sonnet ARN for higher-quality output when needed.
+Haiku 4.5 via a tagged application inference profile.
 """
 
 import os
@@ -14,16 +13,12 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 
 logger = logging.getLogger(__name__)
 
-_SONNET_ARN = (
+_DEFAULT_ARN = (
     "arn:aws:bedrock:us-east-1:275662791714:"
-    "application-inference-profile/n5kazy9gif2u"
-)
-_HAIKU_ARN = (
-    "arn:aws:bedrock:us-east-1:275662791714:"
-    "inference-profile/global.anthropic.claude-haiku-4-5-20251001-v1:0"
+    "application-inference-profile/x432h1swrb25"
 )
 
-_MODEL_ARN = os.getenv("LLM_MODEL_ARN", _HAIKU_ARN)
+_MODEL_ARN = os.getenv("LLM_MODEL_ARN", _DEFAULT_ARN)
 
 _llm_instance: ChatBedrockConverse | None = None
 

@@ -137,7 +137,7 @@ function StreamingClassificationInterface({ workflowData, onComplete, onError, o
           ...prev,
           phase: 'prompt_ready',
           prompt: data.prompt,
-          model: data.model || 'claude-sonnet-4'
+          model: data.model || 'claude-haiku-4.5'
         }));
         break;
         
@@ -303,7 +303,7 @@ function StreamingClassificationInterface({ workflowData, onComplete, onError, o
           workflowDataRef.current,
           eventHandlerRef.current,
           {
-            model_preference: 'claude-sonnet-4',
+            model_preference: 'claude-haiku-4.5',
             analysis_depth: 'comprehensive',
             signal: abortControllerRef.current.signal
           }
@@ -1294,7 +1294,7 @@ function RawResponseDisplay({ rawText, responseLength = 0 }) {
       </div>
       
       <Body style={{ marginBottom: spacing[4], color: palette.gray.dark1, fontSize: '15px', lineHeight: 1.6 }}>
-        Complete unprocessed response from Claude-3 Sonnet for transparency and debugging.
+        Complete unprocessed AI response for transparency and debugging.
       </Body>
       
       <div style={{

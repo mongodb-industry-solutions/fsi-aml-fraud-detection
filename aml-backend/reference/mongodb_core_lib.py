@@ -7,6 +7,7 @@ from pymongo import MongoClient, UpdateOne, InsertOne, DeleteOne
 from pymongo.errors import BulkWriteError
 from datetime import datetime, timedelta
 import asyncio
+import os
 from dataclasses import dataclass, field
 from enum import Enum
 import json
@@ -474,11 +475,14 @@ class AIVectorSearch:
     def __init__(self, collection: Union[AsyncIOMotorCollection, Any],
                  bedrock_client: Optional[boto3.client] = None,
                  embedding_model: str = "amazon.titan-embed-text-v1",
-                 llm_model: str = "anthropic.claude-v2"):
+                 llm_model: str = None):
         self.collection = collection
         self.bedrock = bedrock_client or self._create_bedrock_client()
         self.embedding_model = embedding_model
-        self.llm_model = llm_model
+        self.llm_model = llm_model or os.getenv(
+            "LLM_MODEL_ARN",
+            "arn:aws:bedrock:us-east-1:275662791714:application-inference-profile/x432h1swrb25",
+        )
     
     def _create_bedrock_client(self):
         """Create a properly configured bedrock client with SSO and region handling"""

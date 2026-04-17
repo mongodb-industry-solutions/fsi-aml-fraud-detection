@@ -16,6 +16,7 @@ import InvestigationDetail from './InvestigationDetail';
 import AgenticPipelineGraph from './AgenticPipelineGraph';
 import InvestigationAnalytics from './InvestigationAnalytics';
 import ChangeStreamConsole from './ChangeStreamConsole';
+import ArchitectureReferencePanel from './ArchitectureReferencePanel';
 import ChatBubble from '@/components/chat/ChatBubble';
 import { uiTokens, getRiskAccentColor, GLOBAL_KEYFRAMES } from './investigationTokens';
 
@@ -120,8 +121,9 @@ const WORKSPACE_TABS = [
   { key: 'launcher', icon: 'Play', label: 'Launch' },
   { key: 'detail', icon: 'File', label: 'Case' },
   { key: 'analytics', icon: 'Charts', label: 'Analytics' },
-  { key: 'assistant', icon: 'Wizard', label: 'Copilot' },
+  { key: 'assistant', icon: 'AIModel', label: 'Copilot' },
   { key: 'pipeline', icon: 'Diagram3', label: 'Pipeline' },
+  { key: 'architecture', icon: 'University', label: 'Architecture' },
 ];
 
 function StatusBadge({ status }) {
@@ -136,6 +138,7 @@ function getContextualSubtitle(activeView, selectedCase) {
     case 'analytics': return 'Pipeline metrics and investigation analytics';
     case 'assistant': return 'Investigate entities, trace fund flows, and generate reports with ThreatSight';
     case 'pipeline': return 'LangGraph multi-agent architecture';
+    case 'architecture': return '12 LangGraph agents powered by MongoDB, with durable human-in-the-loop review';
     default: return '';
   }
 }
@@ -854,6 +857,12 @@ export default function InvestigationsPage() {
               </aside>
             </div>
           )}
+          {/* Keep Architecture panel mounted across workspace tab switches so user's
+              sub-tab selection, highlight state, and scroll position are preserved.
+              The `active` prop lets the panel pause timers/scroll effects while hidden. */}
+          <div style={{ display: activeView === 'architecture' ? 'block' : 'none' }}>
+            <ArchitectureReferencePanel active={activeView === 'architecture'} />
+          </div>
           {activeView === 'pipeline' && (
             <Card style={{ padding: spacing[3], height: '100%', minHeight: 600 }}>
               <div style={{
@@ -882,43 +891,6 @@ export default function InvestigationsPage() {
         </section>
       </div>
 
-      {/* Powered by MongoDB — feature chips */}
-      <div style={{
-        marginTop: spacing[3], padding: `${spacing[2]}px ${spacing[3]}px`,
-        background: palette.gray.light3, borderRadius: 8,
-        display: 'flex', alignItems: 'center', gap: spacing[3],
-        flexWrap: 'wrap',
-      }}>
-        <div style={{
-          fontSize: uiTokens.captionSize, fontWeight: 700, fontFamily: FONT, color: palette.gray.dark1,
-          letterSpacing: '0.08em', textTransform: 'uppercase',
-          whiteSpace: 'nowrap',
-        }}>
-          Powered by MongoDB
-        </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: 1 }}>
-          {[
-            { label: 'MongoDBSaver', desc: 'Durable agent state', bg: '#F3E8FF', fg: '#6B21A8', border: '#DDD6FE' },
-            { label: '$graphLookup', desc: 'Network traversal', bg: palette.blue.light3, fg: palette.blue.dark1, border: palette.blue.light2 },
-            { label: 'Atlas Search', desc: 'RAG retrieval', bg: palette.yellow.light3, fg: palette.yellow.dark2, border: palette.yellow.light2 },
-            { label: 'Document Model', desc: 'Flexible storage', bg: palette.green.light3, fg: palette.green.dark2, border: palette.green.light1 },
-            { label: 'Aggregation', desc: 'Evidence analysis', bg: '#e8f5e9', fg: palette.green.dark2, border: palette.green.light1 },
-            { label: 'Change Streams', desc: 'Real-time updates', bg: palette.green.light3, fg: palette.green.dark1, border: palette.green.light1 },
-          ].map(chip => (
-            <span key={chip.label} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              fontSize: uiTokens.captionSize, fontFamily: FONT, fontWeight: 500,
-              padding: '4px 10px', borderRadius: 6,
-              background: chip.bg, color: chip.fg,
-              border: `1px solid ${chip.border}`,
-              whiteSpace: 'nowrap',
-            }}>
-              <span style={{ fontWeight: 700, fontFamily: uiTokens.monoFont, fontSize: 10 }}>{chip.label}</span>
-              <span style={{ color: chip.fg, opacity: 0.7 }}>{chip.desc}</span>
-            </span>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

@@ -16,6 +16,7 @@ import InvestigationDetail from './InvestigationDetail';
 import AgenticPipelineGraph from './AgenticPipelineGraph';
 import InvestigationAnalytics from './InvestigationAnalytics';
 import ChangeStreamConsole from './ChangeStreamConsole';
+import PipelineInfoPanel from './PipelineInfoModal';
 import ChatBubble from '@/components/chat/ChatBubble';
 import { uiTokens, getRiskAccentColor, GLOBAL_KEYFRAMES } from './investigationTokens';
 
@@ -120,8 +121,9 @@ const WORKSPACE_TABS = [
   { key: 'launcher', icon: 'Play', label: 'Launch' },
   { key: 'detail', icon: 'File', label: 'Case' },
   { key: 'analytics', icon: 'Charts', label: 'Analytics' },
-  { key: 'assistant', icon: 'Wizard', label: 'Copilot' },
+  { key: 'assistant', icon: 'AIModel', label: 'Copilot' },
   { key: 'pipeline', icon: 'Diagram3', label: 'Pipeline' },
+  { key: 'architecture', icon: 'Wizard', label: 'Architecture Reference' },
 ];
 
 function StatusBadge({ status }) {
@@ -136,6 +138,7 @@ function getContextualSubtitle(activeView, selectedCase) {
     case 'analytics': return 'Pipeline metrics and investigation analytics';
     case 'assistant': return 'Investigate entities, trace fund flows, and generate reports with ThreatSight';
     case 'pipeline': return 'LangGraph multi-agent architecture';
+    case 'architecture': return 'Agent roster, LangGraph features, HITL mechanics, and MongoDB capabilities';
     default: return '';
   }
 }
@@ -853,6 +856,9 @@ export default function InvestigationsPage() {
                 </Card>
               </aside>
             </div>
+          )}
+          {activeView === 'architecture' && (
+            <PipelineInfoPanel />
           )}
           {activeView === 'pipeline' && (
             <Card style={{ padding: spacing[3], height: '100%', minHeight: 600 }}>

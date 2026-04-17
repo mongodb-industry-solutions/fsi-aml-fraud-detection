@@ -144,7 +144,14 @@ class InvestigationService:
             "investigation": {
                 "summary": llm_summary,
                 "createdAt": datetime.utcnow().isoformat(),
-                "model": "claude-haiku-4.5"
+                # Source the model label from the actual classification run so audit
+                # metadata reflects the resolved LLM_MODEL_ARN rather than a hardcoded string.
+                "model": (
+                    streaming_metadata.get("model_used")
+                    or classification.get("classification_model")
+                    or os.getenv("LLM_MODEL_ARN")
+                    or "unknown"
+                )
             },
             
             # Case metrics

@@ -1294,7 +1294,7 @@ function RawResponseDisplay({ rawText, responseLength = 0 }) {
       </div>
       
       <Body style={{ marginBottom: spacing[4], color: palette.gray.dark1, fontSize: '15px', lineHeight: 1.6 }}>
-        Complete unprocessed response from Claude Haiku 4.5 for transparency and debugging.
+        Complete unprocessed AI response for transparency and debugging.
       </Body>
       
       <div style={{

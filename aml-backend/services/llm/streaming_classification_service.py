@@ -155,7 +155,11 @@ class StreamingClassificationService:
             })
             
             # Parse and structure the LLM response
-            structured_result = self._parse_classification_response(full_response, workflow_data)
+            structured_result = self._parse_classification_response(
+                full_response, workflow_data,
+                model_id=model_id, model_preference=model_preference,
+                analysis_depth=analysis_depth,
+            )
             
             # Validate result structure
             self._validate_classification_result(structured_result)
@@ -597,7 +601,6 @@ Provide your complete analysis in this exact JSON structure (ALL fields required
     "Detailed recommendation 2 with timeline and responsible party",
     "Additional recommendation 3 with success criteria"
   ],
-  "classification_model": "streaming_claude_haiku_4_5_comprehensive",
   "classification_timestamp": "{datetime.utcnow().isoformat()}"
 }}
 
@@ -626,7 +629,10 @@ Provide risk assessment in JSON format with: overall_risk_level, risk_score, con
 Search results: {len(search_results.get('hybridResults', []))} matches found.
 Provide JSON with: risk_level, risk_score, recommended_action."""
     
-    def _parse_classification_response(self, response_text: str, workflow_data: dict) -> dict:
+    def _parse_classification_response(self, response_text: str, workflow_data: dict,
+                                       model_id: Optional[str] = None,
+                                       model_preference: Optional[str] = None,
+                                       analysis_depth: Optional[str] = None) -> dict:
         """Parse and structure LLM response into classification result with robust error handling"""
         try:
             logger.info(f"Attempting to parse classification response of {len(response_text)} characters")
@@ -649,7 +655,11 @@ Provide JSON with: risk_level, risk_score, recommended_action."""
             parsed_result = json.loads(json_text)
             
             # Validate and structure the result with comprehensive defaults
-            structured_result = self._structure_classification_result(parsed_result, response_text)
+            structured_result = self._structure_classification_result(
+                parsed_result, response_text,
+                model_id=model_id, model_preference=model_preference,
+                analysis_depth=analysis_depth,
+            )
             
             logger.info(f"Successfully parsed classification response: {structured_result['overall_risk_level']} risk")
             return structured_result
@@ -684,7 +694,10 @@ Provide JSON with: risk_level, risk_score, recommended_action."""
         
         return None
     
-    def _structure_classification_result(self, parsed_result: dict, response_text: str) -> dict:
+    def _structure_classification_result(self, parsed_result: dict, response_text: str,
+                                         model_id: Optional[str] = None,
+                                         model_preference: Optional[str] = None,
+                                         analysis_depth: Optional[str] = None) -> dict:
         """Structure and validate the parsed classification result"""
         # Helper function to safely convert to float
         def safe_float(value, default=0.0):
@@ -716,7 +729,9 @@ Provide JSON with: risk_level, risk_score, recommended_action."""
             'key_risk_factors': safe_list(parsed_result.get('key_risk_factors')),
             'detailed_analysis': safe_dict(parsed_result.get('detailed_analysis')),
             'recommendations': safe_list(parsed_result.get('recommendations')),
-            'classification_model': 'streaming_claude_haiku_4_5_v1.0',
+            'classification_model': model_id or model_preference or 'unknown',
+            'classification_model_preference': model_preference,
+            'analysis_depth': analysis_depth,
             'classification_timestamp': datetime.utcnow().isoformat(),
             'streaming_enabled': True,
             'parsing_successful': True,

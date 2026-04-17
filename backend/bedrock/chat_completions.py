@@ -24,15 +24,17 @@ class BedrockAnthropicChatCompletions(BedrockClient):
     log: logging.Logger = logging.getLogger("BedrockAnthropicChatCompletions")
 
     def __init__(self, aws_access_key: Optional[str] = None, aws_secret_key: Optional[str] = None,
-                 region_name: Optional[str] = "eu-west-3", model_id: Optional[str] = None) -> None:
-        super().__init__(aws_access_key=aws_access_key, aws_secret_key=aws_secret_key, region_name=region_name)
+                 region_name: Optional[str] = None, model_id: Optional[str] = None) -> None:
+        resolved_region = region_name or os.getenv("AWS_REGION") or "us-east-1"
+        super().__init__(aws_access_key=aws_access_key, aws_secret_key=aws_secret_key, region_name=resolved_region)
         """
         Initialize the BedrockAnthropicChatCompletions class.
-        
+
         Args:
             aws_access_key (str): The AWS access key.
             aws_secret_key (str): The AWS secret key.
-            region_name (str): The AWS region name.
+            region_name (str): The AWS region name. Defaults to AWS_REGION env var, then us-east-1
+                to stay consistent with the default LLM_MODEL_ARN region.
             model_id (str): The model ID to use. Only accepts Anthropic Claude models.
             bedrock_client (BedrockClient): The BedrockClient instance.
         """
@@ -78,7 +80,7 @@ class BedrockAnthropicChatCompletions(BedrockClient):
 
         except (ClientError, Exception) as e:
             self.log.error(
-                f"ERROR: Can't invoke '{self.text_model}'. Reason: {e}")
+                f"ERROR: Can't invoke '{self.model_id}'. Reason: {e}")
             exit(1)
 
         # Decode the response body.

@@ -15,7 +15,6 @@ import { Spinner } from '@leafygreen-ui/loading-indicator';
 import { launchInvestigation, resumeInvestigation, fetchInvestigableEntities } from '@/lib/agent-api';
 import AgenticPipelineGraph from './AgenticPipelineGraph';
 import InvestigationInsightsPanel from './InvestigationInsightsPanel';
-import PipelineInfoButton from './PipelineInfoModal';
 import { uiTokens } from './investigationTokens';
 
 const FONT = uiTokens.font;
@@ -1888,11 +1887,6 @@ export default function InvestigationLauncher({ onComplete }) {
 
   return (
     <div>
-      {/* Pipeline Info Button */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: spacing[2] }}>
-        <PipelineInfoButton />
-      </div>
-
       {/* Progress Stepper */}
       {(events.length > 0 || running || finalResult) && (
         <div style={{

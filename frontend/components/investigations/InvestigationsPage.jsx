@@ -121,7 +121,7 @@ const WORKSPACE_TABS = [
   { key: 'launcher', icon: 'Play', label: 'Launch' },
   { key: 'detail', icon: 'File', label: 'Case' },
   { key: 'analytics', icon: 'Charts', label: 'Analytics' },
-  { key: 'assistant', icon: 'AIModel', label: 'Copilot' },
+  { key: 'assistant', icon: 'Sparkle', label: 'Copilot' },
   { key: 'pipeline', icon: 'Diagram3', label: 'Pipeline' },
   { key: 'architecture', icon: 'University', label: 'Architecture' },
 ];

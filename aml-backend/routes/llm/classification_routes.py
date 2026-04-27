@@ -77,7 +77,7 @@ async def classify_entity_streaming(
         "searchResults": {...},
         "networkAnalysis": {...}
       },
-      "model_preference": "claude-sonnet-4",
+      "model_preference": "claude-haiku-4.5",
       "analysis_depth": "comprehensive"
     }
     ```
@@ -113,7 +113,7 @@ async def classify_entity_streaming(
             )
         
         # Extract optional parameters
-        model_preference = request.get("model_preference", "claude-sonnet-4")
+        model_preference = request.get("model_preference", "claude-haiku-4.5")
         analysis_depth = request.get("analysis_depth", "comprehensive")
         
         entity_name = workflow_data.get("entityInput", {}).get("fullName", "Unknown")
@@ -194,10 +194,7 @@ async def streaming_classification_health():
                 "error_transparency"
             ],
             "supported_models": [
-                "claude-sonnet-4",
-                "claude-3.5-sonnet-v2",
-                "claude-3-sonnet",
-                "claude-3-haiku"
+                "claude-haiku-4.5"
             ],
             "analysis_depths": [
                 "basic",
@@ -272,7 +269,7 @@ async def get_streaming_capabilities():
         },
         "technical_architecture": {
             "streaming_protocol": "Server-Sent Events (SSE)",
-            "ai_model": "AWS Bedrock Claude-3 Sonnet",
+            "ai_model": "AWS Bedrock Claude Haiku 4.5",
             "response_format": "JSON structured results",
             "cancellation": "Supported via AbortController",
             "fallback": "Automatic fallback when AI processing fails"

@@ -830,7 +830,7 @@ export const amlAPI = {
    * @param {Object} workflowData - Complete workflow data from entity resolution steps 0-2
    * @param {Function} onStreamEvent - Event handler for streaming updates
    * @param {Object} options - Configuration options
-   * @param {string} options.model_preference - AWS Bedrock model (default: claude-3-sonnet)
+   * @param {string} options.model_preference - AWS Bedrock model (default: claude-haiku-4.5)
    * @param {string} options.analysis_depth - Analysis depth: basic, standard, comprehensive
    * @param {AbortSignal} options.signal - AbortController signal for cancellation
    * @returns {Promise<Object>} Final classification result when streaming completes
@@ -841,7 +841,7 @@ export const amlAPI = {
     options = {}
   ) {
     const {
-      model_preference = 'claude-3-sonnet',
+      model_preference = 'claude-haiku-4.5',
       analysis_depth = 'comprehensive',
       signal = null,
     } = options;

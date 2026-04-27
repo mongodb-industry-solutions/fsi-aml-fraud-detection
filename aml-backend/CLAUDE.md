@@ -6,6 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is the **AML/KYC Backend** component of ThreatSight 360, a financial fraud detection system with dual-backend microservices architecture. This backend (port 8001) handles Anti-Money Laundering (AML) and Know Your Customer (KYC) compliance operations including entity management, intelligent entity resolution, and network analysis.
 
+## Related Documentation
+
+- [AML Backend README](README.md) -- Full API documentation and setup guide
+- [Solution Architecture](../docs/SOLUTION_ARCHITECTURE.md) -- System architecture diagrams
+- [Agentic System Overview](../docs/AGENTIC_SYSTEM_OVERVIEW.md) -- All AI agent capabilities
+- [Investigation Pipeline](../docs/AGENTIC_INVESTIGATION_PIPELINE.md) -- LangGraph SAR pipeline deep-dive
+- [Copilot Architecture](../docs/COPILOT_ARCHITECTURE.md) -- ReAct chat agent
+- [Data Model](../docs/DATA_MODEL.md) -- MongoDB collections, indexes, and schemas
+
 ## Commands for Development
 
 ### Environment Setup
@@ -15,31 +24,6 @@ poetry install
 
 # Start development server (port 8001)
 poetry run uvicorn main:app --host 0.0.0.0 --port 8001 --reload
-
-# Or use Makefile commands from project root
-make setup_aml    # Install dependencies
-make dev_aml      # Start development server
-```
-
-### Testing Commands
-```bash
-# Test MongoDB connectivity and entity operations
-make test_mongodb
-
-# Test AML API endpoints
-make test_aml_api
-
-# Test entity resolution and Atlas Search functionality
-make test_entity_resolution
-
-# Test all AML backend functionality
-make test_aml_all
-```
-
-### Linting and Formatting
-```bash
-make lint_aml     # Run basic Python linting
-make format_aml   # Format code with black
 ```
 
 ## Architecture Patterns

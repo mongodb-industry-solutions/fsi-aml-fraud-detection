@@ -75,7 +75,7 @@ steps:
     image: public.ecr.aws/kanopy/drone-helm:v3
     settings:
       chart: mongodb/web-app
-      chart_version: 4.25.0
+      chart_version: 4.30.0
       add_repos: [mongodb=https://10gen.github.io/helm-charts]
       namespace: industrysolutions
       release: fsi-fraud-detection
@@ -86,6 +86,9 @@ steps:
         # Ingress configuration
         - 'ingress.enabled=true'
         - 'ingress.hosts[0]=fsi-fraud-detection.industrysolutions.staging.corp.mongodb.com'
+        # WebSocket support via nginx ingress
+        - 'ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-read-timeout="3600"'
+        - 'ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-send-timeout="3600"'
         # Service mesh
         - 'mesh.enabled=true'
         # Resource limits for frontend
@@ -194,7 +197,7 @@ steps:
     image: public.ecr.aws/kanopy/drone-helm:v3
     settings:
       chart: mongodb/web-app
-      chart_version: 4.25.0
+      chart_version: 4.30.0
       add_repos: [mongodb=https://10gen.github.io/helm-charts]
       namespace: industrysolutions
       release: fsi-fraud-detection-prod
@@ -205,6 +208,9 @@ steps:
         # Ingress configuration
         - 'ingress.enabled=true'
         - 'ingress.hosts[0]=fsi-fraud-detection.industrysolutions.prod.corp.mongodb.com'
+        # WebSocket support via nginx ingress
+        - 'ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-read-timeout="3600"'
+        - 'ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-send-timeout="3600"'
         # Service mesh
         - 'mesh.enabled=true'
         # Resource limits for frontend

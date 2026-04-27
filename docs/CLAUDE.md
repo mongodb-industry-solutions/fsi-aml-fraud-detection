@@ -10,38 +10,35 @@ ThreatSight 360 is a comprehensive financial fraud detection system with a **dua
 - **AML Backend** (port 8001): AML/KYC compliance, entity resolution, network analysis  
 - **Frontend** (port 3000): Next.js 15+ with MongoDB LeafyGreen UI components
 
+## Project Documentation
+
+See the full documentation index in the root [README.md](../README.md#documentation), or jump directly to:
+
+- [Solution Architecture](SOLUTION_ARCHITECTURE.md) -- Mermaid architecture diagrams
+- [Agentic System Overview](AGENTIC_SYSTEM_OVERVIEW.md) -- All AI agent capabilities
+- [Investigation Pipeline](AGENTIC_INVESTIGATION_PIPELINE.md) -- LangGraph SAR pipeline
+- [Copilot Architecture](COPILOT_ARCHITECTURE.md) -- ReAct chat agent
+- [Data Model](DATA_MODEL.md) -- MongoDB collections, indexes, and schemas
+- [Fraud Backend](../backend/README.md) -- Fraud detection API
+- [AML Backend](../aml-backend/README.md) -- AML/KYC compliance API
+- [Frontend](../frontend/README.md) -- Next.js UI application
+
 ## Essential Development Commands
 
 ### Quick Start
 ```bash
 # Install Poetry (if needed)
-make install_poetry
+curl -sSL https://install.python-poetry.org | python3 -
 
 # Setup all components
-make setup_all
+cd backend && poetry install && cd ..
+cd aml-backend && poetry install && cd ..
+cd frontend && npm install && cd ..
 
-# Start all services in development
-make dev_all
-
-# Or start individual services
-make dev_fraud      # Main backend (port 8000)
-make dev_aml        # AML backend (port 8001)  
-make dev_frontend   # Frontend (port 3000)
-```
-
-### Testing Commands
-```bash
-# Test MongoDB connectivity
-make test_mongodb
-
-# Test AML API endpoints  
-make test_aml_api
-
-# Test entity resolution
-make test_entity_resolution
-
-# Run all tests
-make test_all
+# Start all services in development (in separate terminals)
+cd backend && poetry run uvicorn main:app --reload --port 8000       # Terminal 1
+cd aml-backend && poetry run uvicorn main:app --reload --port 8001   # Terminal 2
+cd frontend && npm run dev                                            # Terminal 3
 ```
 
 ### Frontend Commands
@@ -57,7 +54,7 @@ npm start      # Production server (after build)
 ```bash
 cd backend  # or cd aml-backend
 poetry install                                      # Install dependencies
-poetry run uvicorn main:app --reload --port 8000  # Development server
+poetry run uvicorn main:app --reload --port 8000    # Development server (8000 for fraud, 8001 for AML)
 ```
 
 ## Architecture & Code Structure
@@ -79,10 +76,26 @@ poetry run uvicorn main:app --reload --port 8000  # Development server
     - `ParallelSearchInterface.jsx`: Displays Atlas, Vector, and Hybrid search results with expandable query details
     - `NetworkVisualizationCard.jsx`: Network analysis and relationship visualization
   
+- `components/investigations/`: Agentic investigation UI
+  - `investigationTokens.js`: Centralized design tokens (`uiTokens`, `getRiskAccentColor`, `GLOBAL_KEYFRAMES`)
+  - `InvestigationsPage.jsx`: Sidebar + workspace layout with KPI summary, filters, investigation list
+  - `InvestigationLauncher.jsx`: Demo scenarios, SSE progress, pipeline graph, human review
+  - `InvestigationDetail.jsx`: Case detail with tab navigation, risk ring gauge, analysis cards
+  - `AgenticPipelineGraph.jsx`: ReactFlow pipeline visualization with dot grid canvas and node glow
+  - `ChangeStreamConsole.jsx`: Collapsible MongoDB Change Stream monitor
+
+- `components/chat/`: ThreatSight Copilot UI
+  - `ArtifactPanel.jsx`: Side panel for typed artifacts (Markdown, Mermaid, HTML) with sandboxed iframe preview for HTML
+
 - `lib/`: API client libraries
   - `aml-api.js`: AML backend integration (port 8001)
+  - `agent-api.js`: Agentic investigation API (shared `readSSEStream` helper, AbortSignal support, SSE streaming, CRUD, seed, analytics)
+  - `artifact-utils.js`: Artifact type constants (`ARTIFACT_TYPES`), labels/icons/colors/extensions, `downloadArtifact`, `copyToClipboard`
   - `enhanced-entity-resolution-api.js`: Enhanced resolution API client
   - `mongodb.js`: Direct MongoDB connection
+
+- `public/`: Static assets
+  - `artifact-sandbox.html`: Isolated preview document with CSP and Tailwind for safe HTML artifact rendering
 
 **Frontend State Management:**
 - React hooks (useState, useEffect)
@@ -122,6 +135,58 @@ poetry run uvicorn main:app --reload --port 8000  # Development server
 - Fluent aggregation builder pattern
 - Connection pooling and management
 - Graph operations utilities
+
+### Agentic Investigation Pipeline
+
+**LangGraph-based multi-agent pipeline** for automated AML investigations. See `docs/AGENTIC_INVESTIGATION_PIPELINE.md` for full architecture docs.
+
+**Core Modules (`services/agents/`):**
+- `graph.py`: LangGraph `StateGraph` wiring, `MongoDBSaver` checkpointer, `MongoDBStore` memory, `interrupt_before` for human review
+- `state.py`: `InvestigationState` TypedDict with custom reducers (`_merge_dicts`, `_append_only`)
+- `llm.py`: `ChatBedrockConverse` singleton (`get_llm()`), `get_model_id()` for audit logging, `invoke_with_retry()` with tenacity retry (3 attempts, exponential backoff)
+- `tracing.py`: `InvestigationTracingHandler` (`BaseCallbackHandler`) for structured JSON logging of LLM/tool calls. Wired via `config["callbacks"]` at graph invocation
+- `rate_limit.py`: Sliding-window in-memory rate limiter for `/investigate` and `/chat` endpoints. Configurable via `RATE_LIMIT_INVESTIGATE` and `RATE_LIMIT_CHAT` env vars
+- `memory.py`: `MongoDBStore` for cross-investigation learning (wired into graph compilation)
+- `chat_agent.py`: ReAct chat co-pilot with 15 tools
+- `artifact_parser.py`: Streaming XML parser for `<artifact>` tags in LLM output; emits SSE events (`artifact_start`, `artifact_delta`, `artifact_end`)
+- `truncation.py`: JSON-safe `truncate_payload()` for shrinking evidence payloads with preserve-key priority and ordered drop strategy
+- `prompts.py`: Centralized system prompts for all agent nodes
+- `seed.py`: Seeds `typology_library` (12 docs) and `compliance_policies` (6 docs)
+
+**Pipeline Nodes (`services/agents/nodes/`):**
+- `triage.py` → `data_gatherer.py` → `network_analyst.py` / `temporal_analyst.py` → `trail_follower.py` → `sub_investigator.py` → `narrative.py` → `validator.py` → `human_review.py` → `finalize.py`
+- All LLM-calling nodes use `invoke_with_retry()` for resilience and `get_model_id()` for accurate audit logging
+- All LLM-calling nodes guard `llm_result["parsed"]` against `None` with fallback Pydantic instances and logger warnings (validator fallback routes to `human_review`)
+- `data_gatherer.py`: Uses `Send` for parallel fan-out, `_fetch_with_trace` has try/except error handling
+- `validator.py`: `MAX_VALIDATION_LOOPS = 2`, uses `>` guard (allows 2 full LLM passes before forced escalation)
+- `human_review.py`: Placeholder node; actual pause is via `interrupt_before=["human_review"]` at compile time
+
+**Tools (`services/agents/tools/`):**
+- `entity_tools.py`, `transaction_tools.py`, `network_tools.py`: MongoDB queries via sync PyMongo
+- `policy_tools.py`: `$regex` + `$or` server-side queries (not full-collection scans), with empty query guard
+- `chat_tools.py`: 8 additional tools for the chat co-pilot
+
+**Routes (`routes/agents/`):**
+- `investigation_routes.py`: SSE streaming, CRUD, analytics, search, WebSocket change streams. Uses `asyncio.to_thread()` for sync LangGraph/PyMongo calls
+- `chat_routes.py`: Chat SSE streaming with artifact event forwarding via `ArtifactStreamParser`
+- Both routes include rate limiting via `Depends()` and tracing callbacks
+
+**Frontend (`frontend/lib/agent-api.js`):**
+- Shared `readSSEStream()` helper for SSE parsing (DRY across 3 functions)
+- `AbortSignal` support on `launchInvestigation`, `resumeInvestigation`, `sendChatMessage`
+
+**Key Patterns:**
+- `Command`-based dynamic routing (triage, validator)
+- `Send` API for parallel fan-out (data gathering, sub-investigations)
+- `interrupt_before` at compile time for durable human-in-the-loop
+- Resume via `graph.update_state(config, value, as_node="human_review")` then `graph.astream(None, config)`
+- `_append_only` reducer for immutable audit trail
+- Pydantic `with_structured_output()` for all LLM responses
+
+**Environment Variables (agent-specific):**
+- `LLM_MODEL_ARN`: Override default Haiku 4.5 model ARN
+- `RATE_LIMIT_INVESTIGATE`: Max investigate requests per 60s (default: 10)
+- `RATE_LIMIT_CHAT`: Max chat requests per 60s (default: 30)
 
 ## Enhanced Entity Resolution Implementation
 
@@ -258,6 +323,41 @@ if (bidirectional) {
 }
 ```
 
+## Investigation UI Design System
+
+The Agentic Investigations page uses a centralized design token module (`components/investigations/investigationTokens.js`) to maintain visual consistency across all investigation components.
+
+**Design Tokens (`uiTokens`):**
+- `railBg`, `surface1`: Surface colors for sidebar and cards
+- `borderDefault`, `borderStrong`: Border hierarchy from `@leafygreen-ui/palette`
+- `shadowHover`, `shadowSelected`, `shadowCard`, `shadowElevated`: Elevation levels
+- `transitionFast` (150ms), `transitionMedium` (220ms): CSS transitions with `cubic-bezier(0.33, 1, 0.68, 1)` easing
+- `font`, `monoFont`: Typography stacks
+
+**Risk Accent Helper (`getRiskAccentColor(score)`):**
+- Returns `palette.red.base` for score >= 75, `#ed6c02` for >= 50, `palette.yellow.base` for >= 25, `palette.green.base` otherwise
+- Used for investigation list card left borders, risk ring gauges, and analysis section accents
+
+**CSS Keyframes (`GLOBAL_KEYFRAMES`):**
+- `fadeSlideIn`: Staggered card/list entry animation
+- `shimmerBar`: Progress bar shimmer overlay
+- `attentionPulse`: Human review panel header pulse
+- `dotPulse`, `nodePulse`: Active state indicators for timeline dots and graph nodes
+- `subtlePulse`, `shimmerText`: Loading and status indicators
+- Includes `@media (prefers-reduced-motion: reduce)` for accessibility
+
+**Styling Patterns:**
+- All investigation components use inline styles referencing `uiTokens` — no CSS modules
+- Risk-colored 3px left accent borders on list cards and analysis sections
+- Segmented controls for status filters and view toggles
+- Conic-gradient ring gauge for risk score visualization in `InvestigationDetail`
+- ReactFlow graph uses dot grid canvas (`radial-gradient`), `drop-shadow` on nodes, and `nodePulse` animation on active nodes
+
+**Key Dependencies:**
+- `@leafygreen-ui/palette` and `@leafygreen-ui/tokens` for color and spacing primitives
+- `@xyflow/react` (ReactFlow) for pipeline graph visualization
+- No animation libraries — all animations are CSS-only via `@keyframes`
+
 ## Environment Variables
 
 ```bash
@@ -279,6 +379,11 @@ TRANSACTION_VECTOR_INDEX=transaction_vector_index
 # Server Configuration
 BACKEND_URL=http://localhost:8000
 AML_BACKEND_URL=http://localhost:8001
+
+# Agentic Pipeline (optional overrides)
+LLM_MODEL_ARN=arn:aws:bedrock:...    # Override default Haiku 4.5 model
+RATE_LIMIT_INVESTIGATE=10             # Max investigation requests per 60s
+RATE_LIMIT_CHAT=30                    # Max chat requests per 60s
 ```
 
 ## Common Development Patterns

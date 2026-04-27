@@ -55,6 +55,16 @@ sidecarContainers:
           secretKeyRef:
             name: fsi-fraud-detection-secrets
             key: DB_NAME
+      - name: LLM_MODEL_ARN
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-secrets
+            key: LLM_MODEL_ARN
+      - name: EMBEDDINGS_MODEL_ARN
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-secrets
+            key: EMBEDDINGS_MODEL_ARN
 
   # AML/KYC Backend (port 8001)
   - name: aml-backend
@@ -114,6 +124,16 @@ sidecarContainers:
           secretKeyRef:
             name: fsi-fraud-detection-secrets
             key: TRANSACTION_VECTOR_INDEX
+      - name: LLM_MODEL_ARN
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-secrets
+            key: LLM_MODEL_ARN
+      - name: EMBEDDINGS_MODEL_ARN
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-secrets
+            key: EMBEDDINGS_MODEL_ARN
 
 # Service Account with IRSA for AWS Bedrock access
 serviceAccount:
@@ -121,3 +141,12 @@ serviceAccount:
   irsa:
     accountId: '275662791714'
     roleName: 'kanopy-prod-cicd-irsa'
+
+# Kanopy security and ownership (requires web-app chart v4.30.0+)
+security:
+  dataClassification: "Internal"
+  dataDesignation:
+    - "MI"
+
+ownership:
+  driEmail: mehar.grewal@mongodb.com

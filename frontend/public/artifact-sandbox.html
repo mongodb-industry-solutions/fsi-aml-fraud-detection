@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self' 'unsafe-inline' blob: data:;
+                 script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.tailwindcss.com https://d3js.org https://unpkg.com;
+                 style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com;
+                 connect-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.tailwindcss.com https://d3js.org https://unpkg.com;
+                 font-src 'self' https://cdn.jsdelivr.net https://fonts.googleapis.com https://fonts.gstatic.com;
+                 img-src 'self' data: blob:;" />
+  <title>Artifact Sandbox</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #fff;
+      color: #1a1a2e;
+      overflow: auto;
+    }
+    #root { min-height: 100%; }
+    .sandbox-error {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      padding: 16px;
+      color: #991b1b;
+      font-size: 13px;
+      white-space: pre-wrap;
+      font-family: 'SF Mono', Monaco, monospace;
+    }
+    .sandbox-loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 200px;
+      color: #6b7280;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"><div class="sandbox-loading">Initializing...</div></div>
+
+  <script>
+    (function () {
+      var root = document.getElementById('root');
+
+      function showError(msg) {
+        root.innerHTML = '<div class="sandbox-error">' +
+          msg.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
+        window.parent.postMessage({ type: 'sandbox_error', message: msg }, '*');
+      }
+
+      function renderHTML(code) {
+        root.innerHTML = code;
+
+        // Separate external (src) and inline scripts — externals must load first
+        var scripts = Array.from(root.querySelectorAll('script'));
+        var externalScripts = [];
+        var inlineScripts = [];
+
+        scripts.forEach(function (oldScript) {
+          var newScript = document.createElement('script');
+          Array.from(oldScript.attributes).forEach(function (attr) {
+            newScript.setAttribute(attr.name, attr.value);
+          });
+          newScript.textContent = oldScript.textContent;
+          oldScript.parentNode.removeChild(oldScript);
+
+          if (newScript.src) {
+            externalScripts.push(newScript);
+          } else {
+            inlineScripts.push(newScript);
+          }
+        });
+
+        // Load external scripts sequentially, then run inline scripts
+        function loadNext(idx) {
+          if (idx >= externalScripts.length) {
+            // All externals loaded — now execute inline scripts
+            inlineScripts.forEach(function (s) { root.appendChild(s); });
+            return;
+          }
+          var script = externalScripts[idx];
+          script.onload = function () { loadNext(idx + 1); };
+          script.onerror = function () {
+            console.warn('Failed to load external script:', script.src);
+            loadNext(idx + 1); // continue with remaining scripts
+          };
+          document.head.appendChild(script);
+        }
+
+        loadNext(0);
+      }
+
+      window.addEventListener('message', function (event) {
+        if (event.source !== window.parent) return;
+        var data = event.data;
+        if (!data || !data.type) return;
+
+        if (data.type === 'render') {
+          try {
+            if (data.artifactType === 'text/html') {
+              renderHTML(data.code);
+              window.parent.postMessage({ type: 'rendered' }, '*');
+            } else {
+              showError('Unsupported artifact type: ' + data.artifactType);
+            }
+          } catch (err) {
+            showError('Render error:\n' + err.message +
+              (err.stack ? '\n\n' + err.stack.split('\n').slice(0, 4).join('\n') : ''));
+          }
+        }
+      });
+
+      window.parent.postMessage({ type: 'sandbox_ready' }, '*');
+    })();
+  </script>
+</body>
+</html>

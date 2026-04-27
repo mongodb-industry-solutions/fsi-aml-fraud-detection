@@ -69,3 +69,10 @@ For detailed demo instructions, see [RISK_MODEL_MANAGEMENT_IMPLEMENTATION.md](./
 5. Navigate to Risk Model Management page in the application
 
 For detailed implementation information, see [RISK_MODEL_MANAGEMENT_IMPLEMENTATION.md](./RISK_MODEL_MANAGEMENT_IMPLEMENTATION.md)
+
+## Related Documentation
+
+- [Fraud Backend README](README.md) -- Full fraud backend documentation
+- [Vector Search Implementation](VECTOR_SEARCH_IMPLEMENTATION.md) -- Vector search deep-dive
+- [Solution Architecture](../docs/SOLUTION_ARCHITECTURE.md) -- System architecture diagrams
+- [Data Model](../docs/DATA_MODEL.md) -- MongoDB collections and indexes

@@ -587,6 +587,19 @@ EXPOSE 8001
 CMD ["poetry", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
 ```
 
+## Related Documentation
+
+- [Root README](../README.md) -- Full project overview and setup
+- [Solution Architecture](../docs/SOLUTION_ARCHITECTURE.md) -- System architecture diagrams
+- [Agentic System Overview](../docs/AGENTIC_SYSTEM_OVERVIEW.md) -- All AI agent capabilities
+- [Investigation Pipeline](../docs/AGENTIC_INVESTIGATION_PIPELINE.md) -- LangGraph SAR pipeline deep-dive
+- [Copilot Architecture](../docs/COPILOT_ARCHITECTURE.md) -- ReAct chat agent and artifact system
+- [Data Model](../docs/DATA_MODEL.md) -- MongoDB collections, indexes, and schemas
+- [Fraud Backend](../backend/README.md) -- Companion fraud detection service
+- [Frontend](../frontend/README.md) -- Next.js UI application
+- [Hybrid Search Scoring](HYBRID_SEARCH_SCORE_CALCULATION_INSIGHTS.md) -- $rankFusion score calculation
+- [Entity Resolution](reference/entity_resolution_implementation.md) -- Entity resolution system design
+
 ## Additional Resources
 
 - [MongoDB Atlas Search Documentation](https://www.mongodb.com/docs/atlas/atlas-search/)

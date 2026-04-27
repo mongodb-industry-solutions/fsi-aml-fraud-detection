@@ -77,6 +77,20 @@ except ImportError as e:
     llm_classification_router = None
     llm_investigation_router = None
 
+# Agent investigation routes
+try:
+    from .agents.investigation_routes import router as agent_investigation_router
+except ImportError as e:
+    print(f"Warning: Could not import agent investigation routes: {e}")
+    agent_investigation_router = None
+
+# Agent chat routes
+try:
+    from .agents.chat_routes import router as agent_chat_router
+except ImportError as e:
+    print(f"Warning: Could not import agent chat routes: {e}")
+    agent_chat_router = None
+
 __all__ = [
     "core_entities_router",
     "core_entity_resolution_router", 
@@ -90,5 +104,7 @@ __all__ = [
     "enhanced_resolution_router",
     "transactions_router",
     "llm_classification_router",
-    "llm_investigation_router"
+    "llm_investigation_router",
+    "agent_investigation_router",
+    "agent_chat_router",
 ]

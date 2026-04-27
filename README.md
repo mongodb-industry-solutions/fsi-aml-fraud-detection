@@ -13,13 +13,22 @@ In today's rapidly evolving financial landscape, detecting fraudulent transactio
 
 ThreatSight 360 addresses these challenges with real-time risk assessment, AI-powered pattern recognition, intelligent entity resolution, and comprehensive compliance operations.
 
+> **What's new in v3 — Now with Agentic Investigations**
+>
+> - **Autonomous SAR investigations** powered by 6 specialized LangGraph agents: Triage → Case Analyst → Trail Follower → Sub-Investigator → SAR Author → Compliance QA
+> - **Durable Human-in-the-Loop** via `interrupt_before` checkpoints and `MongoDBSaver` — analysts resume hours or days later with zero context loss
+> - **ThreatSight Copilot** — a global, conversational ReAct agent with 15 MongoDB-backed tools and rich artifact rendering (Markdown, Mermaid, sandboxed HTML)
+> - **Live pipeline visualization** — ReactFlow graph with SSE-streamed node activations, animated `Send` fan-out, and stacked sub-agent satellites
+> - **Compliance-grade narrative grounding** — Atlas Search RAG over typology library + FinCEN policy corpus
+> - **Powered by Claude Haiku 4.5** on AWS Bedrock with `with_structured_output()` for type-safe agent decisions
+
 By the end of this guide, you'll have a comprehensive fraud detection and AML/KYC compliance system up and running capable of:
 
 - **Real-time Fraud Detection**: Multi-factor risk assessment with AI-powered pattern recognition
 - **Intelligent Entity Resolution**: AI-powered fuzzy matching and duplicate detection for AML/KYC compliance
 - **LLM-Powered Classification**: AWS Bedrock Claude Haiku 4.5 for automated entity risk assessment
-- **Agentic SAR Investigation Pipeline**: Multi-agent LangGraph pipeline that autonomously investigates AML alerts, performs parallel data gathering, typology classification, network and temporal analysis, sub-investigations, and generates FinCEN-compliant SAR narratives with human-in-the-loop review
-- **ThreatSight Copilot**: ReAct agent with fund flow tracing, temporal analysis, entity similarity search, and rich artifact rendering (Markdown, Mermaid diagrams, interactive HTML) for analyst-driven exploration
+- **Agentic SAR Investigation Pipeline**: 6-agent LangGraph pipeline (Triage, Case Analyst, Trail Follower, Sub-Investigator, SAR Author, Compliance QA) that autonomously investigates AML alerts — parallel data gathering, typology classification, network + temporal analysis, lead-driven sub-investigations, FinCEN-compliant SAR narratives, and durable human-in-the-loop review
+- **ThreatSight Copilot**: ReAct agent with 15 tools spanning fund flow tracing, temporal analysis, entity similarity, network intelligence, and policy/typology lookup — with rich artifact rendering (Markdown, Mermaid diagrams, interactive HTML) for analyst-driven exploration
 - **Automated Case Investigation**: AI-generated investigation reports and case documentation
 - **Network Analysis**: Relationship mapping and graph analytics for compliance investigations
 - **Vector-based Pattern Recognition**: Advanced similarity matching using MongoDB Atlas Vector Search
@@ -58,7 +67,7 @@ ThreatSight 360 uses a **dual-backend microservices architecture**:
 - **Entity Management**: Comprehensive individual and organization entity management with Customer 360 view possible due to the [MongoDB Document Model](https://www.mongodb.com/docs/manual/core/data-modeling-introduction/)
 - **Intelligent Entity Resolution**: [MongoDB Atlas Search](https://www.mongodb.com/docs/atlas/atlas-search/) fuzzy matching and duplicate detection
 - **LLM Classification Service**: AWS Bedrock Claude Haiku 4.5 for entity risk assessment
-- **Agentic Investigation Pipeline**: [LangGraph](https://langchain-ai.github.io/langgraph/)-orchestrated multi-agent SAR investigation system with `MongoDBSaver` checkpointing, parallel `Send` fan-out, and `interrupt()`-based human review
+- **Agentic Investigation Pipeline**: [LangGraph](https://langchain-ai.github.io/langgraph/)-orchestrated 6-agent SAR investigation system (Triage → Case Analyst → Trail Follower → Sub-Investigator → SAR Author → Compliance QA) with `MongoDBSaver` checkpointing, parallel `Send` fan-out for fetch tools and sub-agents, and durable `interrupt_before`-based human review
 - **ThreatSight Copilot**: ReAct agent with 15 tools for fund flow tracing, temporal analysis, entity similarity, and lead expansion with rich artifact rendering
 - **Investigation Service**: Automated case investigation and report generation
 - **Network Analysis**: Relationship and transaction graph traversal analytics using [MongoDB $graphLookup](https://www.mongodb.com/docs/manual/reference/operator/aggregation/graphLookup/)
@@ -96,7 +105,7 @@ The AML/entity resolution flow showcases:
 
 - **Entity Management**: Handles entity onboarding and exploration
 - **Entity Resolution Engine**: Performs embedding generation via AWS Bedrock, finds similar/duplicate entities using Vector Search or Hybrid Search, and analyzes transaction and relationship networks
-- **Advanced Search Capabilities**: Leverages MongoDB's Graph Traversal for relationship analysis and AI Risk Classification via Claude Sonnet 4
+- **Advanced Search Capabilities**: Leverages MongoDB's Graph Traversal for relationship analysis and AI Risk Classification via Claude Haiku 4.5
 - **MongoDB Collections**: Manages entities, transactions, and relationships data
 
 ### Agentic Investigation Pipeline
@@ -783,7 +792,7 @@ The Agentic Investigations page provides a full-featured control surface for lau
 2. The page is organized as a sidebar + workspace layout:
    - **Sidebar**: KPI summary (total cases, pending review, filed SARs), status filters, investigation list with risk-colored accent strips, and view toggles (All / Pending / Filed)
    - **Launch**: Select from pre-built demo scenarios (Auto-Close False Positive, Shell Company, PEP) or enter a custom entity ID to start a new investigation
-   - **Live Pipeline**: Watch the investigation unfold in real-time via SSE streaming with an interactive ReactFlow pipeline graph that highlights active nodes
+   - **Live Pipeline**: Watch the investigation unfold in real-time via SSE streaming with an interactive ReactFlow pipeline graph — agent-to-agent main spine with tool/sub-agent satellites (animated `Send` fan-out for Triage's 4 fetch tools, Case Analyst's network + temporal analyst tools, and Trail Follower's stacked Sub-Investigator (×N) sub-agent card)
    - **Human Review**: When the pipeline pauses at the human review gate, approve, reject, or request changes before the case is finalized
    - **Investigation Detail**: Drill into any completed case to view the triage decision, typology classification, network and temporal analysis, sub-investigation findings, full SAR narrative, validation result, and immutable audit trail
    - **Analytics**: View investigation status distribution, typology counts, and risk score statistics

@@ -21,16 +21,18 @@ const FONT = uiTokens.font;
 const AGENT_TO_NODE = {
   triage: 'triage',
   auto_close: 'autoClose',
-  data_gathering: 'dataGathering',
+  // Data gathering is now visually owned by Triage — backend dispatcher events highlight Triage.
+  data_gathering: 'triage',
   fetch_entity_profile: 'fetchEntity',
   fetch_transactions: 'fetchTxn',
   fetch_network: 'fetchNetwork',
   fetch_watchlist: 'fetchWatchlist',
-  assemble_case: 'assembleCase',
+  assemble_case: 'caseAnalyst',
   network_analyst: 'networkAnalyst',
   temporal_analyst: 'temporalAnalyst',
   trail_follower: 'trailFollower',
-  mini_investigate: ['miniInvest1', 'miniInvest2', 'miniInvest3'],
+  // Mini-investigations are now collapsed into a single ×N sub-agent card.
+  mini_investigate: 'subInvestigator',
   sub_investigation_dispatch: 'trailFollower',
   dispatch_sub_investigations: 'trailFollower',
   narrative: 'narrative',
@@ -403,12 +405,78 @@ function WorkflowNode({ data }) {
   );
 }
 
+function SubAgentNode({ data }) {
+  const [hovered, setHovered] = useState(false);
+  const execState = data.executionState;
+  const accentColor = data.color || palette.purple.base;
+  const count = data.count || 'N';
+
+  const borderTopColor = execState === 'active' ? palette.blue.base
+    : execState === 'completed' ? palette.green.dark1
+    : accentColor;
+
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: execBgColor(execState),
+        borderRadius: 8, padding: 0, minWidth: 150,
+        textAlign: 'center', fontFamily: FONT,
+        // Stacked-shadow effect to convey "deck of N parallel sub-agents"
+        boxShadow: execState === 'active'
+          ? `0 0 0 4px ${palette.blue.light2}, 5px 5px 0 -1px ${palette.purple.light2}, 9px 9px 0 -2px ${palette.purple.light3}, 0 3px 12px rgba(0,0,0,0.1)`
+          : `5px 5px 0 -1px ${palette.purple.light2}, 9px 9px 0 -2px ${palette.purple.light3}, 0 1px 4px rgba(0,0,0,0.06)`,
+        filter: 'drop-shadow(0 2px 6px rgba(20, 23, 26, 0.06))',
+        transition: 'all 0.3s ease',
+        position: 'relative',
+        border: `1px solid ${execState === 'active' ? palette.blue.light1 : palette.gray.light2}`,
+        borderTop: `4px solid ${borderTopColor}`,
+        opacity: execState === 'pending' ? 0.5 : 1,
+        animation: execState === 'active' ? 'nodePulse 2s ease-in-out infinite' : 'none',
+        overflow: 'visible',
+      }}
+    >
+      <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
+      <Handle type="target" position={Position.Left} id="left" style={{ opacity: 0 }} />
+      <div style={{
+        display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4,
+        padding: '4px 12px 2px', background: `${accentColor}0A`,
+      }}>
+        <TypeBadge label="SUB-AGENT" bg={`${accentColor}18`} color={accentColor} />
+        <span style={{
+          fontSize: 8, fontFamily: "'Source Code Pro', monospace", fontWeight: 700,
+          padding: '0 5px', borderRadius: 3,
+          background: accentColor, color: '#fff', letterSpacing: '0.3px',
+        }}>
+          ×{count}
+        </span>
+      </div>
+      <div style={{ padding: '6px 14px 10px' }}>
+        <div style={{ fontSize: 15, marginBottom: 2 }}>{data.icon}</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: palette.gray.dark3 }}>
+          {data.label}
+        </div>
+        {data.subtitle && (
+          <div style={{ fontSize: 9, color: palette.gray.dark1, marginTop: 2 }}>
+            {data.subtitle}
+          </div>
+        )}
+      </div>
+      {execState === 'completed' && <CompletedBadge />}
+      {hovered && data.tooltip && <Tooltip text={data.tooltip} />}
+      <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
+    </div>
+  );
+}
+
 const NODE_TYPES = {
   terminal: TerminalNode,
   agent: AgentNode,
   compute: ComputeNode,
   worker: WorkerNode,
   workflow: WorkflowNode,
+  subAgent: SubAgentNode,
 };
 
 // ---------------------------------------------------------------------------
@@ -427,6 +495,7 @@ const INITIAL_NODES = [
     position: { x: CX, y: 0 },
     data: { label: 'Alert\nInput', color: palette.green.dark2 },
   },
+  // ── Tier 1: Triage + 4 fetch tool satellites ───────────────────────────
   {
     id: 'triage', type: 'agent',
     position: { x: CX - 30, y: 80 },
@@ -434,106 +503,90 @@ const INITIAL_NODES = [
       label: 'Triage Agent', icon: '🔍', color: palette.blue.base,
       subtitle: 'TriageDecision \u2192 Command',
       mongoBadge: 'MongoDBSaver',
-      tooltip: 'LLM risk scoring with contextual reasoning. MongoDBSaver checkpoints the decision, enabling Command routing.',
+      tooltip: 'LLM risk scoring + dispatches parallel data-gathering tools (entity, transactions, network, watchlist) via the Send API.',
     },
   },
   {
+    id: 'fetchEntity', type: 'worker',
+    position: { x: 40, y: 80 },
+    data: { label: 'Fetch Entity', icon: '👤', mongoBadge: 'findOne()' },
+  },
+  {
+    id: 'fetchTxn', type: 'worker',
+    position: { x: 40, y: 175 },
+    data: { label: 'Fetch Txns', icon: '💳', mongoBadge: 'aggregate()' },
+  },
+  {
+    id: 'fetchWatchlist', type: 'worker',
+    position: { x: 520, y: 80 },
+    data: { label: 'Fetch Watchlist', icon: '🛡', mongoBadge: 'find()' },
+  },
+  {
+    id: 'fetchNetwork', type: 'worker',
+    position: { x: 520, y: 175 },
+    data: { label: 'Fetch Network', icon: '🕸', mongoBadge: '$graphLookup' },
+  },
+  {
     id: 'autoClose', type: 'workflow',
-    position: { x: 20, y: 195 },
+    position: { x: 20, y: 290 },
     data: {
       label: 'Auto-Close', icon: '\u2717', color: palette.gray.dark1,
       subtitle: 'False Positive',
       tooltip: 'Risk < 25, no watchlist hits. Sets status to closed_false_positive \u2014 no LLM, no computation.',
     },
   },
+  // ── Tier 2: Case Analyst + 2 analyst tool satellites ──────────────────
   {
-    id: 'dataGathering', type: 'workflow',
-    position: { x: CX - 30, y: 250 },
-    data: {
-      label: 'Data Gathering', icon: '📊', color: palette.purple.base,
-      subtitle: 'Send API Fan-out',
-      tooltip: 'Orchestration dispatcher. Uses LangGraph Send to fan-out 4 parallel tool workers. No LLM \u2014 just routing.',
-    },
-  },
-  {
-    id: 'fetchEntity', type: 'worker',
-    position: { x: 50, y: 370 },
-    data: { label: 'Fetch Entity', icon: '👤', mongoBadge: 'findOne()' },
-  },
-  {
-    id: 'fetchTxn', type: 'worker',
-    position: { x: 195, y: 370 },
-    data: { label: 'Fetch Txns', icon: '💳', mongoBadge: 'aggregate()' },
-  },
-  {
-    id: 'fetchNetwork', type: 'worker',
-    position: { x: 355, y: 370 },
-    data: { label: 'Fetch Network', icon: '🕸', mongoBadge: '$graphLookup' },
-  },
-  {
-    id: 'fetchWatchlist', type: 'worker',
-    position: { x: 510, y: 370 },
-    data: { label: 'Fetch Watchlist', icon: '🛡', mongoBadge: 'find()' },
-  },
-  {
-    id: 'assembleCase', type: 'agent',
-    position: { x: CX - 30, y: 480 },
+    id: 'caseAnalyst', type: 'agent',
+    position: { x: CX - 30, y: 290 },
     data: {
       label: 'Case Analyst Agent', icon: '📁', color: palette.green.dark2,
       subtitle: 'LLM \u2192 CaseFile + TypologyResult',
-      mongoBadge: 'Document Model + Atlas Search',
-      tooltip: 'Fan-in node. LLM synthesizes gathered evidence into a 360\u00b0 CaseFile and classifies typology. RAG over typology_library via Atlas Search.',
+      mongoBadge: 'Atlas Search RAG',
+      tooltip: 'Synthesizes gathered evidence into a 360\u00b0 CaseFile, classifies AML typology, and invokes Network + Temporal analyst tools to enrich the case.',
     },
   },
   {
-    id: 'networkAnalyst', type: 'compute',
-    position: { x: CX - 160, y: 590 },
+    id: 'networkAnalyst', type: 'worker',
+    position: { x: 40, y: 410 },
     data: {
-      label: 'Network Analyst', icon: '🔗', color: palette.yellow.dark2,
-      subtitle: 'Centrality + Risk Scoring',
+      label: 'Network Analyst', icon: '🔗',
       mongoBadge: '$graphLookup',
-      tooltip: 'Pure compute \u2014 no LLM. Computes degree centrality and network risk via $graphLookup. Runs in PARALLEL with Temporal Analyst.',
     },
   },
   {
-    id: 'temporalAnalyst', type: 'compute',
-    position: { x: CX + 110, y: 590 },
+    id: 'temporalAnalyst', type: 'worker',
+    position: { x: 520, y: 410 },
     data: {
-      label: 'Temporal Analyst', icon: '\u23F1', color: palette.yellow.dark2,
-      subtitle: 'Structuring + Velocity + Dormancy',
-      tools: ['temporal_analysis'],
+      label: 'Temporal Analyst', icon: '\u23F1',
       mongoBadge: '$setWindowFields',
-      tooltip: 'Pure compute \u2014 no LLM. Detects structuring, velocity spikes, round-trip flows, dormancy bursts via MongoDB aggregation.',
     },
   },
+  // ── Tier 3: Trail Follower + Sub-Investigator (×N) ────────────────────
   {
     id: 'trailFollower', type: 'agent',
-    position: { x: CX - 30, y: 700 },
+    position: { x: CX - 30, y: 530 },
     data: {
       label: 'Trail Follower Agent', icon: '🔎', color: palette.blue.dark2,
-      subtitle: 'Conditional LLM Lead Selection',
+      subtitle: 'Lead Selection \u2192 Send Fan-out',
       mongoBadge: '$graphLookup',
-      tooltip: 'LLM analyses network + temporal results to rank and select top suspicious entities for sub-investigation.',
+      tooltip: 'LLM ranks suspicious leads from the enriched case file and dispatches parallel mini-investigations via the Send API.',
     },
   },
   {
-    id: 'miniInvest1', type: 'worker',
-    position: { x: 50, y: 800 },
-    data: { label: 'Mini-Investigate', icon: '🔬', mongoBadge: 'parallel workers' },
+    id: 'subInvestigator', type: 'subAgent',
+    position: { x: 510, y: 530 },
+    data: {
+      label: 'Sub-Investigator', icon: '🔬', color: palette.purple.base,
+      subtitle: 'Parallel mini-investigation',
+      count: 'N',
+      tooltip: 'One LLM sub-agent per lead. Each runs 4 tool calls + 1 LLM synthesis \u2192 LeadAssessment. Fan-out via LangGraph Send API.',
+    },
   },
-  {
-    id: 'miniInvest2', type: 'worker',
-    position: { x: CX - 30, y: 800 },
-    data: { label: 'Mini-Investigate', icon: '🔬', mongoBadge: 'parallel workers' },
-  },
-  {
-    id: 'miniInvest3', type: 'worker',
-    position: { x: 510, y: 800 },
-    data: { label: 'Mini-Investigate', icon: '🔬', mongoBadge: 'parallel workers' },
-  },
+  // ── Tier 4+: Spine continues ───────────────────────────────────────────
   {
     id: 'narrative', type: 'agent',
-    position: { x: CX - 30, y: 895 },
+    position: { x: CX - 30, y: 670 },
     data: {
       label: 'SAR Author Agent', icon: '📝', color: palette.green.dark1,
       subtitle: 'RAG \u2192 SARNarrative (5Ws)',
@@ -543,16 +596,16 @@ const INITIAL_NODES = [
   },
   {
     id: 'validation', type: 'agent',
-    position: { x: CX - 30, y: 1000 },
+    position: { x: CX - 30, y: 800 },
     data: {
       label: 'Compliance QA Agent', icon: '\u2713', color: palette.blue.dark1,
       subtitle: 'ValidationResult \u2192 Command',
-      tooltip: 'LLM-as-Judge quality gate: completeness, accuracy, citation quality. Routes via Command. Max 3 loops.',
+      tooltip: 'LLM-as-Judge quality gate. Routes to redraft (SAR Author), re-analyze (Case Analyst), Human Review, or Finalize. Max 2 loops.',
     },
   },
   {
     id: 'humanReview', type: 'workflow',
-    position: { x: CX - 30, y: 1110 },
+    position: { x: CX - 30, y: 930 },
     data: {
       label: 'Human Review', icon: '👁', color: palette.red.base,
       subtitle: 'interrupt() \u2192 pause/resume',
@@ -562,7 +615,7 @@ const INITIAL_NODES = [
   },
   {
     id: 'finalize', type: 'workflow',
-    position: { x: CX - 30, y: 1220 },
+    position: { x: CX - 30, y: 1050 },
     data: {
       label: 'Finalize Case', icon: '📋', color: palette.green.dark2,
       subtitle: 'Persist to MongoDB',
@@ -572,7 +625,7 @@ const INITIAL_NODES = [
   },
   {
     id: 'endNode', type: 'terminal',
-    position: { x: CX + 20, y: 1320 },
+    position: { x: CX + 20, y: 1150 },
     data: { label: 'END', color: palette.gray.dark2 },
   },
 ];
@@ -585,42 +638,39 @@ const MARKER = { type: MarkerType.ArrowClosed, width: 12, height: 12 };
 const EDGE_BASE = { style: { strokeWidth: 2 }, markerEnd: MARKER };
 const LABEL_BG = { fill: '#fff', fillOpacity: 0.92 };
 
+const SEND_EDGE = {
+  ...EDGE_BASE,
+  animated: true,
+  type: 'smoothstep',
+  label: 'Send',
+  labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT, fill: palette.purple.base },
+  labelBgStyle: LABEL_BG,
+  style: { ...EDGE_BASE.style, stroke: palette.purple.base, strokeDasharray: '6 3' },
+};
+
 const INITIAL_EDGES = [
+  // ── Spine: agent → agent ───────────────────────────────────────────────
   { id: 'e-start-triage', source: 'alertInput', target: 'triage', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.green.dark2 } },
-  { id: 'e-triage-autoclose', source: 'triage', target: 'autoClose', label: 'auto_close', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.gray.base } },
+  { id: 'e-triage-autoclose', source: 'triage', target: 'autoClose', label: 'auto_close', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT }, labelBgStyle: LABEL_BG, ...EDGE_BASE, type: 'smoothstep', style: { ...EDGE_BASE.style, stroke: palette.gray.base } },
   { id: 'e-autoclose-end', source: 'autoClose', target: 'endNode', ...EDGE_BASE, type: 'smoothstep', style: { ...EDGE_BASE.style, stroke: palette.gray.light1, strokeDasharray: '4 2' } },
-  { id: 'e-triage-dg', source: 'triage', target: 'dataGathering', label: 'investigate', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.blue.base } },
-  ...['fetchEntity', 'fetchTxn', 'fetchNetwork', 'fetchWatchlist'].map((target) => ({
-    id: `e-dg-${target}`, source: 'dataGathering', target, ...EDGE_BASE, animated: true,
-    label: 'Send', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT, fill: palette.purple.base },
-    labelBgStyle: LABEL_BG, style: { ...EDGE_BASE.style, stroke: palette.purple.base, strokeDasharray: '6 3' },
-  })),
-  ...['fetchEntity', 'fetchTxn', 'fetchNetwork', 'fetchWatchlist'].map((source) => ({
-    id: `e-${source}-assemble`, source, target: 'assembleCase', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.green.dark2 },
-  })),
-  { id: 'e-assemble-network', source: 'assembleCase', target: 'networkAnalyst', label: 'parallel', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT, fill: palette.yellow.dark2 }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.yellow.dark2 } },
-  { id: 'e-assemble-temporal', source: 'assembleCase', target: 'temporalAnalyst', label: 'parallel', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT, fill: palette.yellow.dark2 }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.yellow.dark2 } },
-  { id: 'e-network-trail', source: 'networkAnalyst', target: 'trailFollower', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.blue.dark2 } },
-  { id: 'e-temporal-trail', source: 'temporalAnalyst', target: 'trailFollower', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.blue.dark2 } },
-  ...['miniInvest1', 'miniInvest2', 'miniInvest3'].map((target) => ({
-    id: `e-trail-${target}`, source: 'trailFollower', target, ...EDGE_BASE, animated: true,
-    label: 'Send', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT, fill: palette.purple.base },
-    labelBgStyle: LABEL_BG, style: { ...EDGE_BASE.style, stroke: palette.purple.base, strokeDasharray: '6 3' },
-  })),
-  ...['miniInvest1', 'miniInvest2', 'miniInvest3'].map((source) => ({
-    id: `e-${source}-narrative`, source, target: 'narrative', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.green.dark1 },
-  })),
+  { id: 'e-triage-case', source: 'triage', target: 'caseAnalyst', label: 'investigate', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.blue.base } },
+  { id: 'e-case-trail', source: 'caseAnalyst', target: 'trailFollower', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.blue.dark2 } },
+  { id: 'e-trail-narrative', source: 'trailFollower', target: 'narrative', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.green.dark1 } },
   { id: 'e-narrative-validation', source: 'narrative', target: 'validation', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.blue.dark1 } },
   { id: 'e-validation-hr', source: 'validation', target: 'humanReview', label: 'human_review', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.red.base } },
+  { id: 'e-hr-finalize', source: 'humanReview', target: 'finalize', label: 'resume', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.green.dark2 } },
+  { id: 'e-finalize-end', source: 'finalize', target: 'endNode', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.gray.dark2 } },
+
+  // ── Compliance QA revision loops (dashed yellow) ──────────────────────
   {
-    id: 'e-validation-dg', source: 'validation', sourceHandle: 'right', target: 'dataGathering', targetHandle: 'right',
-    label: 'data_gathering', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT },
+    id: 'e-validation-narrative', source: 'validation', sourceHandle: 'right', target: 'narrative', targetHandle: 'right',
+    label: 'redraft', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT },
     labelBgStyle: { fill: palette.yellow.light3, fillOpacity: 0.95 },
     ...EDGE_BASE, animated: true, style: { ...EDGE_BASE.style, stroke: palette.yellow.dark2, strokeDasharray: '5 3' }, type: 'smoothstep',
   },
   {
-    id: 'e-validation-narrative', source: 'validation', sourceHandle: 'right', target: 'narrative', targetHandle: 'right',
-    label: 'narrative', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT },
+    id: 'e-validation-case', source: 'validation', sourceHandle: 'right', target: 'caseAnalyst', targetHandle: 'right',
+    label: 're-analyze', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT },
     labelBgStyle: { fill: palette.yellow.light3, fillOpacity: 0.95 },
     ...EDGE_BASE, animated: true, style: { ...EDGE_BASE.style, stroke: palette.yellow.dark2, strokeDasharray: '5 3' }, type: 'smoothstep',
   },
@@ -629,8 +679,18 @@ const INITIAL_EDGES = [
     label: 'finalize (max loops)', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT, fill: palette.gray.dark1 },
     labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.gray.base, strokeDasharray: '4 2' }, type: 'smoothstep',
   },
-  { id: 'e-hr-finalize', source: 'humanReview', target: 'finalize', label: 'resume', labelStyle: { fontSize: 9, fontWeight: 600, fontFamily: FONT }, labelBgStyle: LABEL_BG, ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.green.dark2 } },
-  { id: 'e-finalize-end', source: 'finalize', target: 'endNode', ...EDGE_BASE, style: { ...EDGE_BASE.style, stroke: palette.gray.dark2 } },
+
+  // ── Satellite invocations: agent → tool/sub-agent (animated Send) ─────
+  // Triage's 4 fetch tools
+  { id: 'e-triage-fetchEntity', source: 'triage', target: 'fetchEntity', ...SEND_EDGE },
+  { id: 'e-triage-fetchTxn', source: 'triage', target: 'fetchTxn', ...SEND_EDGE },
+  { id: 'e-triage-fetchWatchlist', source: 'triage', target: 'fetchWatchlist', ...SEND_EDGE },
+  { id: 'e-triage-fetchNetwork', source: 'triage', target: 'fetchNetwork', ...SEND_EDGE },
+  // Case Analyst's 2 analyst tools
+  { id: 'e-case-network', source: 'caseAnalyst', target: 'networkAnalyst', ...SEND_EDGE },
+  { id: 'e-case-temporal', source: 'caseAnalyst', target: 'temporalAnalyst', ...SEND_EDGE },
+  // Trail Follower's sub-agent fan-out
+  { id: 'e-trail-sub', source: 'trailFollower', target: 'subInvestigator', ...SEND_EDGE },
 ];
 
 // ---------------------------------------------------------------------------
@@ -668,7 +728,7 @@ function computeNodeStates(activeAgents) {
 
 const LEGEND_ITEMS = [
   { label: 'Agent (LLM)', borderTop: `3px solid ${palette.blue.base}`, bg: '#fff', badge: 'AGENT', badgeBg: `${palette.blue.base}18`, badgeColor: palette.blue.base },
-  { label: 'Compute', borderTop: `3px solid ${palette.yellow.dark2}`, bg: '#fff', badge: 'COMPUTE', badgeBg: `${palette.yellow.dark2}18`, badgeColor: palette.yellow.dark2 },
+  { label: 'Sub-Agent', borderTop: `3px solid ${palette.purple.base}`, bg: '#fff', badge: 'SUB-AGENT', badgeBg: `${palette.purple.base}18`, badgeColor: palette.purple.base },
   { label: 'Tool', border: `1px dashed ${palette.purple.light1}`, bg: '#fff', badge: 'TOOL', badgeBg: `${palette.purple.base}12`, badgeColor: palette.purple.dark2 },
   { label: 'Workflow', border: `1px solid ${palette.gray.light2}`, bg: palette.gray.light3, borderRadius: 12, badge: 'WORKFLOW', badgeBg: palette.gray.light2, badgeColor: palette.gray.dark1 },
   { label: 'Uses MongoDB', bg: palette.green.dark1, borderRadius: '50%', isMongo: true },

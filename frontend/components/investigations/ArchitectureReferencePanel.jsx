@@ -22,13 +22,12 @@ const TAB_MONGODB = 3;
 // ---------------------------------------------------------------------------
 
 const HERO_STATS = [
-  { value: '12', label: 'Specialized Agents', color: palette.blue.base },
+  { value: '6', label: 'Specialized Agents', color: palette.blue.base },
   { value: '13+', label: 'MongoDB Tools', color: palette.green.dark1 },
   { value: '6', label: 'Parallel Workers', color: palette.purple.base },
   { value: '8', label: 'MongoDB Features', color: palette.green.dark1 },
   { value: '2×', label: 'Max Validation Loops', color: palette.yellow.dark2 },
   { value: '1', label: 'Unified Data Platform', color: palette.green.dark1 },
-  { value: '100%', label: 'Durable HITL', color: palette.red.base },
 ];
 
 // ---------------------------------------------------------------------------
@@ -43,8 +42,8 @@ const PIPELINE_STAGES = [
     stage: 'Intake & Triage',
     agents: [
       {
-        number: 1, name: 'Triage Agent', glyph: 'MagnifyingGlass',
-        color: palette.blue.base, type: 'LLM Agent', typeBg: palette.blue.light3, typeColor: palette.blue.dark2,
+        number: 1, name: 'Triage', glyph: 'MagnifyingGlass',
+        color: palette.blue.base, type: 'Agent', typeBg: palette.blue.light3, typeColor: palette.blue.dark2,
         role: 'Risk scoring and disposition routing',
         detail: 'Structured output → TriageDecision. Command-based dynamic routing to auto_close or data_gathering.',
         value: 'Auto-closes ~70% of false positives, freeing analysts for real threats.',
@@ -59,19 +58,8 @@ const PIPELINE_STAGES = [
     stage: 'Data Collection',
     agents: [
       {
-        number: 2, name: 'Data Gatherer', glyph: 'Charts',
-        color: palette.purple.base, type: 'Fan-out', typeBg: palette.purple.light3, typeColor: palette.purple.dark2,
-        role: 'Parallel evidence collection dispatcher',
-        detail: 'LangGraph Send API fans out 4 concurrent workers: entity, transactions, network, watchlist.',
-        value: 'Cuts evidence gathering time by ~75% through true concurrency.',
-        uses: {
-          langgraph: ['Send API', '_merge_dicts reducer'],
-          mongodb: ['Document Model'],
-        },
-      },
-      {
-        number: 3, name: 'Case Analyst', glyph: 'Folder',
-        color: palette.green.dark1, type: 'LLM + RAG', typeBg: palette.green.light3, typeColor: palette.green.dark2,
+        number: 2, name: 'Case Analyst', glyph: 'Folder',
+        color: palette.green.dark1, type: 'Agent', typeBg: palette.green.light3, typeColor: palette.green.dark2,
         role: '360° profile synthesis + crime typology classification',
         detail: 'Single LLM call produces CaseFile + TypologyResult. RAG retrieval from typology_library via Atlas Search.',
         value: 'Maps every case to a named AML typology — audit-ready classification.',
@@ -86,30 +74,8 @@ const PIPELINE_STAGES = [
     stage: 'Analysis',
     agents: [
       {
-        number: 4, name: 'Network Analyst', glyph: 'Connect',
-        color: palette.yellow.dark2, type: 'MongoDB Query', typeBg: palette.yellow.light3, typeColor: palette.yellow.dark2,
-        role: 'Graph centrality and network risk scoring',
-        detail: 'Pure compute — no LLM. Uses $graphLookup for relationship traversal and shell structure detection.',
-        value: 'Surfaces shell-company structures that manual review would miss.',
-        uses: {
-          langgraph: ['Parallel edges + join'],
-          mongodb: ['$graphLookup'],
-        },
-      },
-      {
-        number: 5, name: 'Temporal Analyst', glyph: 'Clock',
-        color: palette.yellow.dark2, type: 'MongoDB Query', typeBg: palette.yellow.light3, typeColor: palette.yellow.dark2,
-        role: 'Time-series suspicious pattern detection',
-        detail: 'Runs in parallel with Network Analyst. Uses $setWindowFields for structuring, velocity, round-trips, dormancy.',
-        value: 'Detects structuring and rapid-movement patterns FinCEN explicitly flags.',
-        uses: {
-          langgraph: ['Parallel edges + join'],
-          mongodb: ['$setWindowFields'],
-        },
-      },
-      {
-        number: 6, name: 'Trail Follower', glyph: 'ArrowRight',
-        color: palette.blue.dark2, type: 'LLM Agent', typeBg: palette.blue.light3, typeColor: palette.blue.dark2,
+        number: 3, name: 'Trail Follower', glyph: 'ArrowRight',
+        color: palette.blue.dark2, type: 'Agent', typeBg: palette.blue.light3, typeColor: palette.blue.dark2,
         role: 'Lead selection from converged network + temporal analysis',
         detail: 'Conditional LLM call — skipped for simple cases. Uses $graphLookup to trace ownership chains.',
         value: 'Saves compute by skipping the LLM when the case is obviously simple.',
@@ -124,8 +90,8 @@ const PIPELINE_STAGES = [
     stage: 'Sub-Investigations',
     agents: [
       {
-        number: 7, name: 'Sub-Investigators', glyph: 'Beaker',
-        color: palette.purple.base, type: 'Fan-out + LLM', typeBg: palette.purple.light3, typeColor: palette.purple.dark2,
+        number: 4, name: 'Sub-Investigator', glyph: 'Beaker',
+        color: palette.purple.base, type: 'Agent', typeBg: palette.purple.light3, typeColor: palette.purple.dark2,
         role: 'Parallel mini-investigations per lead (N×)',
         detail: 'Send API fans out one worker per lead. Each runs 4 tool calls + 1 LLM call → LeadAssessment.',
         value: 'Expands investigations to connected entities automatically — no analyst pivoting.',
@@ -140,8 +106,8 @@ const PIPELINE_STAGES = [
     stage: 'Reporting & Review',
     agents: [
       {
-        number: 8, name: 'SAR Author', glyph: 'Edit',
-        color: palette.green.base, type: 'LLM + RAG', typeBg: palette.green.light3, typeColor: palette.green.dark2,
+        number: 5, name: 'SAR Author', glyph: 'Edit',
+        color: palette.green.base, type: 'Agent', typeBg: palette.green.light3, typeColor: palette.green.dark2,
         role: 'FinCEN-compliant SAR narrative generation',
         detail: 'Generates 5Ws narrative grounded in JSON evidence. RAG from compliance_policies. Temperature 0.1.',
         value: 'Produces filing-ready narratives — analyst reviews instead of writes.',
@@ -151,52 +117,14 @@ const PIPELINE_STAGES = [
         },
       },
       {
-        number: 9, name: 'Compliance QA', glyph: 'Checkmark',
-        color: palette.blue.dark1, type: 'LLM Judge', typeBg: palette.blue.light3, typeColor: palette.blue.dark2,
+        number: 6, name: 'Compliance QA', glyph: 'Checkmark',
+        color: palette.blue.dark1, type: 'Agent', typeBg: palette.blue.light3, typeColor: palette.blue.dark2,
         role: 'Hallucination prevention + regulatory compliance gate',
         detail: 'Validates completeness, factual accuracy, citations. Command routing to re-draft, escalate, or approve.',
         value: 'Blocks hallucinations before they reach the regulator — every claim must be grounded.',
         uses: {
           langgraph: ['Validator routing', 'Command routing'],
           mongodb: [],
-        },
-      },
-      {
-        number: 10, name: 'Human Review', glyph: 'Visibility',
-        color: palette.red.base, type: 'HITL', typeBg: palette.red.light3, typeColor: palette.red.dark2,
-        role: 'Durable analyst pause/resume checkpoint',
-        detail: 'interrupt_before halts pipeline. Full state saved to MongoDBSaver. Analyst approves, rejects, or requests changes.',
-        value: 'Regulators require human sign-off — we do it without losing state across hours or days.',
-        uses: {
-          langgraph: ['MongoDBSaver'],
-          mongodb: ['MongoDBSaver'],
-        },
-      },
-    ],
-  },
-  {
-    stage: 'Finalization',
-    agents: [
-      {
-        number: 11, name: 'Finalize', glyph: 'File',
-        color: palette.green.dark2, type: 'Persistence', typeBg: palette.green.light3, typeColor: palette.green.dark2,
-        role: 'Assemble & persist complete investigation document',
-        detail: 'Immutable audit trail, pipeline metrics, SAR narrative, all evidence → MongoDB investigations collection.',
-        value: 'Examiner-ready: every agent decision is timestamped, typed, and immutable.',
-        uses: {
-          langgraph: ['_append_only reducer'],
-          mongodb: ['Document Model'],
-        },
-      },
-      {
-        number: 12, name: 'Chat Co-Pilot', glyph: 'Sparkle',
-        color: palette.blue.base, type: 'ReAct Agent', typeBg: palette.blue.light3, typeColor: palette.blue.dark2,
-        role: 'Conversational investigation assistant with 15 tools',
-        detail: 'create_react_agent from LangGraph prebuilt. Supports artifacts: Markdown reports, Mermaid diagrams, HTML dashboards.',
-        value: 'Lets analysts explore cases in natural language — no SQL, no Python, no training.',
-        uses: {
-          langgraph: ['create_react_agent', '@tool decorators'],
-          mongodb: ['Atlas Search', '$graphLookup'],
         },
       },
     ],
@@ -651,7 +579,7 @@ function AgentPipelineTab({ onNavigate }) {
   return (
     <div style={{ padding: `${spacing[2]}px 0` }}>
       <Body style={{ fontSize: 12, fontFamily: FONT, color: palette.gray.dark1, marginBottom: spacing[2] }}>
-        12 specialized agents orchestrated by LangGraph StateGraph — from alert triage to SAR filing.
+        6 specialized agents orchestrated by LangGraph StateGraph — from alert triage to SAR filing.
         Click any chip to jump to the feature or operator.
       </Body>
       {PIPELINE_STAGES.map((stage) => (

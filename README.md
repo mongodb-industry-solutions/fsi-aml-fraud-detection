@@ -99,6 +99,20 @@ The AML/entity resolution flow showcases:
 - **Advanced Search Capabilities**: Leverages MongoDB's Graph Traversal for relationship analysis and AI Risk Classification via Claude Sonnet 4
 - **MongoDB Collections**: Manages entities, transactions, and relationships data
 
+### Agentic Investigation Pipeline
+
+![Agentic Investigation Pipeline](docs/Agentic%20Investigation%20Pipeline.png)
+
+The agentic investigation pipeline shows how a flagged alert is escalated through a LangGraph multi-agent workflow:
+
+- **Triage Agent**: Classifies the alert and gathers raw evidence in parallel via four fetch tools (Entity, Transactions, Network, Watchlist)
+- **Case Analyst**: Synthesizes the case using Network Analyst and Temporal Analyst tools for graph and time-series reasoning
+- **Trail Follower**: Pursues investigative threads, fanning out parallel Mini Investigate sub-agents via the LangGraph `Send` API
+- **SAR Author**: Drafts the Suspicious Activity Report narrative
+- **Compliance QA**: Validates the narrative; on failure, loops back to the Case Analyst for re-analysis
+- **Human Review (HITL)**: Durable pause via `interrupt_before` checkpoint for analyst sign-off
+- **Persist Case**: Finalizes and writes the case to MongoDB
+
 Let's get started!
 
 ## Prerequisites

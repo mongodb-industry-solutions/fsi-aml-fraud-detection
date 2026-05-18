@@ -2,3 +2,8 @@
 *.pyc
 aml-backend/.env
 /.cursor
+.claude
+.graphify*
+tmp/
+.vscode/
+graphify-out*

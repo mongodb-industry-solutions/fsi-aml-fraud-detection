@@ -647,12 +647,31 @@ Provide JSON with: risk_level, risk_score, recommended_action."""
             
             # Clean JSON text
             json_text = json_text.strip()
-            
+
             # Remove any trailing comma before closing brace or bracket (common LLM error)
             json_text = re.sub(r',(\s*[}\]])', r'\1', json_text)
-            
-            # Parse the JSON response
-            parsed_result = json.loads(json_text)
+
+            # Parse the JSON response, with progressive repair on failure
+            try:
+                parsed_result = json.loads(json_text)
+            except json.JSONDecodeError as initial_err:
+                logger.warning(
+                    f"Initial JSON parse failed ({initial_err.msg} at pos {initial_err.pos}); attempting repair"
+                )
+                repaired = self._repair_json(json_text)
+                try:
+                    parsed_result = json.loads(repaired)
+                    logger.info("JSON parsed successfully after repair")
+                except json.JSONDecodeError as repair_err:
+                    logger.warning(
+                        f"Repaired JSON still invalid ({repair_err.msg} at pos {repair_err.pos}); "
+                        "attempting truncated-prefix parse"
+                    )
+                    truncated = self._truncate_to_valid_json(repaired)
+                    if truncated is None:
+                        raise repair_err
+                    parsed_result = json.loads(truncated)
+                    logger.info("JSON parsed successfully from truncated prefix")
             
             # Validate and structure the result with comprehensive defaults
             structured_result = self._structure_classification_result(
@@ -680,18 +699,126 @@ Provide JSON with: risk_level, risk_score, recommended_action."""
     
     def _extract_json_from_response(self, response_text: str) -> str:
         """Extract JSON from response text - simplified approach"""
+        # Strip Markdown code fences (```json ... ```), which LLMs often wrap responses in
+        fence_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", response_text, re.DOTALL | re.IGNORECASE)
+        if fence_match:
+            response_text = fence_match.group(1)
+
         # First, handle template-style double braces if present
         if '{{' in response_text:
             logger.debug("Found template-style double braces, converting to single braces")
             response_text = response_text.replace('{{', '{').replace('}}', '}')
-        
+
         # Simple approach: Find JSON from first { to last }
         json_start = response_text.find('{')
         json_end = response_text.rfind('}')
-        
+
         if json_start != -1 and json_end != -1 and json_end > json_start:
             return response_text[json_start:json_end + 1]
-        
+
+        return None
+
+    def _repair_json(self, json_text: str) -> str:
+        """
+        Best-effort repair of common LLM JSON mistakes:
+          - unescaped control chars (newlines/tabs/CR) inside string values
+          - missing commas between adjacent values (`}` or `"` or digit/bool/null followed by `"key":`)
+          - trailing commas before `}` or `]`
+        Walks the text in one pass while tracking string/escape state so we only modify
+        characters that are actually inside strings.
+        """
+        out = []
+        in_string = False
+        escape = False
+        for ch in json_text:
+            if in_string:
+                if escape:
+                    out.append(ch)
+                    escape = False
+                    continue
+                if ch == '\\':
+                    out.append(ch)
+                    escape = True
+                    continue
+                if ch == '"':
+                    in_string = False
+                    out.append(ch)
+                    continue
+                # Escape unescaped control characters inside strings
+                if ch == '\n':
+                    out.append('\\n')
+                elif ch == '\r':
+                    out.append('\\r')
+                elif ch == '\t':
+                    out.append('\\t')
+                elif ord(ch) < 0x20:
+                    out.append(f"\\u{ord(ch):04x}")
+                else:
+                    out.append(ch)
+            else:
+                if ch == '"':
+                    in_string = True
+                out.append(ch)
+
+        repaired = ''.join(out)
+
+        # Insert missing commas between a closed value and the next key/value.
+        # Match `"`, `}`, `]`, digit, or end-of-bool/null followed by whitespace and a new `"key":`.
+        repaired = re.sub(
+            r'(?<=["\}\]0-9])(\s*\n\s*)(")',
+            r',\1\2',
+            repaired,
+        )
+        # Same for true/false/null tokens followed by a key
+        repaired = re.sub(
+            r'\b(true|false|null)(\s*\n\s*)(")',
+            r'\1,\2\3',
+            repaired,
+        )
+
+        # Strip trailing commas again post-repair
+        repaired = re.sub(r',(\s*[}\]])', r'\1', repaired)
+        return repaired
+
+    def _truncate_to_valid_json(self, json_text: str) -> Optional[str]:
+        """
+        Last-resort fallback: scan for the longest prefix that parses as valid JSON
+        by walking close-brace positions from the end backward. Returns None if no
+        prefix parses.
+        """
+        # Find candidate truncation points: positions right after a '}' at depth 0
+        depth = 0
+        in_string = False
+        escape = False
+        candidates = []
+        for i, ch in enumerate(json_text):
+            if in_string:
+                if escape:
+                    escape = False
+                    continue
+                if ch == '\\':
+                    escape = True
+                    continue
+                if ch == '"':
+                    in_string = False
+                continue
+            if ch == '"':
+                in_string = True
+            elif ch == '{':
+                depth += 1
+            elif ch == '}':
+                depth -= 1
+                if depth == 0:
+                    candidates.append(i + 1)
+
+        for end in reversed(candidates):
+            snippet = json_text[:end]
+            snippet = re.sub(r',(\s*[}\]])', r'\1', snippet)
+            try:
+                json.loads(snippet)
+                return snippet
+            except json.JSONDecodeError:
+                continue
         return None
     
     def _structure_classification_result(self, parsed_result: dict, response_text: str,

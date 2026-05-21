@@ -18,6 +18,78 @@ import { Code } from '@leafygreen-ui/code';
 import Callout from '@leafygreen-ui/callout';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
+const markdownComponents = {
+  h1: ({ children }) => (
+    <H3 style={{ fontSize: '15px', marginTop: spacing[3], marginBottom: spacing[2] }}>{children}</H3>
+  ),
+  h2: ({ children }) => (
+    <H3 style={{ fontSize: '14px', marginTop: spacing[3], marginBottom: spacing[2] }}>{children}</H3>
+  ),
+  h3: ({ children }) => (
+    <Body style={{ fontSize: '13px', fontWeight: 600, marginTop: spacing[2], marginBottom: spacing[1] }}>
+      {children}
+    </Body>
+  ),
+  p: ({ children }) => (
+    <Body style={{ fontSize: '12px', lineHeight: 1.6, marginBottom: spacing[2] }}>{children}</Body>
+  ),
+  ul: ({ children }) => (
+    <ul style={{ fontSize: '12px', lineHeight: 1.6, paddingLeft: spacing[4], marginBottom: spacing[2] }}>
+      {children}
+    </ul>
+  ),
+  ol: ({ children }) => (
+    <ol style={{ fontSize: '12px', lineHeight: 1.6, paddingLeft: spacing[4], marginBottom: spacing[2] }}>
+      {children}
+    </ol>
+  ),
+  li: ({ children }) => <li style={{ marginBottom: spacing[1] }}>{children}</li>,
+  strong: ({ children }) => <strong style={{ fontWeight: 600 }}>{children}</strong>,
+  em: ({ children }) => <em>{children}</em>,
+  code: ({ inline, children }) =>
+    inline ? (
+      <code
+        style={{
+          fontFamily: 'monospace',
+          backgroundColor: palette.gray.light2,
+          padding: '1px 4px',
+          borderRadius: 3,
+          fontSize: '11px',
+        }}
+      >
+        {children}
+      </code>
+    ) : (
+      <pre
+        style={{
+          fontFamily: 'monospace',
+          backgroundColor: palette.gray.light2,
+          padding: spacing[2],
+          borderRadius: 4,
+          fontSize: '11px',
+          overflowX: 'auto',
+        }}
+      >
+        <code>{children}</code>
+      </pre>
+    ),
+  table: ({ children }) => (
+    <table style={{ borderCollapse: 'collapse', fontSize: '12px', marginBottom: spacing[2] }}>
+      {children}
+    </table>
+  ),
+  th: ({ children }) => (
+    <th style={{ border: `1px solid ${palette.gray.light1}`, padding: spacing[1], textAlign: 'left' }}>
+      {children}
+    </th>
+  ),
+  td: ({ children }) => (
+    <td style={{ border: `1px solid ${palette.gray.light1}`, padding: spacing[1] }}>{children}</td>
+  ),
+};
 
 /**
  * Executive Summary Tab - High-level case overview
@@ -117,18 +189,16 @@ function ExecutiveSummaryTab({ workflowData, investigation }) {
       {investigation?.investigation_summary && (
         <Card style={{ padding: spacing[4] }}>
           <H3 style={{ marginBottom: spacing[2], fontSize: '16px' }}>Investigation Summary</H3>
-          <Card style={{ 
+          <Card style={{
             padding: spacing[3],
             backgroundColor: palette.gray.light3,
             border: `1px solid ${palette.gray.light1}`
           }}>
-            <Body style={{ 
-              lineHeight: 1.6, 
-              whiteSpace: 'pre-wrap',
-              fontSize: '12px'
-            }}>
-              {investigation.investigation_summary}
-            </Body>
+            <div style={{ fontSize: '12px', lineHeight: 1.6 }}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                {investigation.investigation_summary}
+              </ReactMarkdown>
+            </div>
           </Card>
         </Card>
       )}

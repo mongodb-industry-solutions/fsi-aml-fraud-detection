@@ -12,6 +12,37 @@ import Code from '@leafygreen-ui/code';
 import ExpandableCard from '@leafygreen-ui/expandable-card';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
+const summaryMarkdownComponents = {
+  h1: ({ children }) => (
+    <H3 style={{ fontSize: '15px', marginTop: spacing[3], marginBottom: spacing[2] }}>{children}</H3>
+  ),
+  h2: ({ children }) => (
+    <H3 style={{ fontSize: '14px', marginTop: spacing[3], marginBottom: spacing[2] }}>{children}</H3>
+  ),
+  h3: ({ children }) => (
+    <Body style={{ fontSize: '13px', fontWeight: 600, marginTop: spacing[2], marginBottom: spacing[1] }}>
+      {children}
+    </Body>
+  ),
+  p: ({ children }) => (
+    <Body style={{ fontSize: '13px', lineHeight: 1.5, marginBottom: spacing[2] }}>{children}</Body>
+  ),
+  ul: ({ children }) => (
+    <ul style={{ fontSize: '13px', lineHeight: 1.5, paddingLeft: spacing[4], marginBottom: spacing[2] }}>
+      {children}
+    </ul>
+  ),
+  ol: ({ children }) => (
+    <ol style={{ fontSize: '13px', lineHeight: 1.5, paddingLeft: spacing[4], marginBottom: spacing[2] }}>
+      {children}
+    </ol>
+  ),
+  li: ({ children }) => <li style={{ marginBottom: spacing[1] }}>{children}</li>,
+  strong: ({ children }) => <strong style={{ fontWeight: 600 }}>{children}</strong>,
+};
 
 /**
  * Deep Investigation Workbench
@@ -109,14 +140,16 @@ function DeepInvestigationWorkbench({ investigation, workflowData, onReset }) {
           </div>
 
           {investigationReport.executiveSummary && (
-            <Card style={{ 
+            <Card style={{
               padding: spacing[3],
               backgroundColor: 'rgba(255, 255, 255, 0.8)',
               border: '1px solid #E5E7EB'
             }}>
-              <Body style={{ fontSize: '13px', lineHeight: '1.5' }}>
-                {investigationReport.executiveSummary}
-              </Body>
+              <div style={{ fontSize: '13px', lineHeight: 1.5 }}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={summaryMarkdownComponents}>
+                  {investigationReport.executiveSummary}
+                </ReactMarkdown>
+              </div>
             </Card>
           )}
         </Card>

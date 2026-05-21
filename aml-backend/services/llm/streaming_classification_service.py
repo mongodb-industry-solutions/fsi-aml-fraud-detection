@@ -665,13 +665,19 @@ Provide JSON with: risk_level, risk_score, recommended_action."""
                 except json.JSONDecodeError as repair_err:
                     logger.warning(
                         f"Repaired JSON still invalid ({repair_err.msg} at pos {repair_err.pos}); "
-                        "attempting truncated-prefix parse"
+                        "attempting position-driven delimiter repair"
                     )
-                    truncated = self._truncate_to_valid_json(repaired)
-                    if truncated is None:
-                        raise repair_err
-                    parsed_result = json.loads(truncated)
-                    logger.info("JSON parsed successfully from truncated prefix")
+                    delim_fixed = self._fix_delimiters_iteratively(repaired)
+                    if delim_fixed is not None:
+                        parsed_result = json.loads(delim_fixed)
+                        logger.info("JSON parsed successfully after iterative delimiter repair")
+                    else:
+                        logger.warning("Delimiter repair failed; attempting truncated-prefix parse")
+                        truncated = self._truncate_to_valid_json(repaired)
+                        if truncated is None:
+                            raise repair_err
+                        parsed_result = json.loads(truncated)
+                        logger.info("JSON parsed successfully from truncated prefix")
             
             # Validate and structure the result with comprehensive defaults
             structured_result = self._structure_classification_result(
@@ -779,6 +785,46 @@ Provide JSON with: risk_level, risk_score, recommended_action."""
         # Strip trailing commas again post-repair
         repaired = re.sub(r',(\s*[}\]])', r'\1', repaired)
         return repaired
+
+    def _fix_delimiters_iteratively(self, json_text: str, max_iterations: int = 25) -> Optional[str]:
+        """
+        Repeatedly attempt to parse, and on each `Expecting ',' delimiter` or
+        `Expecting ':' delimiter` error, insert the missing delimiter at the
+        exact position reported by the Python JSON decoder. Returns the repaired
+        string if parse eventually succeeds, else None.
+
+        This handles cases the regex-based repair misses (e.g. missing commas with
+        no newline between fields, or unusual whitespace patterns), because the
+        decoder itself tells us the offending offset.
+        """
+        text = json_text
+        for _ in range(max_iterations):
+            try:
+                json.loads(text)
+                return text
+            except json.JSONDecodeError as e:
+                msg = e.msg or ''
+                pos = e.pos
+                if 'delimiter' in msg and "','" in msg and 0 <= pos <= len(text):
+                    # Walk backward over whitespace and insert a comma after the prior token
+                    insert_at = pos
+                    while insert_at > 0 and text[insert_at - 1] in ' \t\r\n':
+                        insert_at -= 1
+                    if insert_at == 0 or text[insert_at - 1] == ',':
+                        return None
+                    text = text[:insert_at] + ',' + text[insert_at:]
+                    continue
+                if 'delimiter' in msg and "':'" in msg and 0 <= pos <= len(text):
+                    insert_at = pos
+                    while insert_at > 0 and text[insert_at - 1] in ' \t\r\n':
+                        insert_at -= 1
+                    if insert_at == 0 or text[insert_at - 1] == ':':
+                        return None
+                    text = text[:insert_at] + ':' + text[insert_at:]
+                    continue
+                # Unknown error class — give up so the caller can try other strategies
+                return None
+        return None
 
     def _truncate_to_valid_json(self, json_text: str) -> Optional[str]:
         """

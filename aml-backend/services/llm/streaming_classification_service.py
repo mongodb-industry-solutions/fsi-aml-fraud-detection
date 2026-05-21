@@ -88,7 +88,7 @@ class StreamingClassificationService:
             
             request_body = {
                 "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 4000,
+                "max_tokens": 8000,
                 "temperature": 0.1,
                 "messages": [{"role": "user", "content": prompt}]
             }
@@ -659,25 +659,39 @@ Provide JSON with: risk_level, risk_score, recommended_action."""
                     f"Initial JSON parse failed ({initial_err.msg} at pos {initial_err.pos}); attempting repair"
                 )
                 repaired = self._repair_json(json_text)
-                try:
-                    parsed_result = json.loads(repaired)
-                    logger.info("JSON parsed successfully after repair")
-                except json.JSONDecodeError as repair_err:
-                    logger.warning(
-                        f"Repaired JSON still invalid ({repair_err.msg} at pos {repair_err.pos}); "
-                        "attempting position-driven delimiter repair"
-                    )
-                    delim_fixed = self._fix_delimiters_iteratively(repaired)
-                    if delim_fixed is not None:
-                        parsed_result = json.loads(delim_fixed)
-                        logger.info("JSON parsed successfully after iterative delimiter repair")
+                # Try iterative repair directly on the regex-repaired text; if it
+                # parses we're done, otherwise fall through.
+                delim_fixed = self._fix_delimiters_iteratively(repaired)
+                if delim_fixed is not None:
+                    parsed_result = json.loads(delim_fixed)
+                    logger.info("JSON parsed successfully after iterative delimiter repair")
+                else:
+                    # Try iterative repair on the ORIGINAL (pre-regex) text in case
+                    # the regex pass made things worse.
+                    delim_fixed_raw = self._fix_delimiters_iteratively(json_text)
+                    if delim_fixed_raw is not None:
+                        parsed_result = json.loads(delim_fixed_raw)
+                        logger.info("JSON parsed successfully via iterative repair on raw extracted text")
                     else:
-                        logger.warning("Delimiter repair failed; attempting truncated-prefix parse")
+                        logger.warning("Iterative repair failed; attempting truncated-prefix parse")
                         truncated = self._truncate_to_valid_json(repaired)
-                        if truncated is None:
-                            raise repair_err
-                        parsed_result = json.loads(truncated)
-                        logger.info("JSON parsed successfully from truncated prefix")
+                        if truncated is not None:
+                            parsed_result = json.loads(truncated)
+                            logger.info("JSON parsed successfully from truncated prefix")
+                        else:
+                            # Last resort: extract individual fields via regex from the
+                            # malformed text so the user still gets a partial classification
+                            # instead of a "manual review required" fallback.
+                            extracted = self._extract_fields_via_regex(json_text)
+                            if extracted:
+                                logger.warning(
+                                    "Falling back to regex field extraction; "
+                                    "structured parse impossible. Recovered "
+                                    f"{len(extracted)} fields."
+                                )
+                                parsed_result = extracted
+                            else:
+                                raise initial_err
             
             # Validate and structure the result with comprehensive defaults
             structured_result = self._structure_classification_result(
@@ -786,18 +800,25 @@ Provide JSON with: risk_level, risk_score, recommended_action."""
         repaired = re.sub(r',(\s*[}\]])', r'\1', repaired)
         return repaired
 
-    def _fix_delimiters_iteratively(self, json_text: str, max_iterations: int = 25) -> Optional[str]:
+    def _fix_delimiters_iteratively(self, json_text: str, max_iterations: int = 60) -> Optional[str]:
         """
-        Repeatedly attempt to parse, and on each `Expecting ',' delimiter` or
-        `Expecting ':' delimiter` error, insert the missing delimiter at the
-        exact position reported by the Python JSON decoder. Returns the repaired
-        string if parse eventually succeeds, else None.
+        Repeatedly attempt to parse and apply position-driven repairs based on the
+        Python JSON decoder's own error messages. Handles:
+          - "Expecting ',' delimiter" -- insert ',' after the prior token
+          - "Expecting ':' delimiter" -- insert ':' after the prior token
+          - "Invalid control character at" -- escape the offending character
+          - "Invalid \\escape" -- double the backslash so it becomes a literal
+          - "Unterminated string starting at" -- close the string at the first
+            structural character (',', '}', ']', or newline) after the opener
+          - "Expecting property name enclosed in double quotes" -- usually a
+            trailing comma the regex pass missed; strip it
+          - "Expecting value" -- usually a stray comma; strip it
 
-        This handles cases the regex-based repair misses (e.g. missing commas with
-        no newline between fields, or unusual whitespace patterns), because the
-        decoder itself tells us the offending offset.
+        Returns the repaired string on success, else None so the caller can fall
+        through to the truncate-prefix strategy.
         """
         text = json_text
+        previous_signatures: set = set()
         for _ in range(max_iterations):
             try:
                 json.loads(text)
@@ -805,26 +826,174 @@ Provide JSON with: risk_level, risk_score, recommended_action."""
             except json.JSONDecodeError as e:
                 msg = e.msg or ''
                 pos = e.pos
-                if 'delimiter' in msg and "','" in msg and 0 <= pos <= len(text):
-                    # Walk backward over whitespace and insert a comma after the prior token
+                if not (0 <= pos <= len(text)):
+                    return None
+
+                # Stable signature -- if we see the same (msg, pos, text-length) twice
+                # the repair is going in circles, so bail.
+                signature = (msg, pos, len(text))
+                if signature in previous_signatures:
+                    return None
+                previous_signatures.add(signature)
+
+                # Missing comma
+                if 'delimiter' in msg and "','" in msg:
                     insert_at = pos
                     while insert_at > 0 and text[insert_at - 1] in ' \t\r\n':
                         insert_at -= 1
                     if insert_at == 0 or text[insert_at - 1] == ',':
-                        return None
-                    text = text[:insert_at] + ',' + text[insert_at:]
+                        # Try advancing one char and retry rather than giving up
+                        text = text[:pos] + ',' + text[pos:]
+                    else:
+                        text = text[:insert_at] + ',' + text[insert_at:]
                     continue
-                if 'delimiter' in msg and "':'" in msg and 0 <= pos <= len(text):
+
+                # Missing colon
+                if 'delimiter' in msg and "':'" in msg:
                     insert_at = pos
                     while insert_at > 0 and text[insert_at - 1] in ' \t\r\n':
                         insert_at -= 1
                     if insert_at == 0 or text[insert_at - 1] == ':':
-                        return None
-                    text = text[:insert_at] + ':' + text[insert_at:]
+                        text = text[:pos] + ':' + text[pos:]
+                    else:
+                        text = text[:insert_at] + ':' + text[insert_at:]
                     continue
-                # Unknown error class — give up so the caller can try other strategies
+
+                # Raw control character inside a string -- escape it in place
+                if 'Invalid control character' in msg and pos < len(text):
+                    ch = text[pos]
+                    if ch == '\n':
+                        replacement = '\\n'
+                    elif ch == '\r':
+                        replacement = '\\r'
+                    elif ch == '\t':
+                        replacement = '\\t'
+                    else:
+                        replacement = f'\\u{ord(ch):04x}'
+                    text = text[:pos] + replacement + text[pos + 1:]
+                    continue
+
+                # Bad backslash escape inside a string -- double the backslash
+                if 'Invalid \\escape' in msg and pos < len(text):
+                    text = text[:pos] + '\\' + text[pos:]
+                    continue
+
+                # String never closed -- close it at the first structural break
+                if 'Unterminated string' in msg:
+                    # `pos` points at the opening quote; find first ',', '}', ']', or '\n' after it
+                    cut = None
+                    for i in range(pos + 1, len(text)):
+                        c = text[i]
+                        if c in (',', '}', ']', '\n'):
+                            cut = i
+                            break
+                    if cut is None:
+                        return None
+                    text = text[:cut] + '"' + text[cut:]
+                    continue
+
+                # Trailing comma -- Python 3.11+ reports this directly
+                if 'Illegal trailing comma' in msg and pos < len(text):
+                    text = text[:pos] + text[pos + 1:]
+                    continue
+
+                # Trailing comma surfaces as "Expecting property name..." or "Expecting value"
+                if 'Expecting property name' in msg or 'Expecting value' in msg:
+                    # Look back for the offending comma and remove it
+                    scan = pos
+                    while scan > 0 and text[scan - 1] in ' \t\r\n':
+                        scan -= 1
+                    if scan > 0 and text[scan - 1] == ',':
+                        text = text[:scan - 1] + text[scan:]
+                        continue
+                    return None
+
+                # Unknown error class
                 return None
         return None
+
+    def _extract_fields_via_regex(self, text: str) -> dict:
+        """
+        Pull individual classification fields out of a malformed JSON response
+        when all structured-parse strategies have failed. Recovers what we can
+        rather than dumping the whole result.
+
+        Returns a dict with whatever keys we managed to extract. Returns an empty
+        dict if nothing could be recovered.
+        """
+        if not text:
+            return {}
+
+        result: Dict[str, Any] = {}
+
+        def find_str(key: str) -> Optional[str]:
+            pattern = rf'"{key}"\s*:\s*"((?:\\.|[^"\\])*)"'
+            m = re.search(pattern, text, re.DOTALL)
+            if not m:
+                return None
+            try:
+                # Use json.loads on the captured string literal to handle escapes
+                return json.loads('"' + m.group(1) + '"')
+            except Exception:
+                return m.group(1)
+
+        def find_number(key: str) -> Optional[float]:
+            pattern = rf'"{key}"\s*:\s*(-?\d+(?:\.\d+)?)'
+            m = re.search(pattern, text)
+            if not m:
+                return None
+            try:
+                value = float(m.group(1))
+                return int(value) if value.is_integer() else value
+            except ValueError:
+                return None
+
+        def find_string_array(key: str) -> Optional[list]:
+            pattern = rf'"{key}"\s*:\s*\[(.*?)\]'
+            m = re.search(pattern, text, re.DOTALL)
+            if not m:
+                return None
+            items = re.findall(r'"((?:\\.|[^"\\])*)"', m.group(1))
+            decoded = []
+            for item in items:
+                try:
+                    decoded.append(json.loads('"' + item + '"'))
+                except Exception:
+                    decoded.append(item)
+            return decoded
+
+        for str_field in (
+            'overall_risk_level', 'confidence_level', 'recommended_action',
+            'network_classification', 'classification_timestamp',
+        ):
+            value = find_str(str_field)
+            if value is not None:
+                result[str_field] = value
+
+        for num_field in ('risk_score', 'confidence_score'):
+            value = find_number(num_field)
+            if value is not None:
+                result[num_field] = value
+
+        for list_field in ('key_risk_factors', 'recommendations'):
+            value = find_string_array(list_field)
+            if value is not None:
+                result[list_field] = value
+
+        # Capture detailed_analysis subfields individually if the parent object
+        # is too broken to recover whole
+        detailed = {}
+        for sub in (
+            'entity_profile_assessment', 'search_results_analysis',
+            'network_positioning_analysis', 'data_quality_assessment',
+        ):
+            value = find_str(sub)
+            if value is not None:
+                detailed[sub] = value
+        if detailed:
+            result['detailed_analysis'] = detailed
+
+        return result
 
     def _truncate_to_valid_json(self, json_text: str) -> Optional[str]:
         """

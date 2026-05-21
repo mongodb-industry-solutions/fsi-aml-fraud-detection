@@ -4,18 +4,45 @@ PDF Report Generation Service - Generate professional case investigation PDF rep
 
 import io
 import logging
+import re
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
-from reportlab.platypus import KeepTogether, Image
+from reportlab.platypus import KeepTogether, Image, ListFlowable, ListItem
 from reportlab.lib.enums import TA_JUSTIFY, TA_LEFT, TA_CENTER, TA_RIGHT
 from reportlab.lib.colors import HexColor
 
 logger = logging.getLogger(__name__)
+
+
+def _escape_xml(text: str) -> str:
+    """Escape characters that have special meaning to reportlab's mini-XML parser."""
+    return (
+        text.replace('&', '&amp;')
+            .replace('<', '&lt;')
+            .replace('>', '&gt;')
+    )
+
+
+def _md_inline_to_rl(text: str) -> str:
+    """Convert inline markdown (bold/italic/code) to reportlab's HTML-ish syntax."""
+    text = _escape_xml(text)
+    # Bold (**...**) -- handle before italic to avoid eating asterisks
+    text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
+    # Italic (*...* or _..._) -- non-greedy, no leading/trailing space inside
+    text = re.sub(r'(?<!\*)\*(?!\s)(.+?)(?<!\s)\*(?!\*)', r'<i>\1</i>', text)
+    text = re.sub(r'_(?!\s)(.+?)(?<!\s)_', r'<i>\1</i>', text)
+    # Inline code (`...`)
+    text = re.sub(
+        r'`([^`]+?)`',
+        r'<font face="Courier" backColor="#f4f4f4">\1</font>',
+        text,
+    )
+    return text
 
 
 class PDFReportGenerator:
@@ -233,9 +260,9 @@ class PDFReportGenerator:
         # Add investigation summary if available
         if investigation_summary:
             elements.append(Paragraph("<b>Investigation Summary:</b>", self.styles['CustomHeading2']))
-            elements.append(Paragraph(investigation_summary, self.styles['CustomBody']))
+            elements.extend(self._markdown_to_flowables(investigation_summary))
             elements.append(Spacer(1, 0.3*inch))
-        
+
         return elements
     
     def _create_risk_assessment(self, case_data: Dict[str, Any]) -> list:
@@ -469,13 +496,7 @@ class PDFReportGenerator:
         if investigation_summary:
             elements.append(PageBreak())
             elements.append(Paragraph("Detailed Investigation Summary", self.styles['CustomHeading1']))
-            
-            # Split summary into paragraphs for better formatting
-            paragraphs = investigation_summary.split('\n\n')
-            for para in paragraphs:
-                if para.strip():
-                    elements.append(Paragraph(para.strip(), self.styles['CustomBody']))
-                    elements.append(Spacer(1, 0.1*inch))
+            elements.extend(self._markdown_to_flowables(investigation_summary))
         
         # Footer
         elements.append(Spacer(1, 0.5*inch))
@@ -492,6 +513,122 @@ class PDFReportGenerator:
         
         return elements
     
+    def _markdown_to_flowables(self, text: str) -> list:
+        """
+        Convert a markdown string into a list of reportlab flowables.
+
+        Handles: headers (#/##/###), bold/italic/inline-code, unordered (-, *)
+        and ordered (1.) lists, blockquotes, and paragraph breaks. Everything
+        else degrades gracefully to plain paragraphs.
+        """
+        if not text:
+            return []
+
+        elements: List = []
+        # Normalize newlines and strip code fences if any
+        text = text.replace('\r\n', '\n').replace('\r', '\n')
+        text = re.sub(r'```[a-zA-Z]*\n?', '', text)
+
+        lines = text.split('\n')
+        list_buffer: List[ListItem] = []
+        list_kind: Optional[str] = None  # 'ul' or 'ol'
+        para_buffer: List[str] = []
+
+        def flush_paragraph():
+            if para_buffer:
+                content = ' '.join(line.strip() for line in para_buffer if line.strip())
+                if content:
+                    elements.append(Paragraph(_md_inline_to_rl(content), self.styles['CustomBody']))
+                    elements.append(Spacer(1, 0.08 * inch))
+                para_buffer.clear()
+
+        def flush_list():
+            nonlocal list_buffer, list_kind
+            if list_buffer:
+                bullet_type = '1' if list_kind == 'ol' else 'bullet'
+                elements.append(ListFlowable(
+                    list_buffer,
+                    bulletType=bullet_type,
+                    leftIndent=18,
+                    bulletFontSize=10,
+                ))
+                elements.append(Spacer(1, 0.08 * inch))
+                list_buffer = []
+                list_kind = None
+
+        for raw in lines:
+            line = raw.rstrip()
+
+            if not line.strip():
+                flush_paragraph()
+                flush_list()
+                continue
+
+            # Headers
+            header_match = re.match(r'^(#{1,6})\s+(.*)$', line)
+            if header_match:
+                flush_paragraph()
+                flush_list()
+                level = len(header_match.group(1))
+                content = _md_inline_to_rl(header_match.group(2).strip())
+                style_name = (
+                    'CustomHeading1' if level == 1
+                    else 'CustomHeading2' if level == 2
+                    else 'CustomHeading2'
+                )
+                elements.append(Paragraph(content, self.styles[style_name]))
+                continue
+
+            # Unordered list item
+            ul_match = re.match(r'^\s*[-*+]\s+(.*)$', line)
+            if ul_match:
+                flush_paragraph()
+                if list_kind == 'ol':
+                    flush_list()
+                list_kind = 'ul'
+                list_buffer.append(ListItem(
+                    Paragraph(_md_inline_to_rl(ul_match.group(1).strip()), self.styles['CustomBody']),
+                    leftIndent=18,
+                ))
+                continue
+
+            # Ordered list item
+            ol_match = re.match(r'^\s*\d+[.)]\s+(.*)$', line)
+            if ol_match:
+                flush_paragraph()
+                if list_kind == 'ul':
+                    flush_list()
+                list_kind = 'ol'
+                list_buffer.append(ListItem(
+                    Paragraph(_md_inline_to_rl(ol_match.group(1).strip()), self.styles['CustomBody']),
+                    leftIndent=18,
+                ))
+                continue
+
+            # Blockquote -- render as indented paragraph
+            quote_match = re.match(r'^\s*>\s?(.*)$', line)
+            if quote_match:
+                flush_paragraph()
+                flush_list()
+                elements.append(Paragraph(
+                    _md_inline_to_rl(quote_match.group(1).strip()),
+                    ParagraphStyle(
+                        name='Quote',
+                        parent=self.styles['CustomBody'],
+                        leftIndent=18,
+                        textColor=HexColor('#555555'),
+                    ),
+                ))
+                continue
+
+            # Plain paragraph line -- accumulate
+            flush_list()
+            para_buffer.append(line)
+
+        flush_paragraph()
+        flush_list()
+        return elements
+
     def _get_risk_indicator(self, risk_level: str) -> str:
         """Get risk indicator symbol"""
         risk_level = risk_level.lower()

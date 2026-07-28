@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 
 # Environment variables
 MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
-DB_NAME = os.getenv("DB_NAME", "fsi-threatsight360")
-PATTERN_COLLECTION = "fraud_patterns"
+DB_NAME = os.getenv("DB_NAME", "leafy_bank_bian")
+PATTERN_COLLECTION = "threatsightFraudPatterns"
 
 router = APIRouter(
     prefix="/fraud-patterns",

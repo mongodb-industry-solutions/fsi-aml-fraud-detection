@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 # MongoDB connection
 MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
-DB_NAME = os.getenv("DB_NAME")
+DB_NAME = os.getenv("DB_NAME", "leafy_bank_bian")
 
 # Create client instances
 _mongo_client = None

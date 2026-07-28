@@ -1,11 +1,10 @@
 from .customer import (
-    CustomerModel, 
-    CustomerResponse, 
-    PersonalInfoModel, 
-    AccountInfoModel, 
-    BehavioralProfileModel, 
+    CustomerModel,
+    CustomerResponse,
+    IdentificationModel,
+    IdentifierModel,
+    BehavioralProfileModel,
     RiskProfileModel,
-    MetadataModel,
     DeviceModel,
     TransactionPatternsModel
 )

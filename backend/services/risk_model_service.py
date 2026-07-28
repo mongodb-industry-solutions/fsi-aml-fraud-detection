@@ -77,6 +77,22 @@ class RiskModelService:
         """
         Evaluate transaction risk using the current active model.
         Returns risk assessment with score and factors.
+
+        ⚠️ UNREACHABLE — nothing calls this method. Scoring goes through
+        FraudDetectionService.evaluate_transaction instead. Left as-is deliberately during
+        the leafy_bank_bian migration (2026-07-28): it was NOT broken by the migration and
+        repairing it would be a behaviour change, not a migration change.
+
+        It reads two shapes that have never existed in this database:
+          - `transaction["merchantInfo"]["location"]["coordinates"]` — appears in 0 of the
+            21,449 migrated documents. The stored shape is `merchant` and `location` as
+            siblings, and the pre-migration source was the same, so this was already wrong.
+          - `customer_profile["behavioralProfile"]["transactionPatterns"]["commonGeolocations"]`
+            — the stored path is `behavioralProfile.transaction_patterns.usual_transaction_locations`
+            (snake sub-keys), and the source used `behavioral_profile...` likewise.
+
+        Both subscripts are unguarded, so wiring this up as-is raises KeyError on the first
+        call. Fix the shapes before calling it.
         """
         if not self.current_model:
             logger.warning("No active risk model loaded, using default evaluation")

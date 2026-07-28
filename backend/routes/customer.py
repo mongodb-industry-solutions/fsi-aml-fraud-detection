@@ -6,11 +6,25 @@ import os
 
 from models.customer import CustomerModel, CustomerResponse
 from db.mongo_db import MongoDBAccess
+from db.scope import scoped, stamped
+from db.serialize import mongo_json
 
 # Environment variables
 MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
-DB_NAME = os.getenv("DB_NAME", "fsi-threatsight360")
+DB_NAME = os.getenv("DB_NAME", "leafy_bank_bian")
 CUSTOMER_COLLECTION = "customers"
+
+# The three 1536-float embeddings are 87% of each document (~64 KB of 74 KB) and no
+# route returns them. Excluding them here keeps them off the Mongo→app hop too;
+# CustomerResponse independently keeps them off the app→client hop.
+WITHOUT_EMBEDDINGS = {
+    "profileEmbedding": 0,
+    "behavioralEmbedding": 0,
+    "identifierEmbedding": 0,
+    "behavioralText": 0,
+    "profileSummaryText": 0,
+    "identifierText": 0,
+}
 
 router = APIRouter(
     prefix="/customers",
@@ -39,7 +53,7 @@ def get_db():
 
 @router.post("/", response_description="Add new customer", response_model=CustomerResponse)
 async def create_customer(customer: CustomerModel = Body(...), db: MongoDBAccess = Depends(get_db)):
-    customer = jsonable_encoder(customer)
+    customer = stamped(jsonable_encoder(customer))
     new_customer = db.insert_one(
         db_name=DB_NAME,
         collection_name=CUSTOMER_COLLECTION,
@@ -49,11 +63,17 @@ async def create_customer(customer: CustomerModel = Body(...), db: MongoDBAccess
         db_name=DB_NAME,
         collection_name=CUSTOMER_COLLECTION
     ).find_one({"_id": new_customer.inserted_id})
-    
-    return JSONResponse(status_code=status.HTTP_201_CREATED, content=created_customer)
+
+    return JSONResponse(status_code=status.HTTP_201_CREATED, content=mongo_json(created_customer))
 
 @router.get("/", response_description="List all customers", response_model=List[CustomerResponse])
-async def list_customers(db: MongoDBAccess = Depends(get_db), limit: int = 5, skip: int = 0):
+async def list_customers(
+    db: MongoDBAccess = Depends(get_db),
+    limit: int = 5,
+    skip: int = 0,
+    sort_by_risk: bool = False,
+    behavioral_source: Optional[str] = None,
+):
     import logging
     logger = logging.getLogger(__name__)
     
@@ -67,15 +87,28 @@ async def list_customers(db: MongoDBAccess = Depends(get_db), limit: int = 5, sk
             collection_name=CUSTOMER_COLLECTION
         )
         
-        # Try to get a count first to verify connection
-        count = collection.count_documents({})
-        logger.info(f"Found {count} documents in the collection")
-        
-        # Get the customers
-        customers = list(collection.find().skip(skip).limit(limit))
+        # `customers` holds two cohorts merged by the SD-1 transform, told apart by
+        # behavioralProfile.source: "aml" (504, from `entities`) and "fraud" (50, migrated
+        # from the old fraud `customers`, which own all 21,449 transactions).
+        query = scoped(
+            {"behavioralProfile.source": behavioral_source} if behavioral_source else None
+        )
+
+        # Counted on the same filter, so the log says how many the caller could page
+        # through rather than how big the collection is.
+        logger.info(f"Found {collection.count_documents(query)} documents matching {query}")
+
+        # createdAt descending by default, matching the AML endpoint this picker used to
+        # read (`entity_repository.py:343` sorts the same way). That ordering is what the
+        # deployed demo's dropdown shows — newest first, so Noémi Rosario then Colin Stone.
+        # Natural load order would start at Chr Luce Benthin instead.
+        cursor = collection.find(query, WITHOUT_EMBEDDINGS).sort(
+            "riskProfile.overall.score" if sort_by_risk else "createdAt", -1
+        )
+        customers = list(cursor.skip(skip).limit(limit))
         logger.info(f"Retrieved {len(customers)} customers")
-        
-        return customers
+
+        return mongo_json(customers)
     
     except Exception as e:
         import traceback
@@ -88,9 +121,9 @@ async def get_customer(customer_id: str, db: MongoDBAccess = Depends(get_db)):
     if (customer := db.get_collection(
         db_name=DB_NAME,
         collection_name=CUSTOMER_COLLECTION
-    ).find_one({"_id": customer_id})) is not None:
-        return customer
-    
+    ).find_one(scoped({"customerId": customer_id}), WITHOUT_EMBEDDINGS)) is not None:
+        return mongo_json(customer)
+
     raise HTTPException(status_code=404, detail=f"Customer with ID {customer_id} not found")
 
 @router.put("/{customer_id}", response_description="Update a customer", response_model=CustomerResponse)
@@ -101,7 +134,7 @@ async def update_customer(customer_id: str, customer: CustomerModel = Body(...),
         update_result = db.get_collection(
             db_name=DB_NAME,
             collection_name=CUSTOMER_COLLECTION
-        ).update_one({"_id": customer_id}, {"$set": customer})
+        ).update_one(scoped({"customerId": customer_id}), {"$set": customer})
         
         if update_result.modified_count == 0:
             raise HTTPException(status_code=404, detail=f"Customer with ID {customer_id} not found")
@@ -109,8 +142,8 @@ async def update_customer(customer_id: str, customer: CustomerModel = Body(...),
     if (updated_customer := db.get_collection(
         db_name=DB_NAME,
         collection_name=CUSTOMER_COLLECTION
-    ).find_one({"_id": customer_id})) is not None:
-        return updated_customer
+    ).find_one(scoped({"customerId": customer_id}), WITHOUT_EMBEDDINGS)) is not None:
+        return mongo_json(updated_customer)
     
     raise HTTPException(status_code=404, detail=f"Customer with ID {customer_id} not found")
 
@@ -119,7 +152,7 @@ async def delete_customer(customer_id: str, db: MongoDBAccess = Depends(get_db))
     delete_result = db.get_collection(
         db_name=DB_NAME,
         collection_name=CUSTOMER_COLLECTION
-    ).delete_one({"_id": customer_id})
+    ).delete_one(scoped({"customerId": customer_id}))
     
     if delete_result.deleted_count == 1:
         return JSONResponse(status_code=status.HTTP_204_NO_CONTENT)

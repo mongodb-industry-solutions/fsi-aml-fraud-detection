@@ -13,6 +13,7 @@ from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.mongodb import MongoDBSaver
 from langchain_core.messages import trim_messages
 
+from dependencies import CHECKPOINTS_COLLECTION, CHECKPOINT_WRITES_COLLECTION
 from services.agents.llm import get_llm
 
 from services.agents.tools.entity_tools import get_entity_profile, screen_watchlists
@@ -37,7 +38,7 @@ from services.agents.tools.chat_tools import (
 logger = logging.getLogger(__name__)
 
 MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
-DB_NAME = os.getenv("DB_NAME", "fsi-threatsight360")
+DB_NAME = os.getenv("DB_NAME", "leafy_bank_bian")
 
 CHAT_SYSTEM_PROMPT = """\
 You are ThreatSight, a senior AML/KYC investigation co-pilot for risk analysts \
@@ -264,8 +265,12 @@ def get_chat_agent():
     global _chat_agent
     if _chat_agent is None:
         client = MongoClient(MONGODB_URI)
-        db = client[DB_NAME]
-        checkpointer = MongoDBSaver(db)
+        checkpointer = MongoDBSaver(
+            client,
+            db_name=DB_NAME,
+            checkpoint_collection_name=CHECKPOINTS_COLLECTION,
+            writes_collection_name=CHECKPOINT_WRITES_COLLECTION,
+        )
 
         _chat_agent = create_react_agent(
             model=get_llm(),

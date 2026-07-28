@@ -36,7 +36,7 @@ def get_repository_factory() -> RepositoryFactory:
 
         factory = RepositoryFactory(
             connection_string=os.getenv("MONGODB_URI"),
-            database_name=os.getenv("DB_NAME", "fsi-threatsight360"),
+            database_name=os.getenv("DB_NAME", "leafy_bank_bian"),
             bedrock_client=bedrock_client
         )
         logger.info("Repository factory initialized successfully with SSO-enabled Bedrock client")

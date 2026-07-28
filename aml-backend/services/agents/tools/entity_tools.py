@@ -15,7 +15,7 @@ def get_entity_profile(entity_id: str) -> dict:
     identifiers, name, entityType, and scenarioKey.
     """
     client = get_mongo_client()
-    doc = client[DB_NAME]["entities"].find_one(
+    doc = client[DB_NAME]["threatsightEntities"].find_one(
         {"entityId": entity_id},
         {
             "_id": 0,
@@ -47,7 +47,7 @@ def screen_watchlists(entity_id: str) -> dict:
     match scores, and confirmation status.
     """
     client = get_mongo_client()
-    doc = client[DB_NAME]["entities"].find_one(
+    doc = client[DB_NAME]["threatsightEntities"].find_one(
         {"entityId": entity_id},
         {"_id": 0, "watchlistMatches": 1, "riskAssessment.overall": 1, "name.full": 1},
     )

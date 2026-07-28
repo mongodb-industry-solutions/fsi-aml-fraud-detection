@@ -202,7 +202,7 @@ async def launch_investigation(request: Dict[str, Any]):
     }
     try:
         client = get_mongo_client()
-        result = client[DB_NAME]["alerts"].insert_one(alert_doc)
+        result = client[DB_NAME]["threatsightAlerts"].insert_one(alert_doc)
         alert_id = str(result.inserted_id)
     except Exception as exc:
         logger.warning("Failed to insert alert doc: %s", exc)
@@ -254,7 +254,7 @@ async def launch_investigation(request: Dict[str, Any]):
                 try:
                     new_status = "awaiting_review" if is_interrupted else "completed"
                     await asyncio.to_thread(
-                        client[DB_NAME]["alerts"].update_one,
+                        client[DB_NAME]["threatsightAlerts"].update_one,
                         {"_id": ObjectId(alert_id)},
                         {"$set": {"status": new_status, "completed_at": datetime.now(timezone.utc)}},
                     )
@@ -384,7 +384,7 @@ async def list_investigations(
 ):
     """List all investigations, optionally filtered by status."""
     client = get_mongo_client()
-    coll = client[DB_NAME]["investigations"]
+    coll = client[DB_NAME]["threatsightInvestigations"]
 
     query: dict = {}
     if status:
@@ -448,7 +448,7 @@ async def investigation_analytics():
         }},
     ]
 
-    results = list(db["investigations"].aggregate(pipeline))
+    results = list(db["threatsightInvestigations"].aggregate(pipeline))
     facets = results[0] if results else {}
 
     risk = facets.get("risk_stats", [{}])[0] if facets.get("risk_stats") else {}
@@ -484,7 +484,7 @@ async def search_investigations(q: str = "", limit: int = 20):
 
     query_regex = {"$regex": q.strip(), "$options": "i"}
 
-    results = list(db["investigations"].find(
+    results = list(db["threatsightInvestigations"].find(
         {"$or": [
             {"case_id": query_regex},
             {"entity_id": query_regex},
@@ -514,7 +514,7 @@ async def search_investigations(q: str = "", limit: int = 20):
 async def get_investigation(case_id: str):
     """Get a single investigation by case_id."""
     client = get_mongo_client()
-    doc = client[DB_NAME]["investigations"].find_one(
+    doc = client[DB_NAME]["threatsightInvestigations"].find_one(
         {"case_id": case_id}, {"_id": 0}
     )
     if not doc:
@@ -563,7 +563,7 @@ async def list_investigable_entities():
 
     pipeline = [
         {"$lookup": {
-            "from": "transactionsv2",
+            "from": "fraudEvaluation",
             "let": {"eid": "$entityId"},
             "pipeline": [
                 {"$match": {"$expr": {"$or": [
@@ -591,7 +591,7 @@ async def list_investigable_entities():
         {"$sort": {"scenarioKey": 1, "entityId": 1}},
     ]
 
-    entities = list(db["entities"].aggregate(pipeline))
+    entities = list(db["threatsightEntities"].aggregate(pipeline))
 
     grouped: Dict[str, list] = {}
     for ent in entities:
@@ -613,7 +613,7 @@ async def list_typologies():
     """Return all AML typologies from the typology_library collection."""
     client = get_mongo_client()
     docs = list(
-        client[DB_NAME]["typology_library"]
+        client[DB_NAME]["threatsightTypologyLibrary"]
         .find({}, {"_id": 0})
         .sort("name", 1)
     )
@@ -655,7 +655,7 @@ async def investigation_change_stream(websocket: WebSocket):
         pipeline = [
             {"$match": {
                 "operationType": {"$in": ["insert", "update", "replace"]},
-                "ns.coll": "investigations",
+                "ns.coll": "threatsightInvestigations",
             }},
         ]
 
@@ -721,7 +721,7 @@ async def alerts_change_stream(websocket: WebSocket):
     try:
         # Send recent alerts as initial state
         recent = []
-        cursor = db["alerts"].find().sort("submitted_at", -1).limit(20)
+        cursor = db["threatsightAlerts"].find().sort("submitted_at", -1).limit(20)
         async for doc in cursor:
             recent.append(_make_json_safe(doc))
         await websocket.send_json({"type": "initial", "alerts": recent})
@@ -730,7 +730,7 @@ async def alerts_change_stream(websocket: WebSocket):
         pipeline = [
             {"$match": {
                 "operationType": {"$in": ["insert", "update", "replace"]},
-                "ns.coll": {"$in": ["alerts", "investigations"]},
+                "ns.coll": {"$in": ["threatsightAlerts", "threatsightInvestigations"]},
             }},
         ]
 
@@ -745,7 +745,7 @@ async def alerts_change_stream(websocket: WebSocket):
                 safe_doc = _make_json_safe(doc)
                 coll = change.get("ns", {}).get("coll", "")
 
-                if coll == "alerts":
+                if coll == "threatsightAlerts":
                     await websocket.send_json({
                         "type": "alert_change",
                         "operationType": change["operationType"],
@@ -758,7 +758,7 @@ async def alerts_change_stream(websocket: WebSocket):
                         },
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                     })
-                elif coll == "investigations":
+                elif coll == "threatsightInvestigations":
                     await websocket.send_json({
                         "type": "investigation_change",
                         "operationType": change["operationType"],

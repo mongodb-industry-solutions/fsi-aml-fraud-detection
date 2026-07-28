@@ -16,7 +16,7 @@ DB           ?= leafy_bank_bian
 
 .PHONY: help build start stop clean setup install install-backend install-aml install-frontend \
         update dev dev-backend dev-frontend dev-fraud dev-aml dev-stop dev-stop-backend \
-        dev-stop-frontend dev-logs dev-status dev-kill-all env-check db-check
+        dev-stop-frontend dev-logs dev-status dev-kill-all env-check db-check aml-check
 
 help:
 	@echo "ThreatSight 360 — make targets"
@@ -34,6 +34,7 @@ help:
 	@echo ""
 	@echo "  env-check         Verify MONGODB_URI / DB_NAME / NEXT_PUBLIC_API_URL"
 	@echo "  db-check          Verify the migrated data is reachable and scoped"
+	@echo "  aml-check         Verify the 7 renamed AML collections + search indexes"
 	@echo ""
 	@echo "  build/start/stop/clean   docker-compose (see caveat in docker/ section)"
 
@@ -199,4 +200,24 @@ db-check:
 	        print("  transactions " + d.transactions.countDocuments(S) + " / " + d.transactions.countDocuments({}) + " (want 21449 / 21762)"); \
 	        print("  patterns     " + d.threatsightFraudPatterns.countDocuments(S) + "        (want 5)"); \
 	        print("  simulator-written transactions: " + d.transactions.countDocuments({...S, createdBy:"simulator"}));'
+
+# The 7 AML collections loaded AS-IS under renamed names by
+# threat360-migration/populate_aml_asis.py. Unlike the fraud collections these are
+# NOT sourceSystem-scoped — they are wholly ThreatSight's, so a plain count is right.
+# The 5 search indexes on threatsightEntities build asynchronously: until every one
+# reports queryable=true, entity search and hybrid search return empty with NO error.
+aml-check:
+	@if [ -z "$$MONGODB_URI" ]; then echo "❌ MONGODB_URI not set"; exit 1; fi
+	@echo "🔎 Checking the AML collections in $(DB)"
+	@mongosh "$$MONGODB_URI" --quiet --eval 'const d=db.getSiblingDB("$(DB)"); \
+	        const want={threatsightEntities:504, threatsightRelationships:519, fraudEvaluation:12766, \
+	                    threatsightAlerts:0, threatsightInvestigations:0, \
+	                    threatsightTypologyLibrary:12, threatsightCompliancePolicies:6}; \
+	        for (const [c,n] of Object.entries(want)) { \
+	          const got=d[c].countDocuments({}); \
+	          const ok = n===0 ? got>0 : got===n; \
+	          print("  " + (ok?"✅":"❌") + " " + c.padEnd(30) + got + (n?"  (want "+n+")":"  (grows at runtime)")); } \
+	        print(""); print("  search/vector indexes on threatsightEntities:"); \
+	        d.threatsightEntities.getSearchIndexes().forEach(i => \
+	          print("    " + (i.queryable?"✅":"⏳") + " " + i.name.padEnd(32) + i.status));'
 

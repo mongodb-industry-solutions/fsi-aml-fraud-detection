@@ -38,7 +38,7 @@ def _trace_ownership_chains(db, entity_id: str, max_depth: int = 3) -> list[dict
         }},
         {
             "$graphLookup": {
-                "from": "relationships",
+                "from": "threatsightRelationships",
                 "startWith": "$target.entityId",
                 "connectFromField": "target.entityId",
                 "connectToField": "source.entityId",
@@ -70,7 +70,7 @@ def _trace_ownership_chains(db, entity_id: str, max_depth: int = 3) -> list[dict
             },
         }},
     ]
-    results = list(db["relationships"].aggregate(pipeline))
+    results = list(db["threatsightRelationships"].aggregate(pipeline))
 
     chains = []
     for row in results:

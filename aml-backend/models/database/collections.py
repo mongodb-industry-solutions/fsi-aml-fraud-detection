@@ -29,7 +29,7 @@ class CollectionConfig(BaseModel):
 class EntityCollection(CollectionConfig):
     """Configuration for entities collection"""
     
-    collection_name: str = "entities"
+    collection_name: str = "threatsightEntities"
     
     # Indexes for optimal performance
     indexes: List[Dict[str, Any]] = Field(default_factory=lambda: [
@@ -208,7 +208,7 @@ class ResolutionHistoryCollection(CollectionConfig):
 class RelationshipCollection(CollectionConfig):
     """Configuration for relationships collection"""
     
-    collection_name: str = "relationships"
+    collection_name: str = "threatsightRelationships"
     
     indexes: List[Dict[str, Any]] = Field(default_factory=lambda: [
         # Core relationship indexes

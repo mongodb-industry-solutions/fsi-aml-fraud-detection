@@ -45,7 +45,7 @@ class EntityRepository(EntityRepositoryInterface):
         """
         self.repo = mongodb_repo
         # Get collection name from environment variable or use provided name
-        self.collection_name = collection_name or os.getenv('ENTITIES_COLLECTION', 'entities')
+        self.collection_name = collection_name or os.getenv('ENTITIES_COLLECTION', 'threatsightEntities')
         self.collection = self.repo.collection(self.collection_name)
         
         logger.info(f"EntityRepository initialized with collection: {self.collection_name}")
@@ -528,7 +528,7 @@ class EntityRepository(EntityRepositoryInterface):
                        .match({"_id": ObjectId(entity_id)})
                        .unwind("$linked_entities", preserve_null=True)
                        .lookup(
-                           from_collection="entities",
+                           from_collection="threatsightEntities",
                            local_field="linked_entities.entity_id",
                            foreign_field="_id", 
                            as_field="linked_entity_details"

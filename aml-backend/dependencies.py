@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 # MongoDB connection
 MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
-DB_NAME = os.getenv("DB_NAME", "fsi-threatsight360")
+DB_NAME = os.getenv("DB_NAME", "leafy_bank_bian")
 
 # Create client instances
 _mongo_client = None
@@ -49,7 +49,7 @@ def get_mongodb_access():
 async def get_entities_collection():
     """Get entities collection for async operations"""
     db = get_database()
-    return db.entities
+    return db.threatsightEntities
 
 # Dependencies for getting MongoDB access in FastAPI routes
 def get_db_dependency():
@@ -69,7 +69,19 @@ def get_async_db_dependency():
     return get_database()
 
 # Configuration constants
-ENTITIES_COLLECTION = "entities"
+ENTITIES_COLLECTION = "threatsightEntities"
+
+# LangGraph checkpoint collections. Both the investigation graph (services/agents/graph.py)
+# and the chat agent (services/agents/chat_agent.py) share these, which preserves the
+# pre-rename behaviour where both used the library defaults.
+#
+# These MUST be passed to MongoDBSaver explicitly. Its first argument is a MongoClient,
+# and its defaults are db_name="checkpointing_db" / "checkpoints" / "checkpoint_writes";
+# passing a Database instead of a client made `client[db_name]` resolve to a COLLECTION
+# named "checkpointing_db", so the writes landed in dot-namespaced sub-collections
+# `checkpointing_db.checkpoints` and `checkpointing_db.checkpoint_writes`.
+CHECKPOINTS_COLLECTION = "threatsightCheckpoints"
+CHECKPOINT_WRITES_COLLECTION = "threatsightCheckpointWrites"
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 100
 

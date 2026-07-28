@@ -6,8 +6,11 @@ import os
 import logging
 from datetime import datetime, timedelta
 
-from models.transaction import TransactionModel, TransactionResponse
+from models.transaction import TransactionModel
 from db.mongo_db import MongoDBAccess
+from db.scope import scoped
+from db.serialize import mongo_json
+from db.txn_shape import build_transaction
 from services.fraud_detection import FraudDetectionService
 
 # Set up logging
@@ -15,8 +18,12 @@ logger = logging.getLogger(__name__)
 
 # Environment variables
 MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
-DB_NAME = os.getenv("DB_NAME", "fsi-threatsight360")
+DB_NAME = os.getenv("DB_NAME", "leafy_bank_bian")
 TRANSACTION_COLLECTION = "transactions"
+
+# vector_embedding is 1536 floats — 92% of each document (~21 KB of 23 KB). No route
+# returns it, and a 50-row page would otherwise ship ~1.1 MB instead of ~90 KB.
+WITHOUT_EMBEDDING = {"vector_embedding": 0}
 
 router = APIRouter(
     prefix="/transactions",
@@ -48,35 +55,44 @@ def get_fraud_detection_service(db: MongoDBAccess = Depends(get_db)):
     service = FraudDetectionService(db_client=db, db_name=DB_NAME)
     return service
 
-@router.post("/", response_description="Add new transaction", response_model=TransactionResponse)
+@router.post("/", response_description="Add new transaction")
 async def create_transaction(
-    transaction: TransactionModel = Body(...), 
+    transaction: TransactionModel = Body(...),
     db: MongoDBAccess = Depends(get_db),
     fraud_service: FraudDetectionService = Depends(get_fraud_detection_service)
 ):
-    # Convert transaction to a dictionary
+    # Convert transaction to a dictionary. This is the inbound wire shape (snake_case).
     transaction_dict = jsonable_encoder(transaction)
-    
+
     # If transaction doesn't have a risk assessment, evaluate it
     if "risk_assessment" not in transaction_dict or not transaction_dict["risk_assessment"]:
         # Perform fraud detection
         risk_assessment = await fraud_service.evaluate_transaction(transaction_dict)
         transaction_dict["risk_assessment"] = risk_assessment
         logger.info(f"Transaction evaluated with risk score: {risk_assessment['score']}, level: {risk_assessment['level']}")
-    
-    # Store the transaction
+
+    # Translate to the stored shape. build_transaction mirrors the migration's builder and
+    # stamps sourceSystem, so the row is visible to this app's scoped reads and excluded
+    # from the ledger change stream's ingest filter.
+    payer_name = None
+    customer = fraud_service._find_customer(transaction_dict.get("customer_id"))
+    if customer:
+        payer_name = (customer.get("identification") or {}).get("legalName")
+
+    document = build_transaction(transaction_dict, payer_name=payer_name)
+
     new_transaction = db.insert_one(
         db_name=DB_NAME,
         collection_name=TRANSACTION_COLLECTION,
-        document=transaction_dict
+        document=document
     )
-    
+
     created_transaction = db.get_collection(
         db_name=DB_NAME,
         collection_name=TRANSACTION_COLLECTION
-    ).find_one({"_id": new_transaction.inserted_id})
-    
-    return JSONResponse(status_code=status.HTTP_201_CREATED, content=created_transaction)
+    ).find_one({"_id": new_transaction.inserted_id}, WITHOUT_EMBEDDING)
+
+    return JSONResponse(status_code=status.HTTP_201_CREATED, content=mongo_json(created_transaction))
 
 @router.post("/evaluate", response_description="Evaluate transaction for fraud without storing it")
 async def evaluate_transaction(
@@ -289,10 +305,14 @@ async def evaluate_transaction(
         "vector_search_calculation": calculation_breakdown  # Include calculation breakdown for transparency
     }
 
-@router.get("/", response_description="List transactions", response_model=List[TransactionResponse])
+# Responses are the stored (camelCase) documents. No response_model: the migrated shape
+# is payer/payee/txnId/createdAt/riskAssessment/transactionStatus, which the legacy
+# snake_case TransactionResponse could not express. The one place the wire stays snake is
+# POST /evaluate, whose composed payload the frontend reads.
+@router.get("/", response_description="List transactions")
 async def list_transactions(
-    db: MongoDBAccess = Depends(get_db), 
-    limit: int = 10, 
+    db: MongoDBAccess = Depends(get_db),
+    limit: int = 10,
     skip: int = 0,
     customer_id: Optional[str] = None,
     start_date: Optional[datetime] = None,
@@ -300,15 +320,16 @@ async def list_transactions(
     min_amount: Optional[float] = None,
     max_amount: Optional[float] = None,
     risk_level: Optional[str] = Query(None, description="Filter by risk level (low, medium, high)"),
-    transaction_type: Optional[str] = Query(None, description="Filter by transaction type (purchase, withdrawal, transfer, deposit)"),
-    status: Optional[str] = Query(None, description="Filter by status (completed, pending, failed, refunded)")
+    transaction_type: Optional[str] = Query(None, description="Filter by transaction type (purchase, withdrawal, transfer, payment, refund)"),
+    status: Optional[str] = Query(None, description="Filter by transactionStatus. Migrated data carries only 'Completed' (capitalised)")
 ):
     # Build query filters
     query = {}
-    
+
     if customer_id:
-        query["customer_id"] = customer_id
-    
+        # The customer reference on a transaction is the payer's account id
+        query["payer.accountId"] = customer_id
+
     if start_date or end_date:
         date_query = {}
         if start_date:
@@ -316,8 +337,8 @@ async def list_transactions(
         if end_date:
             date_query["$lte"] = end_date
         if date_query:
-            query["timestamp"] = date_query
-    
+            query["createdAt"] = date_query
+
     if min_amount is not None or max_amount is not None:
         amount_query = {}
         if min_amount is not None:
@@ -326,35 +347,43 @@ async def list_transactions(
             amount_query["$lte"] = max_amount
         if amount_query:
             query["amount"] = amount_query
-    
+
     if risk_level:
-        query["risk_assessment.level"] = risk_level
-    
+        query["riskAssessment.level"] = risk_level
+
     if transaction_type:
-        query["transaction_type"] = transaction_type
-    
+        query["transactionTypeSource"] = transaction_type
+
     if status:
-        query["status"] = status
-    
+        query["transactionStatus"] = status
+
     # Get transactions with filters
     transactions = list(db.get_collection(
         db_name=DB_NAME,
         collection_name=TRANSACTION_COLLECTION
-    ).find(query).sort("timestamp", -1).skip(skip).limit(limit))
-    
-    return transactions
+    ).find(scoped(query), WITHOUT_EMBEDDING).sort("createdAt", -1).skip(skip).limit(limit))
 
-@router.get("/{transaction_id}", response_description="Get a single transaction", response_model=TransactionResponse)
+    return mongo_json(transactions)
+
+@router.get("/{transaction_id}", response_description="Get a single transaction")
 async def get_transaction(transaction_id: str, db: MongoDBAccess = Depends(get_db)):
+    # `$type: "string"` is not redundant. txnId_1 is a PARTIAL unique index
+    # (partialFilterExpression {txnId: {$type: "string"}}, needed because Leafy Bank's
+    # payments carry no txnId and plain unique would collide on nulls). Mongo only uses a
+    # partial index when the query predicate is a subset of that filter, and an equality on
+    # a string literal does not prove the type to the planner — without this the lookup
+    # COLLSCANs all 21k documents.
+    txn_query = scoped({"txnId": {"$eq": transaction_id, "$type": "string"}})
+
     if (transaction := db.get_collection(
         db_name=DB_NAME,
         collection_name=TRANSACTION_COLLECTION
-    ).find_one({"transaction_id": transaction_id})) is not None:
-        return transaction
-    
+    ).find_one(txn_query, WITHOUT_EMBEDDING)) is not None:
+        return mongo_json(transaction)
+
     raise HTTPException(status_code=404, detail=f"Transaction with ID {transaction_id} not found")
 
-@router.get("/customer/{customer_id}", response_description="Get customer transactions", response_model=List[TransactionResponse])
+@router.get("/customer/{customer_id}", response_description="Get customer transactions")
 async def get_customer_transactions(
     customer_id: str, 
     db: MongoDBAccess = Depends(get_db),
@@ -367,14 +396,14 @@ async def get_customer_transactions(
     transactions = list(db.get_collection(
         db_name=DB_NAME,
         collection_name=TRANSACTION_COLLECTION
-    ).find({
-        "customer_id": customer_id,
-        "timestamp": {"$gte": start_date}
-    }).sort("timestamp", -1).skip(skip).limit(limit))
-    
-    return transactions
+    ).find(scoped({
+        "payer.accountId": customer_id,
+        "createdAt": {"$gte": start_date}
+    }), WITHOUT_EMBEDDING).sort("createdAt", -1).skip(skip).limit(limit))
 
-@router.get("/risk/high", response_description="Get high-risk transactions", response_model=List[TransactionResponse])
+    return mongo_json(transactions)
+
+@router.get("/risk/high", response_description="Get high-risk transactions")
 async def get_high_risk_transactions(
     db: MongoDBAccess = Depends(get_db),
     limit: int = 50,
@@ -386,12 +415,12 @@ async def get_high_risk_transactions(
     transactions = list(db.get_collection(
         db_name=DB_NAME,
         collection_name=TRANSACTION_COLLECTION
-    ).find({
-        "risk_assessment.level": "high",
-        "timestamp": {"$gte": start_date}
-    }).sort("timestamp", -1).skip(skip).limit(limit))
-    
-    return transactions
+    ).find(scoped({
+        "riskAssessment.level": "high",
+        "createdAt": {"$gte": start_date}
+    }), WITHOUT_EMBEDDING).sort("createdAt", -1).skip(skip).limit(limit))
+
+    return mongo_json(transactions)
 
 @router.get("/flags/{flag_type}", response_description="Get transactions with specific fraud flags")
 async def get_transactions_by_flag(
@@ -410,9 +439,9 @@ async def get_transactions_by_flag(
     transactions = list(db.get_collection(
         db_name=DB_NAME,
         collection_name=TRANSACTION_COLLECTION
-    ).find({
-        "risk_assessment.flags": flag_type,
-        "timestamp": {"$gte": start_date}
-    }).sort("timestamp", -1).skip(skip).limit(limit))
-    
-    return transactions
+    ).find(scoped({
+        "riskAssessment.flags": flag_type,
+        "createdAt": {"$gte": start_date}
+    }), WITHOUT_EMBEDDING).sort("createdAt", -1).skip(skip).limit(limit))
+
+    return mongo_json(transactions)

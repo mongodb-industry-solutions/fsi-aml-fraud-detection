@@ -6,7 +6,7 @@ from dependencies import get_mongo_client, DB_NAME
 
 logger = logging.getLogger(__name__)
 
-COLLECTION = "transactionsv2"
+COLLECTION = "fraudEvaluation"
 
 
 @tool

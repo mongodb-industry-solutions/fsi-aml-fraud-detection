@@ -129,11 +129,8 @@ Let's get started!
 Before you begin working with this project, ensure that you have the following prerequisites set up in your development environment:
 
 - **Python 3.10+**: Both backend services are built with Python. You can download it from the [official website](https://www.python.org/downloads/).
-
 - **Node.js 18+**: The frontend requires Node.js 18 or higher, which includes npm for package management. You can download it from the [official Node.js website](https://nodejs.org/).
-
 - **Poetry**: Both backend services use Poetry for dependency management. Install it by following the instructions on the [Poetry website](https://python-poetry.org/docs/#installation).
-
 - **MongoDB Atlas Account**: This project uses MongoDB Atlas for data storage, Atlas Search, and vector search capabilities. If you don't have an account, you can sign up for free at [MongoDB Atlas](https://www.mongodb.com/cloud/atlas/register). Once you have an account, follow these steps to set up a M10 tier cluster:
   - Log in to your MongoDB Atlas account.
   - Create a new project or use an existing one, and then click "create a new database".
@@ -142,7 +139,6 @@ Before you begin working with this project, ensure that you have the following p
   - Finally, add your IP to the network access list so you can access your cluster remotely.
 
 - **AWS Account with Bedrock Access**: You'll need an AWS account with access to the Bedrock service for AI foundation models used in both fraud detection and entity resolution. Visit the [AWS Console](https://aws.amazon.com/console/) to set up an account and request access to Bedrock.
-
 - **Docker (Optional)**: For containerized deployment, Docker is required. Install it from the [Docker website](https://www.docker.com/get-started).
 
 ## Quick Start
@@ -205,13 +201,9 @@ mongodb+srv://<username>:<password>@cluster-name.xxxxx.mongodb.net/
 ### Set up AWS Bedrock Access
 
 1. Log in to your AWS Management Console.
-
 2. Navigate to the Bedrock service or search for "Bedrock" in the AWS search bar.
-
 3. Follow the prompts to request access to the Bedrock service if you haven't already.
-
 4. Once access is granted, create an IAM user with programmatic access and appropriate permissions for Bedrock.
-
 5. Save the AWS Access Key ID and Secret Access Key for later use in your environment variables.
 
 > [!Important]
@@ -222,7 +214,6 @@ mongodb+srv://<username>:<password>@cluster-name.xxxxx.mongodb.net/
 Now it's time to clone the ThreatSight 360 source code from GitHub to your local machine:
 
 1. Open your terminal or command prompt.
-
 2. Navigate to your preferred directory where you want to store the project using the `cd` command. For example:
 
    ```bash
@@ -250,17 +241,11 @@ ThreatSight 360 leverages MongoDB Atlas Vector Search for advanced fraud pattern
 #### 1. Fraud Pattern Vector Index
 
 1. Navigate to your MongoDB Atlas dashboard and select your cluster.
-
 2. Click on the "Search" tab located in the top navigation menu.
-
 3. Click "Create Search Index".
-
 4. Choose the JSON editor and click "Next".
-
 5. Name your index "transaction_vector_index".
-
 6. Select your database and the "transactions" collection.
-
 7. For the index definition, paste the following JSON:
 
    ```json
@@ -281,9 +266,7 @@ ThreatSight 360 leverages MongoDB Atlas Vector Search for advanced fraud pattern
 #### 2. Entity Resolution Search Index
 
 1. Create another Atlas Search index named "entity_resolution_search".
-
 2. Select the "entities" collection.
-
 3. Use the following comprehensive index definition for entity resolution:
 
 ```json
@@ -412,11 +395,8 @@ For semantic entity matching, create a vector search index named "entity_vector_
 For real-time updates in your application, you'll need to enable change streams in MongoDB Atlas:
 
 1. Navigate to your MongoDB Atlas dashboard and select your cluster.
-
 2. Go to "Database Access" in the left sidebar.
-
 3. Ensure that your database user has the "readWrite" and "dbAdmin" roles for the database you'll be using.
-
 4. For production environments, consider creating a dedicated user with specific privileges for change streams.
 
 > [!Important]
@@ -436,12 +416,12 @@ Create a `.env` file with the following configuration settings:
 
 ```bash
 # MongoDB Connection
-MONGODB_URI=mongodb+srv://<username>:<password>@cluster-name.xxxxx.mongodb.net/
+MONGODB_URI=
 DB_NAME=fsi-threatsight360
 
 # AWS Bedrock Credentials
-AWS_ACCESS_KEY_ID=your_aws_access_key_here
-AWS_SECRET_ACCESS_KEY=your_aws_secret_key_here
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
 AWS_REGION=us-east-1
 
 # Server Configuration
@@ -492,12 +472,12 @@ Create a `.env` file with the following configuration settings:
 
 ```bash
 # MongoDB Connection
-MONGODB_URI=mongodb+srv://<username>:<password>@cluster-name.xxxxx.mongodb.net/
+MONGODB_URI=
 DB_NAME=fsi-threatsight360
 
 # AWS Bedrock Credentials (for AI features)
-AWS_ACCESS_KEY_ID=your_aws_access_key_here
-AWS_SECRET_ACCESS_KEY=your_aws_secret_key_here
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
 AWS_REGION=us-east-1
 
 # Server Configuration
@@ -592,11 +572,13 @@ The [Transaction Synthetic Data Generation notebook](docs/ThreatSight360%20-%20T
   - Device fingerprints and usual locations (GeoJSON)
   - Transaction behavior patterns (average amounts, merchant categories, usual times)
   - Risk profiles with scoring and flags
+
 - **6 Months of Synthetic Transactions** (26,000+ transactions) with:
   - Realistic mix of normal (60%), suspicious (25%), and fraudulent (15%) transactions
   - Location data as GeoJSON for geospatial queries
   - Device information for device fingerprinting
   - Risk assessments with scores and flags
+
 - **5 Fraud Patterns** with AWS Bedrock embeddings:
   - Account Takeover
   - Card Testing
@@ -693,9 +675,7 @@ Before running the notebooks, ensure you have:
 The Transaction Simulator allows you to test and visualize how the fraud detection system responds to different scenarios:
 
 1. Navigate to [http://localhost:3000/transaction-simulator](http://localhost:3000/transaction-simulator).
-
 2. Select a customer from the dropdown menu.
-
 3. Choose a predefined fraud scenario or configure your own:
    - Normal Transaction
    - Unusual Amount
@@ -712,7 +692,6 @@ The Transaction Simulator allows you to test and visualize how the fraud detecti
    - Device information
 
 5. Click "Evaluate Transaction" to analyze the risk profile.
-
 6. Review the comprehensive risk assessment, including:
    - **Traditional Risk Assessment**: Rules-based evaluation with fraud pattern detection
    - **Advanced Vector Search**: AI-powered similarity matching against historical transactions
@@ -732,7 +711,6 @@ The Transaction Simulator allows you to test and visualize how the fraud detecti
 The Entity Management interface provides comprehensive AML/KYC capabilities:
 
 1. Navigate to [http://localhost:3000/entities](http://localhost:3000/entities).
-
 2. Key capabilities include:
    - **Advanced Search**: Multi-strategy search with Atlas Search, autocomplete, and faceted filtering
    - **Entity Resolution**: AI-powered fuzzy matching and duplicate detection with vector search during onboarding
@@ -756,7 +734,6 @@ The Entity Management interface provides comprehensive AML/KYC capabilities:
 The Enhanced Entity Resolution feature provides a comprehensive 5-step workflow for intelligent entity onboarding, duplicate detection, and risk assessment:
 
 1. Navigate to [http://localhost:3000/entity-resolution/enhanced](http://localhost:3000/entity-resolution/enhanced).
-
 2. **Step 0 - Entity Input**: Enter new entity information using the simplified onboarding form:
    - Entity Type (Individual or Organization)
    - Full Name
@@ -788,7 +765,6 @@ The Enhanced Entity Resolution feature provides a comprehensive 5-step workflow 
 The Agentic Investigations page provides a full-featured control surface for launching, monitoring, and reviewing autonomous AML investigations:
 
 1. Navigate to [http://localhost:3000/investigations](http://localhost:3000/investigations).
-
 2. The page is organized as a sidebar + workspace layout:
    - **Sidebar**: KPI summary (total cases, pending review, filed SARs), status filters, investigation list with risk-colored accent strips, and view toggles (All / Pending / Filed)
    - **Launch**: Select from pre-built demo scenarios (Auto-Close False Positive, Shell Company, PEP) or enter a custom entity ID to start a new investigation
@@ -812,7 +788,6 @@ The Agentic Investigations page provides a full-featured control surface for lau
 The ThreatSight Copilot is a global conversational AI assistant available on every page via the floating chat bubble in the bottom-right corner:
 
 1. Click the chat bubble icon to open the Copilot panel.
-
 2. The Copilot is powered by a **ReAct agent** (LangGraph `create_react_agent`) with access to **15 specialized tools** for AML/KYC analysis:
    - **Entity Tools**: `get_entity_profile`, `screen_watchlists`, `search_entities`, `find_similar_entities` (vector search), `compare_entities`, `assess_entity_risk`
    - **Transaction Tools**: `query_entity_transactions`, `trace_fund_flow`, `analyze_temporal_patterns`
@@ -839,9 +814,7 @@ The ThreatSight Copilot is a global conversational AI assistant available on eve
 The Risk Model Management interface allows administrators to configure and deploy different risk assessment models:
 
 1. Navigate to [http://localhost:3000/risk-models](http://localhost:3000/risk-models).
-
 2. View and select from available risk models in the system.
-
 3. Key capabilities include:
    - **Dynamic Risk Factor Management**: Add or modify risk factors without system changes
    - **Real-Time Updates**: See changes instantly using MongoDB Change Streams
@@ -871,9 +844,7 @@ The Risk Model Management interface allows administrators to configure and deplo
 For containerized deployment in production environments:
 
 1. Ensure Docker and Docker Compose are installed on your system.
-
 2. Configure environment variables for production in your `.env` files.
-
 3. Build and run the containers:
 
    ```bash

@@ -1,12 +1,12 @@
 import logging
 import os
 from typing import Dict, List, Any, Tuple, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import math
 from pymongo import MongoClient
-from bson import ObjectId
 
 from db.mongo_db import MongoDBAccess
+from db.scope import scoped
 from bedrock.embeddings import get_embedding
 
 # Set up logging
@@ -26,6 +26,23 @@ WEIGHT_DEVICE = float(os.getenv("WEIGHT_DEVICE", 0.20))
 WEIGHT_VELOCITY = float(os.getenv("WEIGHT_VELOCITY", 0.15))
 WEIGHT_PATTERN = float(os.getenv("WEIGHT_PATTERN", 0.15))
 
+# Written to riskProfile.components.activity.factors[] when a flag is raised. Existing
+# factors on migrated customers use impacts of 10-70; 2.5 is used here because that is
+# the actual per-flag contribution to the score (see the scale-mismatch note in
+# _update_customer_risk_profile) rather than an invented weight.
+FLAG_IMPACT = 2.5
+
+FLAG_DESCRIPTIONS = {
+    "unusual_amount": "Transaction amount deviates from the customer's historical pattern.",
+    "unexpected_location": "Transaction originated outside the customer's usual locations.",
+    "unknown_device": "Transaction used a device not seen on this customer before.",
+    "velocity_alert": "Transaction count exceeded the customer's normal rate for the time window.",
+    "matches_fraud_pattern": "Transaction matched a known fraud pattern.",
+    "rare_transaction_time": "Transaction occurred outside the customer's usual hours.",
+    "new_merchant_category": "Transaction used a merchant category new to this customer.",
+    "customer_not_found": "No customer record matched the transaction's customer reference.",
+}
+
 
 class FraudDetectionService:
     """
@@ -38,16 +55,43 @@ class FraudDetectionService:
         
         Args:
             db_client: MongoDB client instance
-            db_name: Database name to use (defaults to environment variable or "fsi-threatsight360")
+            db_name: Database name to use (defaults to environment variable or "leafy_bank_bian")
         """
         self.db_client = db_client
-        self.db_name = db_name or os.getenv("DB_NAME", "fsi-threatsight360")
+        self.db_name = db_name or os.getenv("DB_NAME", "leafy_bank_bian")
         self.customer_collection = "customers"  # Updated to match the correct collection name
         self.transaction_collection = "transactions"
-        self.fraud_pattern_collection = "fraud_patterns"
+        self.fraud_pattern_collection = "threatsightFraudPatterns"
         
         logger.info(f"Initialized FraudDetectionService with database: {self.db_name}")
     
+    def _find_customer(self, customer_id: str) -> Optional[Dict[str, Any]]:
+        """Resolve a customer by its business id, or return None.
+
+        `customer_id` is a `CUST-…` string (the simulator's picker reads this
+        backend's own /customers/ route), so there is no ObjectId coercion and no
+        `entities` lookup. The only fallback is an account number, which lives in
+        `identifiers[]`.
+
+        Returning None on a miss is deliberate. The previous implementation ended in
+        `find().limit(1)` and scored the transaction against an arbitrary customer —
+        a wrong answer that looked like a right one.
+        """
+        collection = self.db_client.get_collection(
+            db_name=self.db_name,
+            collection_name=self.customer_collection
+        )
+
+        customer = collection.find_one(scoped({"customerId": customer_id}))
+        if not customer:
+            customer = collection.find_one(scoped({"identifiers.value": customer_id}))
+
+        if customer:
+            logger.info(f"Resolved customer {customer_id}")
+        else:
+            logger.warning(f"No customer matched id {customer_id}")
+        return customer
+
     async def evaluate_transaction(self, transaction: Dict[str, Any]) -> Dict[str, Any]:
         """
         Evaluate a transaction for potential fraud across multiple dimensions.
@@ -72,76 +116,8 @@ class FraudDetectionService:
                 "transaction_type": "suspicious"
             }
         
-        # Find customer/entity in the correct collection
-        from bson import ObjectId
-        
-        # Prepare for debugging
-        import json
-        
-        # First try to find the customer by _id if it's a valid ObjectId
-        customer = None
-        try:
-            # If string ID is valid ObjectId, convert to ObjectId
-            query_id = customer_id
-            if ObjectId.is_valid(customer_id):
-                try:
-                    query_id = ObjectId(customer_id)
-                except Exception as e:
-                    logger.warning(f"Error converting customer_id to ObjectId: {str(e)}")
-                    pass  # Use the original id if conversion fails
-            
-            # Try first with customers collection
-            customer = self.db_client.get_collection(
-                db_name=self.db_name,
-                collection_name=self.customer_collection
-            ).find_one({"_id": query_id})
-            
-            # If not found, try with string directly
-            if not customer and ObjectId.is_valid(customer_id):
-                customer = self.db_client.get_collection(
-                    db_name=self.db_name,
-                    collection_name=self.customer_collection
-                ).find_one({"_id": customer_id})
-            
-            # If still not found, try entities collection (for entity-based transactions)
-            if not customer:
-                # Try entityId field
-                entity = self.db_client.get_collection(
-                    db_name=self.db_name,
-                    collection_name="entities"
-                ).find_one({"entityId": customer_id})
-                
-                if entity:
-                    # Map entity to customer-like structure for compatibility
-                    customer = {
-                        "_id": entity.get("entityId") or entity.get("_id"),
-                        "personal_info": {
-                            "name": entity.get("name") if isinstance(entity.get("name"), str) else (entity.get("name", {}).get("full") if isinstance(entity.get("name"), dict) else "Unknown")
-                        },
-                        "account_info": entity.get("account_info", {
-                            "account_number": entity.get("entityId") or str(entity.get("_id"))
-                        }),
-                        "behavioral_profile": entity.get("behavioral_analytics", {}),
-                        "risk_profile": {
-                            "overall_risk_score": (entity.get("risk_assessment", {}).get("overall_score", 0) * 100) if entity.get("risk_assessment") else 0
-                        }
-                    }
-                    logger.info(f"Found entity with ID {customer_id}, mapped to customer structure")
-            
-            # If still not found, try account_info.account_number in customers
-            if not customer:
-                customer = self.db_client.get_collection(
-                    db_name=self.db_name,
-                    collection_name=self.customer_collection
-                ).find_one({"account_info.account_number": customer_id})
-            
-            logger.info(f"Found customer/entity with ID {customer_id}: {customer is not None}")
-            if customer:
-                logger.info(f"Customer/entity name: {customer.get('personal_info', {}).get('name', 'Unknown')}")
-                
-        except Exception as e:
-            logger.error(f"Error finding customer/entity: {str(e)}")
-        
+        customer = self._find_customer(customer_id)
+
         if not customer:
             logger.warning(f"Customer with ID {customer_id} not found")
             return {
@@ -179,8 +155,9 @@ class FraudDetectionService:
         # Get customer's baseline risk score
         customer_risk_score = 0.0
         try:
-            if customer and "risk_profile" in customer and "overall_risk_score" in customer["risk_profile"]:
-                customer_risk_score = float(customer["risk_profile"]["overall_risk_score"])
+            overall = (customer or {}).get("riskProfile", {}).get("overall", {})
+            if "score" in overall:
+                customer_risk_score = float(overall["score"])
                 logger.info(f"Using customer baseline risk score: {customer_risk_score}")
             else:
                 logger.warning("Customer risk profile not found, using default risk of 0")
@@ -245,7 +222,7 @@ class FraudDetectionService:
         """
         try:
             transaction_amount = transaction.get("amount", 0)
-            behavioral_profile = customer.get("behavioral_profile", {})
+            behavioral_profile = customer.get("behavioralProfile", {})
             transaction_patterns = behavioral_profile.get("transaction_patterns", {})
             
             avg_amount = transaction_patterns.get("avg_transaction_amount", 0)
@@ -304,7 +281,7 @@ class FraudDetectionService:
                 return False, 0.0
             
             # Get customer's usual transaction locations
-            behavioral_profile = customer.get("behavioral_profile", {})
+            behavioral_profile = customer.get("behavioralProfile", {})
             transaction_patterns = behavioral_profile.get("transaction_patterns", {})
             usual_locations = transaction_patterns.get("usual_transaction_locations", [])
             
@@ -366,7 +343,7 @@ class FraudDetectionService:
                 return True, 0.5
             
             # Get customer's known devices
-            behavioral_profile = customer.get("behavioral_profile", {})
+            behavioral_profile = customer.get("behavioralProfile", {})
             known_devices = behavioral_profile.get("devices", [])
             
             # Check if device is known
@@ -421,10 +398,12 @@ class FraudDetectionService:
             recent_transactions = list(self.db_client.get_collection(
                 db_name=self.db_name,
                 collection_name=self.transaction_collection
-            ).find({
-                "customer_id": customer_id,
-                "timestamp": {"$gte": start_time, "$lt": current_time}
-            }))
+            ).find(scoped({
+                # stored field names; `transaction` above is the inbound request payload,
+                # which keeps its snake_case wire names
+                "payer.accountId": customer_id,
+                "createdAt": {"$gte": start_time, "$lt": current_time}
+            })))
             
             # Count transactions in window
             transaction_count = len(recent_transactions)
@@ -485,9 +464,16 @@ class FraudDetectionService:
                 # Use vector search
                 pipeline = [
                     {
+                        # UNREACHABLE today: threatsightFraudPatterns has no vector index
+                        # (deliberately not created — building one would enable a code path
+                        # that has never run), so has_vector_index is always False and the
+                        # basic-query branch below is what executes.
+                        # `path` corrected to camelCase: on patterns the migration named the
+                        # field vectorEmbedding, unlike transactions which kept the snake
+                        # vector_embedding. Left correct so enabling the index later works.
                         "$vectorSearch": {
-                            "index": "vector_index",  # Must match the actual index name
-                            "path": "vector_embedding",
+                            "index": "vector_index",  # no index of this name exists yet
+                            "path": "vectorEmbedding",
                             "queryVector": transaction_embedding,
                             "numCandidates": 10,
                             "limit": 3
@@ -508,9 +494,9 @@ class FraudDetectionService:
             else:
                 # Fall back to basic query
                 # Find patterns where there's an intersection with the flags
-                matching_patterns = list(collection.find({
+                matching_patterns = list(collection.find(scoped({
                     "indicators": {"$in": flags}
-                }).limit(3))
+                })).limit(3))
             
             # Check for strong matches
             if matching_patterns:
@@ -598,15 +584,19 @@ class FraudDetectionService:
                     }
                 },
                 {
+                    # The projection is the DB→wire boundary for this payload: it reads
+                    # the migrated camelCase fields and emits the snake_case names the
+                    # frontend renders (results.similar_transactions[*]). Renaming here
+                    # rather than in the UI is what keeps D1(a) — wire stays snake.
                     "$project": {
                         "_id": 1,
-                        "transaction_id": 1,
-                        "timestamp": 1,
+                        "transaction_id": "$txnId",
+                        "timestamp": "$createdAt",
                         "amount": 1,
                         "merchant": 1,
-                        "transaction_type": 1,
-                        "payment_method": 1,
-                        "risk_assessment": 1,
+                        "transaction_type": "$transactionTypeSource",
+                        "payment_method": "$paymentMethodSource",
+                        "risk_assessment": "$riskAssessment",
                         "score": {"$meta": "vectorSearchScore"}
                     }
                 }
@@ -923,7 +913,7 @@ class FraudDetectionService:
             count = self.db_client.get_collection(
                 db_name=self.db_name,
                 collection_name=self.transaction_collection
-            ).count_documents({"customer_id": customer_id})
+            ).count_documents(scoped({"payer.accountId": customer_id}))
             return count > 0
         except Exception as e:
             logger.error(f"Error checking customer transactions: {str(e)}")
@@ -935,7 +925,7 @@ class FraudDetectionService:
             count = self.db_client.get_collection(
                 db_name=self.db_name,
                 collection_name=self.transaction_collection
-            ).count_documents({})
+            ).count_documents(scoped())
             logger.info(f"Total transaction count in system: {count}")
             return count
         except Exception as e:
@@ -1088,82 +1078,91 @@ class FraudDetectionService:
         """
         Update customer risk profile based on detected fraud flags.
         This is run asynchronously without waiting for completion.
-        
+
+        Writes into the `riskProfile` sub-tree only. Writing the legacy snake
+        `risk_profile.*` here would create a second, divergent risk record alongside
+        `riskProfile` on the same document — two answers, no error.
+
         Args:
             customer_id: The customer ID
             flags: The fraud flags detected
         """
+        if not flags:
+            return
+
         try:
-            # Update customer's risk profile
-            from bson import ObjectId
-            
-            # Prepare the id for query
-            query_id = customer_id
-            if ObjectId.is_valid(customer_id):
-                try:
-                    query_id = ObjectId(customer_id)
-                except:
-                    pass  # Use the original id if conversion fails
-            
-            # First try to find the customer by whatever ID format we have
-            customer = self.db_client.get_collection(
+            # Same single-path resolution the read side uses. A miss is an error, not
+            # a cue to update an arbitrary customer's risk profile.
+            customer = self._find_customer(customer_id)
+
+            if not customer:
+                logger.error(f"Could not find customer {customer_id} to update risk profile")
+                return
+
+            risk_profile = customer.get("riskProfile") or {}
+            current_score = float((risk_profile.get("overall") or {}).get("score") or 0.0)
+
+            # NOTE: pre-existing scale mismatch, carried over deliberately rather than
+            # silently rescaled. `len(flags) * 2.5` spans 0-12.5, but
+            # riskProfile.overall.score is a 0-100 scale. Five flags therefore move the
+            # score by 12.5 points, not to 12.5. Raise with the data-model owner before
+            # changing the formula.
+            new_score = max(0.0, min(100.0, current_score + len(flags) * 2.5))
+            new_level = self._determine_risk_level(new_score)
+            # Customer dates are stored as ISO strings (not BSON dates), and the migrated
+            # values are UTC with a trailing Z. A naive local timestamp in the same field
+            # would break ordering, so match the stored format exactly.
+            assessed_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+            # `activity` is the only component with no factors on any migrated customer,
+            # and every flag this service raises is an activity signal.
+            factors = [
+                {
+                    "type": flag,
+                    "impact": FLAG_IMPACT,
+                    "description": FLAG_DESCRIPTIONS.get(flag, f"Transaction flagged: {flag}."),
+                }
+                for flag in flags
+            ]
+
+            result = self.db_client.get_collection(
                 db_name=self.db_name,
                 collection_name=self.customer_collection
-            ).find_one({"_id": query_id})
-            
-            # If not found, try alternative formats or fall back to any customer
-            if not customer:
-                # Try as string
-                if ObjectId.is_valid(customer_id):
-                    customer = self.db_client.get_collection(
-                        db_name=self.db_name,
-                        collection_name=self.customer_collection
-                    ).find_one({"_id": customer_id})
-                
-                # Try with the customer account number
-                if not customer:
-                    customer = self.db_client.get_collection(
-                        db_name=self.db_name,
-                        collection_name=self.customer_collection
-                    ).find_one({"account_info.account_number": customer_id})
-                
-                # If still not found, get first customer as fallback
-                if not customer:
-                    customers = list(self.db_client.get_collection(
-                        db_name=self.db_name,
-                        collection_name=self.customer_collection
-                    ).find().limit(1))
-                    
-                    if customers:
-                        customer = customers[0]
-                        query_id = customer.get("_id")
-                        logger.warning(f"Using fallback customer for risk profile update: {query_id}")
-            
-            if customer:
-                # Update the customer record
-                result = self.db_client.get_collection(
-                    db_name=self.db_name,
-                    collection_name=self.customer_collection
-                ).update_one(
-                    {"_id": query_id},
-                    {
-                        "$set": {
-                            "risk_profile.last_risk_assessment": datetime.now(),
-                        },
-                        "$addToSet": {
-                            "risk_profile.risk_factors": {"$each": flags}
-                        },
-                        # Increment risk score
-                        "$inc": {
-                            "risk_profile.overall_risk_score": len(flags) * 2.5
+            ).update_one(
+                scoped({"_id": customer["_id"]}),
+                {
+                    "$set": {
+                        "riskProfile.assessedAt": assessed_at,
+                        # score and level are siblings; updating one alone leaves the
+                        # document self-contradictory. `trend` is left untouched — its
+                        # direction is ambiguous and it is an open data-model question.
+                        "riskProfile.overall.score": new_score,
+                        "riskProfile.overall.level": new_level,
+                    },
+                    "$addToSet": {
+                        "riskProfile.components.activity.factors": {"$each": factors}
+                    },
+                    "$push": {
+                        "riskProfile.history": {
+                            "date": assessed_at,
+                            "score": new_score,
+                            "level": new_level,
+                            # New enum value: migrated customers carry only
+                            # "initial_assessment". The canonical spec's validator does
+                            # not constrain changeTrigger, so nothing rejects it, but it
+                            # needs adding to the spec's documented values.
+                            "changeTrigger": "transaction_assessment",
                         }
-                    }
-                )
-                
-                logger.info(f"Updated customer risk profile for ID {query_id}, matched: {result.matched_count}, modified: {result.modified_count}")
-            else:
-                logger.error(f"Could not find any customer to update risk profile for ID {customer_id}")
-                
+                    },
+                }
+            )
+
+            logger.info(
+                f"Updated riskProfile for {customer_id}: {current_score} -> {new_score} "
+                f"({new_level}), {len(factors)} activity factor(s); "
+                f"matched={result.matched_count}, modified={result.modified_count}"
+            )
+
         except Exception as e:
             logger.error(f"Error updating customer risk profile: {str(e)}")
     

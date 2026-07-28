@@ -27,7 +27,7 @@ router = APIRouter(
 def get_transaction_repository() -> TransactionRepository:
     """Dependency to get transaction repository instance"""
     db = get_database()
-    transactions_collection = db.transactionsv2
+    transactions_collection = db.fraudEvaluation
     return TransactionRepository(transactions_collection)
 
 

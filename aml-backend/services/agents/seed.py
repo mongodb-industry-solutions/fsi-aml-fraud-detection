@@ -25,7 +25,7 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
-DB_NAME = os.getenv("DB_NAME", "fsi-threatsight360")
+DB_NAME = os.getenv("DB_NAME", "leafy_bank_bian")
 
 # ── typology_library ──────────────────────────────────────────────────────
 
@@ -347,7 +347,7 @@ async def seed_agent_collections() -> dict:
     stats: dict = {}
 
     # ── typology_library ──────────────────────────────────────────────
-    coll = db["typology_library"]
+    coll = db["threatsightTypologyLibrary"]
     await coll.drop()
     docs = [{**t, "created_at": now} for t in TYPOLOGIES]
     result = await coll.insert_many(docs)
@@ -355,7 +355,7 @@ async def seed_agent_collections() -> dict:
     stats["typology_library"] = len(result.inserted_ids)
 
     # ── compliance_policies ───────────────────────────────────────────
-    coll = db["compliance_policies"]
+    coll = db["threatsightCompliancePolicies"]
     await coll.drop()
     docs = [{**p, "created_at": now} for p in POLICIES]
     result = await coll.insert_many(docs)
@@ -363,7 +363,7 @@ async def seed_agent_collections() -> dict:
     stats["compliance_policies"] = len(result.inserted_ids)
 
     # ── investigations (empty, with indexes) ──────────────────────────
-    coll = db["investigations"]
+    coll = db["threatsightInvestigations"]
     existing = await coll.count_documents({})
     if existing == 0:
         await coll.create_index("case_id", unique=True, sparse=True)
@@ -373,7 +373,7 @@ async def seed_agent_collections() -> dict:
     stats["investigations_indexes"] = "created"
 
     # ── alerts (empty, with indexes) ─────────────────────────────────
-    coll = db["alerts"]
+    coll = db["threatsightAlerts"]
     await coll.create_index("entity_id")
     await coll.create_index("submitted_at")
     await coll.create_index("status")

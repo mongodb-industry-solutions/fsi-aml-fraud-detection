@@ -15,7 +15,7 @@ def lookup_typology(typology_id: str) -> dict:
     Returns the full description, red flags, and regulatory references.
     """
     client = get_mongo_client()
-    doc = client[DB_NAME]["typology_library"].find_one(
+    doc = client[DB_NAME]["threatsightTypologyLibrary"].find_one(
         {"typology_id": typology_id}, {"_id": 0}
     )
     return doc or {"error": f"Typology {typology_id} not found"}
@@ -31,7 +31,7 @@ def search_typologies(query: str) -> list:
     if not query.strip():
         return []
     client = get_mongo_client()
-    coll = client[DB_NAME]["typology_library"]
+    coll = client[DB_NAME]["threatsightTypologyLibrary"]
     pattern = re.escape(query)
     regex = {"$regex": pattern, "$options": "i"}
     results = list(coll.find(
@@ -55,7 +55,7 @@ def search_compliance_policies(query: str) -> list:
     if not query.strip():
         return []
     client = get_mongo_client()
-    coll = client[DB_NAME]["compliance_policies"]
+    coll = client[DB_NAME]["threatsightCompliancePolicies"]
     pattern = re.escape(query)
     regex = {"$regex": pattern, "$options": "i"}
     results = list(coll.find(

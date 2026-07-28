@@ -21,7 +21,7 @@ def analyze_entity_network(entity_id: str, max_depth: int = 2) -> dict:
         {"$match": {"source.entityId": entity_id}},
         {
             "$graphLookup": {
-                "from": "relationships",
+                "from": "threatsightRelationships",
                 "startWith": "$target.entityId",
                 "connectFromField": "target.entityId",
                 "connectToField": "source.entityId",
@@ -56,7 +56,7 @@ def analyze_entity_network(entity_id: str, max_depth: int = 2) -> dict:
         },
     ]
 
-    results = list(db["relationships"].aggregate(pipeline))
+    results = list(db["threatsightRelationships"].aggregate(pipeline))
 
     if not results:
         return {

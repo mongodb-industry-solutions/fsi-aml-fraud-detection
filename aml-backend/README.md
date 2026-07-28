@@ -80,12 +80,12 @@ Create a `.env` file in the `aml-backend` directory:
 
 ```bash
 # MongoDB Connection
-MONGODB_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/
+MONGODB_URI=
 DB_NAME=threatsight360
 
 # AWS Bedrock Credentials (for AI features)
-AWS_ACCESS_KEY_ID=your_aws_access_key_here
-AWS_SECRET_ACCESS_KEY=your_aws_secret_key_here
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
 AWS_REGION=us-east-1
 
 # Server Configuration
@@ -538,14 +538,14 @@ Ensure the following indexes are created for optimal performance:
 ```javascript
 // Entity indexes
 db.entities.createIndex({ entityId: 1 });
-db.entities.createIndex({ 'name.full': 'text' });
+db.entities.createIndex({ "name.full": "text" });
 db.entities.createIndex({
   entityType: 1,
-  'riskAssessment.overall.level': 1,
+  "riskAssessment.overall.level": 1,
 });
 db.entities.createIndex({
-  'identifiers.value': 1,
-  'identifiers.type': 1,
+  "identifiers.value": 1,
+  "identifiers.type": 1,
 });
 
 // Relationship indexes

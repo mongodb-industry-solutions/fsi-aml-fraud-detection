@@ -98,58 +98,58 @@ backend/
 
 ### Customers (`/customers`)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/customers/` | List all customers |
-| GET | `/customers/{customer_id}` | Get customer by ID |
-| POST | `/customers/` | Create a new customer |
-| PUT | `/customers/{customer_id}` | Update a customer |
-| DELETE | `/customers/{customer_id}` | Delete a customer |
+| Method | Path                       | Description           |
+| ------ | -------------------------- | --------------------- |
+| GET    | `/customers/`              | List all customers    |
+| GET    | `/customers/{customer_id}` | Get customer by ID    |
+| POST   | `/customers/`              | Create a new customer |
+| PUT    | `/customers/{customer_id}` | Update a customer     |
+| DELETE | `/customers/{customer_id}` | Delete a customer     |
 
 ### Transactions (`/transactions`)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/transactions/` | List transactions |
-| GET | `/transactions/{transaction_id}` | Get transaction by ID |
-| POST | `/transactions/` | Create transaction (triggers fraud evaluation) |
-| POST | `/transactions/evaluate` | Evaluate transaction risk without persisting |
+| Method | Path                             | Description                                    |
+| ------ | -------------------------------- | ---------------------------------------------- |
+| GET    | `/transactions/`                 | List transactions                              |
+| GET    | `/transactions/{transaction_id}` | Get transaction by ID                          |
+| POST   | `/transactions/`                 | Create transaction (triggers fraud evaluation) |
+| POST   | `/transactions/evaluate`         | Evaluate transaction risk without persisting   |
 
 ### Fraud Patterns (`/fraud-patterns`)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/fraud-patterns/` | List all fraud patterns |
-| GET | `/fraud-patterns/{pattern_id}` | Get pattern by ID |
-| POST | `/fraud-patterns/` | Create pattern (generates Titan embedding) |
-| PUT | `/fraud-patterns/{pattern_id}` | Update a pattern |
-| DELETE | `/fraud-patterns/{pattern_id}` | Delete a pattern |
-| POST | `/fraud-patterns/similar-search` | Vector search for similar patterns |
+| Method | Path                             | Description                                |
+| ------ | -------------------------------- | ------------------------------------------ |
+| GET    | `/fraud-patterns/`               | List all fraud patterns                    |
+| GET    | `/fraud-patterns/{pattern_id}`   | Get pattern by ID                          |
+| POST   | `/fraud-patterns/`               | Create pattern (generates Titan embedding) |
+| PUT    | `/fraud-patterns/{pattern_id}`   | Update a pattern                           |
+| DELETE | `/fraud-patterns/{pattern_id}`   | Delete a pattern                           |
+| POST   | `/fraud-patterns/similar-search` | Vector search for similar patterns         |
 
 ### Risk Models (`/models`)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/models/` | List all risk models |
-| GET | `/models/{model_id}` | Get model by ID |
-| POST | `/models/` | Create a new risk model |
-| PUT | `/models/{model_id}` | Update a model (creates new version) |
-| DELETE | `/models/{model_id}` | Archive a model |
-| POST | `/models/{model_id}/activate` | Activate a model |
-| POST | `/models/restore` | Restore default models |
-| POST | `/models/reset` | Reset to clean baseline |
-| GET | `/models/{model_id}/performance` | Get performance metrics |
-| POST | `/models/{model_id}/feedback` | Record transaction outcome |
-| GET | `/models/compare` | Compare model versions |
-| WebSocket | `/models/change-stream` | Real-time model updates |
+| Method    | Path                             | Description                          |
+| --------- | -------------------------------- | ------------------------------------ |
+| GET       | `/models/`                       | List all risk models                 |
+| GET       | `/models/{model_id}`             | Get model by ID                      |
+| POST      | `/models/`                       | Create a new risk model              |
+| PUT       | `/models/{model_id}`             | Update a model (creates new version) |
+| DELETE    | `/models/{model_id}`             | Archive a model                      |
+| POST      | `/models/{model_id}/activate`    | Activate a model                     |
+| POST      | `/models/restore`                | Restore default models               |
+| POST      | `/models/reset`                  | Reset to clean baseline              |
+| GET       | `/models/{model_id}/performance` | Get performance metrics              |
+| POST      | `/models/{model_id}/feedback`    | Record transaction outcome           |
+| GET       | `/models/compare`                | Compare model versions               |
+| WebSocket | `/models/change-stream`          | Real-time model updates              |
 
 ### Utility Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/` | Service info |
-| GET | `/test-cors/` | CORS test |
-| GET | `/simple-test/` | Connectivity test |
+| Method | Path            | Description       |
+| ------ | --------------- | ----------------- |
+| GET    | `/`             | Service info      |
+| GET    | `/test-cors/`   | CORS test         |
+| GET    | `/simple-test/` | Connectivity test |
 
 ---
 
@@ -159,13 +159,13 @@ The `FraudDetectionService` (`services/fraud_detection.py`) implements multi-fac
 
 ### Risk Factors
 
-| Factor | Weight (default) | Description |
-|--------|-----------------|-------------|
-| Amount | 0.25 | Deviation from customer's typical transaction amounts |
-| Location | 0.25 | Geographic distance from usual transaction locations |
-| Device | 0.20 | Device fingerprint match against known devices |
-| Velocity | 0.15 | Transaction frequency within a sliding time window |
-| Pattern | 0.15 | Vector similarity to known fraud patterns |
+| Factor   | Weight (default) | Description                                           |
+| -------- | ---------------- | ----------------------------------------------------- |
+| Amount   | 0.25             | Deviation from customer's typical transaction amounts |
+| Location | 0.25             | Geographic distance from usual transaction locations  |
+| Device   | 0.20             | Device fingerprint match against known devices        |
+| Velocity | 0.15             | Transaction frequency within a sliding time window    |
+| Pattern  | 0.15             | Vector similarity to known fraud patterns             |
 
 ### Scoring Flow
 
@@ -179,6 +179,7 @@ The `FraudDetectionService` (`services/fraud_detection.py`) implements multi-fac
 ### Risk Score Scale
 
 All risk scores use a **0-100 scale**:
+
 - **Low**: < 40
 - **Medium**: 40-59
 - **High**: 60-79
@@ -215,12 +216,12 @@ For detailed documentation, see [VECTOR_SEARCH_IMPLEMENTATION.md](VECTOR_SEARCH_
 
 ```bash
 # MongoDB Connection
-MONGODB_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/
+MONGODB_URI=
 DB_NAME=fsi-threatsight360
 
 # AWS Bedrock
-AWS_ACCESS_KEY_ID=your_key
-AWS_SECRET_ACCESS_KEY=your_secret
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
 AWS_REGION=us-east-1
 
 # Server

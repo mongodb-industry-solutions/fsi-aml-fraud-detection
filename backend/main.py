@@ -28,8 +28,16 @@ app = FastAPI(
     title="ThreatSight 360",
     description="Fraud Detection API for Financial Services",
     version="1.0.0",
-    # Disable automatic redirects for trailing slashes
-    redirect_slashes=False,
+    # Must stay True. List routes are declared as `@router.get("/")` under a prefix,
+    # so their real path is `/customers/`. The frontend calls them with the trailing
+    # slash, but Next.js (no next.config.js -> trailingSlash: false) 308-redirects
+    # `/api/fraud/customers/` to `/api/fraud/customers` before the proxy route handler
+    # runs, and the catch-all `[...path]` segment array cannot carry a trailing slash
+    # either. The proxy therefore always forwards the UNSLASHED path. With
+    # redirect_slashes=False that was a hard 404 and the customer picker rendered
+    # empty with no error. The AML backend has always set this True, which is the only
+    # reason its pages survive the identical proxy.
+    redirect_slashes=True,
 )
 
 # Configure CORS

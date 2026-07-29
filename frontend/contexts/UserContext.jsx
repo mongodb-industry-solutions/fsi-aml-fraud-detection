@@ -6,12 +6,6 @@ const UserContext = createContext(null);
 
 const STORAGE_KEY = 'threatsight360_user_role';
 
-// Opening the demo should land straight in the analyst view — the persona this
-// demo represents (Ana) is a Risk Analyst. Falling back to this skips the
-// blocking role-selection modal; Risk Manager is still reachable from the
-// header switcher.
-const DEFAULT_ROLE = 'risk_analyst';
-
 export function UserProvider({ children }) {
   const [role, setRoleState] = useState(null);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -22,9 +16,6 @@ export function UserProvider({ children }) {
       const storedRole = sessionStorage.getItem(STORAGE_KEY);
       if (storedRole === 'risk_analyst' || storedRole === 'risk_manager') {
         setRoleState(storedRole);
-      } else {
-        sessionStorage.setItem(STORAGE_KEY, DEFAULT_ROLE);
-        setRoleState(DEFAULT_ROLE);
       }
       setIsInitialized(true);
     }

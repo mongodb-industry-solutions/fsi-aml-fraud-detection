@@ -22,6 +22,7 @@
     "@leafygreen-ui/icon": "^11.29.1",
     "@leafygreen-ui/leafygreen-provider": "^3.2.0",
     "@leafygreen-ui/loading-indicator": "^2.0.12",
+    "@leafygreen-ui/logo": "^10.0.6",
     "@leafygreen-ui/menu": "^24.2.1",
     "@leafygreen-ui/modal": "^16.1.0",
     "@leafygreen-ui/number-input": "^4.1.7",

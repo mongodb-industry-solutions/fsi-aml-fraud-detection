@@ -6,11 +6,15 @@ const UserContext = createContext(null);
 
 const STORAGE_KEY = 'threatsight360_user_role';
 
+// Everyone lands as Risk Analyst — no role picker on first visit. Switching
+// happens from the UserMenu dropdown.
+const DEFAULT_ROLE = 'risk_analyst';
+
 export function UserProvider({ children }) {
-  const [role, setRoleState] = useState(null);
+  const [role, setRoleState] = useState(DEFAULT_ROLE);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Load role from sessionStorage on mount
+  // Restore a previously chosen role from sessionStorage; otherwise keep the default.
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const storedRole = sessionStorage.getItem(STORAGE_KEY);
@@ -28,7 +32,7 @@ export function UserProvider({ children }) {
         setRoleState(newRole);
       } else {
         sessionStorage.removeItem(STORAGE_KEY);
-        setRoleState(null);
+        setRoleState(DEFAULT_ROLE);
       }
     }
   };
@@ -36,7 +40,7 @@ export function UserProvider({ children }) {
   const clearRole = () => {
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem(STORAGE_KEY);
-      setRoleState(null);
+      setRoleState(DEFAULT_ROLE);
     }
   };
 

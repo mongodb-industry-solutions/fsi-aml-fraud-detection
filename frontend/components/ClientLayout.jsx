@@ -1,8 +1,8 @@
 "use client";
 
 import Link from 'next/link';
-import Image from 'next/image';
 import Card from '@leafygreen-ui/card';
+import { MongoDBLogoMark } from '@leafygreen-ui/logo';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 import { H1, Overline, Body } from '@leafygreen-ui/typography';
@@ -11,7 +11,6 @@ import IconButton from '@leafygreen-ui/icon-button';
 import { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useUser } from '@/contexts/UserContext';
-import UserSelectionModal from '@/components/UserSelection/UserSelectionModal';
 import UserMenu from '@/components/UserMenu/UserMenu';
 import ChatBubble from '@/components/chat/ChatBubble';
 
@@ -25,8 +24,7 @@ const ROUTE_ROLES = [
 
 export default function ClientLayout({ children, bianModelUrl }) {
   const [isMenuOpen, setMenuOpen] = useState(false);
-  const { role, isInitialized } = useUser();
-  const [showUserSelection, setShowUserSelection] = useState(false);
+  const { role } = useUser();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -52,14 +50,6 @@ export default function ClientLayout({ children, bianModelUrl }) {
       ? palette.green.dark1
       : isActive(href) ? 'rgba(255, 255, 255, 0.12)' : 'transparent';
   };
-
-  useEffect(() => {
-    if (isInitialized && !role) {
-      setShowUserSelection(true);
-    } else if (role) {
-      setShowUserSelection(false);
-    }
-  }, [isInitialized, role]);
 
   useEffect(() => {
     if (!role || !pathname) return;
@@ -109,15 +99,7 @@ export default function ClientLayout({ children, bianModelUrl }) {
                 border: '1px solid rgba(255, 255, 255, 0.3)',
               }}
             >
-              <Image
-                src="/threatsight logo.png"
-                alt="ThreatSight360 Logo"
-                width={50}
-                height={50}
-                style={{ 
-                  objectFit: 'contain',
-                }}
-              />
+              <MongoDBLogoMark height={40} aria-label="ThreatSight360 Logo" />
             </div>
             <div>
               <H1
@@ -243,19 +225,6 @@ export default function ClientLayout({ children, bianModelUrl }) {
 
       {/* AML Compliance Assistant Chat */}
       <ChatBubble />
-
-      {/* User Selection Modal */}
-      {showUserSelection && (
-        <UserSelectionModal 
-          isSwitching={false}
-          onClose={() => {
-            // Don't allow closing on first visit
-            if (role) {
-              setShowUserSelection(false);
-            }
-          }}
-        />
-      )}
 
       <style jsx global>{`
         /**

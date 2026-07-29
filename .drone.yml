@@ -28,6 +28,7 @@ steps:
       build_args:
         - NEXT_PUBLIC_API_URL=/api/fraud
         - NEXT_PUBLIC_AML_API_URL=/api/aml
+        - BIAN_MODEL_URL=https://leafy-bank-bian-model.industrysolutions.staging.corp.mongodb.com
     when:
       event:
         - push
@@ -150,6 +151,7 @@ steps:
       build_args:
         - NEXT_PUBLIC_API_URL=/api/fraud
         - NEXT_PUBLIC_AML_API_URL=/api/aml
+        - BIAN_MODEL_URL=https://leafy-bank-bian-model.industrysolutions.prod.corp.mongodb.com
     when:
       event:
         - push

@@ -133,6 +133,9 @@ function TransactionSimulator() {
       || 'Unknown';
 
     return {
+      // The unmapped document as returned by GET /customers/ — what the MongoDB Document
+      // panel renders, so it shows the stored camelCase shape rather than this mapping.
+      _raw: doc,
       // customerId is what the backend resolves on, so it is what the dropdown carries
       // and what gets posted back as customer_id.
       _id: doc.customerId,
@@ -1073,7 +1076,7 @@ Device: ${transactionData.device_info?.type || 'N/A'}, ${transactionData.device_
               >
                 <div style={{ maxHeight: '300px', overflow: 'auto' }}>
                   <Code language="json" copyable={true}>
-                    {JSON.stringify(selectedCustomer, null, 2)}
+                    {JSON.stringify(selectedCustomer?._raw ?? selectedCustomer, null, 2)}
                   </Code>
                 </div>
               </ExpandableCard>

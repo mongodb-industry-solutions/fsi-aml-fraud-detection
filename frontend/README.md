@@ -47,8 +47,8 @@ The ThreatSight 360 frontend provides a comprehensive interface for fraud detect
 ```mermaid
 flowchart TD
     subgraph Layout["Root Layout (layout.js)"]
-        UserProvider["UserProvider<br/>Role context (sessionStorage)"]
-        ClientLayout["ClientLayout<br/>Header, Nav, Card wrapper,<br/>ChatBubble, UserSelectionModal"]
+        UserProvider["UserProvider<br/>Role context (sessionStorage,<br/>defaults to Risk Analyst)"]
+        ClientLayout["ClientLayout<br/>Header, Nav, Card wrapper,<br/>ChatBubble, UserMenu"]
     end
 
     subgraph Pages["Routes"]
@@ -96,7 +96,7 @@ RootLayout (app/layout.js)
         ├── main > Card > {page content}
         ├── ChatBubble (components/chat/ChatBubble.jsx)
         │   └── ArtifactPanel (components/chat/ArtifactPanel.jsx)
-        └── UserSelectionModal
+        └── UserMenu (persona + role switch)
 
 /investigations → InvestigationsPage
 ├── InvestigationLauncher

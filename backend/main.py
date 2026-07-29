@@ -11,6 +11,7 @@ from routes.customer import router as customer_router
 from routes.transaction import router as transaction_router
 from routes.fraud_pattern import router as fraud_pattern_router
 from routes.model_management import router as model_management_router
+from routes.bian import router as bian_router
 # Entity resolution router removed - using enhanced system
 
 # Setup logging
@@ -113,6 +114,10 @@ app.include_router(customer_router)
 app.include_router(transaction_router)
 app.include_router(fraud_pattern_router)
 app.include_router(model_management_router)
+# BIAN v14 service-domain surface for the two stage-boundary routes (bian-fraud-flow.md §9.2).
+# Additive — the native routes above stay live, so the frontend keeps working until its proxy
+# is cut over. Registered last: its paths share no prefix with the routers above.
+app.include_router(bian_router)
 # Entity resolution router removed - using enhanced system
 
 # if __name__ == "__main__":

@@ -246,3 +246,4 @@ frontend/next-env.d.ts
 
 # Misc
 *.pem
+docs/TRANSACTION_SIMULATOR_BIAN_CHANGES.md

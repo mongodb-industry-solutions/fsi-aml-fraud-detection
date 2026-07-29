@@ -9,13 +9,21 @@ from pymongo.change_stream import ChangeStream
 
 logger = logging.getLogger(__name__)
 
+# Renamed 2026-07-29 by the leafy_bank_bian migration
+# (risk_models -> threatsightRiskModels, model_performance -> threatsightModelPerformance).
+# Kept as constants so the collection-level change stream in start_change_stream()
+# cannot drift from the reads.
+RISK_MODELS_COLLECTION = "threatsightRiskModels"
+MODEL_PERFORMANCE_COLLECTION = "threatsightModelPerformance"
+
+
 class RiskModelService:
     """Service for managing and applying risk models with real-time updates."""
     
     def __init__(self, db_client: MongoClient):
         """Initialize the risk model service with MongoDB client."""
         self.db = db_client.get_database("fraud_detection_demo")
-        self.risk_models_collection = self.db.get_collection("risk_models")
+        self.risk_models_collection = self.db.get_collection(RISK_MODELS_COLLECTION)
         self.current_model: Dict[str, Any] = {}
         self.change_stream: Optional[ChangeStream] = None
         self.is_running = False
@@ -43,11 +51,11 @@ class RiskModelService:
     
     async def load_active_model(self):
         """Load the currently active risk model."""
-        model = await self.db.risk_models.find_one({"status": "active"})
+        model = await self.db[RISK_MODELS_COLLECTION].find_one({"status": "active"})
         if not model:
             # Load default model if no active model exists
             model = self._create_default_model()
-            await self.db.risk_models.insert_one(model)
+            await self.db[RISK_MODELS_COLLECTION].insert_one(model)
         
         self.current_model = model
         logger.info(f"Loaded active risk model: {model['modelId']} (v{model['version']})")
@@ -62,7 +70,7 @@ class RiskModelService:
         
         # Set up change stream in a separate task
         async def watch_changes():
-            async with self.db.risk_models.watch(pipeline) as stream:
+            async with self.db[RISK_MODELS_COLLECTION].watch(pipeline) as stream:
                 async for change in stream:
                     try:
                         new_model = change["fullDocument"]
@@ -200,7 +208,7 @@ class RiskModelService:
                 "outcome": None  # To be updated later with true outcome (fraud/not fraud)
             }
             
-            await self.db.model_performance.insert_one(performance_record)
+            await self.db[MODEL_PERFORMANCE_COLLECTION].insert_one(performance_record)
         except Exception as e:
             logger.error(f"Error recording model usage: {str(e)}")
     

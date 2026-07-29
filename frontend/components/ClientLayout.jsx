@@ -12,7 +12,7 @@ import { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useUser } from '@/contexts/UserContext';
 import UserSelectionModal from '@/components/UserSelection/UserSelectionModal';
-import UserProfile from '@/components/UserProfile/UserProfile';
+import UserMenu from '@/components/UserMenu/UserMenu';
 import ChatBubble from '@/components/chat/ChatBubble';
 
 const ROUTE_ROLES = [
@@ -23,7 +23,7 @@ const ROUTE_ROLES = [
   { href: '/risk-models', roles: ['risk_manager'] },
 ];
 
-export default function ClientLayout({ children }) {
+export default function ClientLayout({ children, bianModelUrl }) {
   const [isMenuOpen, setMenuOpen] = useState(false);
   const { role, isInitialized } = useUser();
   const [showUserSelection, setShowUserSelection] = useState(false);
@@ -193,16 +193,35 @@ export default function ClientLayout({ children }) {
                     </Link>
                   </li>
                 ))}
+
+                {/* The BIAN Data Model Explorer is a separately deployed app,
+                    so this is an external anchor, not a route. `?demo=` picks
+                    the lens that highlights this demo's collections. */}
+                <li>
+                  <a
+                    href={`${bianModelUrl}/bian-data-model?demo=threatsight`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={navLinkStyle('/bian-data-model')}
+                    onMouseEnter={(e) => handleLinkHover(e, '/bian-data-model', true)}
+                    onMouseLeave={(e) => handleLinkHover(e, '/bian-data-model', false)}
+                    title="BIAN Data Model"
+                  >
+                    <Icon glyph="Read" fill={palette.gray.light3} size={16} />
+                    <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>Data Model</Body>
+                  </a>
+                </li>
               </ul>
             </nav>
 
-            {/* User Profile */}
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
+            {/* Persona menu — also carries the Risk Analyst / Risk Manager
+                role switch in its dropdown. */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
               marginLeft: spacing[4],
             }}>
-              {role && <UserProfile />}
+              <UserMenu />
             </div>
           </div>
         </div>

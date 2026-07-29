@@ -47,11 +47,16 @@ async def get_transactions_collection():
 
 async def get_risk_models_collection():
     db = get_database()
-    return db.risk_models
+    # Renamed 2026-07-29 by the leafy_bank_bian migration (was `risk_models`).
+    # Bracket access, not attribute access -- the new name is not a valid identifier
+    # style match for the accessor, and db.threatsightRiskModels would still work but
+    # bracket form makes the string explicit and greppable.
+    return db["threatsightRiskModels"]
 
 async def get_model_performance_collection():
     db = get_database()
-    return db.model_performance
+    # Renamed 2026-07-29 by the leafy_bank_bian migration (was `model_performance`).
+    return db["threatsightModelPerformance"]
 
 # Import services
 from services.risk_model_service import RiskModelService

@@ -14,6 +14,17 @@ from datetime import datetime
 from dependencies import get_database, get_risk_model_service
 from services.risk_model_service import RiskModelService
 
+# Collection names. Renamed 2026-07-29 by the leafy_bank_bian migration
+# (risk_models -> threatsightRiskModels, model_performance -> threatsightModelPerformance).
+#
+# These are constants rather than inline strings for one specific reason: the
+# change-stream $match at get_model_updates() filters on `ns.coll` by NAME. A
+# db.watch() pipeline whose collection name has drifted matches NOTHING and fails
+# SILENTLY -- no error, no log, just a dead update feed. Binding the watch and the
+# reads to the same constant makes that drift impossible.
+RISK_MODELS_COLLECTION = "threatsightRiskModels"
+MODEL_PERFORMANCE_COLLECTION = "threatsightModelPerformance"
+
 router = APIRouter(
     prefix="/models",
     tags=["risk_models"],
@@ -129,7 +140,7 @@ async def get_risk_models(
         query["status"] = status
     
     # Get risk_models collection
-    risk_models_collection = db["risk_models"]
+    risk_models_collection = db[RISK_MODELS_COLLECTION]
     
     # Convert cursor to list with pagination
     models = []
@@ -154,7 +165,7 @@ async def get_risk_model(
         query["status"] = {"$ne": "archived"}
     
     # Get risk_models collection
-    risk_models_collection = db["risk_models"]
+    risk_models_collection = db[RISK_MODELS_COLLECTION]
     
     # If looking for the latest non-archived version, sort by version
     if "status" in query and query["status"] == {"$ne": "archived"}:
@@ -175,7 +186,7 @@ async def create_risk_model(
 ):
     """Create a new risk model."""
     # Get risk_models collection
-    risk_models_collection = db["risk_models"]
+    risk_models_collection = db[RISK_MODELS_COLLECTION]
     
     # Check if model ID already exists
     existing = await risk_models_collection.find_one({"modelId": model.modelId})
@@ -223,7 +234,7 @@ async def update_risk_model(
     - For archived models: Not allowed (will return 400 error)
     """
     # Get risk_models collection
-    risk_models_collection = db["risk_models"]
+    risk_models_collection = db[RISK_MODELS_COLLECTION]
     
     # Find the model - get the latest version by sorting descending
     model = await risk_models_collection.find_one(
@@ -307,7 +318,7 @@ async def archive_risk_model(
 ):
     """Archive a risk model (soft delete)."""
     # Get risk_models collection
-    risk_models_collection = db["risk_models"]
+    risk_models_collection = db[RISK_MODELS_COLLECTION]
     
     query = {"modelId": model_id}
     if version:
@@ -344,7 +355,7 @@ async def restore_archived_model(
 ):
     """Restore an archived risk model to 'inactive' status."""
     # Get risk_models collection
-    risk_models_collection = db["risk_models"]
+    risk_models_collection = db[RISK_MODELS_COLLECTION]
     
     query = {"modelId": model_id, "status": "archived"}
     if version:
@@ -378,7 +389,7 @@ async def activate_risk_model(
     # Use a lock to prevent race conditions
     async with activation_lock:
         # Get risk_models collection
-        risk_models_collection = db["risk_models"]
+        risk_models_collection = db[RISK_MODELS_COLLECTION]
         
         query = {"modelId": model_id}
         if version:
@@ -426,7 +437,7 @@ async def reset_risk_models(db = Depends(get_database)):
     - Set behavioral-risk-model status to 'inactive'
     """
     # Get risk_models collection
-    risk_models_collection = db["risk_models"]
+    risk_models_collection = db[RISK_MODELS_COLLECTION]
     
     try:
         # Use a transaction to ensure all operations succeed or fail together
@@ -493,8 +504,8 @@ async def get_model_performance(
 ):
     """Get performance metrics for a risk model."""
     # Get collections
-    risk_models_collection = db["risk_models"]
-    model_performance_collection = db["model_performance"]
+    risk_models_collection = db[RISK_MODELS_COLLECTION]
+    model_performance_collection = db[MODEL_PERFORMANCE_COLLECTION]
     
     query = {"modelId": model_id}
     if version:
@@ -605,7 +616,7 @@ async def provide_transaction_feedback(
 ):
     """Provide feedback on transaction outcomes to improve model accuracy."""
     # Get model_performance collection
-    model_performance_collection = db["model_performance"]
+    model_performance_collection = db[MODEL_PERFORMANCE_COLLECTION]
     
     # Validate outcome
     if outcome not in ["legitimate", "fraud"]:
@@ -677,16 +688,19 @@ async def websocket_endpoint(websocket: WebSocket, db = Depends(get_database)):
         # Set up pipeline to watch for risk model changes
         pipeline = [
             {"$match": {"operationType": {"$in": ["insert", "update", "replace", "delete"]}}},
-            {"$match": {"ns.coll": "risk_models"}}
+            # Filters a DATABASE-level stream down to one collection by name. If this
+            # name drifts from RISK_MODELS_COLLECTION the stream matches nothing and
+            # the feed dies silently -- hence the shared constant.
+            {"$match": {"ns.coll": RISK_MODELS_COLLECTION}}
         ]
-        
-        # Create a change stream on the risk_models collection
+
+        # Create a change stream on the risk models collection
         async with db.watch(
             pipeline=pipeline,
             full_document='updateLookup'
         ) as change_stream:
             # Send initial models to establish baseline
-            cursor = db.risk_models.find({})
+            cursor = db[RISK_MODELS_COLLECTION].find({})
             models = []
             async for document in cursor:
                 # Convert the document to JSON-serializable format

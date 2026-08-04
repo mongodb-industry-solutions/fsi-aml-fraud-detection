@@ -57,7 +57,7 @@ The AML backend follows a **clean architecture pattern** with three-layer organi
 
 Before you begin, ensure you have the following:
 
-- **Python 3.10+**: Required for the backend service
+- **Python 3.10–3.12**: Required by `pyproject.toml`. Python 3.13+ isn't yet supported because a transitive dependency, `voyageai`, doesn't support it.
 - **Poetry**: For dependency management and virtual environments
 - **MongoDB Atlas Account**: For data storage and Atlas Search capabilities
 - **AWS Account with Bedrock Access**: For AI-powered entity resolution features

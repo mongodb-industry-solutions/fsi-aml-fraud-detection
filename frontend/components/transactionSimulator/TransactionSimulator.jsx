@@ -118,58 +118,82 @@ function TransactionSimulator() {
   const [showCustomerJson, setShowCustomerJson] = useState(false);
   const [hoveredButton, setHoveredButton] = useState(false);
 
-  // Helper function to map entity to customer structure
-  const mapEntityToCustomer = (entity) => {
+  // Map a customer document from the fraud backend's GET /customers/ into the shape
+  // this component renders. The stored document is camelCase (identification,
+  // identifiers, riskProfile, behavioralProfile); the snake_case keys below are this
+  // component's internal shape, kept so the render code stays untouched.
+  //
+  // Replaces the previous mapEntityToCustomer, which read the AML backend's /entities/
+  // response on the old fsi-threatsight360 database.
+  const mapCustomer = (doc) => {
+    const identification = doc.identification || {};
+    const behavioral = doc.behavioralProfile || {};
+    const fullName = identification.legalName
+      || [identification.firstName, identification.lastName].filter(Boolean).join(' ')
+      || 'Unknown';
+
     return {
-      _id: entity.entityId || entity._id || entity.id,
+      // The unmapped document as returned by GET /customers/ — what the MongoDB Document
+      // panel renders, so it shows the stored camelCase shape rather than this mapping.
+      _raw: doc,
+      // customerId is what the backend resolves on, so it is what the dropdown carries
+      // and what gets posted back as customer_id.
+      _id: doc.customerId,
       personal_info: {
-        name: entity.name_full || (typeof entity.name === 'string' ? entity.name : (entity.name?.full || 'Unknown'))
+        name: fullName
       },
-      account_info: entity.account_info || {
-        account_number: entity.entityId || entity._id || 'N/A'
+      account_info: {
+        account_number: doc.identifiers?.find(i => i.type === 'accountNumber')?.value
+          || doc.customerId
       },
-      behavioral_profile: entity.behavioral_analytics ? {
-        devices: entity.behavioral_analytics.devices || [],
-        transaction_patterns: entity.behavioral_analytics.transaction_patterns || {}
+      behavioral_profile: doc.behavioralProfile ? {
+        devices: behavioral.devices || [],
+        transaction_patterns: behavioral.transaction_patterns || {},
+        location_patterns: behavioral.location_patterns || []
       } : null,
-      risk_profile: entity.riskAssessment || entity.risk_assessment ? {
-        overall_risk_score: ((entity.riskAssessment?.overall?.score || entity.risk_assessment?.overall_score || entity.riskAssessment?.overall_score || 0)) * 100 // Convert 0-1 to 0-100 scale
-      } : {
-        overall_risk_score: 0
+      risk_profile: {
+        // riskProfile.overall.score is on a 0-100 scale (the old entities payload was 0-1,
+        // hence the *100 this replaces), clamped to 100 by the SD-1 transform because the
+        // backend's _calculate_risk_score weights it as 0-100. Rendered as-is.
+        overall_risk_score: doc.riskProfile?.overall?.score ?? 0
       }
     };
   };
 
-  // Fetch entities and initial data
+  // Fetch customers and initial data
   useEffect(() => {
     async function fetchInitialData() {
       try {
         setInitialLoading(true);
-        const amlApiUrl = process.env.NEXT_PUBLIC_AML_API_URL || 'https://threatsight-aml.api.mongodb-industry-solutions.com';
-        
-        // Convert page to skip for backend API
-        const limit = 50; // Reduced from 100
-        const skip = 0; // Start from beginning
-        
-        console.log('Fetching entities from:', `${amlApiUrl}/entities/`, { skip, limit });
-        
-        // Fetch entities list and optionally the specific entity from URL in parallel
+
+        // The fraud backend owns `customers` and is already pointed at leafy_bank_bian.
+        // The AML backend still defaults to the old fsi-threatsight360 database, so
+        // reading the picker from there would hand this backend ids it cannot resolve.
+        const limit = 50;
+        const skip = 0;
+
+        // No sort/filter params: GET /customers/ defaults to createdAt descending, which is
+        // how the AML endpoint this picker used to read ordered its results. That gives the
+        // same list the deployed demo shows — Noémi Rosario, Colin Stone, and the rest of
+        // the AML-sourced parties, newest first.
+        console.log('Fetching customers from:', `${API_BASE_URL}/customers/`, { skip, limit });
+
+        // Fetch the customer list and, if the URL names one, that customer too
         const fetchPromises = [
-          axios.get(`${amlApiUrl}/entities/`, {
+          axios.get(`${API_BASE_URL}/customers/`, {
             params: {
               skip: skip,
               limit: limit
             }
           })
         ];
-        
-        // If entityId is provided in URL, fetch that specific entity
+
         if (entityIdFromUrl) {
-          console.log('Also fetching specific entity from URL:', entityIdFromUrl);
+          console.log('Also fetching specific customer from URL:', entityIdFromUrl);
           fetchPromises.push(
-            axios.get(`${amlApiUrl}/entities/${encodeURIComponent(entityIdFromUrl)}`)
+            axios.get(`${API_BASE_URL}/customers/${encodeURIComponent(entityIdFromUrl)}`)
               .catch(err => {
-                console.warn('Failed to fetch specific entity:', entityIdFromUrl, err.response?.status);
+                console.warn('Failed to fetch specific customer:', entityIdFromUrl, err.response?.status);
                 return null; // Return null on error so Promise.all doesn't fail
               })
           );
@@ -178,61 +202,55 @@ function TransactionSimulator() {
         const results = await Promise.all(fetchPromises);
         const response = results[0];
         const specificEntityResponse = results[1];
-        
-        console.log('API Response:', response.data);
 
-        // Map entities to customer-like structure for compatibility
-        const entities = response.data?.entities || response.data?.data?.results || response.data?.results || [];
-        console.log('Extracted entities:', entities.length, 'entities');
-        console.log('First entity sample:', entities[0]);
-        console.log('First entity has behavioral_analytics?', !!entities[0]?.behavioral_analytics);
-        console.log('First entity has behavioralEmbedding?', !!entities[0]?.behavioralEmbedding);
-        console.log('First entity has identifierEmbedding?', !!entities[0]?.identifierEmbedding);
-        console.log('First entity keys:', entities[0] ? Object.keys(entities[0]) : 'no entity');
-        console.log('Full first entity:', JSON.stringify(entities[0], null, 2));
-        
-        if (!Array.isArray(entities)) {
-          console.error('Expected entities to be an array, got:', typeof entities, entities);
-          setError('Invalid response format from entities API');
+        // GET /customers/ returns a bare array
+        const fetched = Array.isArray(response.data) ? response.data : [];
+        console.log('Fetched customers:', fetched.length);
+
+        if (!Array.isArray(response.data)) {
+          console.error('Expected an array of customers, got:', typeof response.data, response.data);
+          setError('Invalid response format from customers API');
           setInitialLoading(false);
           return;
         }
-        
-        if (entities.length === 0) {
-          console.warn('No entities returned from API');
-          setError('No entities found. Please ensure entities exist in the database.');
+
+        if (fetched.length === 0) {
+          console.warn('No customers returned from API');
+          setError('No customers found. Please ensure customers exist in the database.');
           setInitialLoading(false);
           return;
         }
-        
-        // Sample diverse entities by scenarioKey - get 1-2 per unique scenarioKey
+
+        // Scenario sampling, as the og picker did it: max 2 per scenarioKey, so a run of
+        // near-duplicate parties from one entity-resolution set does not crowd out the rest.
+        // The key moved in the migration — it is `screening.scenarioKey` on a customer
+        // document, not top-level as it was on an AML entity. Reading the old path is what
+        // collapsed every party into one "unknown" bucket and capped the dropdown at 2.
+        // Object key order is first-appearance order, so the createdAt sort survives this.
         const scenarioGroups = {};
-        entities.forEach(entity => {
-          const scenarioKey = entity.scenarioKey || 'unknown';
+        fetched.forEach(doc => {
+          const scenarioKey = doc.screening?.scenarioKey || 'unknown';
           if (!scenarioGroups[scenarioKey]) {
             scenarioGroups[scenarioKey] = [];
           }
-          scenarioGroups[scenarioKey].push(entity);
+          scenarioGroups[scenarioKey].push(doc);
         });
-        
-        // Take 1-2 entities from each scenario group
-        const sampledEntities = [];
+
+        const sampled = [];
         Object.keys(scenarioGroups).forEach(scenarioKey => {
-          const group = scenarioGroups[scenarioKey];
-          sampledEntities.push(...group.slice(0, 2)); // Max 2 per scenario
+          sampled.push(...scenarioGroups[scenarioKey].slice(0, 2));
         });
-        
-        console.log('Sampled entities by scenario:', sampledEntities.length, 'entities from', Object.keys(scenarioGroups).length, 'scenarios');
-        
-        const mappedEntities = sampledEntities.map(mapEntityToCustomer);
-        console.log('Mapped entities:', mappedEntities.length, 'entities');
-        
-        // Handle specific entity from URL if fetched
+        console.log('Sampled customers by scenario:', sampled.length, 'from', Object.keys(scenarioGroups).length, 'scenarios');
+
+        const mappedEntities = sampled.map(mapCustomer);
+        console.log('Mapped customers:', mappedEntities.length);
+
+        // Handle specific customer from URL if fetched
         let specificEntity = null;
         if (specificEntityResponse && specificEntityResponse.data) {
           const entityData = specificEntityResponse.data?.data || specificEntityResponse.data;
-          specificEntity = mapEntityToCustomer(entityData);
-          console.log('Fetched specific entity from URL:', specificEntity._id, specificEntity.personal_info.name);
+          specificEntity = mapCustomer(entityData);
+          console.log('Fetched specific customer from URL:', specificEntity._id, specificEntity.personal_info.name);
           
           // Check if the specific entity is already in mappedEntities
           const alreadyExists = mappedEntities.some(e => e._id === specificEntity._id);
@@ -245,8 +263,8 @@ function TransactionSimulator() {
         }
         
         if (mappedEntities.length === 0) {
-          console.error('No entities available after mapping');
-          setError('No entities found. Please ensure entities exist in the database.');
+          console.error('No customers available after mapping');
+          setError('No customers found. Please ensure customers exist in the database.');
           setInitialLoading(false);
           return;
         }
@@ -265,7 +283,7 @@ function TransactionSimulator() {
               entityToSelect = foundEntity;
               console.log('Pre-selected entity from URL (found in sampled list):', entityIdFromUrl);
             } else {
-              console.warn('Entity ID from URL not found in loaded entities:', entityIdFromUrl);
+              console.warn('Customer ID from URL not found in loaded customers:', entityIdFromUrl);
             }
           } else if (specificEntity) {
             console.log('Pre-selected specific entity from URL:', specificEntity._id);
@@ -284,9 +302,9 @@ function TransactionSimulator() {
         }
         setInitialLoading(false);
       } catch (err) {
-        console.error('Error fetching entities:', err);
+        console.error('Error fetching customers:', err);
         console.error('Error details:', err.response?.data || err.message);
-        setError(`Failed to load entities: ${err.response?.data?.detail || err.message}`);
+        setError(`Failed to load customers: ${err.response?.data?.detail || err.message}`);
         setInitialLoading(false);
       }
     }
@@ -1031,7 +1049,10 @@ Device: ${transactionData.device_info?.type || 'N/A'}, ${transactionData.device_
                 </div>
                 <div>
                   <Body weight="medium" size="small">Risk Score</Body>
-                  <Body>{(selectedCustomer.risk_profile.overall_risk_score / 100).toFixed(2)}</Body>
+                  {/* Shown on its own 0-100 scale. The previous /100 rendered a 98-of-100
+                      risk as "0.98", which reads as a probability and made every customer
+                      look low-risk. */}
+                  <Body>{Math.round(selectedCustomer.risk_profile.overall_risk_score)} / 100</Body>
                 </div>
                 <div>
                   <Body weight="medium" size="small">Avg. Transaction</Body>
@@ -1055,7 +1076,7 @@ Device: ${transactionData.device_info?.type || 'N/A'}, ${transactionData.device_
               >
                 <div style={{ maxHeight: '300px', overflow: 'auto' }}>
                   <Code language="json" copyable={true}>
-                    {JSON.stringify(selectedCustomer, null, 2)}
+                    {JSON.stringify(selectedCustomer?._raw ?? selectedCustomer, null, 2)}
                   </Code>
                 </div>
               </ExpandableCard>

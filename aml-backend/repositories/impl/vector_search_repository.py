@@ -33,7 +33,7 @@ class VectorSearchRepository(VectorSearchRepositoryInterface):
     """
     
     def __init__(self, mongodb_repo: MongoDBRepository, 
-                 collection_name: str = "entities",
+                 collection_name: str = "threatsightEntities",
                  vector_index_name: str = "entity_vector_search_index",
                  embedding_type: str = "identifier"):
         """

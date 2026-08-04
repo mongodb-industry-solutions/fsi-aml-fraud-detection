@@ -4,6 +4,9 @@ version = "0.1.0"
 description = "FSI ThreatSight360"
 authors = ["Mehar Grewal <mehar.grewal@mongodb.com>"]
 readme = "README.md"
+# Dependency manifest only — there is no importable `your-virtual-env` package, so
+# `poetry install` must not try to install the project itself. Matches aml-backend.
+package-mode = false
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.11"

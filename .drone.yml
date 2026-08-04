@@ -28,6 +28,7 @@ steps:
       build_args:
         - NEXT_PUBLIC_API_URL=/api/fraud
         - NEXT_PUBLIC_AML_API_URL=/api/aml
+        - BIAN_MODEL_URL=https://leafy-bank-bian-model.industrysolutions.staging.corp.mongodb.com
     when:
       event:
         - push
@@ -138,7 +139,7 @@ steps:
     settings:
       create_repository: true
       registry: 795250896452.dkr.ecr.us-east-1.amazonaws.com
-      repo: industrysolutions/fsi-fraud-detection-frontend-prod
+      repo: industrysolutions/fsi-fraud-detection-bian-frontend
       tags:
         - git-${DRONE_COMMIT_SHA:0:7}-prod
         - prod-latest
@@ -150,6 +151,7 @@ steps:
       build_args:
         - NEXT_PUBLIC_API_URL=/api/fraud
         - NEXT_PUBLIC_AML_API_URL=/api/aml
+        - BIAN_MODEL_URL=https://leafy-bank-bian-model.industrysolutions.prod.corp.mongodb.com
     when:
       event:
         - push
@@ -160,7 +162,7 @@ steps:
     settings:
       create_repository: true
       registry: 795250896452.dkr.ecr.us-east-1.amazonaws.com
-      repo: industrysolutions/fsi-fraud-detection-backend-prod
+      repo: industrysolutions/fsi-fraud-detection-bian-backend
       tags:
         - git-${DRONE_COMMIT_SHA:0:7}-prod
         - prod-latest
@@ -179,7 +181,7 @@ steps:
     settings:
       create_repository: true
       registry: 795250896452.dkr.ecr.us-east-1.amazonaws.com
-      repo: industrysolutions/fsi-fraud-detection-aml-backend-prod
+      repo: industrysolutions/fsi-fraud-detection-bian-aml-backend
       tags:
         - git-${DRONE_COMMIT_SHA:0:7}-prod
         - prod-latest
@@ -200,14 +202,14 @@ steps:
       chart_version: 4.30.0
       add_repos: [mongodb=https://10gen.github.io/helm-charts]
       namespace: industrysolutions
-      release: fsi-fraud-detection-prod
+      release: fsi-fraud-detection-bian-prod
       values:
         # Frontend main container
-        - 'image.repository=795250896452.dkr.ecr.us-east-1.amazonaws.com/industrysolutions/fsi-fraud-detection-frontend-prod'
+        - 'image.repository=795250896452.dkr.ecr.us-east-1.amazonaws.com/industrysolutions/fsi-fraud-detection-bian-frontend'
         - 'image.tag=git-${DRONE_COMMIT_SHA:0:7}-prod'
         # Ingress configuration
         - 'ingress.enabled=true'
-        - 'ingress.hosts[0]=fsi-fraud-detection.industrysolutions.prod.corp.mongodb.com'
+        - 'ingress.hosts[0]=fsi-fraud-detection-bian.industrysolutions.prod.corp.mongodb.com'
         # WebSocket support via nginx ingress
         - 'ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-read-timeout="3600"'
         - 'ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-send-timeout="3600"'
@@ -220,7 +222,7 @@ steps:
         - 'resources.requests.memory=150Mi'
         # Sidecar: Fraud Backend
         - 'sidecarContainers[0].name=fraud-backend'
-        - 'sidecarContainers[0].image=795250896452.dkr.ecr.us-east-1.amazonaws.com/industrysolutions/fsi-fraud-detection-backend-prod:git-${DRONE_COMMIT_SHA:0:7}-prod'
+        - 'sidecarContainers[0].image=795250896452.dkr.ecr.us-east-1.amazonaws.com/industrysolutions/fsi-fraud-detection-bian-backend:git-${DRONE_COMMIT_SHA:0:7}-prod'
         - 'sidecarContainers[0].ports[0].containerPort=8000'
         - 'sidecarContainers[0].ports[0].name=fraud-api'
         - 'sidecarContainers[0].resources.limits.cpu=350m'
@@ -229,7 +231,7 @@ steps:
         - 'sidecarContainers[0].resources.requests.memory=256Mi'
         # Sidecar: AML Backend
         - 'sidecarContainers[1].name=aml-backend'
-        - 'sidecarContainers[1].image=795250896452.dkr.ecr.us-east-1.amazonaws.com/industrysolutions/fsi-fraud-detection-aml-backend-prod:git-${DRONE_COMMIT_SHA:0:7}-prod'
+        - 'sidecarContainers[1].image=795250896452.dkr.ecr.us-east-1.amazonaws.com/industrysolutions/fsi-fraud-detection-bian-aml-backend:git-${DRONE_COMMIT_SHA:0:7}-prod'
         - 'sidecarContainers[1].ports[0].containerPort=8001'
         - 'sidecarContainers[1].ports[0].name=aml-api'
         - 'sidecarContainers[1].resources.limits.cpu=350m'

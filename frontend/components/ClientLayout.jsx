@@ -1,8 +1,8 @@
 "use client";
 
 import Link from 'next/link';
-import Image from 'next/image';
 import Card from '@leafygreen-ui/card';
+import { MongoDBLogoMark } from '@leafygreen-ui/logo';
 import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 import { H1, Overline, Body } from '@leafygreen-ui/typography';
@@ -11,8 +11,7 @@ import IconButton from '@leafygreen-ui/icon-button';
 import { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useUser } from '@/contexts/UserContext';
-import UserSelectionModal from '@/components/UserSelection/UserSelectionModal';
-import UserProfile from '@/components/UserProfile/UserProfile';
+import UserMenu from '@/components/UserMenu/UserMenu';
 import ChatBubble from '@/components/chat/ChatBubble';
 
 const ROUTE_ROLES = [
@@ -23,10 +22,9 @@ const ROUTE_ROLES = [
   { href: '/risk-models', roles: ['risk_manager'] },
 ];
 
-export default function ClientLayout({ children }) {
+export default function ClientLayout({ children, bianModelUrl }) {
   const [isMenuOpen, setMenuOpen] = useState(false);
-  const { role, isInitialized } = useUser();
-  const [showUserSelection, setShowUserSelection] = useState(false);
+  const { role } = useUser();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -52,14 +50,6 @@ export default function ClientLayout({ children }) {
       ? palette.green.dark1
       : isActive(href) ? 'rgba(255, 255, 255, 0.12)' : 'transparent';
   };
-
-  useEffect(() => {
-    if (isInitialized && !role) {
-      setShowUserSelection(true);
-    } else if (role) {
-      setShowUserSelection(false);
-    }
-  }, [isInitialized, role]);
 
   useEffect(() => {
     if (!role || !pathname) return;
@@ -109,15 +99,7 @@ export default function ClientLayout({ children }) {
                 border: '1px solid rgba(255, 255, 255, 0.3)',
               }}
             >
-              <Image
-                src="/threatsight logo.png"
-                alt="ThreatSight360 Logo"
-                width={50}
-                height={50}
-                style={{ 
-                  objectFit: 'contain',
-                }}
-              />
+              <MongoDBLogoMark height={40} aria-label="ThreatSight360 Logo" />
             </div>
             <div>
               <H1
@@ -193,16 +175,35 @@ export default function ClientLayout({ children }) {
                     </Link>
                   </li>
                 ))}
+
+                {/* The BIAN Data Model Explorer is a separately deployed app,
+                    so this is an external anchor, not a route. `?demo=` picks
+                    the lens that highlights this demo's collections. */}
+                <li>
+                  <a
+                    href={`${bianModelUrl}/bian-data-model?demo=threatsight`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={navLinkStyle('/bian-data-model')}
+                    onMouseEnter={(e) => handleLinkHover(e, '/bian-data-model', true)}
+                    onMouseLeave={(e) => handleLinkHover(e, '/bian-data-model', false)}
+                    title="BIAN Data Model"
+                  >
+                    <Icon glyph="Read" fill={palette.gray.light3} size={16} />
+                    <Body style={{ fontFamily: "'Euclid Circular A', sans-serif", fontWeight: 500 }}>Data Model</Body>
+                  </a>
+                </li>
               </ul>
             </nav>
 
-            {/* User Profile */}
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
+            {/* Persona menu — also carries the Risk Analyst / Risk Manager
+                role switch in its dropdown. */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
               marginLeft: spacing[4],
             }}>
-              {role && <UserProfile />}
+              <UserMenu />
             </div>
           </div>
         </div>
@@ -224,19 +225,6 @@ export default function ClientLayout({ children }) {
 
       {/* AML Compliance Assistant Chat */}
       <ChatBubble />
-
-      {/* User Selection Modal */}
-      {showUserSelection && (
-        <UserSelectionModal 
-          isSwitching={false}
-          onClose={() => {
-            // Don't allow closing on first visit
-            if (role) {
-              setShowUserSelection(false);
-            }
-          }}
-        />
-      )}
 
       <style jsx global>{`
         /**

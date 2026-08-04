@@ -17,8 +17,8 @@ def _compute_degree_centrality(db, entity_id: str, network_size: int) -> float:
     if network_size <= 1:
         return 0.0
 
-    out_degree = db["relationships"].count_documents({"source.entityId": entity_id})
-    in_degree = db["relationships"].count_documents({"target.entityId": entity_id})
+    out_degree = db["threatsightRelationships"].count_documents({"source.entityId": entity_id})
+    in_degree = db["threatsightRelationships"].count_documents({"target.entityId": entity_id})
 
     max_possible = 2 * (network_size - 1)
     return min((out_degree + in_degree) / max_possible, 1.0) if max_possible > 0 else 0.0
@@ -26,7 +26,7 @@ def _compute_degree_centrality(db, entity_id: str, network_size: int) -> float:
 
 def _compute_network_risk(db, entity_id: str, suspicious_connections: list) -> dict:
     """Compute network risk score from the entity's own risk + connected entity risks."""
-    entity = db["entities"].find_one(
+    entity = db["threatsightEntities"].find_one(
         {"entityId": entity_id},
         {"riskAssessment.overall.score": 1, "_id": 0},
     )
@@ -41,7 +41,7 @@ def _compute_network_risk(db, entity_id: str, suspicious_connections: list) -> d
     if not target_ids:
         return {"base_entity_risk": base_risk, "network_risk_score": base_risk}
 
-    connected_entities = list(db["entities"].find(
+    connected_entities = list(db["threatsightEntities"].find(
         {"entityId": {"$in": target_ids}},
         {"entityId": 1, "riskAssessment.overall.score": 1, "_id": 0},
     ))

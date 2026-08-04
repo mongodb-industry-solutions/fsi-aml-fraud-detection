@@ -76,7 +76,7 @@ def finalize_node(state: InvestigationState) -> dict:
     persistence_error = None
     try:
         client = get_mongo_client()
-        client[DB_NAME]["investigations"].insert_one(case_document)
+        client[DB_NAME]["threatsightInvestigations"].insert_one(case_document)
         logger.info("Investigation %s persisted to MongoDB", case_id)
     except Exception as exc:
         logger.exception("Failed to persist investigation %s", case_id)

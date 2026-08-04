@@ -37,10 +37,10 @@ def _resolve_entity_id(raw_id: str) -> str:
     """Resolve an identifier that may be a scenarioKey to the actual entityId."""
     client = get_mongo_client()
     db = client[DB_NAME]
-    doc = db["entities"].find_one({"entityId": raw_id}, {"entityId": 1, "_id": 0})
+    doc = db["threatsightEntities"].find_one({"entityId": raw_id}, {"entityId": 1, "_id": 0})
     if doc:
         return doc["entityId"]
-    doc = db["entities"].find_one({"scenarioKey": raw_id}, {"entityId": 1, "_id": 0})
+    doc = db["threatsightEntities"].find_one({"scenarioKey": raw_id}, {"entityId": 1, "_id": 0})
     if doc:
         return doc["entityId"]
     return raw_id

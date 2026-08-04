@@ -35,8 +35,8 @@ class NetworkRepository(NetworkRepositoryInterface):
     """
     
     def __init__(self, mongodb_repo: MongoDBRepository, 
-                 entity_collection: str = "entities",
-                 relationship_collection: str = "relationships"):
+                 entity_collection: str = "threatsightEntities",
+                 relationship_collection: str = "threatsightRelationships"):
         """Initialize Network repository"""
         self.repo = mongodb_repo
         self.entity_collection_name = entity_collection
@@ -235,7 +235,7 @@ class NetworkRepository(NetworkRepositoryInterface):
             ]
 
             # Execute statistics pipeline on entities
-            stats_results = await self.repo.execute_pipeline("entities", stats_pipeline)
+            stats_results = await self.repo.execute_pipeline("threatsightEntities", stats_pipeline)
             
             # Step 2: Calculate relationship distribution during edge processing
             relationship_ids = [str(rel.get("_id", "")) for rel in network_data["relationships"]]
@@ -262,7 +262,7 @@ class NetworkRepository(NetworkRepositoryInterface):
                         {"$sort": {"count": -1}}
                     ]
                     
-                    rel_dist_results = await self.repo.execute_pipeline("relationships", relationship_dist_pipeline)
+                    rel_dist_results = await self.repo.execute_pipeline("threatsightRelationships", relationship_dist_pipeline)
                 else:
                     rel_dist_results = []
             else:
@@ -556,7 +556,7 @@ class NetworkRepository(NetworkRepositoryInterface):
                     }
                 })
             
-            results = await self.repo.execute_pipeline("entities", pipeline)
+            results = await self.repo.execute_pipeline("threatsightEntities", pipeline)
             
             if not results:
                 logger.info(f"❌ MIGRATION: No path found from {source_entity_id} to {target_entity_id}")
@@ -596,7 +596,7 @@ class NetworkRepository(NetworkRepositoryInterface):
                     }
                 })
             
-            path_results = await self.repo.execute_pipeline("entities", path_pipeline)
+            path_results = await self.repo.execute_pipeline("threatsightEntities", path_pipeline)
             
             if not path_results:
                 return None
@@ -1392,10 +1392,10 @@ class NetworkRepository(NetworkRepositoryInterface):
                     {"$limit": params.max_relationships}
                 ]
                 
-                relationships = await self.repo.execute_pipeline("entities", manual_pipeline)
+                relationships = await self.repo.execute_pipeline("threatsightEntities", manual_pipeline)
             else:
                 # Use fluent interface when no complex filters
-                relationships = await self.repo.execute_pipeline("entities", pipeline)
+                relationships = await self.repo.execute_pipeline("threatsightEntities", pipeline)
             
             # Remove duplicates based on relationship ID
             seen_ids = set()

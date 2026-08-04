@@ -14,7 +14,7 @@ from services.agents.state import InvestigationState
 
 logger = logging.getLogger(__name__)
 
-COLLECTION = "transactionsv2"
+COLLECTION = "fraudEvaluation"
 STRUCTURING_THRESHOLD = 10_000
 STRUCTURING_LOWER = 8_000
 DORMANCY_GAP_DAYS = 30

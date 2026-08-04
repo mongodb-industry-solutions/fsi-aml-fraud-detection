@@ -1,0 +1,154 @@
+.userMenuWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* Trigger sits on the dark green header, so it inverts: translucent surface
+   and light text. The dropdown below stays a white card. */
+.userInfoContainer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  color: #f9fbfa;
+}
+
+.userInfoContainer :global(p) {
+  color: #f9fbfa;
+  margin: 0;
+}
+
+.userImage {
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.userDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.userRole {
+  font-size: 10px;
+  color: rgba(249, 251, 250, 0.7);
+  line-height: 1.2;
+}
+
+.switchUserBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: rgba(249, 251, 250, 0.7);
+  padding: 4px;
+  border-radius: 4px;
+  margin-left: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.switchUserBtn:hover {
+  color: #f9fbfa;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* Switch-user dropdown */
+.userDropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 260px;
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+  padding: 8px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(16, 24, 40, 0.16);
+  z-index: 1100;
+}
+
+.userDropdownSection {
+  display: flex;
+  flex-direction: column;
+}
+
+.userDropdownSection + .userDropdownSection {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid #f0f1f3;
+}
+
+.userDropdownSectionLabel {
+  padding: 6px 8px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9ca3af;
+}
+
+.userDropdownItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.userDropdownItem:hover {
+  background: #f3f4f6;
+}
+
+.userDropdownItemActive {
+  background: #e3fcef;
+}
+
+.userDropdownItemActive:hover {
+  background: #d3f7e2;
+}
+
+.userDropdownAvatar {
+  border-radius: 50%;
+  flex: 0 0 auto;
+  object-fit: cover;
+}
+
+.userDropdownInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.userDropdownRole {
+  font-size: 11px;
+  color: #6b7280;
+  line-height: 1.2;
+}
+
+/* Role rows have no persona photo — a tinted initials disc stands in for one,
+   sized to match .userDropdownAvatar so both kinds of row align. */
+.roleAvatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+}

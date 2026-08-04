@@ -28,7 +28,7 @@ class RelationshipRepository(RelationshipRepositoryInterface):
     efficient querying, and relationship analytics using MongoDB's graph capabilities.
     """
     
-    def __init__(self, mongodb_repo: MongoDBRepository, collection_name: str = "relationships"):
+    def __init__(self, mongodb_repo: MongoDBRepository, collection_name: str = "threatsightRelationships"):
         """
         Initialize relationship repository
         
@@ -156,13 +156,13 @@ class RelationshipRepository(RelationshipRepositoryInterface):
             # Get paginated results with entity details
             results_pipeline = (builder
                               .lookup(
-                                  from_collection="entities",
+                                  from_collection="threatsightEntities",
                                   local_field="source_entity_id",
                                   foreign_field="_id",
                                   as_field="source_entity"
                               )
                               .lookup(
-                                  from_collection="entities", 
+                                  from_collection="threatsightEntities", 
                                   local_field="target_entity_id",
                                   foreign_field="_id",
                                   as_field="target_entity"
@@ -280,13 +280,13 @@ class RelationshipRepository(RelationshipRepositoryInterface):
             pipeline = (self.aggregation()
                        .match(query)
                        .lookup(
-                           from_collection="entities",
+                           from_collection="threatsightEntities",
                            local_field="source_entity_id", 
                            foreign_field="_id",
                            as_field="source_entity"
                        )
                        .lookup(
-                           from_collection="entities",
+                           from_collection="threatsightEntities",
                            local_field="target_entity_id",
                            foreign_field="_id", 
                            as_field="target_entity"
@@ -349,7 +349,7 @@ class RelationshipRepository(RelationshipRepositoryInterface):
             ]
             
             # Execute on entities collection
-            entity_collection = self.repo.collection("entities")
+            entity_collection = self.repo.collection("threatsightEntities")
             results = await entity_collection.aggregate(pipeline).to_list(None)
             
             if not results:

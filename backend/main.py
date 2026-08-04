@@ -11,6 +11,7 @@ from routes.customer import router as customer_router
 from routes.transaction import router as transaction_router
 from routes.fraud_pattern import router as fraud_pattern_router
 from routes.model_management import router as model_management_router
+from routes.bian import router as bian_router
 # Entity resolution router removed - using enhanced system
 
 # Setup logging
@@ -28,8 +29,16 @@ app = FastAPI(
     title="ThreatSight 360",
     description="Fraud Detection API for Financial Services",
     version="1.0.0",
-    # Disable automatic redirects for trailing slashes
-    redirect_slashes=False,
+    # Must stay True. List routes are declared as `@router.get("/")` under a prefix,
+    # so their real path is `/customers/`. The frontend calls them with the trailing
+    # slash, but Next.js (no next.config.js -> trailingSlash: false) 308-redirects
+    # `/api/fraud/customers/` to `/api/fraud/customers` before the proxy route handler
+    # runs, and the catch-all `[...path]` segment array cannot carry a trailing slash
+    # either. The proxy therefore always forwards the UNSLASHED path. With
+    # redirect_slashes=False that was a hard 404 and the customer picker rendered
+    # empty with no error. The AML backend has always set this True, which is the only
+    # reason its pages survive the identical proxy.
+    redirect_slashes=True,
 )
 
 # Configure CORS
@@ -105,6 +114,10 @@ app.include_router(customer_router)
 app.include_router(transaction_router)
 app.include_router(fraud_pattern_router)
 app.include_router(model_management_router)
+# BIAN v14 service-domain surface for the two stage-boundary routes (bian-fraud-flow.md §9.2).
+# Additive — the native routes above stay live, so the frontend keeps working until its proxy
+# is cut over. Registered last: its paths share no prefix with the routers above.
+app.include_router(bian_router)
 # Entity resolution router removed - using enhanced system
 
 # if __name__ == "__main__":

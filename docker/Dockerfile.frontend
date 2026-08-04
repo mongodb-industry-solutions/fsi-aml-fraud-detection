@@ -8,6 +8,14 @@ ARG NEXT_PUBLIC_AML_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_AML_API_URL=$NEXT_PUBLIC_AML_API_URL
 
+# Browser-facing URL of the standalone BIAN Data Model Explorer. Baked at build
+# time because pages are statically prerendered — a runtime env var would not
+# reach the prerendered HTML. Per-environment value comes from the kaniko
+# build_args in .drone.yml; defaults to the deployed staging explorer so local
+# builds link somewhere live without running bian-model locally.
+ARG BIAN_MODEL_URL=https://leafy-bank-bian-model.industrysolutions.staging.corp.mongodb.com
+ENV BIAN_MODEL_URL=$BIAN_MODEL_URL
+
 WORKDIR /app
 COPY frontend/package*.json ./
 RUN npm install --legacy-peer-deps

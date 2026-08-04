@@ -57,7 +57,20 @@ The AML backend follows a **clean architecture pattern** with three-layer organi
 
 Before you begin, ensure you have the following:
 
-- **Python 3.10+**: Required for the backend service
+- **Python 3.10–3.12**: Required by `pyproject.toml`. Python 3.13+ isn't yet supported because a transitive dependency, `voyageai`, doesn't support it.
+
+  If your system's default Python is 3.13+, install a compatible version with [pyenv](https://github.com/pyenv/pyenv) and let Poetry use it for this project:
+
+  ```bash
+  brew install pyenv        # or your platform's pyenv install method
+  pyenv install 3.12.7      # any 3.10.x-3.12.x build works
+  cd aml-backend
+  poetry env use "$(pyenv root)/versions/3.12.7/bin/python"
+  poetry install
+  ```
+
+  This only affects the virtualenv Poetry creates for `aml-backend` — it won't change your system or shell default Python.
+
 - **Poetry**: For dependency management and virtual environments
 - **MongoDB Atlas Account**: For data storage and Atlas Search capabilities
 - **AWS Account with Bedrock Access**: For AI-powered entity resolution features

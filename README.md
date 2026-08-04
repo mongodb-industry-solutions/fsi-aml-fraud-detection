@@ -128,7 +128,7 @@ Let's get started!
 
 Before you begin working with this project, ensure that you have the following prerequisites set up in your development environment:
 
-- **Python 3.10+**: Both backend services are built with Python. You can download it from the [official website](https://www.python.org/downloads/).
+- **Python 3.10–3.12**: The `backend` service supports Python 3.10+; `aml-backend` supports Python 3.10–3.12 (a transitive dependency, `voyageai`, isn't yet compatible with 3.13+). You can download a compatible version from the [official website](https://www.python.org/downloads/).
 - **Node.js 18+**: The frontend requires Node.js 18 or higher, which includes npm for package management. You can download it from the [official Node.js website](https://nodejs.org/).
 - **Poetry**: Both backend services use Poetry for dependency management. Install it by following the instructions on the [Poetry website](https://python-poetry.org/docs/#installation).
 - **MongoDB Atlas Account**: This project uses MongoDB Atlas for data storage, Atlas Search, and vector search capabilities. If you don't have an account, you can sign up for free at [MongoDB Atlas](https://www.mongodb.com/cloud/atlas/register). Once you have an account, follow these steps to set up a M10 tier cluster:

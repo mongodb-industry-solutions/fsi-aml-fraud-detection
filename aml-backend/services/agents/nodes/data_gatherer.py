@@ -14,6 +14,7 @@ from models.agents.investigation import CaseAssemblyOutput
 from services.agents.llm import get_llm, get_model_id, extract_token_usage, invoke_with_retry
 from services.agents.prompts import CASE_ASSEMBLY_SYSTEM
 from services.agents.state import InvestigationState
+from services.agents.entity_resolution import resolve_to_customer_id
 from services.agents.tools.entity_tools import get_entity_profile, screen_watchlists
 from services.agents.tools.transaction_tools import query_entity_transactions
 from services.agents.tools.network_tools import analyze_entity_network
@@ -34,16 +35,10 @@ def _serialize_tool_output(obj) -> str:
 
 
 def _resolve_entity_id(raw_id: str) -> str:
-    """Resolve an identifier that may be a scenarioKey to the actual entityId."""
+    """Resolve an identifier (old-format entityId, scenarioKey, or customerId) to a customerId."""
     client = get_mongo_client()
     db = client[DB_NAME]
-    doc = db["threatsightEntities"].find_one({"entityId": raw_id}, {"entityId": 1, "_id": 0})
-    if doc:
-        return doc["entityId"]
-    doc = db["threatsightEntities"].find_one({"scenarioKey": raw_id}, {"entityId": 1, "_id": 0})
-    if doc:
-        return doc["entityId"]
-    return raw_id
+    return resolve_to_customer_id(raw_id, db)
 
 
 class GatherTask(TypedDict):

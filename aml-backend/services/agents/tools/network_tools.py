@@ -3,19 +3,10 @@
 import logging
 from langchain_core.tools import tool
 from dependencies import get_mongo_client, DB_NAME, RELATIONSHIPS_COLLECTION
-# Phase-2 step 3: the UI surface moved its party identity to `customerId`, so
-# relationship_fields.SOURCE_KEY/TARGET_KEY now point at `sourceCustomerId` /
-# `targetCustomerId`. The agent tools still read `threatsightEntities`, whose
-# identity is the source `entityId` -- so they stay pinned to the retained
-# `*EntityRef` pair, which build_sd7.py populates on every relationship
-# document alongside the customer ids. Traversing on the customer keys from an
-# `entityId` seed returns zero edges and raises nothing.
-# Migrate this surface to `customers` and drop the aliasing in a later pass.
-from repositories.relationship_fields import (
-    SOURCE_ENTITY_REF_KEY as SOURCE_KEY,
-    TARGET_ENTITY_REF_KEY as TARGET_KEY,
-    TYPE_KEY,
-)
+# Phase-2 step 3 migration: entity ids flowing into this tool are now
+# `customers.customerId` values (see services/agents/entity_resolution.py),
+# so the graph traverses on the same key the entity side resolves on.
+from repositories.relationship_fields import SOURCE_KEY, TARGET_KEY, TYPE_KEY
 
 logger = logging.getLogger(__name__)
 

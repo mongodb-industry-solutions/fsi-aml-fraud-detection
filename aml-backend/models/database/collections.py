@@ -29,7 +29,7 @@ class CollectionConfig(BaseModel):
 class EntityCollection(CollectionConfig):
     """Configuration for entities collection"""
     
-    collection_name: str = "threatsightEntities"
+    collection_name: str = "customers"
     
     # Indexes for optimal performance
     indexes: List[Dict[str, Any]] = Field(default_factory=lambda: [

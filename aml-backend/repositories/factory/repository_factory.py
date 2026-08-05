@@ -206,7 +206,7 @@ class RepositoryFactory:
             health_status["timestamp"] = datetime.utcnow().isoformat()
             
             # Test MongoDB connection
-            collections = ["threatsightEntities", "entity_relationships"]
+            collections = ["customers", "entity_relationships"]
             for collection_name in collections:
                 collection = self.mongodb_repo.collection(collection_name)
                 # Simple ping test
@@ -260,7 +260,8 @@ class RepositoryFactory:
         if repo_type == "entity":
             return EntityRepository(
                 mongodb_repo=self.mongodb_repo,
-                collection_name=config.get("collection_name", "threatsightEntities")
+                collection_name=config.get("collection_name",
+                                           os.getenv("ENTITIES_COLLECTION", "customers"))
             )
         elif repo_type == "relationship":
             return RelationshipRepository(
@@ -270,7 +271,8 @@ class RepositoryFactory:
         elif repo_type == "atlas_search":
             return AtlasSearchRepository(
                 mongodb_repo=self.mongodb_repo,
-                collection_name=config.get("collection_name", "threatsightEntities"),
+                collection_name=config.get("collection_name",
+                                           os.getenv("ENTITIES_COLLECTION", "customers")),
                 search_index_name=config.get("search_index_name", "entity_search_indexv2")
             )
         elif repo_type == "vector_search":
@@ -283,7 +285,7 @@ class RepositoryFactory:
         elif repo_type == "network":
             return NetworkRepository(
                 mongodb_repo=self.mongodb_repo,
-                entity_collection=config.get("entity_collection", os.getenv("ENTITIES_COLLECTION", "threatsightEntities")),
+                entity_collection=config.get("entity_collection", os.getenv("ENTITIES_COLLECTION", "customers")),
                 relationship_collection=config.get("relationship_collection", os.getenv("RELATIONSHIPS_COLLECTION", "relationships"))
             )
         else:

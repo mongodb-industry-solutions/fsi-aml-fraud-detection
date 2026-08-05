@@ -1126,7 +1126,8 @@ async def analyze_hybrid_search_network_risk(
             # Get transaction repository to query transactionsv2 collection
             db = get_database()
             transactions_collection = db.fraudEvaluation
-            transaction_repo = TransactionRepository(transactions_collection)
+            customers_collection = db.customers
+            transaction_repo = TransactionRepository(transactions_collection, customers_collection)
             
             # Get transaction activity for the target entity
             transaction_activity = await transaction_repo.get_entity_transactions(

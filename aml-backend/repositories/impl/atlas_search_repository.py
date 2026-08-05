@@ -97,6 +97,20 @@ class AtlasSearchRepository:
             scope_filter=ef.search_scope_clause(),
         )
 
+    def _search_result_projection(self) -> Dict[str, Any]:
+        """Wire-shape projection for a `$search` result doc, plus the search score.
+
+        `compound_search_paginated`/`text_search_paginated` return raw BIAN
+        `customers` docs (`customerId`, `type`, `riskProfile`, ...). Every
+        consumer of these results (`atlas_search_service.py`, the resolution
+        routes) reads wire keys (`entityId`, `entityType`, `riskAssessment`).
+        Without this, results silently carry blank fields and the wrong id
+        (falls back to the raw `_id` ObjectId).
+        """
+        proj = ef.wire_projection(include_embeddings=False)
+        proj["search_score"] = 1
+        return proj
+
     # ==================== CORE SEARCH OPERATIONS (6 ESSENTIAL METHODS) ====================
     
     async def autocomplete_search(self, params: AutocompleteParams) -> List[Dict[str, Any]]:
@@ -264,10 +278,11 @@ class AtlasSearchRepository:
             pipeline = (self._builder()
                        .compound_search_paginated(
                            must=must,
-                           should=should, 
+                           should=should,
                            filters=filters,
                            limit=limit
                        )
+                       .project(self._search_result_projection())
                        .build())
             
             logger.debug(f"Executing Atlas Search pipeline: {pipeline}")
@@ -303,10 +318,11 @@ class AtlasSearchRepository:
             pipeline = (self._builder(index_name)
                        .compound_search_paginated(
                            must=must,
-                           should=should, 
+                           should=should,
                            filters=filters,
                            limit=limit
                        )
+                       .project(self._search_result_projection())
                        .build())
             
             logger.debug(f"Executing Atlas Search pipeline with index {index_name}: {pipeline}")
@@ -374,6 +390,7 @@ class AtlasSearchRepository:
                                        path=search_path,
                                        limit=limit
                                    )
+                                   .project(self._search_result_projection())
                                    .build())
                 search_results = await self.repo.execute_pipeline(self.collection_name, results_pipeline)
             else:

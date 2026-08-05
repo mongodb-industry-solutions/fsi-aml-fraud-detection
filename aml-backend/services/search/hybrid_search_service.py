@@ -12,6 +12,7 @@ from typing import List, Dict, Any, Optional
 from motor.motor_asyncio import AsyncIOMotorCollection
 
 from models.api.responses import HybridSearchResult, HybridSearchResponse
+from repositories import entity_fields as ef
 
 logger = logging.getLogger(__name__)
 
@@ -81,25 +82,30 @@ class HybridSearchService:
                                                     {
                                                         "text": {
                                                             "query": query_text,
-                                                            "path": ["name.full"],
+                                                            # entity_text_search_index indexes
+                                                            # BIAN storage paths, not wire paths.
+                                                            "path": [ef.FULL_NAME],
                                                             "fuzzy": {"maxEdits": 1}
                                                         }
                                                     },
                                                     {
                                                         "text": {
                                                             "query": query_text,
-                                                            "path": ["name.aliases"],
+                                                            "path": [ef.ALIASES],
                                                             "fuzzy": {"maxEdits": 1}
                                                         }
                                                     },
                                                     {
                                                         "text": {
                                                             "query": query_text,
-                                                            "path": ["addresses.full"],
+                                                            "path": [ef.ADDRESS_LINE1],
                                                             "fuzzy": {"maxEdits": 2}
                                                         }
                                                     }
-                                                ]
+                                                ],
+                                                # `customers` is shared with the Leafy Bank payments
+                                                # demo -- scope every read or those rows leak in.
+                                                "filter": [ef.search_scope_clause()]
                                             }
                                         }
                                     },
@@ -112,7 +118,8 @@ class HybridSearchService:
                                             "path": self.vector_field_name,
                                             "queryVector": query_embedding,
                                             "numCandidates": num_candidates,
-                                            "limit": intermediate_limit
+                                            "limit": intermediate_limit,
+                                            "filter": ef.vector_scope_filter()
                                         }
                                     }
                                 ]
@@ -135,17 +142,12 @@ class HybridSearchService:
                     }
                 },
                 {
+                    # $rankFusion returns raw `customers` (BIAN storage shape) docs --
+                    # translate to the wire shape every other read path already uses.
                     "$project": {
-                        "entityId": 1,
-                        "name": 1,
-                        "entityType": 1,
-                        "riskAssessment": 1,
+                        **ef.wire_projection(include_embeddings=False),
                         "hybridScore": 1,
                         "scoreDetails": 1,
-                        "createdAt": 1,
-                        "updatedAt": 1,
-                        "primaryAddress": 1,
-                        "identifiers": 1
                     }
                 }
             ]

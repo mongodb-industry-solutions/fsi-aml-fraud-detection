@@ -18,14 +18,36 @@ from models.core.transaction import (
     TransactionNetworkEdge,
     TransactionActivityResponse
 )
+from repositories import entity_fields as ef
 
 
 class TransactionRepository:
     """MongoDB transaction repository implementation"""
-    
-    def __init__(self, transactions_collection: AsyncIOMotorCollection):
+
+    def __init__(self, transactions_collection: AsyncIOMotorCollection,
+                 customers_collection: AsyncIOMotorCollection):
         self.transactions_collection = transactions_collection
-    
+        self.customers_collection = customers_collection
+
+    async def _entity_lookup(self, entity_ids) -> Dict[str, Dict[str, Optional[str]]]:
+        """Map `customerId` -> {name, type} for counterparty/node rendering.
+
+        `fraudEvaluation` docs carry the join keys (`fromEntityId`/`toEntityId` ==
+        `customers.customerId`) but not a current name/type -- those live on
+        `customers`. Each doc's `sourceEntities.*` sub-document is a pre-migration
+        snapshot (old entity id, old name) and must NOT be read as the source of
+        truth here -- same rule entity_fields.py applies everywhere else.
+        """
+        ids = list({e for e in entity_ids if e})
+        if not ids:
+            return {}
+        cursor = self.customers_collection.find(
+            {ef.CUSTOMER_ID: {"$in": ids}},
+            {ef.CUSTOMER_ID: 1, "identification.fullName": 1, ef.TYPE: 1},
+        )
+        docs = await cursor.to_list(length=None)
+        return {ef.id_of(d): {"name": ef.name_of(d), "type": ef.type_of(d)} for d in docs}
+
     async def get_entity_transactions(
         self,
         entity_id: str,
@@ -62,21 +84,10 @@ class TransactionRepository:
                             "$toEntityId",
                             "$fromEntityId"
                         ]
-                    },
-                    "counterparty_name": {
-                        "$cond": [
-                            {"$eq": ["$fromEntityId", entity_id]},
-                            "$toEntityName",
-                            "$fromEntityName"
-                        ]
-                    },
-                    "counterparty_type": {
-                        "$cond": [
-                            {"$eq": ["$fromEntityId", entity_id]},
-                            "$toEntityType",
-                            "$fromEntityType"
-                        ]
                     }
+                    # counterparty_name/type come from a `customers` lookup below --
+                    # fraudEvaluation has no current name/type field, only the
+                    # pre-migration snapshot under sourceEntities.*.
                 }
             },
             
@@ -107,27 +118,33 @@ class TransactionRepository:
         
         count_result = await self.transactions_collection.aggregate(count_pipeline).to_list(length=1)
         total_count = count_result[0]["total"] if count_result else 0
-        
+
+        counterparty_lookup = await self._entity_lookup(
+            t["counterparty_id"] for t in transactions_data
+        )
+
         # Convert to TransactionActivity objects
         transactions = []
         for txn_data in transactions_data:
+            counterparty = counterparty_lookup.get(txn_data["counterparty_id"], {})
+            model_results = txn_data.get("modelResults", {})
             transaction = TransactionActivity(
                 transaction_id=txn_data["transactionId"],
                 counterparty_id=txn_data["counterparty_id"],
-                counterparty_name=txn_data["counterparty_name"],
-                counterparty_type=txn_data["counterparty_type"],
+                counterparty_name=counterparty.get("name") or "Unknown",
+                counterparty_type=counterparty.get("type") or "unknown",
                 direction=txn_data["direction"],
                 amount=txn_data["amount"],
                 currency=txn_data["currency"],
                 transaction_type=txn_data["transactionType"],
-                payment_method=txn_data["paymentMethod"],
+                payment_method=txn_data.get("paymentRail", "unknown"),
                 timestamp=txn_data["timestamp"],
                 status=txn_data["status"],
                 channel=txn_data["channel"],
                 description=txn_data["description"],
-                risk_score=txn_data["riskScore"],
-                flagged=txn_data["flagged"],
-                tags=txn_data.get("tags", [])
+                risk_score=model_results.get("riskScore", 0),
+                flagged=model_results.get("flagged", False),
+                tags=txn_data.get("ruleResults", {}).get("tags", [])
             )
             transactions.append(transaction)
         
@@ -209,24 +226,36 @@ class TransactionRepository:
         # Execute network query - only get transactions within our network
         network_cursor = self.transactions_collection.aggregate(network_pipeline)
         all_transactions = await network_cursor.to_list(length=None)
-        
+
+        # Names/types come from `customers`, not the transaction doc -- see
+        # _entity_lookup docstring.
+        entity_lookup = await self._entity_lookup(
+            eid for txn in all_transactions for eid in (txn["fromEntityId"], txn["toEntityId"])
+        )
+
+        def _name(eid):
+            return entity_lookup.get(eid, {}).get("name") or "Unknown"
+
+        def _type(eid):
+            return entity_lookup.get(eid, {}).get("type") or "unknown"
+
         # Step 3: Build nodes (entities) with aggregated metrics
         entity_metrics = {}
         all_entities = set()
-        
+
         for txn in all_transactions:
             from_id = txn["fromEntityId"]
             to_id = txn["toEntityId"]
             amount = txn["amount"]
-            risk_score = txn["riskScore"]
-            
+            risk_score = txn.get("modelResults", {}).get("riskScore", 0)
+
             # Track all entities
-            all_entities.add((from_id, txn["fromEntityName"], txn["fromEntityType"]))
-            all_entities.add((to_id, txn["toEntityName"], txn["toEntityType"]))
-            
+            all_entities.add((from_id, _name(from_id), _type(from_id)))
+            all_entities.add((to_id, _name(to_id), _type(to_id)))
+
             # Initialize entity metrics if not exists
-            for entity_id, name, entity_type in [(from_id, txn["fromEntityName"], txn["fromEntityType"]),
-                                                  (to_id, txn["toEntityName"], txn["toEntityType"])]:
+            for entity_id, name, entity_type in [(from_id, _name(from_id), _type(from_id)),
+                                                  (to_id, _name(to_id), _type(to_id))]:
                 if entity_id not in entity_metrics:
                     entity_metrics[entity_id] = {
                         "entity_name": name,
@@ -288,7 +317,7 @@ class TransactionRepository:
             metrics["transaction_count"] += 1
             metrics["total_amount"] += txn["amount"]
             metrics["amounts"].append(txn["amount"])
-            metrics["risk_scores"].append(txn["riskScore"])
+            metrics["risk_scores"].append(txn.get("modelResults", {}).get("riskScore", 0))
             metrics["transaction_types"].append(txn["transactionType"])
             
             # Track latest transaction

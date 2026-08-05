@@ -28,7 +28,8 @@ def get_transaction_repository() -> TransactionRepository:
     """Dependency to get transaction repository instance"""
     db = get_database()
     transactions_collection = db.fraudEvaluation
-    return TransactionRepository(transactions_collection)
+    customers_collection = db.customers
+    return TransactionRepository(transactions_collection, customers_collection)
 
 
 @router.get("/{entity_id}/transactions", response_model=TransactionActivityResponse)

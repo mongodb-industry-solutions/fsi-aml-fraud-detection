@@ -2,7 +2,20 @@
 
 import logging
 from langchain_core.tools import tool
-from dependencies import get_mongo_client, DB_NAME
+from dependencies import get_mongo_client, DB_NAME, RELATIONSHIPS_COLLECTION
+# Phase-2 step 3: the UI surface moved its party identity to `customerId`, so
+# relationship_fields.SOURCE_KEY/TARGET_KEY now point at `sourceCustomerId` /
+# `targetCustomerId`. The agent tools still read `threatsightEntities`, whose
+# identity is the source `entityId` -- so they stay pinned to the retained
+# `*EntityRef` pair, which build_sd7.py populates on every relationship
+# document alongside the customer ids. Traversing on the customer keys from an
+# `entityId` seed returns zero edges and raises nothing.
+# Migrate this surface to `customers` and drop the aliasing in a later pass.
+from repositories.relationship_fields import (
+    SOURCE_ENTITY_REF_KEY as SOURCE_KEY,
+    TARGET_ENTITY_REF_KEY as TARGET_KEY,
+    TYPE_KEY,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -18,13 +31,13 @@ def analyze_entity_network(entity_id: str, max_depth: int = 2) -> dict:
     db = client[DB_NAME]
 
     pipeline = [
-        {"$match": {"source.entityId": entity_id}},
+        {"$match": {SOURCE_KEY: entity_id}},
         {
             "$graphLookup": {
-                "from": "threatsightRelationships",
-                "startWith": "$target.entityId",
-                "connectFromField": "target.entityId",
-                "connectToField": "source.entityId",
+                "from": RELATIONSHIPS_COLLECTION,
+                "startWith": f"${TARGET_KEY}",
+                "connectFromField": TARGET_KEY,
+                "connectToField": SOURCE_KEY,
                 "as": "network",
                 "maxDepth": max_depth,
                 "depthField": "hops",
@@ -33,8 +46,8 @@ def analyze_entity_network(entity_id: str, max_depth: int = 2) -> dict:
         {
             "$project": {
                 "_id": 0,
-                "direct_type": "$type",
-                "direct_target": "$target.entityId",
+                "direct_type": f"${TYPE_KEY}",
+                "direct_target": f"${TARGET_KEY}",
                 "direct_strength": "$strength",
                 "direct_verified": "$verified",
                 "network": {
@@ -42,9 +55,9 @@ def analyze_entity_network(entity_id: str, max_depth: int = 2) -> dict:
                         "input": "$network",
                         "as": "n",
                         "in": {
-                            "source": "$$n.source.entityId",
-                            "target": "$$n.target.entityId",
-                            "type": "$$n.type",
+                            "source": f"$$n.{SOURCE_KEY}",
+                            "target": f"$$n.{TARGET_KEY}",
+                            "type": f"$$n.{TYPE_KEY}",
                             "strength": "$$n.strength",
                             "confidence": "$$n.confidence",
                             "verified": "$$n.verified",
@@ -56,7 +69,7 @@ def analyze_entity_network(entity_id: str, max_depth: int = 2) -> dict:
         },
     ]
 
-    results = list(db["threatsightRelationships"].aggregate(pipeline))
+    results = list(db[RELATIONSHIPS_COLLECTION].aggregate(pipeline))
 
     if not results:
         return {

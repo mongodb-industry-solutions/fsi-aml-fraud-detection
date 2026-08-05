@@ -19,6 +19,7 @@ from typing import Dict, List, Optional, Any, Tuple
 from repositories.impl.atlas_search_repository import AutocompleteParams
 from repositories.interfaces.entity_repository import EntityRepositoryInterface
 from repositories.impl.atlas_search_repository import AtlasSearchRepository
+from repositories import entity_fields as ef
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -51,42 +52,56 @@ class EntitySearchService:
         self.index_name = os.getenv('ATLAS_SEARCH_INDEX', 'entity_search_indexv2')
         
         # Facet configuration matching corrected Atlas Search index (only stringFacet and numberFacet fields)
+        # Paths must match threat360-migration/create_customers_search_indexes.py
+        # exactly -- a path not present in the index definition silently returns
+        # an empty bucket rather than erroring.
         self.facet_config = {
             # Top-level stringFacet fields
-            "entityType": {"type": "string", "path": "entityType"},
-            "nationality": {"type": "string", "path": "nationality"},
-            "residency": {"type": "string", "path": "residency"},
-            "jurisdiction": {"type": "string", "path": "jurisdictionOfIncorporation"},
-            
-            # Nested document stringFacet fields (now properly indexed)
-            "riskLevel": {"type": "string", "path": "riskAssessment.overall.level"},
-            "businessType": {"type": "string", "path": "customerInfo.businessType"},
-            
+            "entityType": {"type": "string", "path": ef.TYPE},
+            "nationality": {"type": "string", "path": ef.NATIONALITIES},
+            "residency": {"type": "string", "path": ef.RESIDENCY},
+            "jurisdiction": {"type": "string", "path": ef.JURISDICTION},
+
+            # Nested document stringFacet fields
+            "riskLevel": {"type": "string", "path": ef.RISK_LEVEL},
+            "businessType": {"type": "string", "path": ef.BUSINESS_TYPE},
+
             # Nested document numberFacet field
-            "riskScore": {"type": "number", "path": "riskAssessment.overall.score", 
-                         "boundaries": [0.0, 15.0, 25.0, 50.0, 100.0]}
-            
-            # Note: addresses.structured.country/city and identifiers.type are indexed as 'string' 
-            # with keyword analyzer, not 'stringFacet', so they can't be used for faceting
-            # but can still be used in compound search queries
+            "riskScore": {"type": "number", "path": ef.RISK_SCORE,
+                         "boundaries": [0.0, 15.0, 25.0, 50.0, 100.0]},
+
+            # These four were mapped here but never indexed in the source
+            # `entity_search_indexv2` (dynamic:false), so the filters always
+            # matched nothing. The `customers` index adds them as stringFacet.
+            "country": {"type": "string", "path": ef.ADDRESS_COUNTRY},
+            "city": {"type": "string", "path": ef.ADDRESS_CITY},
+            "identifierType": {"type": "string", "path": ef.IDENTIFIER_TYPE},
+            "scenarioKey": {"type": "string", "path": ef.SCENARIO_KEY},
         }
-        
-        # Field path mapping for compound queries (includes non-facet fields for search functionality)
+
+        # Field path mapping for compound queries
         self.facet_path_map = {
-            # Facetable fields
-            "entityType": "entityType",
-            "nationality": "nationality",
-            "residency": "residency",
-            "jurisdiction": "jurisdictionOfIncorporation",
-            "riskLevel": "riskAssessment.overall.level",
-            "businessType": "customerInfo.businessType",
-            
-            
-            # Non-facetable but searchable fields (string with keyword analyzer)
-            "country": "addresses.structured.country",
-            "city": "addresses.structured.city",
-            "identifierType": "identifiers.type",
-            "scenarioKey": "scenarioKey"
+            "entityType": ef.TYPE,
+            "nationality": ef.NATIONALITIES,
+            "residency": ef.RESIDENCY,
+            "jurisdiction": ef.JURISDICTION,
+            "riskLevel": ef.RISK_LEVEL,
+            "businessType": ef.BUSINESS_TYPE,
+            "country": ef.ADDRESS_COUNTRY,
+            "city": ef.ADDRESS_CITY,
+            "identifierType": ef.IDENTIFIER_TYPE,
+            "scenarioKey": ef.SCENARIO_KEY,
+        }
+
+        # Filters arrive in the source demo's lowercase vocabulary; `type` and
+        # `status` are stored uppercase. Facet buckets make the return trip.
+        self.facet_value_to_storage = {
+            "entityType": ef.type_to_storage,
+            "status": ef.status_to_storage,
+        }
+        self.facet_value_to_wire = {
+            "entityType": ef.type_to_wire,
+            "status": ef.status_to_wire,
         }
         
         logger.info(f"EntitySearchService initialized with index: {self.index_name}")
@@ -184,7 +199,7 @@ class EntitySearchService:
             
             params = AutocompleteParams(
                 query=partial_name,
-                field="name.full",  # Use the dedicated autocomplete field
+                field=ef.FULL_NAME,  # Use the dedicated autocomplete field
                 limit=limit,
                 fuzzy=True,
                 max_edits=1
@@ -367,10 +382,34 @@ class EntitySearchService:
                 limit=1  # We only need the facets, not the results
             )
             
-            return result.get("facets", {})
-            
+            return self._facets_to_wire(result.get("facets", {}))
+
         except Exception as e:
             logger.error(f"Error getting available facets: {e}")
             return {}
+
+    def _facets_to_wire(self, facets: Dict[str, Any]) -> Dict[str, Any]:
+        """Translate facet bucket ids back to the vocabulary the UI speaks.
+
+        `type` is stored uppercase, so the raw buckets come back as
+        INDIVIDUAL / CORPORATE. The filter chips send whatever id they were
+        given straight back as a filter value, so leaving them uppercase would
+        round-trip a value `_build_match_conditions` then re-uppercases -- it
+        happens to survive, but the chip labels render wrong and
+        NetworkStatisticsPanel's `type === 'individual'` test fails silently.
+        """
+        translated = {}
+        for name, facet in facets.items():
+            to_wire = self.facet_value_to_wire.get(name)
+            if not to_wire or not isinstance(facet, dict) or "buckets" not in facet:
+                translated[name] = facet
+                continue
+            translated[name] = {
+                **facet,
+                "buckets": [
+                    {**b, "_id": to_wire(b.get("_id"))} for b in facet["buckets"]
+                ],
+            }
+        return translated
     
     

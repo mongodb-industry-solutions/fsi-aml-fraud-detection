@@ -30,6 +30,7 @@ from services.dependencies import (
     get_vector_search_service
 )
 from repositories.factory.repository_factory import get_vector_search_repository
+from repositories import entity_fields as ef
 
 logger = logging.getLogger(__name__)
 
@@ -305,7 +306,12 @@ async def perform_comprehensive_search(
                     query_vector=query_embedding,
                     limit=search_config.get('maxResults', 10),
                     similarity_threshold=search_config.get('confidenceThreshold', 0.3),
-                    filters={"entityType": request_entity_data.get('entityType', 'individual')}
+                    # Storage-shaped: this is a post-$vectorSearch $match, which
+                    # runs before the wire projection. `entityType`/`individual`
+                    # matched nothing on the BIAN `customers` shape.
+                    filters={ef.TYPE: ef.type_to_storage(
+                        request_entity_data.get('entityType', 'individual')
+                    )}
                 )
             )
         else:
@@ -317,7 +323,9 @@ async def perform_comprehensive_search(
                     query_text=search_text,
                     limit=search_config.get('maxResults', 10),
                     similarity_threshold=search_config.get('confidenceThreshold', 0.3),
-                    filters={"entity_type": request_entity_data.get('entityType', 'individual')}
+                    filters={ef.TYPE: ef.type_to_storage(
+                        request_entity_data.get('entityType', 'individual')
+                    )}
                 )
             )
         

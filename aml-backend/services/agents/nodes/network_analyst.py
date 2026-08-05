@@ -5,8 +5,14 @@ import logging
 import time
 from datetime import datetime, timezone
 
-from dependencies import get_mongo_client, DB_NAME
+from dependencies import get_mongo_client, DB_NAME, RELATIONSHIPS_COLLECTION
 from models.agents.investigation import NetworkRiskProfile
+# Pinned to the retained `*EntityRef` pair -- this node reads
+# `threatsightEntities`, not `customers`. See chat_tools.py for the full note.
+from repositories.relationship_fields import (
+    SOURCE_ENTITY_REF_KEY as SOURCE_KEY,
+    TARGET_ENTITY_REF_KEY as TARGET_KEY,
+)
 from services.agents.state import InvestigationState
 
 logger = logging.getLogger(__name__)
@@ -17,8 +23,8 @@ def _compute_degree_centrality(db, entity_id: str, network_size: int) -> float:
     if network_size <= 1:
         return 0.0
 
-    out_degree = db["threatsightRelationships"].count_documents({"source.entityId": entity_id})
-    in_degree = db["threatsightRelationships"].count_documents({"target.entityId": entity_id})
+    out_degree = db[RELATIONSHIPS_COLLECTION].count_documents({SOURCE_KEY: entity_id})
+    in_degree = db[RELATIONSHIPS_COLLECTION].count_documents({TARGET_KEY: entity_id})
 
     max_possible = 2 * (network_size - 1)
     return min((out_degree + in_degree) / max_possible, 1.0) if max_possible > 0 else 0.0

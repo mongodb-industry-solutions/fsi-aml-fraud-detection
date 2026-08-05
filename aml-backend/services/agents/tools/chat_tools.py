@@ -3,7 +3,20 @@
 import logging
 import os
 from langchain_core.tools import tool
-from dependencies import get_mongo_client, DB_NAME
+from dependencies import get_mongo_client, DB_NAME, RELATIONSHIPS_COLLECTION
+# Phase-2 step 3: the UI surface moved its party identity to `customerId`, so
+# relationship_fields.SOURCE_KEY/TARGET_KEY now point at `sourceCustomerId` /
+# `targetCustomerId`. The agent tools still read `threatsightEntities`, whose
+# identity is the source `entityId` -- so they stay pinned to the retained
+# `*EntityRef` pair, which build_sd7.py populates on every relationship
+# document alongside the customer ids. Traversing on the customer keys from an
+# `entityId` seed returns zero edges and raises nothing.
+# Migrate this surface to `customers` and drop the aliasing in a later pass.
+from repositories.relationship_fields import (
+    SOURCE_ENTITY_REF_KEY as SOURCE_KEY,
+    TARGET_ENTITY_REF_KEY as TARGET_KEY,
+    TYPE_KEY,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -209,22 +222,22 @@ def assess_entity_risk(entity_id: str) -> dict:
 
     rel_type_pipeline = [
         {"$match": {"$or": [
-            {"source.entityId": entity_id},
-            {"target.entityId": entity_id},
+            {SOURCE_KEY: entity_id},
+            {TARGET_KEY: entity_id},
         ]}},
         {"$group": {
-            "_id": "$type",
+            "_id": f"${TYPE_KEY}",
             "count": {"$sum": 1},
         }},
         {"$sort": {"count": -1}},
         {"$limit": 10},
     ]
-    relationships = list(db["threatsightRelationships"].aggregate(rel_type_pipeline))
+    relationships = list(db[RELATIONSHIPS_COLLECTION].aggregate(rel_type_pipeline))
 
     rel_risk_pipeline = [
         {"$match": {"$or": [
-            {"source.entityId": entity_id},
-            {"target.entityId": entity_id},
+            {SOURCE_KEY: entity_id},
+            {TARGET_KEY: entity_id},
         ]}},
         {"$group": {
             "_id": None,
@@ -232,7 +245,7 @@ def assess_entity_risk(entity_id: str) -> dict:
             "high_risk": {"$sum": {"$cond": [{"$lt": ["$confidence", 0.5]}, 1, 0]}},
         }},
     ]
-    rel_risk = list(db["threatsightRelationships"].aggregate(rel_risk_pipeline))
+    rel_risk = list(db[RELATIONSHIPS_COLLECTION].aggregate(rel_risk_pipeline))
     rr = rel_risk[0] if rel_risk else {}
 
     watchlist = profile.get("watchlistMatches", [])
@@ -295,8 +308,8 @@ def compare_entities(entity_id_a: str, entity_id_b: str) -> dict:
         ]))
         t = txns[0] if txns else {}
 
-        rels = db["threatsightRelationships"].count_documents({
-            "$or": [{"source.entityId": eid}, {"target.entityId": eid}]
+        rels = db[RELATIONSHIPS_COLLECTION].count_documents({
+            "$or": [{SOURCE_KEY: eid}, {TARGET_KEY: eid}]
         })
 
         return {

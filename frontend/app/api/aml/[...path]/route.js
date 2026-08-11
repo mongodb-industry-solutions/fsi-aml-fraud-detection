@@ -11,7 +11,7 @@ const AML_BACKEND_URL = process.env.AML_BACKEND_URL || 'http://localhost:8001';
 
 export async function GET(request, { params }) {
   try {
-    const { path } = params;
+    const { path } = await params;
     const pathString = Array.isArray(path) ? path.join('/') : path;
 
     // Get search params from request
@@ -45,7 +45,7 @@ export async function GET(request, { params }) {
 
 export async function POST(request, { params }) {
   try {
-    const { path } = params;
+    const { path } = await params;
     const pathString = Array.isArray(path) ? path.join('/') : path;
     const url = `${AML_BACKEND_URL}/${pathString}`;
 
@@ -112,7 +112,7 @@ export async function POST(request, { params }) {
 
 export async function PUT(request, { params }) {
   try {
-    const { path } = params;
+    const { path } = await params;
     const pathString = Array.isArray(path) ? path.join('/') : path;
     const url = `${AML_BACKEND_URL}/${pathString}`;
 
@@ -164,7 +164,7 @@ export async function PUT(request, { params }) {
 
 export async function DELETE(request, { params }) {
   try {
-    const { path } = params;
+    const { path } = await params;
     const pathString = Array.isArray(path) ? path.join('/') : path;
 
     // Construct full URL

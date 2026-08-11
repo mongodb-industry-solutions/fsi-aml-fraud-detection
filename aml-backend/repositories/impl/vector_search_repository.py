@@ -19,6 +19,7 @@ from repositories.interfaces.vector_search_repository import (
     VectorSearchRepositoryInterface, VectorSearchParams, VectorSearchResult, EmbeddingStats
 )
 from reference.mongodb_core_lib import MongoDBRepository, AggregationBuilder, VectorSearchOptions
+from repositories import entity_fields as ef
 
 
 logger = logging.getLogger(__name__)
@@ -33,7 +34,7 @@ class VectorSearchRepository(VectorSearchRepositoryInterface):
     """
     
     def __init__(self, mongodb_repo: MongoDBRepository, 
-                 collection_name: str = "threatsightEntities",
+                 collection_name: str = "customers",
                  vector_index_name: str = "entity_vector_search_index",
                  embedding_type: str = "identifier"):
         """
@@ -86,7 +87,12 @@ class VectorSearchRepository(VectorSearchRepositoryInterface):
                         "path": self.embedding_field,
                         "queryVector": params.query_vector,
                         "numCandidates": params.num_candidates,
-                        "limit": params.limit
+                        "limit": params.limit,
+                        # Scope to our parties. `customers` is shared with the Leafy
+                        # Bank payments demo, and $vectorSearch bypasses the query
+                        # layer, so ef.scoped() cannot reach it. Every vector index
+                        # declares `sourceSystem` as a filter field for this.
+                        "filter": ef.vector_scope_filter()
                     }
                 },
                 {
@@ -95,11 +101,13 @@ class VectorSearchRepository(VectorSearchRepositoryInterface):
                     }
                 }
             ]
-            
-            # Add filters if provided
+
+            # Add filters if provided. NOTE: these run against the BIAN storage
+            # shape (`type`, `riskProfile...`), not the wire shape, because the
+            # $project below is deliberately last -- see the comment there.
             if params.filters:
                 pipeline.append({"$match": params.filters})
-            
+
             # Add similarity threshold filter if provided
             if params.similarity_threshold:
                 pipeline.append({
@@ -107,7 +115,23 @@ class VectorSearchRepository(VectorSearchRepositoryInterface):
                         "similarity_score": {"$gte": params.similarity_threshold}
                     }
                 })
-            
+
+            # Translate BIAN storage shape -> wire shape. MUST be the last stage:
+            # the filters above key on storage fields (find_similar_by_entity_id
+            # excludes the seed on `customerId`, which this projection renames to
+            # `entityId`). Embeddings excluded -- 1536 floats per result that no
+            # consumer of this method reads.
+            pipeline.append({
+                "$project": {
+                    **ef.wire_projection(include_embeddings=False),
+                    "similarity_score": 1,
+                    # Carried verbatim by the BIAN transform (build_sd1.py) but not
+                    # in wire_projection(); SimilarEntity declares it, so project it
+                    # here rather than widening the shared projection.
+                    "profileSummaryText": 1,
+                }
+            })
+
             # Execute vector search
             results = await self.repo.execute_pipeline(self.collection_name, pipeline)
             
@@ -210,10 +234,12 @@ class VectorSearchRepository(VectorSearchRepositoryInterface):
                 logger.warning(f"No {use_type} embedding found for entity {entity_id}")
                 return []
             
-            # Add filter to exclude the original entity (using custom entityId field)
+            # Exclude the seed entity. Applied as a post-$vectorSearch $match
+            # (see vector_search), NOT as a $vectorSearch pre-filter, so this
+            # path does not need to be a `filter` field in the index definition.
             if filters is None:
                 filters = {}
-            filters["entityId"] = {"$ne": entity_id}
+            filters[ef.CUSTOMER_ID] = {"$ne": entity_id}
             
             # Temporarily update embedding field if different type requested
             original_field = self.embedding_field
@@ -300,8 +326,12 @@ class VectorSearchRepository(VectorSearchRepositoryInterface):
             elif embedding_type == "legacy":
                 field_name = "profileEmbedding"
             
+            # Party identity is `customerId` since step 3; the UI sends `CUST-…`.
+            # Keyed on `entityId` this matched nothing, get_embedding returned
+            # None, and find_similar_by_entity_id bailed with an empty list --
+            # a warning log and an HTTP 200, for every profile.
             result = await self.collection.find_one(
-                {"entityId": entity_id},
+                {ef.CUSTOMER_ID: entity_id},
                 {field_name: 1}
             )
             

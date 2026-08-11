@@ -15,6 +15,7 @@ from repositories.interfaces.vector_search_repository import VectorSearchReposit
 from models.api.requests import EntitySearchRequest
 from models.api.responses import StandardResponse
 from models.core.entity import Entity
+from repositories import entity_fields as ef
 
 logger = logging.getLogger(__name__)
 
@@ -389,9 +390,12 @@ class MatchingService:
             
             matches = []
             for result in vector_results:
-                if result.get('entity_id') != entity.entity_id:  # Exclude self
+                # The repo returns the wire shape: `entityId`. `entity_id` was
+                # snake_case and never present on either shape -- self-exclusion
+                # silently never fired and every match carried a null id.
+                if result.get(ef.WIRE_ID) != entity.entity_id:  # Exclude self
                     matches.append({
-                        'entity_id': result.get('entity_id'),
+                        'entity_id': result.get(ef.WIRE_ID),
                         'entity_data': result,
                         'match_method': 'vector_search',
                         'atlas_score': 0.0,

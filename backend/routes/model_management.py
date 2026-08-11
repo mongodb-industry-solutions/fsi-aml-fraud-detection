@@ -14,16 +14,100 @@ from datetime import datetime
 from dependencies import get_database, get_risk_model_service
 from services.risk_model_service import RiskModelService
 
-# Collection names. Renamed 2026-07-29 by the leafy_bank_bian migration
-# (risk_models -> threatsightRiskModels, model_performance -> threatsightModelPerformance).
+# Collection names. Renamed twice: 2026-07-29 by the leafy_bank_bian migration
+# (risk_models -> threatsightRiskModels), then 2026-08-06 by the BIAN mapping
+# (threatsightRiskModels -> fraudModel, SD FraudModel / CR FraudModelSpecification).
+# `threatsightModelPerformance` is NOT BIAN-mapped and keeps its name and shape.
 #
 # These are constants rather than inline strings for one specific reason: the
 # change-stream $match at get_model_updates() filters on `ns.coll` by NAME. A
 # db.watch() pipeline whose collection name has drifted matches NOTHING and fails
 # SILENTLY -- no error, no log, just a dead update feed. Binding the watch and the
 # reads to the same constant makes that drift impossible.
-RISK_MODELS_COLLECTION = "threatsightRiskModels"
+RISK_MODELS_COLLECTION = "fraudModel"
 MODEL_PERFORMANCE_COLLECTION = "threatsightModelPerformance"
+
+# The BIAN mapping changed the STORED shape, not the wire contract:
+#
+#   stored (fraudModel)                     wire (unchanged, what the UI reads)
+#   ------------------------------------    -----------------------------------
+#   usageGuidelines.thresholds              thresholds
+#   usageGuidelines.weights                 weights
+#   usageGuidelines.riskFactors             riskFactors
+#   testResult                              performance
+#   version: "2"  (string)                  version: 2  (int)
+#
+# Translation happens HERE, at the DB boundary, so the frontend is untouched.
+# Rationale: `usageGuidelines` maps to BIAN BQ Production -> RuleSet and `testResult`
+# to BQ Testing -> ModelTest, but every property on those is `format: Text` -- there
+# is no numeric slot for a weight or an error rate. So the model's IDENTITY is
+# BIAN-named and its CONTENTS stay demo-specific under a BIAN-named parent. Pushing
+# that nesting out to the UI would buy nothing and would mean editing three separate
+# request-body builders in ModelAdminPanel.js that each duplicate the flat shape.
+#
+# `version` is a string in storage because BIAN FraudModelVersion is `format: Text`.
+# It is converted back to an int at the boundary because `threatsightModelPerformance`
+# stores `modelVersion` as an int and is joined on it -- see get_model_performance.
+STORED_ONLY_FIELDS = ("usageGuidelines", "testResult", "sourceSystem")
+
+
+def to_wire(doc: Dict[str, Any]) -> Dict[str, Any]:
+    """fraudModel storage shape -> the flat shape the API and UI speak."""
+    if not doc:
+        return doc
+    guidelines = doc.get("usageGuidelines") or {}
+    out = {k: v for k, v in doc.items() if k not in STORED_ONLY_FIELDS}
+    out["thresholds"] = guidelines.get("thresholds") or {}
+    out["weights"] = guidelines.get("weights") or {}
+    out["riskFactors"] = guidelines.get("riskFactors") or []
+    out["performance"] = doc.get("testResult")
+    if "version" in out:
+        out["version"] = version_int(out["version"])
+    return out
+
+
+def to_stored(doc: Dict[str, Any]) -> Dict[str, Any]:
+    """Flat API shape -> fraudModel storage shape. Inverse of to_wire()."""
+    out = {k: v for k, v in doc.items()
+           if k not in ("thresholds", "weights", "riskFactors", "performance")}
+    out["usageGuidelines"] = {
+        "thresholds": doc.get("thresholds") or {},
+        "weights": doc.get("weights") or {},
+        "riskFactors": doc.get("riskFactors") or [],
+    }
+    out["testResult"] = doc.get("performance")
+    if "version" in out:
+        out["version"] = version_str(out["version"])
+    # Every row this service writes is ThreatSight's. `fraudModel` lives in the shared
+    # leafy_bank_bian DB, so the tag is what keeps the migration's counts honest.
+    out["sourceSystem"] = "threatsight360"
+    return out
+
+
+def version_str(value) -> str:
+    return str(value)
+
+
+def version_int(value) -> int:
+    """Stored versions are strings; tolerate ints from rows written before the mapping."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+async def find_latest(collection, query: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Highest-versioned document matching `query`, or None.
+
+    NOT `sort=[("version", -1)]`: `version` is a string in storage, so a Mongo sort is
+    lexicographic and would rank "9" above "10". The max is taken numerically in Python
+    instead -- safe because a model has a handful of versions, not thousands.
+    """
+    candidates = [doc async for doc in collection.find(query)]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda d: version_int(d.get("version")))
 
 router = APIRouter(
     prefix="/models",
@@ -146,7 +230,7 @@ async def get_risk_models(
     models = []
     cursor = risk_models_collection.find(query).skip(skip).limit(limit).sort("updatedAt", -1)
     async for document in cursor:
-        models.append(RiskModelResponse.from_mongo(document))
+        models.append(RiskModelResponse.from_mongo(to_wire(document)))
     
     return models
 
@@ -159,24 +243,24 @@ async def get_risk_model(
     """Get a specific risk model by ID and optional version."""
     query = {"modelId": model_id}
     if version:
-        query["version"] = version
+        query["version"] = version_str(version)
     else:
         # Get latest version if version not specified
         query["status"] = {"$ne": "archived"}
-    
+
     # Get risk_models collection
     risk_models_collection = db[RISK_MODELS_COLLECTION]
-    
-    # If looking for the latest non-archived version, sort by version
+
+    # If looking for the latest non-archived version, pick the highest version
     if "status" in query and query["status"] == {"$ne": "archived"}:
-        model = await risk_models_collection.find_one(query, sort=[("version", -1)])
+        model = await find_latest(risk_models_collection, query)
     else:
         model = await risk_models_collection.find_one(query)
-        
+
     if not model:
         raise HTTPException(status_code=404, detail="Risk model not found")
-    
-    return RiskModelResponse.from_mongo(model)
+
+    return RiskModelResponse.from_mongo(to_wire(model))
 
 @router.post("/", response_model=RiskModelResponse)
 @router.post("", response_model=RiskModelResponse)
@@ -188,14 +272,16 @@ async def create_risk_model(
     # Get risk_models collection
     risk_models_collection = db[RISK_MODELS_COLLECTION]
     
-    # Check if model ID already exists
-    existing = await risk_models_collection.find_one({"modelId": model.modelId})
+    # Check if model ID already exists. find_latest, not find_one: `modelId` is not
+    # unique (that is why the collection's unique index is modelId+version), so
+    # find_one could return v1 while v2 exists and mint a duplicate version.
+    existing = await find_latest(risk_models_collection, {"modelId": model.modelId})
     if existing:
         # Create a new version
-        version = existing["version"] + 1
+        version = version_int(existing["version"]) + 1
     else:
         version = 1
-    
+
     # Format the new model
     new_model = {
         "modelId": model.modelId,
@@ -214,9 +300,10 @@ async def create_risk_model(
         }
     }
     
-    result = await risk_models_collection.insert_one(new_model)
+    stored = to_stored(new_model)
+    result = await risk_models_collection.insert_one(stored)
     new_model["_id"] = result.inserted_id
-    
+
     return RiskModelResponse.from_mongo(new_model)
 
 @router.put("/{model_id}", response_model=RiskModelResponse)
@@ -236,21 +323,21 @@ async def update_risk_model(
     # Get risk_models collection
     risk_models_collection = db[RISK_MODELS_COLLECTION]
     
-    # Find the model - get the latest version by sorting descending
-    model = await risk_models_collection.find_one(
-        {"modelId": model_id, "status": {"$ne": "archived"}},
-        sort=[("version", -1)]  # Sort by version in descending order to get the latest
+    # Find the model - get the latest version (numerically, see find_latest)
+    model = await find_latest(
+        risk_models_collection,
+        {"modelId": model_id, "status": {"$ne": "archived"}}
     )
     if not model:
         raise HTTPException(status_code=404, detail="Risk model not found")
-    
+
     # Don't allow updating active models directly, create a new version instead
     if model["status"] == "active" and update.status != "archived":
         # Create a new version with the updates
-        new_version = model["version"] + 1
-        
-        # Start with the existing model and apply updates
-        new_model = {**model}
+        new_version = version_int(model["version"]) + 1
+
+        # Start with the existing model, flattened, and apply updates
+        new_model = to_wire(model)
         new_model.pop("_id")  # Remove the MongoDB _id
         new_model["version"] = new_version
         new_model["status"] = "draft"
@@ -273,21 +360,22 @@ async def update_risk_model(
             "avgProcessingTime": None
         }
         
-        result = await risk_models_collection.insert_one(new_model)
+        result = await risk_models_collection.insert_one(to_stored(new_model))
         new_model["_id"] = result.inserted_id
-        
+
         return RiskModelResponse.from_mongo(new_model)
     else:
-        # For draft models, update directly
+        # For draft models, update directly. Dot-notation paths so a partial update
+        # touches one sub-key without replacing the whole usageGuidelines block.
         updates = {}
         if update.description:
             updates["description"] = update.description
         if update.weights:
-            updates["weights"] = update.weights
+            updates["usageGuidelines.weights"] = update.weights
         if update.thresholds:
-            updates["thresholds"] = update.thresholds
+            updates["usageGuidelines.thresholds"] = update.thresholds
         if update.riskFactors:
-            updates["riskFactors"] = [factor.dict() for factor in update.riskFactors]
+            updates["usageGuidelines.riskFactors"] = [factor.dict() for factor in update.riskFactors]
         if update.status:
             # Don't allow changing status to 'active' here - that should go through the activate endpoint
             if update.status == "active":
@@ -308,7 +396,7 @@ async def update_risk_model(
             raise HTTPException(status_code=400, detail="Model update failed")
         
         updated_model = await risk_models_collection.find_one({"_id": model["_id"]})
-        return RiskModelResponse.from_mongo(updated_model)
+        return RiskModelResponse.from_mongo(to_wire(updated_model))
 
 @router.delete("/{model_id}")
 async def archive_risk_model(
@@ -322,8 +410,8 @@ async def archive_risk_model(
     
     query = {"modelId": model_id}
     if version:
-        query["version"] = version
-    
+        query["version"] = version_str(version)
+
     model = await risk_models_collection.find_one(query)
     if not model:
         raise HTTPException(status_code=404, detail="Risk model not found")
@@ -359,8 +447,8 @@ async def restore_archived_model(
     
     query = {"modelId": model_id, "status": "archived"}
     if version:
-        query["version"] = version
-    
+        query["version"] = version_str(version)
+
     model = await risk_models_collection.find_one(query)
     if not model:
         raise HTTPException(status_code=404, detail="Archived risk model not found")
@@ -393,8 +481,8 @@ async def activate_risk_model(
         
         query = {"modelId": model_id}
         if version:
-            query["version"] = version
-        
+            query["version"] = version_str(version)
+
         model = await risk_models_collection.find_one(query)
         if not model:
             raise HTTPException(status_code=404, detail="Risk model not found")
@@ -443,9 +531,9 @@ async def reset_risk_models(db = Depends(get_database)):
         # Use a transaction to ensure all operations succeed or fail together
         async with await db.client.start_session() as session:
             async with session.start_transaction():
-                # 1. Delete all models with version 2
+                # 1. Delete all models with version 2 (stored as a string, see to_stored)
                 delete_result = await risk_models_collection.delete_many(
-                    {"version": 2},
+                    {"version": version_str(2)},
                     session=session
                 )
                 
@@ -509,12 +597,12 @@ async def get_model_performance(
     
     query = {"modelId": model_id}
     if version:
-        query["version"] = version
-    
-    model = await risk_models_collection.find_one(query)
+        query["version"] = version_str(version)
+
+    model = to_wire(await risk_models_collection.find_one(query))
     if not model:
         raise HTTPException(status_code=404, detail="Risk model not found")
-    
+
     # Calculate time range for the query
     now = datetime.now()
     if timeframe == "24h":
@@ -534,7 +622,9 @@ async def get_model_performance(
     if start_time:
         time_query = {"timestamp": {"$gte": start_time}}
     
-    # Combine filters
+    # Combine filters. `modelVersion` here is an INT: threatsightModelPerformance is not
+    # BIAN-mapped and keeps its original types, so the join needs the wire-side int, not
+    # the string that fraudModel stores. to_wire() has already converted it.
     performance_query = {
         "modelId": model_id,
         "modelVersion": model.get("version", 1),
@@ -703,8 +793,11 @@ async def websocket_endpoint(websocket: WebSocket, db = Depends(get_database)):
             cursor = db[RISK_MODELS_COLLECTION].find({})
             models = []
             async for document in cursor:
-                # Convert the document to JSON-serializable format
-                serializable_doc = convert_to_json_serializable(document)
+                # to_wire BEFORE serializing: this feed bypasses RiskModelResponse, so
+                # without it the UI receives the stored nesting and its field-diffing
+                # (ModelAdminPanel reads event.document.thresholds/.weights/.riskFactors)
+                # silently sees every field as absent.
+                serializable_doc = convert_to_json_serializable(to_wire(document))
                 models.append(serializable_doc)
             
             await websocket.send_json({
@@ -729,7 +822,7 @@ async def websocket_endpoint(websocket: WebSocket, db = Depends(get_database)):
                 # Add relevant document data based on operation type
                 if change["operationType"] in ["insert", "update", "replace"]:
                     # Convert the document to JSON-serializable format
-                    doc = convert_to_json_serializable(change["fullDocument"])
+                    doc = convert_to_json_serializable(to_wire(change["fullDocument"]))
                     change_data["document"] = doc
                 elif change["operationType"] == "delete":
                     doc_id = change["documentKey"]["_id"]

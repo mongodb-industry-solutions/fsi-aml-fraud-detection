@@ -21,6 +21,8 @@ from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from dependencies import get_mongo_client, get_database, DB_NAME
+from repositories import entity_fields as ef
+from services.agents.entity_resolution import agentic_scoped
 from services.agents.graph import get_compiled_graph
 from services.agents.tracing import get_tracing_callbacks
 from services.agents.rate_limit import rate_limit_investigate
@@ -561,37 +563,34 @@ async def list_investigable_entities():
     client = get_mongo_client()
     db = client[DB_NAME]
 
+    proj = ef.wire_projection(include_embeddings=False)
+    proj["_id"] = 0
+    proj["red_flag_tags"] = 1
+
     pipeline = [
+        {"$match": agentic_scoped({})},
         {"$lookup": {
             "from": "fraudEvaluation",
-            "let": {"eid": "$entityId"},
+            "let": {"eid": f"${ef.CUSTOMER_ID}"},
             "pipeline": [
                 {"$match": {"$expr": {"$or": [
                     {"$eq": ["$fromEntityId", "$$eid"]},
                     {"$eq": ["$toEntityId", "$$eid"]},
                 ]}}},
-                {"$match": {"flagged": True}},
-                {"$unwind": {"path": "$tags", "preserveNullAndEmptyArrays": False}},
-                {"$group": {"_id": None, "tags": {"$addToSet": "$tags"}}},
+                {"$match": {"modelResults.flagged": True}},
+                {"$unwind": {"path": "$ruleResults.tags", "preserveNullAndEmptyArrays": False}},
+                {"$group": {"_id": None, "tags": {"$addToSet": "$ruleResults.tags"}}},
             ],
             "as": "_tx",
         }},
         {"$addFields": {
             "red_flag_tags": {"$ifNull": [{"$arrayElemAt": ["$_tx.tags", 0]}, []]},
         }},
-        {"$project": {
-            "_id": 0,
-            "entityId": 1,
-            "entityType": 1,
-            "scenarioKey": 1,
-            "name": 1,
-            "riskAssessment": 1,
-            "red_flag_tags": 1,
-        }},
+        {"$project": proj},
         {"$sort": {"scenarioKey": 1, "entityId": 1}},
     ]
 
-    entities = list(db["threatsightEntities"].aggregate(pipeline))
+    entities = list(db["customers"].aggregate(pipeline))
 
     grouped: Dict[str, list] = {}
     for ent in entities:

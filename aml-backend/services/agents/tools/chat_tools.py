@@ -3,11 +3,31 @@
 import logging
 import os
 from langchain_core.tools import tool
-from dependencies import get_mongo_client, DB_NAME
+from dependencies import get_mongo_client, DB_NAME, RELATIONSHIPS_COLLECTION
+# Phase-2 step 3 migration: entity ids flowing into this file are now
+# `customers.customerId` values (see services/agents/entity_resolution.py),
+# so the graph traverses on the same key the entity side resolves on.
+from repositories.relationship_fields import SOURCE_KEY, TARGET_KEY, TYPE_KEY
+from repositories import entity_fields as ef
+from services.agents.entity_resolution import agentic_scoped, AML_ONLY_MATCH
+from services.agents.tools.transaction_tools import entity_transaction_stats
 
 logger = logging.getLogger(__name__)
 
 ENTITY_VECTOR_INDEX = os.getenv("ENTITY_VECTOR_INDEX", "entity_vector_search_index")
+
+
+def _fetch_customer_wire(db, entity_id: str) -> dict | None:
+    """Fetch a `customers` doc translated to the wire shape the tools expect."""
+    proj = ef.wire_projection(include_embeddings=False)
+    proj["_id"] = 0
+    pipeline = [
+        {"$match": agentic_scoped({ef.CUSTOMER_ID: entity_id})},
+        {"$project": proj},
+        {"$limit": 1},
+    ]
+    results = list(db["customers"].aggregate(pipeline))
+    return results[0] if results else None
 
 
 @tool
@@ -99,33 +119,25 @@ def search_entities(
     collection is empty vs. no entities matching the filter.
     """
     client = get_mongo_client()
-    coll = client[DB_NAME]["threatsightEntities"]
+    coll = client[DB_NAME]["customers"]
 
-    projection = {
-        "_id": 0,
-        "entityId": 1,
-        "entityType": 1,
-        "name": 1,
-        "scenarioKey": 1,
-        "status": 1,
-        "riskAssessment.overall": 1,
-    }
+    proj = ef.wire_projection(include_embeddings=False)
+    proj["_id"] = 0
 
     base_query: dict = {}
     if entity_type:
-        base_query["entityType"] = entity_type
+        base_query[ef.TYPE] = ef.type_to_storage(entity_type)
     if name_contains:
-        base_query["name.full"] = {"$regex": name_contains, "$options": "i"}
+        base_query[ef.FULL_NAME] = {"$regex": name_contains, "$options": "i"}
 
     # --- primary search: match by level label ---
-    query = {**base_query}
+    query = agentic_scoped(dict(base_query))
     if risk_level:
-        query["riskAssessment.overall.level"] = {
-            "$regex": f"^{risk_level}$",
-            "$options": "i",
-        }
+        query[ef.RISK_LEVEL] = {"$regex": f"^{risk_level}$", "$options": "i"}
 
-    results = list(coll.find(query, projection).limit(limit))
+    results = list(
+        coll.aggregate([{"$match": query}, {"$project": proj}, {"$limit": limit}])
+    )
 
     # --- fallback: if level match returned nothing, try score range ---
     used_fallback = False
@@ -133,16 +145,19 @@ def search_entities(
         level_key = risk_level.strip().lower()
         min_score = RISK_SCORE_THRESHOLDS.get(level_key)
         if min_score is not None:
-            score_query = {**base_query}
-            score_filter: dict = {"riskAssessment.overall.score": {"$gte": min_score}}
+            score_query = agentic_scoped(dict(base_query))
+            score_filter: dict = {ef.RISK_SCORE: {"$gte": min_score}}
             next_levels = [v for v in sorted(RISK_SCORE_THRESHOLDS.values()) if v > min_score]
             if next_levels:
-                score_filter["riskAssessment.overall.score"]["$lt"] = next_levels[0]
+                score_filter[ef.RISK_SCORE]["$lt"] = next_levels[0]
             score_query.update(score_filter)
             results = list(
-                coll.find(score_query, projection)
-                .sort("riskAssessment.overall.score", -1)
-                .limit(limit)
+                coll.aggregate([
+                    {"$match": score_query},
+                    {"$sort": {ef.RISK_SCORE: -1}},
+                    {"$project": proj},
+                    {"$limit": limit},
+                ])
             )
             used_fallback = True
 
@@ -156,8 +171,8 @@ def search_entities(
 
     # --- diagnostics when nothing found ---
     if not results:
-        total = coll.estimated_document_count()
-        distinct_levels = coll.distinct("riskAssessment.overall.level")
+        total = coll.count_documents(agentic_scoped({}))
+        distinct_levels = coll.distinct(ef.RISK_LEVEL, agentic_scoped({}))
         response["diagnostics"] = {
             "total_entities_in_collection": total,
             "available_risk_levels": distinct_levels,
@@ -183,48 +198,30 @@ def assess_entity_risk(entity_id: str) -> dict:
     client = get_mongo_client()
     db = client[DB_NAME]
 
-    profile = db["threatsightEntities"].find_one(
-        {"entityId": entity_id},
-        {
-            "_id": 0, "entityId": 1, "entityType": 1, "name": 1,
-            "riskAssessment": 1, "watchlistMatches": 1, "status": 1,
-        },
-    )
+    profile = _fetch_customer_wire(db, entity_id)
     if not profile:
         return {"error": f"Entity {entity_id} not found"}
 
-    txn_pipeline = [
-        {"$match": {"$or": [{"fromEntityId": entity_id}, {"toEntityId": entity_id}]}},
-        {"$group": {
-            "_id": None,
-            "total_count": {"$sum": 1},
-            "total_volume": {"$sum": "$amount"},
-            "flagged_count": {"$sum": {"$cond": ["$flagged", 1, 0]}},
-            "max_risk": {"$max": "$riskScore"},
-            "avg_risk": {"$avg": "$riskScore"},
-        }},
-    ]
-    txn_stats = list(db["fraudEvaluation"].aggregate(txn_pipeline))
-    txn = txn_stats[0] if txn_stats else {}
+    txn = entity_transaction_stats(entity_id, db)
 
     rel_type_pipeline = [
         {"$match": {"$or": [
-            {"source.entityId": entity_id},
-            {"target.entityId": entity_id},
+            {SOURCE_KEY: entity_id},
+            {TARGET_KEY: entity_id},
         ]}},
         {"$group": {
-            "_id": "$type",
+            "_id": f"${TYPE_KEY}",
             "count": {"$sum": 1},
         }},
         {"$sort": {"count": -1}},
         {"$limit": 10},
     ]
-    relationships = list(db["threatsightRelationships"].aggregate(rel_type_pipeline))
+    relationships = list(db[RELATIONSHIPS_COLLECTION].aggregate(rel_type_pipeline))
 
     rel_risk_pipeline = [
         {"$match": {"$or": [
-            {"source.entityId": entity_id},
-            {"target.entityId": entity_id},
+            {SOURCE_KEY: entity_id},
+            {TARGET_KEY: entity_id},
         ]}},
         {"$group": {
             "_id": None,
@@ -232,7 +229,7 @@ def assess_entity_risk(entity_id: str) -> dict:
             "high_risk": {"$sum": {"$cond": [{"$lt": ["$confidence", 0.5]}, 1, 0]}},
         }},
     ]
-    rel_risk = list(db["threatsightRelationships"].aggregate(rel_risk_pipeline))
+    rel_risk = list(db[RELATIONSHIPS_COLLECTION].aggregate(rel_risk_pipeline))
     rr = rel_risk[0] if rel_risk else {}
 
     watchlist = profile.get("watchlistMatches", [])
@@ -276,27 +273,14 @@ def compare_entities(entity_id_a: str, entity_id_b: str) -> dict:
     db = client[DB_NAME]
 
     def _summarize(eid):
-        entity = db["threatsightEntities"].find_one(
-            {"entityId": eid},
-            {"_id": 0, "entityId": 1, "name": 1, "entityType": 1,
-             "riskAssessment.overall": 1, "watchlistMatches": 1},
-        )
+        entity = _fetch_customer_wire(db, eid)
         if not entity:
             return {"error": f"Entity {eid} not found"}
 
-        txns = list(db["fraudEvaluation"].aggregate([
-            {"$match": {"$or": [{"fromEntityId": eid}, {"toEntityId": eid}]}},
-            {"$group": {
-                "_id": None,
-                "count": {"$sum": 1},
-                "volume": {"$sum": "$amount"},
-                "flagged": {"$sum": {"$cond": ["$flagged", 1, 0]}},
-            }},
-        ]))
-        t = txns[0] if txns else {}
+        t = entity_transaction_stats(eid, db)
 
-        rels = db["threatsightRelationships"].count_documents({
-            "$or": [{"source.entityId": eid}, {"target.entityId": eid}]
+        rels = db[RELATIONSHIPS_COLLECTION].count_documents({
+            "$or": [{SOURCE_KEY: eid}, {TARGET_KEY: eid}]
         })
 
         return {
@@ -306,9 +290,9 @@ def compare_entities(entity_id_a: str, entity_id_b: str) -> dict:
             "risk_score": entity.get("riskAssessment", {}).get("overall", {}).get("score"),
             "risk_level": entity.get("riskAssessment", {}).get("overall", {}).get("level"),
             "watchlist_hits": len(entity.get("watchlistMatches", [])),
-            "transaction_count": t.get("count", 0),
-            "transaction_volume": round(t.get("volume", 0), 2),
-            "flagged_transactions": t.get("flagged", 0),
+            "transaction_count": t.get("total_count", 0),
+            "transaction_volume": round(t.get("total_volume", 0), 2),
+            "flagged_transactions": t.get("flagged_count", 0),
             "relationship_count": rels,
         }
 
@@ -336,6 +320,12 @@ def trace_fund_flow(
     db = client[DB_NAME]
     coll = db["fraudEvaluation"]
 
+    # `fraudEvaluation` only ever holds AML-sourced entities' evaluations, so a
+    # fraud-sourced id (out of scope for this surface -- see agentic_scoped())
+    # would silently return "0 paths found" rather than a clear reason why.
+    if not db["customers"].find_one(agentic_scoped({ef.CUSTOMER_ID: entity_id}), {"_id": 1}):
+        return {"error": f"Entity {entity_id} not found"}
+
     if direction == "outgoing":
         match_field, follow_field, next_match = "fromEntityId", "toEntityId", "fromEntityId"
     else:
@@ -351,22 +341,24 @@ def trace_fund_flow(
                 coll.find(
                     {match_field: node["entity_id"]},
                     {"_id": 0, "transactionId": 1, "fromEntityId": 1, "toEntityId": 1,
-                     "amount": 1, "timestamp": 1, "riskScore": 1, "flagged": 1},
+                     "amount": 1, "timestamp": 1, "modelResults.riskScore": 1,
+                     "modelResults.flagged": 1},
                 )
-                .sort("riskScore", -1)
+                .sort("modelResults.riskScore", -1)
                 .limit(5)
             )
             for t in txns:
                 counterparty = t.get(follow_field, "")
                 if counterparty == entity_id:
                     continue
+                model_results = t.get("modelResults", {})
                 new_path = node["path"] + [{
                     "hop": hop + 1,
                     "from": t.get("fromEntityId"),
                     "to": t.get("toEntityId"),
                     "amount": t.get("amount", 0),
-                    "risk_score": t.get("riskScore", 0),
-                    "flagged": t.get("flagged", False),
+                    "risk_score": model_results.get("riskScore", 0),
+                    "flagged": model_results.get("flagged", False),
                     "timestamp": str(t.get("timestamp", "")),
                     "transaction_id": t.get("transactionId"),
                 }]
@@ -408,14 +400,14 @@ def find_similar_entities(entity_id: str, limit: int = 5) -> dict:
     client = get_mongo_client()
     db = client[DB_NAME]
 
-    entity = db["threatsightEntities"].find_one(
-        {"entityId": entity_id},
-        {"_id": 0, "entityId": 1, "name": 1, "profileEmbedding": 1},
+    entity = db["customers"].find_one(
+        agentic_scoped({ef.CUSTOMER_ID: entity_id}),
+        {"_id": 0, ef.CUSTOMER_ID: 1, ef.FULL_NAME: 1, ef.PROFILE_EMBEDDING: 1},
     )
     if not entity:
         return {"error": f"Entity {entity_id} not found"}
 
-    embedding = entity.get("profileEmbedding")
+    embedding = entity.get(ef.PROFILE_EMBEDDING)
     if not embedding:
         return {"error": f"Entity {entity_id} has no profileEmbedding"}
 
@@ -423,28 +415,35 @@ def find_similar_entities(entity_id: str, limit: int = 5) -> dict:
         {
             "$vectorSearch": {
                 "index": ENTITY_VECTOR_INDEX,
-                "path": "profileEmbedding",
+                "path": ef.PROFILE_EMBEDDING,
                 "queryVector": embedding,
                 "numCandidates": limit * 10,
                 "limit": limit + 1,
+                "filter": ef.vector_scope_filter(),
             }
         },
-        {"$match": {"entityId": {"$ne": entity_id}}},
+        # $vectorSearch's `filter` can only use indexed filter fields
+        # (sourceSystem/type/status -- see LOAD-RECORD); rawScore isn't
+        # indexed, so the AML-only cohort exclusion is applied post-search.
+        {"$match": {ef.CUSTOMER_ID: {"$ne": entity_id}, **AML_ONLY_MATCH}},
         {"$limit": limit},
         {"$project": {
             "_id": 0,
-            "entityId": 1,
-            "entityType": 1,
-            "name": 1,
-            "riskAssessment.overall": 1,
+            "entityId": f"${ef.CUSTOMER_ID}",
+            "entityType": f"${ef.TYPE}",
+            "name": {"full": f"${ef.FULL_NAME}"},
+            "riskAssessment": {"overall": f"${ef.RISK_OVERALL}"},
             "score": {"$meta": "vectorSearchScore"},
         }},
     ]
 
-    results = list(db["threatsightEntities"].aggregate(pipeline))
+    results = list(db["customers"].aggregate(pipeline))
+    for r in results:
+        r["entityType"] = ef.type_to_wire(r.get("entityType"))
+
     return {
         "query_entity": entity_id,
-        "query_name": entity.get("name", {}).get("full", ""),
+        "query_name": (entity.get("identification") or {}).get("fullName", ""),
         "similar_count": len(results),
         "similar_entities": results,
     }

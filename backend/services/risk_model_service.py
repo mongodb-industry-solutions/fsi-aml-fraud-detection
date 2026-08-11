@@ -9,11 +9,12 @@ from pymongo.change_stream import ChangeStream
 
 logger = logging.getLogger(__name__)
 
-# Renamed 2026-07-29 by the leafy_bank_bian migration
-# (risk_models -> threatsightRiskModels, model_performance -> threatsightModelPerformance).
+# Renamed twice: 2026-07-29 by the leafy_bank_bian migration (risk_models ->
+# threatsightRiskModels), then 2026-08-06 by the BIAN mapping (-> fraudModel).
+# `threatsightModelPerformance` is not BIAN-mapped and keeps its name and shape.
 # Kept as constants so the collection-level change stream in start_change_stream()
 # cannot drift from the reads.
-RISK_MODELS_COLLECTION = "threatsightRiskModels"
+RISK_MODELS_COLLECTION = "fraudModel"
 MODEL_PERFORMANCE_COLLECTION = "threatsightModelPerformance"
 
 
@@ -110,8 +111,9 @@ class RiskModelService:
         risk_factors = []
         risk_score = 0
         
-        # Get weights from current model
-        weights = self.current_model.get("weights", {})
+        # Get weights from current model (nested under usageGuidelines since the
+        # BIAN fraudModel mapping — BQ Production -> RuleSet)
+        weights = (self.current_model.get("usageGuidelines") or {}).get("weights", {})
         
         # Check amount anomaly
         avg_amount = customer_profile["behavioralProfile"]["transactionPatterns"]["averageTransactionAmount"]
@@ -176,7 +178,8 @@ class RiskModelService:
         if not self.current_model:
             return self._get_default_threshold(factor_id)
         
-        for factor in self.current_model.get("riskFactors", []):
+        guidelines = self.current_model.get("usageGuidelines") or {}
+        for factor in guidelines.get("riskFactors", []):
             if factor.get("id") == factor_id and factor.get("active", True):
                 return factor.get(field, self._get_default_threshold(factor_id))
         
@@ -199,7 +202,9 @@ class RiskModelService:
         try:
             performance_record = {
                 "modelId": self.current_model.get("modelId"),
-                "modelVersion": self.current_model.get("version"),
+                # int: threatsightModelPerformance is not BIAN-mapped and is joined on
+                # modelVersion as an int, while fraudModel stores `version` as a string.
+                "modelVersion": int(self.current_model.get("version", 0)),
                 "customerId": customer_id,
                 "transactionId": str(transaction_id),
                 "riskScore": risk_assessment["riskScore"],
@@ -213,14 +218,24 @@ class RiskModelService:
             logger.error(f"Error recording model usage: {str(e)}")
     
     def _create_default_model(self) -> Dict[str, Any]:
-        """Create a default risk model if none exists."""
+        """
+        Create a default risk model if none exists.
+
+        Emits the `fraudModel` STORED shape (usageGuidelines / testResult, string
+        `version`, `sourceSystem` tag) because load_active_model() inserts the result
+        directly. This is the only write path into the collection that does not go
+        through routes/model_management.py's to_stored(), so it is the one place the
+        pre-BIAN flat shape could get re-seeded.
+        """
         return {
             "modelId": "default-risk-model-v1",
-            "version": 1,
+            "version": "1",
             "status": "active",
             "createdAt": datetime.now(),
             "updatedAt": datetime.now(),
             "description": "Default risk scoring model",
+            "sourceSystem": "threatsight360",
+            "usageGuidelines": {
             "thresholds": {
                 "flag": 60,
                 "block": 85
@@ -270,7 +285,8 @@ class RiskModelService:
                     "active": True
                 }
             ],
-            "performance": {
+            },
+            "testResult": {
                 "falsePositiveRate": None,
                 "falseNegativeRate": None,
                 "avgProcessingTime": None

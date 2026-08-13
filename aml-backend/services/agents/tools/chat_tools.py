@@ -9,6 +9,7 @@ from dependencies import get_mongo_client, DB_NAME, RELATIONSHIPS_COLLECTION
 # so the graph traverses on the same key the entity side resolves on.
 from repositories.relationship_fields import SOURCE_KEY, TARGET_KEY, TYPE_KEY
 from repositories import entity_fields as ef
+from services.agents import fraud_resolution_shape as frs
 from services.agents.entity_resolution import agentic_scoped, AML_ONLY_MATCH
 from services.agents.tools.transaction_tools import entity_transaction_stats
 
@@ -42,50 +43,68 @@ def search_investigations(
     created_at, typology, triage disposition) sorted by most recent first.
     """
     client = get_mongo_client()
-    coll = client[DB_NAME]["threatsightInvestigations"]
+    coll = client[DB_NAME][frs.COLLECTION]
 
     query = {}
     if entity_id:
-        query["entity_id"] = entity_id
+        # `entity_id` is overloaded: the raw ThreatSight id pre-BIAN, a
+        # `customers.customerId` post-Phase-2. Match either stored field.
+        query["$or"] = [
+            {frs.SOURCE_ENTITY_ID: entity_id},
+            {frs.CUSTOMER_ID: entity_id},
+        ]
     if status:
-        query["investigation_status"] = status
+        query[frs.STATUS] = status
 
     cursor = (
         coll.find(query, {"_id": 0})
-        .sort("created_at", -1)
+        .sort(frs.CREATED_AT, -1)
         .limit(limit)
     )
     results = []
-    for doc in cursor:
+    for stored in cursor:
+        doc = frs.to_wire(stored)
         results.append({
             "case_id": doc.get("case_id"),
             "entity_id": doc.get("entity_id"),
             "status": doc.get("investigation_status"),
             "created_at": doc.get("created_at"),
-            "typology": doc.get("typology", {}).get("primary_typology", "unknown"),
-            "typology_confidence": doc.get("typology", {}).get("confidence"),
-            "triage_disposition": doc.get("triage_decision", {}).get("disposition"),
-            "risk_score": doc.get("triage_decision", {}).get("risk_score"),
-            "human_decision": doc.get("human_decision", {}).get("decision"),
+            "typology": (doc.get("typology") or {}).get("primary_typology", "unknown"),
+            "typology_confidence": (doc.get("typology") or {}).get("confidence"),
+            "triage_disposition": (doc.get("triage_decision") or {}).get("disposition"),
+            "risk_score": (doc.get("triage_decision") or {}).get("risk_score"),
+            "human_decision": (doc.get("human_decision") or {}).get("decision"),
         })
     return {"count": len(results), "investigations": results}
 
 
 @tool
-def get_investigation_detail(case_id: str) -> dict:
-    """Get full details of a single investigation by case_id.
+def get_investigation_detail(case_id: str, include_telemetry: bool = False) -> dict:
+    """Get the analyst-facing detail of a single investigation by case_id.
 
-    Returns the complete case document including triage decision, case file,
-    typology classification, narrative, network analysis, validation result,
-    human decision, and audit trail.
+    Returns the triage decision, case file, typology classification, SAR narrative,
+    network/temporal/trail analysis, validation result, human decision and
+    sub-investigation findings -- everything needed to explain or summarise a case.
+
+    Parameters:
+        case_id: the case reference, e.g. 'CASE-83E69DC9'.
+        include_telemetry: also return the agent audit log, tool trace log and
+            pipeline metrics (default False). These are debugging artefacts -- raw
+            LLM prompts and tool outputs -- and they are LARGE: they roughly triple
+            the response. Request them only when asked about how the pipeline itself
+            ran, and only for ONE case at a time.
+
+    To compare or summarise several cases, call this per case_id and leave
+    include_telemetry off.
     """
     client = get_mongo_client()
-    doc = client[DB_NAME]["threatsightInvestigations"].find_one(
-        {"case_id": case_id}, {"_id": 0}
+    projection = {"_id": 0} if include_telemetry else frs.TELEMETRY_EXCLUDE
+    doc = client[DB_NAME][frs.COLLECTION].find_one(
+        {frs.CASE_ID: case_id}, projection
     )
     if not doc:
         return {"error": f"Investigation {case_id} not found"}
-    return doc
+    return frs.to_wire(doc)
 
 
 RISK_SCORE_THRESHOLDS = {

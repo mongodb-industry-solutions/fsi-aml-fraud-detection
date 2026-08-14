@@ -30,18 +30,18 @@ flowchart LR
     end
 
     subgraph AMLBackend["AML Backend Collections"]
-        entities
-        relationships
-        transactionsv2
+        threatsightEntities
+        threatsightRelationships
+        fraudEvaluation
     end
 
     subgraph AgenticCollections["Agentic Pipeline Collections"]
-        investigations
-        alerts
-        typology_library
-        compliance_policies
-        checkpoints
-        checkpoint_writes
+        threatsightInvestigations
+        threatsightAlerts
+        threatsightTypologyLibrary
+        threatsightCompliancePolicies
+        threatsightCheckpoints
+        threatsightCheckpointWrites
         memory_store
     end
 ```
@@ -51,16 +51,16 @@ flowchart LR
 | `customers` | Fraud | ~50 | Customer 360 profiles with behavioral patterns |
 | `transactions` | Fraud | ~26,000 | Transaction records with fraud assessments |
 | `fraud_patterns` | Fraud | ~5 | Known fraud pattern definitions with embeddings |
-| `entities` | AML | ~504 | KYC/AML entity profiles (individuals + organizations) |
-| `relationships` | AML | ~519 | Entity relationship graph edges |
-| `transactionsv2` | AML | ~12,766 | Entity transaction records |
-| `investigations` | AML (agents) | Variable | Completed investigation case documents |
-| `alerts` | AML (agents) | Variable | Investigation trigger records |
-| `typology_library` | AML (agents) | 12 | AML crime typology definitions with embeddings |
-| `compliance_policies` | AML (agents) | 6 | Regulatory compliance policy documents with embeddings |
-| `checkpoints` | AML (agents) | Variable | LangGraph state checkpoints (MongoDBSaver) |
-| `checkpoint_writes` | AML (agents) | Variable | LangGraph checkpoint write log (MongoDBSaver) |
-| `memory_store` | AML (agents) | Variable | Cross-investigation memory (MongoDBStore) |
+| `threatsightEntities` | AML | ~504 | KYC/AML entity profiles (individuals + organizations) |
+| `threatsightRelationships` | AML | ~519 | Entity relationship graph edges |
+| `fraudEvaluation` | AML | ~12,766 | Entity transaction records |
+| `threatsightInvestigations` | AML (agents) | Variable | Completed investigation case documents |
+| `threatsightAlerts` | AML (agents) | Variable | Investigation trigger records |
+| `threatsightTypologyLibrary` | AML (agents) | 12 | AML crime typology definitions with embeddings |
+| `threatsightCompliancePolicies` | AML (agents) | 6 | Regulatory compliance policy documents with embeddings |
+| `threatsightCheckpoints` | AML (agents) | Variable | LangGraph state checkpoints (MongoDBSaver) |
+| `threatsightCheckpointWrites` | AML (agents) | Variable | LangGraph checkpoint write log (MongoDBSaver) |
+| `memory_store` | AML (agents) | Variable | Cross-investigation memory (MongoDBStore), unprefixed |
 
 ---
 
@@ -157,9 +157,11 @@ Known fraud pattern definitions with vector embeddings for similarity search.
 
 ## 3. AML Backend Collections
 
-### `entities`
+### `threatsightEntities`
 
-KYC/AML entity profiles for individuals and organizations.
+KYC/AML entity profiles for individuals and organizations. (Named `entities` in
+the seed notebooks; `threatsightEntities` is the name the application code
+queries -- see `repositories/factory/repository_factory.py`.)
 
 ```javascript
 {
@@ -200,15 +202,17 @@ KYC/AML entity profiles for individuals and organizations.
     "isOnWatchlist": false,
     "matches": []
   },
-  "profileEmbedding": [0.045, -0.012, ...], // Voyage AI embedding
+  "profileEmbedding": [0.045, -0.012, ...], // Amazon Titan embedding (amazon.titan-embed-text-v1)
   "createdAt": ISODate,
   "updatedAt": ISODate
 }
 ```
 
-### `relationships`
+### `threatsightRelationships`
 
-Entity relationship graph edges for network analysis.
+Entity relationship graph edges for network analysis. (Named `relationships`
+in the seed notebooks; `threatsightRelationships` is the name every agentic
+pipeline tool queries -- see `services/agents/tools/network_tools.py`.)
 
 ```javascript
 {
@@ -237,9 +241,12 @@ Entity relationship graph edges for network analysis.
 
 **Relationship Types**: `director_of`, `owner_of`, `subsidiary_of`, `family_member`, `same_address`, `frequent_transactor`, `beneficiary`, `suspicious_link`
 
-### `transactionsv2`
+### `fraudEvaluation`
 
 Entity-centric transaction records used by the AML backend and agentic tools.
+(Named `transactionsv2` in the seed notebooks -- `fraudEvaluation` is the name
+the application code actually queries; see `routes/transactions.py` and
+`services/agents/tools/chat_tools.py`.)
 
 ```javascript
 {
@@ -261,7 +268,7 @@ Entity-centric transaction records used by the AML backend and agentic tools.
 
 ## 4. Agentic Pipeline Collections
 
-### `investigations`
+### `threatsightInvestigations`
 
 Completed investigation case documents persisted by `finalize_node`.
 
@@ -308,7 +315,7 @@ Completed investigation case documents persisted by `finalize_node`.
 }
 ```
 
-### `alerts`
+### `threatsightAlerts`
 
 Investigation trigger records created when launching a new investigation.
 
@@ -324,7 +331,7 @@ Investigation trigger records created when launching a new investigation.
 }
 ```
 
-### `typology_library`
+### `threatsightTypologyLibrary`
 
 AML crime typology definitions seeded via `POST /agents/seed`. Used for RAG-powered typology classification.
 
@@ -341,7 +348,7 @@ AML crime typology definitions seeded via `POST /agents/seed`. Used for RAG-powe
 }
 ```
 
-### `compliance_policies`
+### `threatsightCompliancePolicies`
 
 Regulatory compliance policies seeded via `POST /agents/seed`. Used for RAG-powered policy lookup.
 
@@ -357,7 +364,7 @@ Regulatory compliance policies seeded via `POST /agents/seed`. Used for RAG-powe
 }
 ```
 
-### `checkpoints` and `checkpoint_writes`
+### `threatsightCheckpoints` and `threatsightCheckpointWrites`
 
 Managed automatically by `langgraph-checkpoint-mongodb` (`MongoDBSaver`). Stores LangGraph graph state for both the investigation pipeline and the Copilot chat agent.
 
@@ -373,16 +380,20 @@ Managed by `MongoDBStore` for cross-investigation learning. Stores namespace-sco
 
 | Index Name | Collection | Type | Fields |
 |------------|-----------|------|--------|
-| `entity_resolution_search` | `entities` | Atlas Search | `name.full` (autocomplete + string), `name.aliases` (string), `entityType` (stringFacet), `nationality` (stringFacet), `residency` (stringFacet), `jurisdictionOfIncorporation` (stringFacet), `riskAssessment.overall.level` (stringFacet), `riskAssessment.overall.score` (numberFacet), `customerInfo.businessType` (stringFacet) |
-| `entity_text_search_index` | `entities` | Atlas Search | `name.full` (string), `name.aliases` (string), `addresses.full` (string), `entityType` (string), `identifiers.value` (string) |
+| `entity_resolution_search` | `threatsightEntities` | Atlas Search | `name.full` (autocomplete + string), `name.aliases` (string), `entityType` (stringFacet), `nationality` (stringFacet), `residency` (stringFacet), `jurisdictionOfIncorporation` (stringFacet), `riskAssessment.overall.level` (stringFacet), `riskAssessment.overall.score` (numberFacet), `customerInfo.businessType` (stringFacet) |
+| `entity_text_search_index` | `threatsightEntities` | Atlas Search | `name.full` (string), `name.aliases` (string), `addresses.full` (string), `entityType` (string), `identifiers.value` (string) |
 
 ### Vector Search Indexes
 
 | Index Name | Collection | Field | Dimensions | Similarity |
 |------------|-----------|-------|------------|------------|
 | `transaction_vector_index` | `transactions` | `vector_embedding` | 1536 | cosine |
-| `transaction_vector_index` | `fraud_patterns` | `vector_embedding` | 1536 | cosine |
-| `entity_vector_search_index` | `entities` | `embedding` | 1536 | cosine |
+| `entity_vector_search_index` | `threatsightEntities` | `profileEmbedding` | 1536 | cosine |
+
+`fraud_patterns` has embeddings but **no vector index** -- `services/fraud_detection.py`
+documents this as deliberate: the pattern-similarity code path has never been
+exercised, so the index that would enable it hasn't been created either. Semantic
+fraud-pattern search currently falls back to a basic query.
 
 ### Standard Indexes
 
@@ -391,9 +402,9 @@ Managed by `MongoDBStore` for cross-investigation learning. Stores namespace-sco
 | `customers` | Geospatial | `usual_locations` (2dsphere) | Location-based fraud detection |
 | `customers` | Standard | `customer_id` | Customer lookup |
 | `transactions` | Standard | `customer_id`, `timestamp` | Transaction queries |
-| `relationships` | Standard | `source.entityId`, `target.entityId` | `$graphLookup` traversal |
-| `transactionsv2` | Standard | `entityId`, `timestamp` | Entity transaction queries |
-| `investigations` | Standard | `entity_id`, `status`, `created_at` | Investigation listing and filtering |
+| `threatsightRelationships` | Standard | `source.entityId`, `target.entityId` | `$graphLookup` traversal |
+| `fraudEvaluation` | Standard | `entityId`, `timestamp` | Entity transaction queries |
+| `threatsightInvestigations` | Standard | `entity_id`, `status`, `created_at` | Investigation listing and filtering |
 
 ---
 
@@ -402,25 +413,25 @@ Managed by `MongoDBStore` for cross-investigation learning. Stores namespace-sco
 ```mermaid
 erDiagram
     customers ||--o{ transactions : "customer_id"
-    transactions ||--o| fraud_patterns : "$vectorSearch similarity"
+    transactions ||--o| fraud_patterns : "$vectorSearch similarity (index not created -- see Index Reference)"
 
-    entities ||--o{ relationships : "source.entityId / target.entityId"
-    entities ||--o{ transactionsv2 : "entityId"
-    entities ||--o{ alerts : "entity_id"
-    entities ||--o{ investigations : "entity_id"
+    threatsightEntities ||--o{ threatsightRelationships : "source.entityId / target.entityId"
+    threatsightEntities ||--o{ fraudEvaluation : "entityId"
+    threatsightEntities ||--o{ threatsightAlerts : "entity_id"
+    threatsightEntities ||--o{ threatsightInvestigations : "entity_id"
 
-    typology_library ||--o{ investigations : "typology classification"
-    compliance_policies ||--o{ investigations : "policy reference"
+    threatsightTypologyLibrary ||--o{ threatsightInvestigations : "typology classification"
+    threatsightCompliancePolicies ||--o{ threatsightInvestigations : "policy reference"
 
-    alerts ||--|| investigations : "triggers"
+    threatsightAlerts ||--|| threatsightInvestigations : "triggers"
 
-    checkpoints ||--|| investigations : "pipeline state"
-    checkpoints ||--|| memory_store : "agent memory"
+    threatsightCheckpoints ||--|| threatsightInvestigations : "pipeline state"
+    threatsightCheckpoints ||--|| memory_store : "agent memory"
 ```
 
 ### Cross-Backend Relationships
 
-The `customers` / `transactions` / `fraud_patterns` collections are used exclusively by the Fraud Backend (:8000). The `entities` / `relationships` / `transactionsv2` and all agentic collections are used by the AML Backend (:8001). Both backends share the same database (`fsi-threatsight360`) but operate on separate collections.
+The `customers` / `transactions` / `fraud_patterns` collections are used exclusively by the Fraud Backend (:8000). The `threatsightEntities` / `threatsightRelationships` / `fraudEvaluation` and all agentic collections are used by the AML Backend (:8001). Both backends share the same database but operate on separate collections.
 
 The `TransactionSimulator` in the frontend uses entity data from the AML backend for customer selection but submits transactions to the Fraud backend for evaluation.
 
@@ -450,7 +461,7 @@ Python variables and function parameters use **snake_case**. Repository implemen
 
 - Do not use `entity_id` in MongoDB queries -- the field is `entityId`
 - Do not use `risk_assessment` -- the field is `riskAssessment`
-- The `relationships` collection uses nested `source.entityId` and `target.entityId`, not flat fields
+- The `threatsightRelationships` collection uses nested `source.entityId` and `target.entityId`, not flat fields
 
 ---
 

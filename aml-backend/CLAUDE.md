@@ -51,8 +51,8 @@ poetry run uvicorn main:app --host 0.0.0.0 --port 8001 --reload
 ### Database Architecture
 
 **MongoDB Collections:**
-- `entities`: Customer/organization entities with full-text search indexes
-- `relationships`: Entity relationships with graph traversal optimization
+- `threatsightEntities`: Customer/organization entities with full-text search indexes
+- `threatsightRelationships`: Entity relationships with graph traversal optimization
 - `resolution_history`: Audit trail for entity resolution decisions
 - `audit_logs`: Comprehensive operation logging
 

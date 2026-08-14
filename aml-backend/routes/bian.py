@@ -7,10 +7,12 @@ two surfaces cannot drift. Additive — every native route stays registered and 
 Path provenance, from the local BIAN v14 index (`kg -s bian`):
 
     GET  /FraudResolution/{fraudresolutionid}/Retrieve                 Retrieve
+    GET  /FraudEvaluation/{fraudevaluationid}/Retrieve                 Retrieve
 
-One route. That is not an oversight — a code-level audit of this backend's ~70 routes found
-exactly one clean mapping, and the reasons the others were rejected are worth recording here
-so the question is not reopened from the route list alone:
+Two routes. That is not an oversight — a code-level audit of this backend's ~70 routes found
+exactly one clean wrapper (`FraudResolution/Retrieve`); the second is net-new code, flagged as
+such on the handler. The reasons the others were rejected are worth recording here so the
+question is not reopened from the route list alone:
 
   * **`POST /agents/investigate` is the true owner of `FraudResolution/Initiate`** — the only
     `insert_one` into `fraudResolution` is `services/agents/nodes/finalize.py`, which runs as
@@ -35,9 +37,11 @@ so the question is not reopened from the route list alone:
     to search and network analytics.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException
 
+from repositories.impl.transaction_repository import TransactionRepository
 from routes.agents.investigation_routes import get_investigation as native_get_investigation
+from routes.transactions import get_transaction_repository
 from services.agents import fraud_resolution_shape as frs
 
 router = APIRouter(tags=["bian"])
@@ -105,4 +109,53 @@ async def fraud_resolution_retrieve(fraudresolutionid: str):
     return {
         "caseId": case[frs.CASE_ID],
         "fraudResolution": case,
+    }
+
+
+# --- Stage 1: Detect — FraudEvaluation -------------------------------------------------
+
+@router.get(
+    "/FraudEvaluation/{fraudevaluationid}/Retrieve",
+    response_description="BIAN FraudEvaluation/Retrieve — one fraud evaluation assessment",
+)
+async def fraud_evaluation_retrieve(
+    fraudevaluationid: str,
+    repository: TransactionRepository = Depends(get_transaction_repository),
+):
+    """BIAN `FraudEvaluation` / `Retrieve` — a single assessment by id.
+
+    `{fraudevaluationid}` is `fraudEvaluation.transactionId`, the collection's unique index
+    and the migration's declared upsert key, so the BIAN path id and the stored identity
+    are the same value.
+
+    ⚠️ **This route is the exception to this file's "no logic" rule, deliberately.** Every
+    other BIAN route here and in `backend/routes/bian.py` delegates to a native handler.
+    This one has none to delegate to: an audit of both backends found that every read of
+    `fraudEvaluation` is entity-scoped (`fromEntityId`/`toEntityId`) or a date-windowed
+    aggregation, and no by-id lookup existed. `TransactionRepository.get_by_transaction_id`
+    was added to supply that primitive, so the DB access still lives in the repository layer
+    and this handler stays a thin boundary.
+
+    The stored document is already camelCase and BIAN-shaped (CR `FraudEvaluationAssessment`),
+    so unlike `fraud_resolution_retrieve` no recasing is needed — `_camelize` would be a
+    no-op here and is deliberately not applied.
+
+    Not exposed, for the same missing-primitive reason plus the two-id problem: the nested
+    `Models/{modelsid}` and `RuleSetsandDecisionTrees/{rulesetsanddecisiontreesid}` reads,
+    which need a second path id no code produces. And the write-side operations —
+    `Grant`, `Request`, `Exchange`, `Execute` — have no backing at all: nothing in either
+    backend writes this collection (the only writer is the offline migration loader), which
+    is the `bian-fraud-flow.md` §7.5 gap, widened.
+    """
+    evaluation = await repository.get_by_transaction_id(fraudevaluationid)
+
+    if not evaluation:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Fraud evaluation {fraudevaluationid} not found",
+        )
+
+    return {
+        "transactionId": evaluation["transactionId"],
+        "fraudEvaluation": evaluation,
     }

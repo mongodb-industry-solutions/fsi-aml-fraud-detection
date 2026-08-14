@@ -48,6 +48,23 @@ class TransactionRepository:
         docs = await cursor.to_list(length=None)
         return {ef.id_of(d): {"name": ef.name_of(d), "type": ef.type_of(d)} for d in docs}
 
+    async def get_by_transaction_id(self, transaction_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch one `fraudEvaluation` document by its business key.
+
+        `transactionId` is the collection's unique index and the migration's declared
+        upsert key (`populate_leafy_bank_bian.py`), so this is a single-document lookup,
+        not a filter.
+
+        Every other read on this collection is entity-scoped (`fromEntityId`/`toEntityId`)
+        or a date-windowed aggregation; this is the only by-id primitive, added to back the
+        BIAN `FraudEvaluation/{id}/Retrieve` operation. Returns the stored document as-is —
+        already camelCase and BIAN-shaped — with `_id` projected out.
+        """
+        return await self.transactions_collection.find_one(
+            {"transactionId": transaction_id},
+            {"_id": 0},
+        )
+
     async def get_entity_transactions(
         self,
         entity_id: str,

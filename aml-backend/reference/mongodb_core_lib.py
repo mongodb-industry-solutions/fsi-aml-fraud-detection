@@ -852,10 +852,11 @@ class DataValidator:
 
 class MongoDBRepository:
     """Unified repository combining all MongoDB features"""
-    
+
     def __init__(self, connection_string: str, database_name: str,
-                 bedrock_client: Optional[boto3.client] = None):
-        self.client = AsyncIOMotorClient(connection_string)
+                 bedrock_client: Optional[boto3.client] = None,
+                 app_name: Optional[str] = None):
+        self.client = AsyncIOMotorClient(connection_string, appName=app_name)
         self.db = self.client[database_name]
         self.bedrock_client = bedrock_client
         

@@ -34,6 +34,15 @@ except ImportError:
     logger.warning("PDF routes not available")
     pdf_router = None
 
+# BIAN v14 service-domain surface. Additive — delegates to the native handlers, which stay
+# registered and unchanged. One route (FraudResolution/Retrieve); see routes/bian.py for why
+# the rest of this backend has no clean BIAN mapping.
+try:
+    from routes.bian import router as bian_router
+except ImportError:
+    logger.warning("BIAN routes not available")
+    bian_router = None
+
 # Note: Fallback routes removed after successful migration to organized structure
 
 # Setup logging
@@ -264,6 +273,10 @@ include_router_safely(app, agent_investigation_router, "Agent Investigation")
 
 # 4.10. Agent Chat routes
 include_router_safely(app, agent_chat_router, "Agent Chat")
+
+# 4.11. BIAN v14 surface. After the agent routes it delegates to, and before the catch-all
+# `/entities` router — its paths are literal service-domain names, so they cannot collide.
+include_router_safely(app, bian_router, "BIAN Service Domains")
 
 # 5. Core entity routes (has catch-all routes, so include after more specific routes)  
 include_router_safely(app, core_entities_router, "Core Entities")

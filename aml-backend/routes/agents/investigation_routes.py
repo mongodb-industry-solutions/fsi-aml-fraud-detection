@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisco
 from fastapi.responses import StreamingResponse
 from dependencies import get_mongo_client, get_database, DB_NAME
 from repositories import entity_fields as ef
+from services.agents import fraud_resolution_shape as frs
 from services.agents.entity_resolution import agentic_scoped
 from services.agents.graph import get_compiled_graph
 from services.agents.tracing import get_tracing_callbacks
@@ -386,27 +387,32 @@ async def list_investigations(
 ):
     """List all investigations, optionally filtered by status."""
     client = get_mongo_client()
-    coll = client[DB_NAME]["threatsightInvestigations"]
+    coll = client[DB_NAME][frs.COLLECTION]
 
     query: dict = {}
     if status:
-        query["investigation_status"] = status
+        query[frs.STATUS] = status
 
-    cursor = coll.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit)
+    cursor = coll.find(query, {"_id": 0}).sort(frs.CREATED_AT, -1).skip(skip).limit(limit)
     investigations = list(cursor)
     total = coll.count_documents(query)
 
     for inv in investigations:
-        if not inv.get("entity_name"):
-            name = (inv.get("case_file") or {}).get("entity", {}).get("name", "")
+        if not inv.get(frs.ENTITY_NAME):
+            name = (inv.get(frs.CASE_FILE) or {}).get("entity", {}).get("name", "")
             if name:
-                inv["entity_name"] = name
+                inv[frs.ENTITY_NAME] = name
                 coll.update_one(
-                    {"case_id": inv["case_id"]},
-                    {"$set": {"entity_name": name}},
+                    {frs.CASE_ID: inv[frs.CASE_ID]},
+                    {"$set": {frs.ENTITY_NAME: name}},
                 )
 
-    return {"investigations": investigations, "total": total, "skip": skip, "limit": limit}
+    return {
+        "investigations": [frs.to_wire(inv) for inv in investigations],
+        "total": total,
+        "skip": skip,
+        "limit": limit,
+    }
 
 
 # ── Analytics Aggregation ─────────────────────────────────────────────
@@ -424,33 +430,33 @@ async def investigation_analytics():
     pipeline = [
         {"$facet": {
             "by_status": [
-                {"$group": {"_id": "$investigation_status", "count": {"$sum": 1}}},
+                {"$group": {"_id": f"${frs.STATUS}", "count": {"$sum": 1}}},
                 {"$sort": {"count": -1}},
             ],
             "by_typology": [
-                {"$match": {"typology.primary_typology": {"$exists": True, "$ne": None}}},
-                {"$group": {"_id": "$typology.primary_typology", "count": {"$sum": 1}}},
+                {"$match": {frs.PRIMARY_TYPOLOGY: {"$exists": True, "$ne": None}}},
+                {"$group": {"_id": f"${frs.PRIMARY_TYPOLOGY}", "count": {"$sum": 1}}},
                 {"$sort": {"count": -1}},
                 {"$limit": 10},
             ],
             "risk_stats": [
-                {"$match": {"triage_decision.risk_score": {"$exists": True}}},
+                {"$match": {frs.RISK_SCORE: {"$exists": True}}},
                 {"$group": {
                     "_id": None,
-                    "avg_risk": {"$avg": "$triage_decision.risk_score"},
-                    "max_risk": {"$max": "$triage_decision.risk_score"},
-                    "min_risk": {"$min": "$triage_decision.risk_score"},
+                    "avg_risk": {"$avg": f"${frs.RISK_SCORE}"},
+                    "max_risk": {"$max": f"${frs.RISK_SCORE}"},
+                    "min_risk": {"$min": f"${frs.RISK_SCORE}"},
                     "total": {"$sum": 1},
                 }},
             ],
             "recent_7d": [
-                {"$match": {"created_at": {"$gte": (datetime.now(timezone.utc).replace(hour=0, minute=0, second=0) - timedelta(days=7)).isoformat()}}},
+                {"$match": {frs.CREATED_AT: {"$gte": (datetime.now(timezone.utc).replace(hour=0, minute=0, second=0) - timedelta(days=7)).isoformat()}}},
                 {"$count": "count"},
             ],
         }},
     ]
 
-    results = list(db["threatsightInvestigations"].aggregate(pipeline))
+    results = list(db[frs.COLLECTION].aggregate(pipeline))
     facets = results[0] if results else {}
 
     risk = facets.get("risk_stats", [{}])[0] if facets.get("risk_stats") else {}
@@ -486,28 +492,35 @@ async def search_investigations(q: str = "", limit: int = 20):
 
     query_regex = {"$regex": q.strip(), "$options": "i"}
 
-    results = list(db["threatsightInvestigations"].find(
+    results = list(db[frs.COLLECTION].find(
         {"$or": [
-            {"case_id": query_regex},
-            {"entity_id": query_regex},
-            {"typology.primary_typology": query_regex},
-            {"narrative.introduction": query_regex},
-            {"case_file.key_findings": query_regex},
-            {"alert_data.alert_type": query_regex},
+            {frs.CASE_ID: query_regex},
+            # `entity_id` is overloaded on the wire: the raw ThreatSight id pre-BIAN,
+            # a `customers.customerId` post-Phase-2. Search both so neither form misses.
+            {frs.SOURCE_ENTITY_ID: query_regex},
+            {frs.CUSTOMER_ID: query_regex},
+            {frs.PRIMARY_TYPOLOGY: query_regex},
+            {frs.NARRATIVE_INTRO: query_regex},
+            {f"{frs.CASE_FILE}.keyFindings": query_regex},
+            {"alertData.alertType": query_regex},
         ]},
         {
             "_id": 0,
-            "case_id": 1,
-            "entity_id": 1,
-            "investigation_status": 1,
-            "created_at": 1,
-            "typology.primary_typology": 1,
-            "triage_decision.risk_score": 1,
-            "narrative.introduction": 1,
+            frs.CASE_ID: 1,
+            frs.SOURCE_ENTITY_ID: 1,
+            frs.STATUS: 1,
+            frs.CREATED_AT: 1,
+            frs.PRIMARY_TYPOLOGY: 1,
+            frs.RISK_SCORE: 1,
+            frs.NARRATIVE_INTRO: 1,
         },
-    ).sort("created_at", -1).limit(limit))
+    ).sort(frs.CREATED_AT, -1).limit(limit))
 
-    return {"results": results, "query": q, "count": len(results)}
+    return {
+        "results": [frs.to_wire(r) for r in results],
+        "query": q,
+        "count": len(results),
+    }
 
 
 # ── Get investigation detail ─────────────────────────────────────────
@@ -516,12 +529,12 @@ async def search_investigations(q: str = "", limit: int = 20):
 async def get_investigation(case_id: str):
     """Get a single investigation by case_id."""
     client = get_mongo_client()
-    doc = client[DB_NAME]["threatsightInvestigations"].find_one(
-        {"case_id": case_id}, {"_id": 0}
+    doc = client[DB_NAME][frs.COLLECTION].find_one(
+        {frs.CASE_ID: case_id}, {"_id": 0}
     )
     if not doc:
         raise HTTPException(status_code=404, detail=f"Investigation {case_id} not found")
-    return doc
+    return frs.to_wire(doc)
 
 
 # ── Seed agent collections ───────────────────────────────────────────
@@ -654,7 +667,7 @@ async def investigation_change_stream(websocket: WebSocket):
         pipeline = [
             {"$match": {
                 "operationType": {"$in": ["insert", "update", "replace"]},
-                "ns.coll": "threatsightInvestigations",
+                "ns.coll": frs.COLLECTION,
             }},
         ]
 
@@ -666,7 +679,7 @@ async def investigation_change_stream(websocket: WebSocket):
                 if not doc:
                     continue
 
-                safe_doc = _make_json_safe(doc)
+                safe_doc = frs.to_wire(_make_json_safe(doc))
                 await websocket.send_json({
                     "type": "change",
                     "operationType": change["operationType"],
@@ -729,7 +742,7 @@ async def alerts_change_stream(websocket: WebSocket):
         pipeline = [
             {"$match": {
                 "operationType": {"$in": ["insert", "update", "replace"]},
-                "ns.coll": {"$in": ["threatsightAlerts", "threatsightInvestigations"]},
+                "ns.coll": {"$in": ["threatsightAlerts", frs.COLLECTION]},
             }},
         ]
 
@@ -757,15 +770,16 @@ async def alerts_change_stream(websocket: WebSocket):
                         },
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                     })
-                elif coll == "threatsightInvestigations":
+                elif coll == frs.COLLECTION:
+                    wire_doc = frs.to_wire(safe_doc)
                     await websocket.send_json({
                         "type": "investigation_change",
                         "operationType": change["operationType"],
                         "investigation": {
-                            "case_id": safe_doc.get("case_id"),
-                            "entity_id": safe_doc.get("entity_id"),
-                            "investigation_status": safe_doc.get("investigation_status"),
-                            "created_at": safe_doc.get("created_at"),
+                            "case_id": wire_doc.get("case_id"),
+                            "entity_id": wire_doc.get("entity_id"),
+                            "investigation_status": wire_doc.get("investigation_status"),
+                            "created_at": wire_doc.get("created_at"),
                         },
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                     })

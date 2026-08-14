@@ -123,6 +123,27 @@ The agentic investigation pipeline shows how a flagged alert is escalated throug
 - **Human Review (HITL)**: Durable pause via `interrupt_before` checkpoint for analyst sign-off
 - **Persist Case**: Finalizes and writes the case to MongoDB
 
+## Why MongoDB?
+
+Fraud detection and AML compliance need one platform to hold very different shapes of
+data and query them together, in real time:
+
+- **One document holds a whole customer, not a join.** A risk assessment needs a
+  customer's profile, their device history, and their transaction patterns in the same
+  read. Nested documents mean that read is one query, not five joined tables — and
+  fields can evolve per customer segment without a schema migration.
+- **Investigations are graph problems.** "Who else is connected to this shell company,
+  two hops out?" is a `$graphLookup` traversal, not a recursive SQL CTE. The agentic
+  pipeline's network analysis and the Entity 360 relationship view both run on it
+  directly, against live data.
+- **Fuzzy name matching and vector similarity in one query.** Sanctioned individuals
+  rarely appear under their exact legal name. `$rankFusion` combines Atlas Search's
+  fuzzy text matching with vector similarity in a single aggregation stage, so entity
+  resolution doesn't have to run two searches and merge the results by hand.
+- **A risk model can change without a deploy.** Change Streams push a new risk model's
+  weights to every connected client the moment it's activated — no polling, no restart,
+  no separate pub/sub system to keep in sync with the database.
+
 Let's get started!
 
 ## Prerequisites

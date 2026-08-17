@@ -615,7 +615,7 @@ CMD ["poetry", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "800
 
 ## Additional Resources
 
-- [MongoDB Atlas Search Documentation](https://www.mongodb.com/docs/atlas/atlas-search/)
+- [MongoDB Atlas Search Documentation](https://www.mongodb.com/docs/atlas/atlas-search/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel)
 - [AWS Bedrock Documentation](https://docs.aws.amazon.com/bedrock/)
 - [FastAPI Documentation](https://fastapi.tiangolo.com/)
 - [Poetry Documentation](https://python-poetry.org/docs/)

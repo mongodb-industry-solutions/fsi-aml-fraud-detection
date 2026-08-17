@@ -278,7 +278,7 @@ async def perform_comprehensive_search(
         request_entity_data = request.get("entity", {})
         search_config = request.get("searchConfig", {})
         
-        # Create proper request object with all expected fields for Atlas Search
+        # Create proper request object with all expected fields for MongoDB Search
         search_request = CompleteEntitySearchRequest(
             entity_name=request_entity_data.get('fullName', ''),
             entity_type=request_entity_data.get('entityType', 'individual'),
@@ -358,13 +358,13 @@ async def perform_comprehensive_search(
                 entity_id = match.entity_id
                 entity_data = getattr(match, 'entity_data', {})
                 search_score = getattr(match, 'search_score', 0)
-                match_reasons = getattr(match, 'match_reasons', ["Atlas search"])
+                match_reasons = getattr(match, 'match_reasons', ["MongoDB search"])
             elif isinstance(match, dict):
                 # Raw MongoDB document
                 entity_id = match.get("entityId", "")
                 entity_data = match
                 search_score = match.get("search_score", 0)
-                match_reasons = ["Atlas search"]
+                match_reasons = ["MongoDB search"]
             else:
                 continue
                 

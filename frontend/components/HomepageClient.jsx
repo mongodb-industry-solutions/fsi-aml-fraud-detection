@@ -27,7 +27,7 @@ const CAPABILITIES = [
     iconColor: palette.yellow.dark2,
     borderColor: palette.yellow.light2,
     title: 'Agentic Investigation',
-    description: "AI-powered multi-agent investigation pipeline built on LangGraph. MongoDB MongoDBSaver enables durable human-in-the-loop review, $graphLookup powers network traversal, Atlas Search drives RAG over typologies and compliance policies, and the flexible document model stores complete investigations as single rich documents.",
+    description: "AI-powered multi-agent investigation pipeline built on LangGraph. MongoDB MongoDBSaver enables durable human-in-the-loop review, $graphLookup powers network traversal, MongoDB Search drives RAG over typologies and compliance policies, and the flexible document model stores complete investigations as single rich documents.",
   },
   {
     href: '/entities',
@@ -54,7 +54,7 @@ const CAPABILITIES = [
     iconColor: palette.green.dark1,
     borderColor: palette.green.light2,
     title: 'Transaction Simulator',
-    description: 'Test fraud detection with real-time transaction monitoring. Uses MongoDB Atlas Vector Search to compare transaction patterns against known fraud embeddings for instant risk assessment.',
+    description: 'Test fraud detection with real-time transaction monitoring. Uses MongoDB Vector Search to compare transaction patterns against known fraud embeddings for instant risk assessment.',
   },
   {
     href: '/risk-models',
@@ -179,7 +179,7 @@ export default function HomepageClient() {
       }}>
         <H3 style={{ marginBottom: spacing[3] }}>Powered by MongoDB</H3>
         <Description style={{ maxWidth: '600px', margin: '0 auto' }}>
-          Built on MongoDB's advanced features including $rankFusion hybrid search, $graphLookup for network analysis, and Atlas Vector Search for AI-powered entity matching
+          Built on MongoDB's advanced features including $rankFusion hybrid search, $graphLookup for network analysis, and MongoDB Vector Search for AI-powered entity matching
         </Description>
       </div>
     </div>

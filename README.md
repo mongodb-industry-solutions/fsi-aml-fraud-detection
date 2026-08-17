@@ -19,7 +19,7 @@ ThreatSight 360 addresses these challenges with real-time risk assessment, AI-po
 > - **Durable Human-in-the-Loop** via `interrupt_before` checkpoints and `MongoDBSaver` — analysts resume hours or days later with zero context loss
 > - **ThreatSight Copilot** — a global, conversational ReAct agent with 15 MongoDB-backed tools and rich artifact rendering (Markdown, Mermaid, sandboxed HTML)
 > - **Live pipeline visualization** — ReactFlow graph with SSE-streamed node activations, animated `Send` fan-out, and stacked sub-agent satellites
-> - **Compliance-grade narrative grounding** — Atlas Search RAG over typology library + FinCEN policy corpus
+> - **Compliance-grade narrative grounding** — MongoDB Search RAG over typology library + FinCEN policy corpus
 > - **Powered by Claude Haiku 4.5** on AWS Bedrock with `with_structured_output()` for type-safe agent decisions
 
 By the end of this guide, you'll have a comprehensive fraud detection and AML/KYC compliance system up and running capable of:
@@ -31,7 +31,7 @@ By the end of this guide, you'll have a comprehensive fraud detection and AML/KY
 - **ThreatSight Copilot**: ReAct agent with 15 tools spanning fund flow tracing, temporal analysis, entity similarity, network intelligence, and policy/typology lookup — with rich artifact rendering (Markdown, Mermaid diagrams, interactive HTML) for analyst-driven exploration
 - **Automated Case Investigation**: AI-generated investigation reports and case documentation
 - **Network Analysis**: Relationship mapping and graph analytics for compliance investigations
-- **Vector-based Pattern Recognition**: Advanced similarity matching using MongoDB Atlas Vector Search
+- **Vector-based Pattern Recognition**: Advanced similarity matching using MongoDB Vector Search
 - **Dynamic Risk Model Management**: Configurable risk models with real-time updates
 
 We will walk you through the process of configuring and using [MongoDB Atlas](https://www.mongodb.com/atlas/database?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel) as your backend with [AWS Bedrock](https://aws.amazon.com/bedrock/) for AI-powered risk assessment and entity resolution in your [Next.js](https://nextjs.org/) and [FastAPI](https://fastapi.tiangolo.com/) application.
@@ -61,18 +61,18 @@ ThreatSight 360 uses a **dual-backend microservices architecture**:
 ### **Backend** (`/backend`, port 8000)
 
 - **Risk Model Management**: Multi-factor risk evaluation with risk models configurable in real-time with [MongoDB Atlas Change Streams](https://www.mongodb.com/docs/manual/changeStreams/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel).
-- **Transaction Screening**: Real-time transaction screening using [MongoDB Atlas Vector Search](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-overview/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel)
+- **Transaction Screening**: Real-time transaction screening using [MongoDB Vector Search](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-overview/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel)
 
 ### **AML Backend** (`/aml-backend`, port 8001)
 
 - **Entity Management**: Comprehensive individual and organization entity management with Customer 360 view possible due to the [MongoDB Document Model](https://www.mongodb.com/docs/manual/core/data-modeling-introduction/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel)
-- **Intelligent Entity Resolution**: [MongoDB Atlas Search](https://www.mongodb.com/docs/atlas/atlas-search/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel) fuzzy matching and duplicate detection
+- **Intelligent Entity Resolution**: [MongoDB Search](https://www.mongodb.com/docs/atlas/atlas-search/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel) fuzzy matching and duplicate detection
 - **LLM Classification Service**: AWS Bedrock Claude Haiku 4.5 for entity risk assessment
 - **Agentic Investigation Pipeline**: [LangGraph](https://langchain-ai.github.io/langgraph/)-orchestrated 6-agent SAR investigation system (Triage → Case Analyst → Trail Follower → Sub-Investigator → SAR Author → Compliance QA) with `MongoDBSaver` checkpointing, parallel `Send` fan-out for fetch tools and sub-agents, and durable `interrupt_before`-based human review
 - **ThreatSight Copilot**: ReAct agent with 15 tools for fund flow tracing, temporal analysis, entity similarity, and lead expansion with rich artifact rendering
 - **Investigation Service**: Automated case investigation and report generation
 - **Network Analysis**: Relationship and transaction graph traversal analytics using [MongoDB $graphLookup](https://www.mongodb.com/docs/manual/reference/operator/aggregation/graphLookup/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel)
-- **Atlas Search Integration**: Advanced search capabilities with [faceted filtering](https://www.mongodb.com/docs/atlas/atlas-search/facet/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel) and [autocomplete](https://www.mongodb.com/docs/atlas/atlas-search/autocomplete/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel)
+- **MongoDB Search Integration**: Advanced search capabilities with [faceted filtering](https://www.mongodb.com/docs/atlas/atlas-search/facet/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel) and [autocomplete](https://www.mongodb.com/docs/atlas/atlas-search/autocomplete/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel)
 
 ### **Frontend** (`/frontend`, port 3000)
 
@@ -137,7 +137,7 @@ data and query them together, in real time:
   pipeline's network analysis and the Entity 360 relationship view both run on it
   directly, against live data.
 - **Fuzzy name matching and vector similarity in one query.** Sanctioned individuals
-  rarely appear under their exact legal name. `$rankFusion` combines Atlas Search's
+  rarely appear under their exact legal name. `$rankFusion` combines MongoDB Search's
   fuzzy text matching with vector similarity in a single aggregation stage, so entity
   resolution doesn't have to run two searches and merge the results by hand.
 - **A risk model can change without a deploy.** Change Streams push a new risk model's
@@ -153,7 +153,7 @@ Before you begin working with this project, ensure that you have the following p
 - **Python 3.10–3.12**: The `backend` service supports Python 3.10+; `aml-backend` supports Python 3.10–3.12 (a transitive dependency, `voyageai`, isn't yet compatible with 3.13+). You can download a compatible version from the [official website](https://www.python.org/downloads/).
 - **Node.js 18+**: The frontend requires Node.js 18 or higher, which includes npm for package management. You can download it from the [official Node.js website](https://nodejs.org/).
 - **Poetry**: Both backend services use Poetry for dependency management. Install it by following the instructions on the [Poetry website](https://python-poetry.org/docs/#installation).
-- **MongoDB Atlas Account**: This project uses MongoDB Atlas for data storage, Atlas Search, and vector search capabilities. If you don't have an account, you can sign up for free at [MongoDB Atlas](https://www.mongodb.com/cloud/atlas/register). Once you have an account, follow these steps to set up a M10 tier cluster:
+- **MongoDB Atlas Account**: This project uses MongoDB Atlas for data storage, MongoDB Search, and vector search capabilities. If you don't have an account, you can sign up for free at [MongoDB Atlas](https://www.mongodb.com/cloud/atlas/register?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel). Once you have an account, follow these steps to set up a M10 tier cluster:
   - Log in to your MongoDB Atlas account.
   - Create a new project or use an existing one, and then click "create a new database".
   - Choose the M10 tier option.
@@ -255,7 +255,7 @@ Now it's time to clone the ThreatSight 360 source code from GitHub to your local
 
 ### Set up Vector Search
 
-ThreatSight 360 leverages MongoDB Atlas Vector Search for advanced fraud pattern recognition and entity similarity matching. Follow these steps to enable it:
+ThreatSight 360 leverages MongoDB Vector Search for advanced fraud pattern recognition and entity similarity matching. Follow these steps to enable it:
 
 #### 1. Fraud Pattern Vector Index
 
@@ -284,7 +284,7 @@ ThreatSight 360 leverages MongoDB Atlas Vector Search for advanced fraud pattern
 
 #### 2. Entity Resolution Search Index
 
-1. Create another Atlas Search index named "entity_resolution_search".
+1. Create another MongoDB Search index named "entity_resolution_search".
 2. Select the "entities" collection.
 3. Use the following comprehensive index definition for entity resolution:
 
@@ -356,7 +356,7 @@ ThreatSight 360 leverages MongoDB Atlas Vector Search for advanced fraud pattern
 
 #### 3. Entity Text Search Index
 
-For enhanced entity text matching, create an Atlas Search index named "entity_text_search_index":
+For enhanced entity text matching, create a MongoDB Search index named "entity_text_search_index":
 
 ```json
 {
@@ -506,7 +506,7 @@ PORT=8001
 # Frontend URL for CORS
 FRONTEND_URL=http://localhost:3000
 
-# Atlas Search Configuration
+# MongoDB Search Configuration
 ATLAS_SEARCH_INDEX=entity_resolution_search
 ATLAS_TEXT_SEARCH_INDEX=entity_text_search_index
 ENTITY_VECTOR_INDEX=entity_vector_search_index
@@ -609,7 +609,7 @@ The [Transaction Synthetic Data Generation notebook](docs/ThreatSight360%20-%20T
 
   - Standard indexes for query performance
   - Geospatial indexes for location-based fraud detection
-  - Atlas Search indexes for text search
+  - MongoDB Search indexes for text search
   - Vector search indexes for pattern matching
 
 **Key Features Demonstrated:**
@@ -731,7 +731,6 @@ The Entity Management interface provides comprehensive AML/KYC capabilities:
 
 1. Navigate to [http://localhost:3000/entities](http://localhost:3000/entities).
 2. Key capabilities include:
-
    - **Advanced Search**: Multi-strategy search with Atlas Search, autocomplete, and faceted filtering
    - **Entity Resolution**: AI-powered fuzzy matching and duplicate detection with vector search during onboarding
    - **Network Visualization**: Interactive relationship graphs using Cytoscape.js
@@ -760,7 +759,6 @@ The Enhanced Entity Resolution feature provides a comprehensive 5-step workflow 
    - Full Name
    - Address
 3. **Step 1 - Parallel Search**: The system performs AI-powered search using three methods simultaneously:
-
    - **Atlas Search**: Text-based fuzzy matching on names and addresses
    - **Vector Search**: Semantic similarity analysis using AWS Bedrock AI embeddings
    - **Hybrid Search**: MongoDB $rankFusion combining both approaches with contribution analysis
@@ -902,8 +900,8 @@ Check additional and accompanying resources below:
 ### MongoDB Resources
 
 - [MongoDB for Financial Services](https://www.mongodb.com/industries/financial-services?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel)
-- [MongoDB Atlas Search Documentation](https://www.mongodb.com/docs/atlas/atlas-search/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel)
-- [MongoDB Atlas Vector Search](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-overview/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel)
+- [MongoDB Search Documentation](https://www.mongodb.com/docs/atlas/atlas-search/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel)
+- [MongoDB Vector Search](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-overview/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel)
 - [MongoDB Change Streams](https://www.mongodb.com/docs/manual/changeStreams/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel)
 - [MongoDB $graphLookup](https://www.mongodb.com/docs/manual/reference/operator/aggregation/graphLookup/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel)
 - [MongoDB $rankFusion](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-stage/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel#atlas-vector-search-rankfusion)
@@ -917,7 +915,7 @@ Check additional and accompanying resources below:
 ### Key MongoDB Features Demonstrated
 
 - **Document Model**: Rich, nested structures for customer and entity profiles
-- **Atlas Search**: Full-text search with fuzzy matching and autocomplete
+- **MongoDB Search**: Full-text search with fuzzy matching and autocomplete
 - **Vector Search**: AI-powered similarity matching for fraud patterns and entity resolution
 - **$graphLookup**: Relationship network traversal for compliance investigations
 - **$rankFusion**: Hybrid search combining text and vector search

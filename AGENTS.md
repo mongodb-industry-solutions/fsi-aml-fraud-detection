@@ -50,7 +50,7 @@ backend/            Fraud detection API (FastAPI, port 8000)
   scripts/           One-off maintenance scripts (see migrate_customers.py)
 aml-backend/         AML/KYC + agentic investigation API (FastAPI, port 8001)
   routes/core/        Entity CRUD and resolution
-  routes/search/      Atlas Search, Vector Search, hybrid ($rankFusion)
+  routes/search/      MongoDB Search, Vector Search, hybrid ($rankFusion)
   routes/agents/      Investigation SSE streaming, Copilot chat
   repositories/       Repository pattern over reference/mongodb_core_lib.py
   services/agents/    LangGraph pipeline: graph.py, nodes/, tools/, seed.py
@@ -95,7 +95,7 @@ Both backends read `MONGODB_URI`, `DB_NAME`, `AWS_ACCESS_KEY_ID`,
 `RATE_LIMIT_INVESTIGATE` / `RATE_LIMIT_CHAT` (optional). See
 [backend/README.md](backend/README.md) and
 [aml-backend/README.md](aml-backend/README.md) for the full list and setup
-steps, including the five Atlas Search/Vector Search indexes to create.
+steps, including the five MongoDB Search/Vector Search indexes to create.
 
 Constraints worth knowing before you debug a failure:
 

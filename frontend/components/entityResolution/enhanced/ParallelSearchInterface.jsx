@@ -20,7 +20,7 @@ import EntityLink from '@/components/common/EntityLink';
 /**
  * Parallel Search Interface
  * 
- * Displays results from both Atlas Search and Vector Search in a modern,
+ * Displays results from both MongoDB Search and Vector Search in a modern,
  * side-by-side comparison with correlation analysis and combined intelligence.
  */
 function ParallelSearchInterface({ searchResults, originalEntityData, isLoading = false }) {
@@ -50,7 +50,7 @@ function ParallelSearchInterface({ searchResults, originalEntityData, isLoading 
           <Spinner size="large" />
           <H3>Performing Parallel Search</H3>
           <Body style={{ textAlign: 'center', color: palette.gray.dark1 }}>
-            Executing Atlas Search and Vector Search simultaneously...
+            Executing MongoDB Search and Vector Search simultaneously...
           </Body>
           <div style={{ 
             display: 'flex', 
@@ -59,7 +59,7 @@ function ParallelSearchInterface({ searchResults, originalEntityData, isLoading 
           }}>
             <div style={{ textAlign: 'center' }}>
               <Icon glyph="MagnifyingGlass" style={{ color: palette.blue.base }} />
-              <Body style={{ fontSize: '12px', marginTop: spacing[1] }}>Atlas Search</Body>
+              <Body style={{ fontSize: '12px', marginTop: spacing[1] }}>MongoDB Search</Body>
             </div>
             <div style={{ textAlign: 'center' }}>
               <Icon glyph="Diagram3" style={{ color: palette.purple.base }} />
@@ -383,9 +383,9 @@ function ParallelSearchInterface({ searchResults, originalEntityData, isLoading 
           <div>
             <H3 style={{ fontSize: '16px', marginBottom: spacing[3] }}>Search Parameters</H3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: spacing[3] }}>
-              {/* Atlas Search Query */}
+              {/* MongoDB Search Query */}
               <div>
-                <Label style={{ fontSize: '12px', color: palette.blue.dark1 }}>Atlas Search Query</Label>
+                <Label style={{ fontSize: '12px', color: palette.blue.dark1 }}>MongoDB Search Query</Label>
                 <div style={{ marginTop: spacing[1] }}>
                   <Code
                     language="json"
@@ -582,7 +582,7 @@ function ParallelSearchInterface({ searchResults, originalEntityData, isLoading 
         marginBottom: spacing[3]
       }}>
         {[
-          { id: 0, label: 'Atlas Search', icon: 'MagnifyingGlass', color: palette.blue.base },
+          { id: 0, label: 'MongoDB Search', icon: 'MagnifyingGlass', color: palette.blue.base },
           { id: 1, label: 'Vector Search', icon: 'Diagram3', color: palette.purple.base },
           { id: 2, label: 'Hybrid ($rankFusion)', icon: 'Connect', color: palette.green.base }
         ].map((tab) => (
@@ -612,7 +612,7 @@ function ParallelSearchInterface({ searchResults, originalEntityData, isLoading 
       {/* Tab Content */}
       <div style={{ minHeight: '400px' }}>
         
-        {/* Atlas Search Results */}
+        {/* MongoDB Search Results */}
         {selectedTab === 0 && (
           <div>
             <div style={{ 
@@ -626,7 +626,7 @@ function ParallelSearchInterface({ searchResults, originalEntityData, isLoading 
               </Body>
             </div>
             
-            {/* MongoDB Atlas Search Advantage */}
+            {/* MongoDB Search Advantage */}
             <div
               style={{
                 padding: spacing[2],
@@ -636,7 +636,7 @@ function ParallelSearchInterface({ searchResults, originalEntityData, isLoading 
               }}
             >
               <Body style={{ fontSize: '12px', color: palette.green.dark2 }}>
-                <strong>Atlas Search Advantage:</strong> Built-in full-text search with automatic index synchronization. 
+                <strong>MongoDB Search Advantage:</strong> Built-in full-text search with automatic index synchronization. 
                 No separate search cluster to manage, no data sync delays, no additional operational overhead.
               </Body>
             </div>

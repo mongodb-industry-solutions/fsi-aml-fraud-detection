@@ -1257,7 +1257,7 @@ class VectorSearchRepository(VectorSearchRepositoryInterface):
         return {
             "index_name": index_name,
             "optimization_applied": False,
-            "reason": "Manual optimization not required for Atlas Vector Search"
+            "reason": "Manual optimization not required for MongoDB Vector Search"
         }
     
     async def hybrid_search(self, text_query: str,

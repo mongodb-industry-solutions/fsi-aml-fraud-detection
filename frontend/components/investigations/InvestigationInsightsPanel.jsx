@@ -36,14 +36,14 @@ const TOOL_TO_MONGO_OP = {
     feature: 'Document Model',
   },
   search_typologies: {
-    op: 'Atlas Search on threatsightTypologyLibrary',
+    op: 'MongoDB Search on threatsightTypologyLibrary',
     desc: 'RAG search over 12 AML typologies with red-flag pattern matching',
-    feature: 'Atlas Search RAG',
+    feature: 'MongoDB Search RAG',
   },
   search_compliance_policies: {
-    op: 'Atlas Search on threatsightCompliancePolicies',
+    op: 'MongoDB Search on threatsightCompliancePolicies',
     desc: 'RAG search over FinCEN SAR filing requirements and regulatory guidance',
-    feature: 'Atlas Search RAG',
+    feature: 'MongoDB Search RAG',
   },
   compute_network_metrics: {
     op: 'db.relationships.aggregate()',
@@ -65,7 +65,7 @@ const AGENT_MONGO_OPS = {
 const FEATURE_COLORS = {
   'MongoDBSaver': { bg: palette.purple.light3, fg: palette.purple.dark2, border: palette.purple.light2 },
   '$graphLookup': { bg: palette.blue.light3, fg: palette.blue.dark1, border: palette.blue.light2 },
-  'Atlas Search RAG': { bg: palette.yellow.light3, fg: palette.yellow.dark2, border: palette.yellow.light2 },
+  'MongoDB Search RAG': { bg: palette.yellow.light3, fg: palette.yellow.dark2, border: palette.yellow.light2 },
   'Aggregation Pipeline': { bg: '#e8f5e9', fg: palette.green.dark2, border: palette.green.light1 },
   'Document Model': { bg: palette.green.light3, fg: palette.green.dark2, border: palette.green.light1 },
 };

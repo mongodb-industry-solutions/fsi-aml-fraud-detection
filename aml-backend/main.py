@@ -69,7 +69,7 @@ app = FastAPI(
     - Watchlist matching and compliance screening
     
     ### Intelligent Entity Resolution
-    - Atlas Search powered fuzzy matching
+    - MongoDB Search powered fuzzy matching
     - Duplicate detection during onboarding
     - Entity merging and master data management
     - Confidence scoring and match reasoning
@@ -81,7 +81,7 @@ app = FastAPI(
     - Connected component analysis
     
     ### Core Capabilities
-    - MongoDB Atlas Search integration for fuzzy matching
+    - MongoDB Search integration for fuzzy matching
     - Configurable matching algorithms with boost factors
     - Real-time entity resolution workflows
     - Comprehensive audit trails and compliance reporting
@@ -128,7 +128,7 @@ async def root():
         "features": [
             "Entity Management",
             "Intelligent Entity Resolution", 
-            "Atlas Search Integration",
+            "MongoDB Search Integration",
             "Relationship Management",
             "Network Analysis",
             "Agentic Investigation Pipeline"
@@ -239,7 +239,7 @@ def include_router_safely(app_instance, router, router_name):
 # Include routes in priority order (most specific first)
 
 # 1. Search routes (most specific prefixes)
-include_router_safely(app, atlas_search_router, "Atlas Search")
+include_router_safely(app, atlas_search_router, "MongoDB Search")
 include_router_safely(app, vector_search_router, "Vector Search") 
 include_router_safely(app, unified_search_router, "Unified Search")
 include_router_safely(app, entity_search_router, "Entity Search - Phase 7")  # Phase 7 Stage 2

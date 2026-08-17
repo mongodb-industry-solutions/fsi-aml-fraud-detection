@@ -33,7 +33,7 @@ class EntityRepository(EntityRepositoryInterface):
     Entity repository implementation using mongodb_core_lib
     
     Provides clean, efficient entity data access with advanced MongoDB features
-    including Atlas Search, Vector Search, and optimized aggregation pipelines.
+    including MongoDB Search, Vector Search, and optimized aggregation pipelines.
     """
     
     def __init__(self, mongodb_repo: MongoDBRepository, collection_name: Optional[str] = None):

@@ -413,7 +413,7 @@ def trace_fund_flow(
 def find_similar_entities(entity_id: str, limit: int = 5) -> dict:
     """Find entities with similar risk/behavioral profiles using vector search.
 
-    Reads the entity's profileEmbedding and runs Atlas Vector Search to find
+    Reads the entity's profileEmbedding and runs MongoDB Vector Search to find
     the most similar entities. Useful for discovering entities that share
     patterns with known suspicious actors.
     """

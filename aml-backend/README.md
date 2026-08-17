@@ -9,13 +9,13 @@
 
 In today's complex regulatory environment, financial institutions must maintain robust AML/KYC systems for compliance and risk management. This backend service provides comprehensive entity management, intelligent resolution, and relationship analysis capabilities designed specifically for financial services compliance operations.
 
-The AML/KYC backend leverages MongoDB Atlas Search, AWS Bedrock AI services, and advanced graph analytics to deliver real-time entity resolution, fuzzy matching, and network analysis capabilities that scale with your compliance operations.
+The AML/KYC backend leverages MongoDB Search, AWS Bedrock AI services, and advanced graph analytics to deliver real-time entity resolution, fuzzy matching, and network analysis capabilities that scale with your compliance operations.
 
 ## Key Features
 
-- **🔍 Intelligent Entity Resolution**: AI-powered fuzzy matching and duplicate detection using MongoDB Atlas Search
+- **🔍 Intelligent Entity Resolution**: AI-powered fuzzy matching and duplicate detection using MongoDB Search
 - **🌐 Network Analysis**: Relationship mapping and connected component analysis for compliance investigations
-- **⚡ Real-time Search**: Multi-strategy search with Atlas Search, Vector Search, and Unified Search
+- **⚡ Real-time Search**: Multi-strategy search with MongoDB Search, Vector Search, and Unified Search
 - **🎯 Risk Assessment**: Comprehensive entity risk scoring and watchlist matching
 - **🔗 Relationship Management**: Entity relationship tracking with audit trails
 - **📊 Advanced Analytics**: Performance metrics and search analytics
@@ -42,7 +42,7 @@ The AML backend follows a **clean architecture pattern** with three-layer organi
 ### **Service Layer** (Business Logic)
 
 - **Core Services**: Entity resolution, matching, confidence scoring
-- **Search Services**: Atlas Search, Vector Search, Unified Search
+- **Search Services**: MongoDB Search, Vector Search, Unified Search
 - **Network Services**: Graph analysis and relationship mapping
 - **Dependencies**: Clean FastAPI dependency injection
 
@@ -72,7 +72,7 @@ Before you begin, ensure you have the following:
   This only affects the virtualenv Poetry creates for `aml-backend` — it won't change your system or shell default Python.
 
 - **Poetry**: For dependency management and virtual environments
-- **MongoDB Atlas Account**: For data storage and Atlas Search capabilities
+- **MongoDB Atlas Account**: For data storage and MongoDB Search capabilities
 - **AWS Account with Bedrock Access**: For AI-powered entity resolution features
 - **Docker (Optional)**: For containerized deployment
 
@@ -108,20 +108,20 @@ PORT=8001
 # Frontend URL for CORS
 FRONTEND_URL=http://localhost:3000
 
-# Atlas Search Configuration
+# MongoDB Search Configuration
 ATLAS_SEARCH_INDEX=entity_search_index_v2
 ENTITY_VECTOR_INDEX=entity_vector_search_index
 ENTITY_IDENTIFIER_VECTOR_INDEX=entity_identifier_vector_index
 ENTITY_BEHAVIORAL_VECTOR_INDEX=entity_behavioral_vector_index
 ```
 
-### 3. MongoDB Atlas Search Setup
+### 3. MongoDB Search Setup
 
-The AML backend requires MongoDB Atlas Search indexes for optimal performance
+The AML backend requires MongoDB Search indexes for optimal performance
 
 #### Entity Resolution Search Index
 
-Create an Atlas Search index named `entity_resolution_search`:
+Create a MongoDB Search index named `entity_resolution_search`:
 
 ```json
 {
@@ -293,7 +293,7 @@ The API will be available at [http://localhost:8001](http://localhost:8001)
 | `/entities/search/unified`      | GET    | Unified multi-strategy entity search |
 | `/entities/search/autocomplete` | GET    | Real-time autocomplete suggestions   |
 | `/entities/search/facets`       | GET    | Available facet filters with counts  |
-| `/search/atlas/{query}`         | GET    | Atlas Search with fuzzy matching     |
+| `/search/atlas/{query}`         | GET    | MongoDB Search with fuzzy matching     |
 | `/search/vector/{query}`        | GET    | Vector similarity search             |
 | `/search/unified/{query}`       | GET    | Combined Atlas and Vector search     |
 
@@ -489,7 +489,7 @@ aml-backend/
 │   │   └── network_repository.py   # Network analysis interface
 │   ├── impl/                       # Repository implementations
 │   │   ├── entity_repository.py    # MongoDB entity implementation
-│   │   ├── atlas_search_repository.py # Atlas Search implementation
+│   │   ├── atlas_search_repository.py # MongoDB Search implementation
 │   │   ├── vector_search_repository.py # Vector search implementation
 │   │   ├── relationship_repository.py # Relationship implementation
 │   │   └── network_repository.py   # Network analysis implementation
@@ -505,7 +505,7 @@ aml-backend/
 │   │   └── relationship_service.py # Relationship management
 │   ├── search/                     # Search service
 │   │   ├── entity_search_service.py # Unified entity search
-│   │   ├── atlas_search_service.py # Atlas Search operation
+│   │   ├── atlas_search_service.py # MongoDB Search operation
 │   │   ├── vector_search_service.py # Vector similarity search
 │   │   └── unified_search_service.py # Combined search strategies
 │   ├── network/                    # Network analysis services
@@ -518,7 +518,7 @@ aml-backend/
 │   │   └── entity_resolution.py    # Resolution endpoints
 │   ├── search/                     # Search endpoints
 │   │   ├── entity_search.py        # Unified entity search
-│   │   ├── atlas_search.py         # Atlas Search endpoints
+│   │   ├── atlas_search.py         # MongoDB Search endpoints
 │   │   ├── vector_search.py        # Vector search endpoints
 │   │   └── unified_search.py       # Combined search endpoints
 │   ├── network/                    # Network analysis endpoints
@@ -536,7 +536,7 @@ aml-backend/
 │   └── embeddings.py               # Embedding generation
 │
 ├── utils/                          # Utility modules
-│   └── atlas_search_builder.py     # Atlas Search query builder
+│   └── atlas_search_builder.py     # MongoDB Search query builder
 │
 └── db/                             # Database utilities
     └── mongo_db.py                 # MongoDB connection management
@@ -615,7 +615,7 @@ CMD ["poetry", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "800
 
 ## Additional Resources
 
-- [MongoDB Atlas Search Documentation](https://www.mongodb.com/docs/atlas/atlas-search/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel)
+- [MongoDB Search Documentation](https://www.mongodb.com/docs/atlas/atlas-search/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel)
 - [AWS Bedrock Documentation](https://docs.aws.amazon.com/bedrock/)
 - [FastAPI Documentation](https://fastapi.tiangolo.com/)
 - [Poetry Documentation](https://python-poetry.org/docs/)

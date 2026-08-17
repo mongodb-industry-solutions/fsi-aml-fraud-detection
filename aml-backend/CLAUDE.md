@@ -44,7 +44,7 @@ poetry run uvicorn main:app --host 0.0.0.0 --port 8001 --reload
 
 **3. Service Layer (Business Logic)**
 - `services/core/`: Entity resolution, matching, confidence scoring
-- `services/search/`: Atlas Search, Vector Search, Unified Search
+- `services/search/`: MongoDB Search, Vector Search, Unified Search
 - `services/network/`: Graph analysis and relationship mapping
 - **Key Pattern**: Single responsibility with clean dependencies
 
@@ -56,7 +56,7 @@ poetry run uvicorn main:app --host 0.0.0.0 --port 8001 --reload
 - `resolution_history`: Audit trail for entity resolution decisions
 - `audit_logs`: Comprehensive operation logging
 
-**Atlas Search Indexes:**
+**MongoDB Search Indexes:**
 - `entity_resolution_search`: Full-text search with faceting and autocomplete
 - `entity_vector_search_index`: Vector similarity search for AI matching
 - `transaction_vector_index`: Fraud pattern vector search
@@ -125,7 +125,7 @@ poetry run uvicorn main:app --host 0.0.0.0 --port 8001 --reload
 
 ### Adding New Entity Types
 1. Update `EntityType` enum in `models/core/entity.py`
-2. Modify Atlas Search index mappings if needed
+2. Modify MongoDB Search index mappings if needed
 3. Update entity validation logic in repositories
 4. Add test cases in `test_mongodb_entities.py`
 
@@ -169,7 +169,7 @@ ENTITY_VECTOR_INDEX=entity_vector_search_index
 ```
 
 ### MongoDB Atlas Setup Requirements
-1. Atlas Search index: `entity_resolution_search` with faceting and autocomplete
+1. MongoDB Search index: `entity_resolution_search` with faceting and autocomplete
 2. Vector Search index: `entity_vector_search_index` for semantic matching
 3. Proper index field mappings for entity types and risk levels
 4. Change streams enabled for real-time updates
@@ -178,7 +178,7 @@ ENTITY_VECTOR_INDEX=entity_vector_search_index
 
 **Integration Tests**: Focus on end-to-end workflows
 - Entity creation and retrieval
-- Atlas Search functionality
+- MongoDB Search functionality
 - Entity resolution matching
 - Network relationship traversal
 
@@ -187,7 +187,7 @@ ENTITY_VECTOR_INDEX=entity_vector_search_index
 - Service business logic
 - Model validation and serialization
 
-**Performance Tests**: Atlas Search and aggregation performance
+**Performance Tests**: MongoDB Search and aggregation performance
 - Search response times under load
 - Complex aggregation pipeline performance
 - Vector search similarity accuracy

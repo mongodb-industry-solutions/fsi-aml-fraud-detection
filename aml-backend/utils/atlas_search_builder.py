@@ -1,7 +1,7 @@
 """
-AtlasSearchBuilder - Enhanced AggregationBuilder for MongoDB Atlas Search
+AtlasSearchBuilder - Enhanced AggregationBuilder for MongoDB Search
 
-Extends the mongodb_core_lib AggregationBuilder with Atlas Search-specific methods
+Extends the mongodb_core_lib AggregationBuilder with MongoDB Search-specific methods
 to eliminate manual pipeline construction and reduce code duplication.
 """
 
@@ -11,9 +11,9 @@ from reference.mongodb_core_lib import AggregationBuilder, AggregationStage
 
 class AtlasSearchBuilder(AggregationBuilder):
     """
-    Enhanced AggregationBuilder with Atlas Search-specific methods
+    Enhanced AggregationBuilder with MongoDB Search-specific methods
     
-    Provides fluent interface for building Atlas Search pipelines with:
+    Provides fluent interface for building MongoDB Search pipelines with:
     - Compound search operations
     - Autocomplete functionality  
     - Faceted search with $searchMeta
@@ -27,10 +27,10 @@ class AtlasSearchBuilder(AggregationBuilder):
         Initialize AtlasSearchBuilder with default search index
 
         Args:
-            index_name: Default Atlas Search index name
-            scope_filter: Optional Atlas Search clause applied as a `filter` to
+            index_name: Default MongoDB Search index name
+            scope_filter: Optional MongoDB Search clause applied as a `filter` to
                 every stage this builder emits. Use when the index covers a
-                superset of the documents a caller may see -- an Atlas Search
+                superset of the documents a caller may see -- an MongoDB Search
                 index cannot be scoped to a subset of a collection, and a
                 `find()`-level filter has no effect inside `$search`. A `filter`
                 clause restricts matches without contributing to the relevance
@@ -325,7 +325,7 @@ class AtlasSearchBuilder(AggregationBuilder):
         Common pattern: Add search stage + score + sort
         
         Args:
-            search_stage: Atlas Search stage configuration
+            search_stage: MongoDB Search stage configuration
             score_field: Search score field name
             sort_direction: Sort direction for scores
             index: Search index name

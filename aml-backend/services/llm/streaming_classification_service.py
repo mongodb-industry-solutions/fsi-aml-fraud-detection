@@ -246,7 +246,7 @@ Primary Address: {entity_address}
 Resolution Context: New entity onboarding with duplicate detection
 
 === SEARCH RESULTS ANALYSIS ===
-MongoDB Atlas Search Results: {atlas_count} potential text-based matches found
+MongoDB Search Results: {atlas_count} potential text-based matches found
 Vector Similarity Search Results: {vector_count} semantic similarity matches identified
 Hybrid Search Results ($rankFusion): {hybrid_count} combined weighted matches
 

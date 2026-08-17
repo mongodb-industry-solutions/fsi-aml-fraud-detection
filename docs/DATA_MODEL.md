@@ -376,12 +376,12 @@ Managed by `MongoDBStore` for cross-investigation learning. Stores namespace-sco
 
 ## 5. Index Reference
 
-### Atlas Search Indexes
+### MongoDB Search Indexes
 
 | Index Name | Collection | Type | Fields |
 |------------|-----------|------|--------|
-| `entity_resolution_search` | `threatsightEntities` | Atlas Search | `name.full` (autocomplete + string), `name.aliases` (string), `entityType` (stringFacet), `nationality` (stringFacet), `residency` (stringFacet), `jurisdictionOfIncorporation` (stringFacet), `riskAssessment.overall.level` (stringFacet), `riskAssessment.overall.score` (numberFacet), `customerInfo.businessType` (stringFacet) |
-| `entity_text_search_index` | `threatsightEntities` | Atlas Search | `name.full` (string), `name.aliases` (string), `addresses.full` (string), `entityType` (string), `identifiers.value` (string) |
+| `entity_resolution_search` | `threatsightEntities` | MongoDB Search | `name.full` (autocomplete + string), `name.aliases` (string), `entityType` (stringFacet), `nationality` (stringFacet), `residency` (stringFacet), `jurisdictionOfIncorporation` (stringFacet), `riskAssessment.overall.level` (stringFacet), `riskAssessment.overall.score` (numberFacet), `customerInfo.businessType` (stringFacet) |
+| `entity_text_search_index` | `threatsightEntities` | MongoDB Search | `name.full` (string), `name.aliases` (string), `addresses.full` (string), `entityType` (string), `identifiers.value` (string) |
 
 ### Vector Search Indexes
 

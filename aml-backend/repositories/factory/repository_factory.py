@@ -97,7 +97,7 @@ class RepositoryFactory:
         Get or create AtlasSearchRepository instance
         
         Returns:
-            AtlasSearchRepository: Configured Atlas Search repository
+            AtlasSearchRepository: Configured MongoDB Search repository
         """
         if "atlas_search" not in self._repositories:
             self._repositories["atlas_search"] = AtlasSearchRepository(
@@ -437,7 +437,7 @@ def get_atlas_search_repository() -> AtlasSearchRepository:
     FastAPI dependency function to get AtlasSearchRepository instance
     
     Returns:
-        AtlasSearchRepository: Configured Atlas Search repository
+        AtlasSearchRepository: Configured MongoDB Search repository
     """
     factory = get_global_repository_factory()
     return factory.get_atlas_search_repository()

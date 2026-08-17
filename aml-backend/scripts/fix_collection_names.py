@@ -75,7 +75,7 @@ def rebuild_indexes():
     txn.create_index([("flagged", ASCENDING)], name="txn_flagged_idx")
     print("[index] fraudEvaluation: rebuilt 9 indexes")
 
-    # threatsightEntities -- Atlas Search + Vector Search indexes.
+    # threatsightEntities -- MongoDB Search + Vector Search indexes.
     # profileEmbedding is the field name the app actually queries (confirmed in
     # hybrid_search_service.py, vector_search_repository.py, chat_tools.py) --
     # not "embedding", which models/database/collections.py's stale "legacy"
@@ -151,7 +151,7 @@ def rebuild_indexes():
         )
         print("[index] threatsightEntities: created entity_vector_search_index")
 
-    print("Waiting for Atlas Search indexes to become queryable...")
+    print("Waiting for MongoDB Search indexes to become queryable...")
     for _ in range(60):
         idxs = {i["name"]: i.get("queryable") for i in ent.list_search_indexes()}
         if all(idxs.get(n) for n in ["entity_resolution_search", "entity_text_search_index", "entity_vector_search_index"]):

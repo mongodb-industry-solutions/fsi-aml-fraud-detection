@@ -31,7 +31,7 @@ const PROCESSING_STEPS = {
     {
       id: 'atlas_search',
       title: 'Atlas Text Search',
-      description: 'Performing MongoDB Atlas Search with fuzzy text matching',
+      description: 'Performing MongoDB Search with fuzzy text matching',
       icon: 'MagnifyingGlass',
       estimatedTime: 1200
     },
@@ -463,7 +463,7 @@ function ProcessingStepsIndicator({
           margin: 0
         }}>
           {processType === 'parallelSearch'
-            ? 'Running Atlas Search, Vector Search, and Hybrid Search in parallel across MongoDB...'
+            ? 'Running MongoDB Search, Vector Search, and Hybrid Search in parallel across MongoDB...'
             : processType === 'llmClassification' 
             ? 'AI is analyzing your entity data using advanced language models...'
             : processType === 'caseInvestigation'

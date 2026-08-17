@@ -1,7 +1,7 @@
 """
 Enhanced Entity Search Service - Phase 7 Implementation
 
-Comprehensive entity search service leveraging the full Atlas Search index with
+Comprehensive entity search service leveraging the full MongoDB Search index with
 advanced faceted filtering, autocomplete, and intelligent search capabilities.
 
 This service provides:
@@ -29,7 +29,7 @@ class EntitySearchService:
     """
     Enhanced entity search service implementing Phase 7 requirements
     
-    Leverages the comprehensive Atlas Search index with all available facet fields:
+    Leverages the comprehensive MongoDB Search index with all available facet fields:
     - entityType, nationality, residency, jurisdiction
     - addresses.structured.country/city
     - identifiers.type, customerInfo.businessType
@@ -44,7 +44,7 @@ class EntitySearchService:
         Initialize EntitySearchService with repository dependencies
         
         Args:
-            atlas_search_repo: Atlas Search repository for search operations
+            atlas_search_repo: MongoDB Search repository for search operations
             entity_repo: Entity repository for data enhancement
         """
         self.atlas_search = atlas_search_repo
@@ -242,12 +242,12 @@ class EntitySearchService:
             
             logger.debug(f"Repository filters to apply: {repository_filters}")
             
-            # Pure repository approach - let repository handle Atlas Search + fallback
+            # Pure repository approach - let repository handle MongoDB Search + fallback
             entities, total_count = await self.entity_repo.get_entities_paginated(
                 skip=0, limit=limit, filters=repository_filters
             )
             
-            # Repository now handles Atlas Search with robust fallback (Phase 1 fix)
+            # Repository now handles MongoDB Search with robust fallback (Phase 1 fix)
             return {
                 "results": entities,
                 "total_results": total_count,
@@ -324,7 +324,7 @@ class EntitySearchService:
         Enhance search results with additional entity data
         
         Args:
-            results: Raw search results from Atlas Search
+            results: Raw search results from MongoDB Search
             
         Returns:
             Enhanced results with additional entity information
@@ -357,7 +357,7 @@ class EntitySearchService:
             List of search suggestions
         """
         try:
-            # Use Atlas Search suggestions if available
+            # Use MongoDB Search suggestions if available
             suggestions = await self.atlas_search.get_search_suggestions(query, limit=5)
             return suggestions
             

@@ -1,7 +1,7 @@
 """
 Hybrid Search Service using MongoDB $rankFusion
 
-Implementation of MongoDB's native $rankFusion for combining Atlas Search and Vector Search
+Implementation of MongoDB's native $rankFusion for combining MongoDB Search and Vector Search
 results in a single optimized query. This replaces manual score combination logic with
 MongoDB's proven reciprocal rank fusion algorithm.
 """
@@ -22,7 +22,7 @@ class HybridSearchService:
     
     def __init__(self, collection: AsyncIOMotorCollection):
         self.collection = collection
-        self.atlas_index_name = "entity_text_search_index"  # Correct index name from working Atlas search
+        self.atlas_index_name = "entity_text_search_index"  # Correct index name from working MongoDB search
         self.vector_index_name = "entity_vector_search_index"
         self.vector_field_name = "profileEmbedding"  # Correct field name from working vector search
     
@@ -39,10 +39,10 @@ class HybridSearchService:
         Perform hybrid search using MongoDB $rankFusion
         
         Args:
-            query_text: Text query for Atlas Search
+            query_text: Text query for MongoDB Search
             query_embedding: Vector embedding for Vector Search
             limit: Maximum results to return
-            atlas_weight: Weight for Atlas Search pipeline (default: 1)
+            atlas_weight: Weight for MongoDB Search pipeline (default: 1)
             vector_weight: Weight for Vector Search pipeline (default: 1)
             num_candidates_multiplier: Multiplier for vector search candidates
             

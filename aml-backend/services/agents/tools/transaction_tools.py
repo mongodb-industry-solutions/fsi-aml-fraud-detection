@@ -14,11 +14,10 @@ transaction activity for every fraud-sourced customer.
 
 import logging
 from langchain_core.tools import tool
-from dependencies import get_mongo_client, DB_NAME
+from dependencies import get_mongo_client, DB_NAME, FRAUD_EVAL_COLLECTION
 
 logger = logging.getLogger(__name__)
 
-FRAUD_EVAL_COLLECTION = "fraudEvaluation"
 TRANSACTIONS_COLLECTION = "transactions"
 
 

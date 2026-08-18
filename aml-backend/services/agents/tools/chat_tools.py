@@ -3,7 +3,8 @@
 import logging
 import os
 from langchain_core.tools import tool
-from dependencies import get_mongo_client, DB_NAME, RELATIONSHIPS_COLLECTION
+from dependencies import (get_mongo_client, DB_NAME, RELATIONSHIPS_COLLECTION,
+                          FRAUD_EVAL_COLLECTION)
 # Phase-2 step 3 migration: entity ids flowing into this file are now
 # `customers.customerId` values (see services/agents/entity_resolution.py),
 # so the graph traverses on the same key the entity side resolves on.
@@ -337,7 +338,7 @@ def trace_fund_flow(
     """
     client = get_mongo_client()
     db = client[DB_NAME]
-    coll = db["fraudEvaluation"]
+    coll = db[FRAUD_EVAL_COLLECTION]
 
     # `fraudEvaluation` only ever holds AML-sourced entities' evaluations, so a
     # fraud-sourced id (out of scope for this surface -- see agentic_scoped())

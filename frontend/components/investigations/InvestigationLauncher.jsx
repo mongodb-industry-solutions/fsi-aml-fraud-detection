@@ -129,10 +129,10 @@ const TYPOLOGY_LABELS = {
 };
 
 const TOOL_FRIENDLY_NAMES = {
-  get_entity_profile: 'Fetching Entity Profile (db.entities.findOne)',
+  get_entity_profile: 'Fetching Entity Profile (db.customers.findOne)',
   query_entity_transactions: 'Querying Transactions (aggregate pipeline)',
   analyze_entity_network: 'Analyzing Entity Network ($graphLookup)',
-  screen_watchlists: 'Screening Watchlists (db.entities.find)',
+  screen_watchlists: 'Screening Watchlists (db.customers.find)',
   search_typologies: 'Searching Typology Library (Atlas Search RAG)',
   search_compliance_policies: 'Searching Compliance Policies (Atlas Search RAG)',
   compute_network_metrics: 'Computing Network Metrics ($graphLookup)',

@@ -9,14 +9,19 @@ import { uiTokens } from './investigationTokens';
 
 const FONT = uiTokens.font;
 
+// Display labels only -- the collection names below are duplicated from the
+// backend and must be updated by hand when a collection moves. Source of truth
+// is the query code: aml-backend/dependencies.py (ENTITIES_COLLECTION,
+// RELATIONSHIPS_COLLECTION), services/agents/tools/transaction_tools.py,
+// services/agents/seed.py and services/agents/fraud_resolution_shape.py.
 const TOOL_TO_MONGO_OP = {
   get_entity_profile: {
-    op: 'db.entities.findOne()',
-    desc: 'Fetching entity profile and KYC data from the entities collection',
+    op: 'db.customers.findOne()',
+    desc: 'Fetching entity profile and KYC data from the customers collection',
     feature: 'Document Model',
   },
   query_entity_transactions: {
-    op: 'db.transactionsv2.aggregate()',
+    op: 'db.transactions.aggregate()',
     desc: 'Aggregation pipeline for transaction history, risk stats, and red-flag tags',
     feature: 'Aggregation Pipeline',
   },
@@ -26,17 +31,17 @@ const TOOL_TO_MONGO_OP = {
     feature: '$graphLookup',
   },
   screen_watchlists: {
-    op: 'db.entities.find({ watchlist })',
+    op: 'db.customers.find({ watchlist })',
     desc: 'Querying watchlist matches and sanctions/PEP screening results',
     feature: 'Document Model',
   },
   search_typologies: {
-    op: 'Atlas Search on typology_library',
+    op: 'Atlas Search on threatsightTypologyLibrary',
     desc: 'RAG search over 12 AML typologies with red-flag pattern matching',
     feature: 'Atlas Search RAG',
   },
   search_compliance_policies: {
-    op: 'Atlas Search on compliance_policies',
+    op: 'Atlas Search on threatsightCompliancePolicies',
     desc: 'RAG search over FinCEN SAR filing requirements and regulatory guidance',
     feature: 'Atlas Search RAG',
   },
@@ -54,7 +59,7 @@ const AGENT_MONGO_OPS = {
   narrative: { op: 'MongoDBSaver checkpoint', feature: 'MongoDBSaver', desc: 'Persisting generated SAR narrative' },
   validation: { op: 'MongoDBSaver checkpoint', feature: 'MongoDBSaver', desc: 'Checkpointing validation result and routing decision' },
   human_review: { op: 'MongoDBSaver interrupt()', feature: 'MongoDBSaver', desc: 'Durable pipeline pause — full state persisted for resume' },
-  finalize: { op: 'db.investigations.insertOne()', feature: 'Document Model', desc: 'Persisting complete investigation as a single rich document' },
+  finalize: { op: 'db.fraudResolution.insertOne()', feature: 'Document Model', desc: 'Persisting complete investigation as a single rich document' },
 };
 
 const FEATURE_COLORS = {
@@ -153,7 +158,7 @@ export default function InvestigationInsightsPanel({ events = [], running = fals
     if (accumulatedEvidence?.validation_result) cps.push({ node: 'validation', label: 'Quality Validation', keys: Object.keys(accumulatedEvidence.validation_result) });
     if (accumulatedEvidence?.human_decision) cps.push({ node: 'human_review', label: 'Human Review (HITL Interrupt)', keys: Object.keys(accumulatedEvidence.human_decision) });
     const hasFinalize = accumulatedEvidence?.case_id || events.some(e => e.type === 'agent_end' && e.agent === 'finalize');
-    if (hasFinalize) cps.push({ node: 'finalize', label: 'Case Persistence', keys: ['case_id', 'investigation_status', 'db.investigations.insertOne()'] });
+    if (hasFinalize) cps.push({ node: 'finalize', label: 'Case Persistence', keys: ['case_id', 'investigation_status', 'db.fraudResolution.insertOne()'] });
     return cps;
   }, [accumulatedEvidence, events]);
 

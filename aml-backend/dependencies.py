@@ -93,6 +93,19 @@ ENTITIES_COLLECTION = os.getenv("ENTITIES_COLLECTION", "customers")
 # repositories/relationship_fields.py.
 RELATIONSHIPS_COLLECTION = os.getenv("RELATIONSHIPS_COLLECTION", "relationships")
 
+# Fraud evaluations. Read-only -- nothing in either backend writes here, so a
+# parallel copy cannot drift from the live one.
+#
+# The collection name is configurable because its ENTITY REFERENCES ARE COUPLED TO
+# `ENTITIES_COLLECTION`: `fromEntityId`/`toEntityId` join against the entity docs, and
+# the two vocabularies are incompatible. The as-is copy of legacy `transactionsv2`
+# carries `SHL9-`/`PEP0-` ids and pairs with `threatsightEntities`; the BIAN build
+# carries `CUST-` ids and pairs with `customers`. Rewriting one in place breaks
+# whichever deployment is not yet on the matching code, so migrate by loading the
+# rekeyed build into a SEPARATE collection and flipping this var -- rollback is then
+# an env change, not a 12,766-doc restore. Flip it together with ENTITIES_COLLECTION.
+FRAUD_EVAL_COLLECTION = os.getenv("FRAUD_EVAL_COLLECTION", "fraudEvaluation")
+
 # LangGraph checkpoint collections. Both the investigation graph (services/agents/graph.py)
 # and the chat agent (services/agents/chat_agent.py) share these, which preserves the
 # pre-rename behaviour where both used the library defaults.

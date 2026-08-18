@@ -1121,12 +1121,13 @@ async def analyze_hybrid_search_network_risk(
         try:
             # Enhanced transaction analysis using actual transactionsv2 collection
             from repositories.impl.transaction_repository import TransactionRepository
-            from dependencies import get_database
-            
-            # Get transaction repository to query transactionsv2 collection
+            from dependencies import (get_database, FRAUD_EVAL_COLLECTION,
+                                      ENTITIES_COLLECTION)
+
+            # Get transaction repository to query the fraud-evaluation collection
             db = get_database()
-            transactions_collection = db.fraudEvaluation
-            customers_collection = db.customers
+            transactions_collection = db[FRAUD_EVAL_COLLECTION]
+            customers_collection = db[ENTITIES_COLLECTION]
             transaction_repo = TransactionRepository(transactions_collection, customers_collection)
             
             # Get transaction activity for the target entity

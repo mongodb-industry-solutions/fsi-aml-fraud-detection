@@ -20,7 +20,8 @@ from typing import Any, Dict, Optional
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
-from dependencies import get_mongo_client, get_database, DB_NAME
+from dependencies import (get_mongo_client, get_database, DB_NAME,
+                          FRAUD_EVAL_COLLECTION)
 from repositories import entity_fields as ef
 from services.agents import fraud_resolution_shape as frs
 from services.agents.entity_resolution import agentic_scoped
@@ -583,7 +584,7 @@ async def list_investigable_entities():
     pipeline = [
         {"$match": agentic_scoped({})},
         {"$lookup": {
-            "from": "fraudEvaluation",
+            "from": FRAUD_EVAL_COLLECTION,
             "let": {"eid": f"${ef.CUSTOMER_ID}"},
             "pipeline": [
                 {"$match": {"$expr": {"$or": [

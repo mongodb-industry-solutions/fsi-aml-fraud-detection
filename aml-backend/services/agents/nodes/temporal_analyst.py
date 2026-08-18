@@ -8,7 +8,8 @@ import logging
 import time
 from datetime import datetime, timezone
 
-from dependencies import get_mongo_client, DB_NAME
+from dependencies import (get_mongo_client, DB_NAME,
+                          FRAUD_EVAL_COLLECTION as COLLECTION)
 from models.agents.investigation import TemporalAnalysis
 from repositories import entity_fields as ef
 from services.agents.entity_resolution import agentic_scoped
@@ -16,7 +17,6 @@ from services.agents.state import InvestigationState
 
 logger = logging.getLogger(__name__)
 
-COLLECTION = "fraudEvaluation"
 STRUCTURING_THRESHOLD = 10_000
 STRUCTURING_LOWER = 8_000
 DORMANCY_GAP_DAYS = 30

@@ -78,6 +78,7 @@ IDENTIFIER_VALUE = "identifiers.value"          # unchanged
 SCENARIO_KEY = "screening.scenarioKey"
 WATCHLIST_MATCHES = "screening.watchlistMatches"
 RESOLUTION = "screening.resolution"
+BEHAVIORAL_PROFILE = "behavioralProfile"        # was `behavioral_analytics`
 CREATED_AT = "createdAt"
 UPDATED_AT = "updatedAt"
 
@@ -277,10 +278,11 @@ def wire_projection(include_embeddings=True):
     field inventory in the phase-2 handover before changing any of them.
 
     Fields the BIAN transform carried over verbatim (`identifiers`,
-    `residency`, the embeddings, `behavioral_analytics`, `account_info`) are
-    projected through unchanged. If any of those turn out to live under a
-    different BIAN path, they arrive absent rather than wrong, and the frontend
-    already guards each with optional chaining.
+    `residency`, the embeddings, `account_info`) are projected through
+    unchanged. If any of those turn out to live under a different BIAN path,
+    they arrive absent rather than wrong, and the frontend already guards each
+    with optional chaining -- which is how `behavioral_analytics` silently
+    emptied the Behavioural tab until it was mapped to `behavioralProfile`.
     """
     proj = {
         "_id": 1,
@@ -313,7 +315,9 @@ def wire_projection(include_embeddings=True):
         "identifierText": 1,
         "behavioralText": 1,
         "customerInfo": f"${CUSTOMER_INFO}",
-        "behavioral_analytics": 1,
+        # The BIAN transform renamed this to `behavioralProfile` (build_sd1.py);
+        # the wire key stays snake_case because EntityDetail.jsx reads it.
+        "behavioral_analytics": f"${BEHAVIORAL_PROFILE}",
         "account_info": 1,
         "watchlistMatches": {"$ifNull": [f"${WATCHLIST_MATCHES}", []]},
         "riskAssessment": "$riskProfile",

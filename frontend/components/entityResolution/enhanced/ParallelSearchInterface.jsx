@@ -24,7 +24,7 @@ import EntityLink from '@/components/common/EntityLink';
  * side-by-side comparison with correlation analysis and combined intelligence.
  */
 function ParallelSearchInterface({ searchResults, originalEntityData, isLoading = false }) {
-  const [selectedTab, setSelectedTab] = useState(0); // 0: Atlas, 1: Vector, 2: Hybrid
+  const [selectedTab, setSelectedTab] = useState(0); // 0: MongoDB Search, 1: Vector, 2: Hybrid
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedEntityId, setSelectedEntityId] = useState(null);
 
@@ -142,7 +142,7 @@ function ParallelSearchInterface({ searchResults, originalEntityData, isLoading 
   };
 
   /**
-   * Render search results table for individual search types (Atlas/Vector)
+   * Render search results table for individual search types (MongoDB Search/Vector)
    */
   const renderIndividualResultsTable = (results, searchType) => {
     if (!results || results.length === 0) {
@@ -562,7 +562,7 @@ function ParallelSearchInterface({ searchResults, originalEntityData, isLoading 
         <div style={{ display: 'flex', gap: spacing[3], fontSize: '12px' }}>
           <div style={{ textAlign: 'center' }}>
             <Body weight="medium">{atlasResults.length}</Body>
-            <Body style={{ color: palette.gray.dark1 }}>Atlas</Body>
+            <Body style={{ color: palette.gray.dark1 }}>MongoDB</Body>
           </div>
           <div style={{ textAlign: 'center' }}>
             <Body weight="medium">{vectorResults.length}</Body>
@@ -641,7 +641,7 @@ function ParallelSearchInterface({ searchResults, originalEntityData, isLoading 
               </Body>
             </div>
             
-            {renderIndividualResultsTable(atlasResults, 'Atlas')}
+            {renderIndividualResultsTable(atlasResults, 'MongoDB Search')}
           </div>
         )}
 

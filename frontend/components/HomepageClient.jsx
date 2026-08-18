@@ -45,7 +45,7 @@ const CAPABILITIES = [
     iconColor: palette.purple.dark1,
     borderColor: palette.purple.light2,
     title: 'Entity Resolution/KYC',
-    description: 'Find duplicate entities and match identities across systems. MongoDB $rankFusion combines Atlas text search with vector embeddings to catch variations in names, addresses, and identifiers.',
+    description: 'Find duplicate entities and match identities across systems. MongoDB $rankFusion combines MongoDB Search with vector embeddings to catch variations in names, addresses, and identifiers.',
   },
   {
     href: '/transaction-simulator',

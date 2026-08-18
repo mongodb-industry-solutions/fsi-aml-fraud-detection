@@ -30,7 +30,7 @@ const PROCESSING_STEPS = {
     },
     {
       id: 'atlas_search',
-      title: 'Atlas Text Search',
+      title: 'MongoDB Text Search',
       description: 'Performing MongoDB Search with fuzzy text matching',
       icon: 'MagnifyingGlass',
       estimatedTime: 1200
@@ -45,7 +45,7 @@ const PROCESSING_STEPS = {
     {
       id: 'hybrid_search',
       title: 'Hybrid Search ($rankFusion)',
-      description: 'Combining Atlas and Vector search using MongoDB $rankFusion',
+      description: 'Combining MongoDB Search and Vector search using MongoDB $rankFusion',
       icon: 'Connect',
       estimatedTime: 800
     },

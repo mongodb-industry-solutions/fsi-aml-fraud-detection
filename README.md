@@ -731,7 +731,7 @@ The Entity Management interface provides comprehensive AML/KYC capabilities:
 
 1. Navigate to [http://localhost:3000/entities](http://localhost:3000/entities).
 2. Key capabilities include:
-   - **Advanced Search**: Multi-strategy search with Atlas Search, autocomplete, and faceted filtering
+   - **Advanced Search**: Multi-strategy search with MongoDB Search, autocomplete, and faceted filtering
    - **Entity Resolution**: AI-powered fuzzy matching and duplicate detection with vector search during onboarding
    - **Network Visualization**: Interactive relationship graphs using Cytoscape.js
 3. Search and filter entities using:
@@ -759,7 +759,7 @@ The Enhanced Entity Resolution feature provides a comprehensive 5-step workflow 
    - Full Name
    - Address
 3. **Step 1 - Parallel Search**: The system performs AI-powered search using three methods simultaneously:
-   - **Atlas Search**: Text-based fuzzy matching on names and addresses
+   - **MongoDB Search**: Text-based fuzzy matching on names and addresses
    - **Vector Search**: Semantic similarity analysis using AWS Bedrock AI embeddings
    - **Hybrid Search**: MongoDB $rankFusion combining both approaches with contribution analysis
 4. **Step 2 - Network Analysis**: Comprehensive network risk assessment for top 3 hybrid search matches:

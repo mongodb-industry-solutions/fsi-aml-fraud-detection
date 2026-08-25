@@ -56,7 +56,7 @@ class AtlasSearchBuilder(AggregationBuilder):
         return list(filters or []) + [self.scope_filter]
 
 
-    # ==================== ATLAS SEARCH STAGES ====================
+    # ==================== MongoDB Search STAGES ====================
     
     def compound_search(self, 
                        must: Optional[List[Dict]] = None,

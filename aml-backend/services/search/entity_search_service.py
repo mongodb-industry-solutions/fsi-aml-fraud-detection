@@ -51,7 +51,7 @@ class EntitySearchService:
         self.entity_repo = entity_repo
         self.index_name = os.getenv('ATLAS_SEARCH_INDEX', 'entity_search_indexv2')
         
-        # Facet configuration matching corrected Atlas Search index (only stringFacet and numberFacet fields)
+        # Facet configuration matching corrected MongoDB Search index (only stringFacet and numberFacet fields)
         # Paths must match threat360-migration/create_customers_search_indexes.py
         # exactly -- a path not present in the index definition silently returns
         # an empty bucket rather than erroring.

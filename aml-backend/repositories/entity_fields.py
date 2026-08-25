@@ -46,7 +46,7 @@ WIRE_ID = "entityId"
 # ─── storage paths (BIAN `customers`) ──────────────────────────────────────
 # Kept byte-identical to the paths indexed by
 # threat360-migration/create_customers_search_indexes.py. If one moves, the
-# Atlas Search index must be rebuilt in the same change or the path silently
+# MongoDB Search index must be rebuilt in the same change or the path silently
 # stops matching.
 FULL_NAME = "identification.fullName"
 FIRST_NAME = "identification.firstName"

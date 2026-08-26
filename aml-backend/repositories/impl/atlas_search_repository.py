@@ -1,5 +1,5 @@
 """
-Simplified Atlas Search Repository - Core functionality only
+Simplified MongoDB Search Repository - Core functionality only
 
 Reduced from 1000+ lines with 47 methods to ~250 lines with 6 essential methods.
 Eliminates 87% of unused code while preserving all production functionality.
@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 @dataclass
 class SearchQueryParams:
-    """Parameters for Atlas Search queries"""
+    """Parameters for MongoDB Search queries"""
     query: str
     fields: Optional[List[str]] = None
     fuzzy: bool = True
@@ -43,9 +43,9 @@ logger.setLevel(logging.DEBUG)
 
 class AtlasSearchRepository:
     """
-    Simplified Atlas Search repository - Core functionality only
+    Simplified MongoDB Search repository - Core functionality only
     
-    Provides the 6 essential Atlas Search methods actually used in production:
+    Provides the 6 essential MongoDB Search methods actually used in production:
     - autocomplete_search() - Real-time autocomplete suggestions  
     - find_entity_matches() - Entity matching for resolution workflows
     - faceted_search() - Faceted filtering with counts
@@ -60,12 +60,12 @@ class AtlasSearchRepository:
                  collection_name: str = "customers",
                  search_index_name: str = "entity_search_indexv2"):
         """
-        Initialize Atlas Search repository
+        Initialize MongoDB Search repository
         
         Args:
             mongodb_repo: MongoDB repository instance from core lib
             collection_name: Name of the collection to search
-            search_index_name: Name of the Atlas Search index
+            search_index_name: Name of the MongoDB Search index
         """
         self.repo = mongodb_repo
         self.collection_name = collection_name
@@ -76,7 +76,7 @@ class AtlasSearchRepository:
         import os
         self.text_search_index = os.getenv("ATLAS_TEXT_SEARCH_INDEX", "entity_text_search_index")
         
-        # Initialize atlas search capabilities
+        # Initialize MongoDB search capabilities
         self.ai_search = self.repo.ai_search(collection_name)
         self.aggregation = self.repo.aggregation
         
@@ -285,7 +285,7 @@ class AtlasSearchRepository:
                        .project(self._search_result_projection())
                        .build())
             
-            logger.debug(f"Executing Atlas Search pipeline: {pipeline}")
+            logger.debug(f"Executing MongoDB Search pipeline: {pipeline}")
             
             # Execute compound search
             results = await self.repo.execute_pipeline(self.collection_name, pipeline)
@@ -325,7 +325,7 @@ class AtlasSearchRepository:
                        .project(self._search_result_projection())
                        .build())
             
-            logger.debug(f"Executing Atlas Search pipeline with index {index_name}: {pipeline}")
+            logger.debug(f"Executing MongoDB Search pipeline with index {index_name}: {pipeline}")
             
             # Execute compound search
             results = await self.repo.execute_pipeline(self.collection_name, pipeline)

@@ -10,6 +10,7 @@ from typing import Dict, Any, Optional
 import os
 
 from reference.mongodb_core_lib import MongoDBRepository
+from db_config import APP_NAME
 from repositories.impl.entity_repository import EntityRepository
 from repositories.impl.relationship_repository import RelationshipRepository
 from repositories.impl.atlas_search_repository import AtlasSearchRepository
@@ -48,7 +49,8 @@ class RepositoryFactory:
         self.mongodb_repo = MongoDBRepository(
             connection_string=self.connection_string,
             database_name=self.database_name,
-            bedrock_client=self.bedrock_client
+            bedrock_client=self.bedrock_client,
+            app_name=APP_NAME
         )
         
         # Repository instances cache
@@ -95,7 +97,7 @@ class RepositoryFactory:
         Get or create AtlasSearchRepository instance
         
         Returns:
-            AtlasSearchRepository: Configured Atlas Search repository
+            AtlasSearchRepository: Configured MongoDB Search repository
         """
         if "atlas_search" not in self._repositories:
             self._repositories["atlas_search"] = AtlasSearchRepository(
@@ -435,7 +437,7 @@ def get_atlas_search_repository() -> AtlasSearchRepository:
     FastAPI dependency function to get AtlasSearchRepository instance
     
     Returns:
-        AtlasSearchRepository: Configured Atlas Search repository
+        AtlasSearchRepository: Configured MongoDB Search repository
     """
     factory = get_global_repository_factory()
     return factory.get_atlas_search_repository()

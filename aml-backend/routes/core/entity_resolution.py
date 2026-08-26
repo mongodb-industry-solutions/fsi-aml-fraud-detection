@@ -59,7 +59,7 @@ async def find_entity_matches(
     - Clean service orchestration
     
     **Search Algorithm:**
-    - MongoDB Atlas Search compound queries with configurable weights
+    - MongoDB Search compound queries with configurable weights
     - Multi-attribute matching with fuzzy tolerance
     - Confidence scoring with detailed match reasons
     - Optimized performance through repository pattern
@@ -279,7 +279,7 @@ async def find_potential_matches_for_entity(
     existing entity using multiple matching strategies and confidence analysis.
     
     **Enhanced Matching Capabilities:**
-    - Multi-strategy matching (Atlas Search + Vector Search)
+    - Multi-strategy matching (MongoDB Search + Vector Search)
     - Advanced confidence scoring and analysis
     - Match attribute analysis and validation
     - Repository-based data access

@@ -5,6 +5,7 @@ import os
 from dotenv import load_dotenv
 import logging
 from db.mongo_db import MongoDBAccess
+from db_config import APP_NAME
 
 # Load environment variables
 load_dotenv()
@@ -24,14 +25,14 @@ def get_mongo_client():
     """Get synchronous MongoDB client"""
     global _mongo_client
     if _mongo_client is None:
-        _mongo_client = MongoClient(MONGODB_URI)
+        _mongo_client = MongoClient(MONGODB_URI, appName=APP_NAME)
     return _mongo_client
 
 def get_motor_client():
     """Get asynchronous MongoDB client"""
     global _motor_client
     if _motor_client is None:
-        _motor_client = AsyncIOMotorClient(MONGODB_URI)
+        _motor_client = AsyncIOMotorClient(MONGODB_URI, appName=APP_NAME)
     return _motor_client
 
 def get_database():

@@ -2,7 +2,7 @@
 Unified Search Routes - Combined Atlas and Vector Search orchestration
 
 Focused routes for unified search capabilities using UnifiedSearchService:
-- Combined Atlas Search and Vector Search intelligence
+- Combined MongoDB Search and Vector Search intelligence
 - Correlation analysis and intersection discovery
 - Search method recommendation and optimization
 - Comprehensive entity discovery workflows
@@ -40,7 +40,7 @@ async def unified_entity_search(
     unified_search_service: UnifiedSearchService = Depends(get_unified_search_service)
 ):
     """
-    Perform unified entity search using both Atlas Search and Vector Search
+    Perform unified entity search using both MongoDB Search and Vector Search
     
     Uses the refactored UnifiedSearchService to orchestrate AtlasSearchService
     and VectorSearchService for comprehensive entity discovery with advanced
@@ -58,7 +58,7 @@ async def unified_entity_search(
     - `["atlas", "vector"]`: Combined intelligence with correlation analysis (recommended)
     
     **Use Cases:**
-    - **Traditional Entity Resolution**: Atlas Search for name/address variations
+    - **Traditional Entity Resolution**: MongoDB Search for name/address variations
     - **Advanced Investigation**: Vector Search for behavioral pattern discovery
     - **Comprehensive Due Diligence**: Combined approach for maximum coverage
     - **Demo Excellence**: Showcase MongoDB's complete search platform
@@ -121,8 +121,8 @@ async def get_unified_search_demo_scenarios():
         scenarios = [
             DemoScenario(
                 scenario_id="atlas_search_excellence",
-                name="Atlas Search Excellence",
-                description="Showcase Atlas Search handling real-world data variations with repository pattern",
+                name="MongoDB Search Excellence",
+                description="Showcase MongoDB Search handling real-world data variations with repository pattern",
                 search_request=UnifiedSearchRequest(
                     name_full="Sam Brittany Miller",
                     address_full="Oak St Portland",
@@ -189,7 +189,7 @@ async def get_unified_search_demo_scenarios():
                 expected_vector_count=6,
                 expected_intersection=2,
                 key_demonstrations=[
-                    "Atlas Search finds all John Smiths (traditional matching with repository pattern)",
+                    "MongoDB Search finds all John Smiths (traditional matching with repository pattern)",
                     "Vector Search finds high-risk offshore entities (semantic with AI integration)",
                     "Intersection reveals John Smiths with offshore risk patterns",
                     "Combined intelligence identifies most relevant candidates through service orchestration"
@@ -207,7 +207,7 @@ async def get_unified_search_demo_scenarios():
         return {
             "scenarios": scenarios,
             "total_scenarios": len(scenarios),
-            "description": "Demo scenarios showcasing MongoDB Atlas Search + Vector Search with enhanced service architecture",
+            "description": "Demo scenarios showcasing MongoDB Search + Vector Search with enhanced service architecture",
             "service_architecture_benefits": [
                 "Repository pattern for clean, efficient data access",
                 "Service orchestration with dependency injection",
@@ -235,7 +235,7 @@ async def execute_unified_search_demo_scenario(
     Execute a specific unified search demo scenario
     
     Uses the refactored UnifiedSearchService to execute predefined demo scenarios
-    that showcase the combined power of Atlas Search and Vector Search with
+    that showcase the combined power of MongoDB Search and Vector Search with
     sophisticated service orchestration and correlation analysis.
     
     **Available Demo Scenarios:**
@@ -307,12 +307,12 @@ async def get_search_method_recommendations(
     """
     Get recommendations for optimal search method selection
     
-    Provides intelligent recommendations for choosing between Atlas Search,
+    Provides intelligent recommendations for choosing between MongoDB Search,
     Vector Search, or combined approaches based on query characteristics
     and the enhanced service architecture capabilities.
     
     **Search Method Selection Guide:**
-    - **Atlas Search**: Traditional data quality issues, exact matching needs
+    - **MongoDB Search**: Traditional data quality issues, exact matching needs
     - **Vector Search**: Behavioral patterns, risk profiling, semantic queries
     - **Combined Search**: Comprehensive discovery, investigation workflows
     
@@ -328,12 +328,12 @@ async def get_search_method_recommendations(
         recommendations = {
             "exact_match": {
                 "recommended_method": "atlas",
-                "reasoning": "Atlas Search excels at exact identifier matching with highest confidence",
+                "reasoning": "MongoDB Search excels at exact identifier matching with highest confidence",
                 "service_benefits": "Repository pattern provides optimized exact match queries"
             },
             "fuzzy_match": {
                 "recommended_method": "atlas",
-                "reasoning": "Atlas Search handles name variations and typos exceptionally well",
+                "reasoning": "MongoDB Search handles name variations and typos exceptionally well",
                 "service_benefits": "Enhanced fuzzy matching through repository abstraction"
             },
             "semantic_search": {
@@ -353,7 +353,7 @@ async def get_search_method_recommendations(
         # Adjust recommendation based on data characteristics
         if has_structured_data and not has_semantic_context:
             base_recommendation["adjusted_method"] = "atlas"
-            base_recommendation["adjustment_reason"] = "Structured data favors Atlas Search optimization"
+            base_recommendation["adjustment_reason"] = "Structured data favors MongoDB Search optimization"
         elif has_semantic_context and not has_structured_data:
             base_recommendation["adjusted_method"] = "vector"
             base_recommendation["adjustment_reason"] = "Semantic context requires Vector Search AI capabilities"
@@ -397,10 +397,10 @@ def _generate_enhanced_demo_insights(scenario: DemoScenario, results: UnifiedSea
     )
     
     if scenario.scenario_id == "atlas_search_excellence":
-        insights.append(f"Atlas Search found {atlas_count} matches using repository-based fuzzy matching")
+        insights.append(f"MongoDB Search found {atlas_count} matches using repository-based fuzzy matching")
         if atlas_count > 0:
             insights.append("Successfully handled name/address variations through enhanced service architecture")
-            insights.append("Repository pattern provides optimized Atlas Search performance")
+            insights.append("Repository pattern provides optimized MongoDB Search performance")
     
     elif scenario.scenario_id == "vector_search_magic":
         insights.append(f"Vector Search found {vector_count} semantically similar entities using AI integration")

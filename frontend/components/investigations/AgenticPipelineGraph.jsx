@@ -542,7 +542,7 @@ const INITIAL_NODES = [
     data: {
       label: 'Case Analyst Agent', icon: '📁', color: palette.green.dark2,
       subtitle: 'LLM \u2192 CaseFile + TypologyResult',
-      mongoBadge: 'Atlas Search RAG',
+      mongoBadge: 'MongoDB Search RAG',
       tooltip: 'Synthesizes gathered evidence into a 360\u00b0 CaseFile, classifies AML typology, and invokes Network + Temporal analyst tools to enrich the case.',
     },
   },
@@ -590,7 +590,7 @@ const INITIAL_NODES = [
     data: {
       label: 'SAR Author Agent', icon: '📝', color: palette.green.dark1,
       subtitle: 'RAG \u2192 SARNarrative (5Ws)',
-      mongoBadge: 'Atlas Search RAG',
+      mongoBadge: 'MongoDB Search RAG',
       tooltip: 'LLM generates FinCEN-compliant SAR narrative from full evidence corpus via RAG over compliance policies.',
     },
   },

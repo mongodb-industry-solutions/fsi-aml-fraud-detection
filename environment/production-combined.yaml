@@ -123,7 +123,7 @@ sidecarContainers:
           secretKeyRef:
             name: fsi-fraud-detection-bian
             key: RELATIONSHIPS_COLLECTION
-      # Atlas Search Index Names (from secrets)
+      # MongoDB Search Index Names (from secrets)
       - name: ATLAS_SEARCH_INDEX
         valueFrom:
           secretKeyRef:

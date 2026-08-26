@@ -37,7 +37,7 @@ class MatchingService:
         
         Args:
             entity_repo: Entity repository for entity operations
-            atlas_search_repo: Atlas Search repository for text-based matching
+            atlas_search_repo: MongoDB Search repository for text-based matching
             vector_search_repo: Vector Search repository for semantic matching
         """
         self.entity_repo = entity_repo
@@ -315,7 +315,7 @@ class MatchingService:
             
             potential_matches = []
             
-            # Atlas Search strategy (fuzzy text matching)
+            # MongoDB Search strategy (fuzzy text matching)
             atlas_matches = await self._find_atlas_matches(entity, limit)
             potential_matches.extend(atlas_matches)
             
@@ -340,7 +340,7 @@ class MatchingService:
             return []
     
     async def _find_atlas_matches(self, entity: Entity, limit: int) -> List[Dict[str, Any]]:
-        """Find matches using Atlas Search"""
+        """Find matches using MongoDB Search"""
         try:
             if not hasattr(entity, 'name') or not entity.name:
                 return []

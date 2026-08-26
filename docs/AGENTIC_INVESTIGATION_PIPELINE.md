@@ -590,7 +590,7 @@ access to all investigation tools plus specialized chat tools:
 | `assess_entity_risk` | Comprehensive risk dossier: profile + txn stats + network + watchlists |
 | `compare_entities` | Side-by-side entity comparison |
 | `trace_fund_flow` | Multi-hop fund flow tracing via iterative find |
-| `find_similar_entities` | Atlas Vector Search on `profileEmbedding` for semantic similarity |
+| `find_similar_entities` | MongoDB Vector Search on `profileEmbedding` for semantic similarity |
 | `analyze_temporal_patterns` | Interactive temporal pattern analysis (reuses temporal analyst logic) |
 
 ---
@@ -807,7 +807,7 @@ flowchart TB
 | `assess_entity_risk` | `entities`, `transactionsv2`, `relationships` | Comprehensive risk dossier: profile + txn stats + network + watchlists |
 | `compare_entities` | `entities`, `transactionsv2`, `relationships` | Side-by-side comparison of two entities |
 | `trace_fund_flow` | `transactionsv2` | Multi-hop fund flow tracing via iterative find |
-| `find_similar_entities` | `entities` | Atlas Vector Search on `profileEmbedding` |
+| `find_similar_entities` | `entities` | MongoDB Vector Search on `profileEmbedding` |
 | `analyze_temporal_patterns` | `transactionsv2` | MongoDB aggregations for structuring, velocity, round-trips |
 
 #### Artifact Streaming
@@ -1454,7 +1454,7 @@ flowchart LR
 | `DB_NAME` | `fsi-threatsight360` | Database name |
 | `AWS_REGION` | `us-east-1` | AWS region for Bedrock |
 | `VOYAGE_API_KEY` | — | Voyage AI API key |
-| `ENTITY_VECTOR_INDEX` | `entity_vector_search_index` | Atlas Vector Search index name (used by chat co-pilot) |
+| `ENTITY_VECTOR_INDEX` | `entity_vector_search_index` | MongoDB Vector Search index name (used by chat co-pilot) |
 
 ### LLM Configuration
 

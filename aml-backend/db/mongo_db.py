@@ -1,7 +1,9 @@
 from pymongo import MongoClient
 from motor.motor_asyncio import AsyncIOMotorClient
-from typing import Dict, List
+from typing import Dict, List, Optional
 import logging
+
+from db_config import APP_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -11,20 +13,21 @@ class MongoDBAccess:
     This class handles the connection to the database and provides methods to interact with collections and documents.
     """
 
-    def __init__(self, uri: str):
+    def __init__(self, uri: str, app_name: Optional[str] = None):
         """
         Constructor function to initialize the database connection.
-        
+
         Args:
             uri (str): The connection string URI for the MongoDB database.
-        
+            app_name (str, optional): Atlas appName. Defaults to db_config.APP_NAME.
+
         Returns:
             None
         """
         self.uri = uri
 
         try:
-            self.client = MongoClient(self.uri)
+            self.client = MongoClient(self.uri, appName=app_name or APP_NAME)
             # Test the connection
             self.client.admin.command('ping')
             logger.info("Successfully connected to MongoDB")

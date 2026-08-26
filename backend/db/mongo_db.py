@@ -1,27 +1,30 @@
 from pymongo import MongoClient
-from typing import Dict, List
+from typing import Dict, List, Optional
+
+from db_config import APP_NAME
 
 
 class MongoDBAccess:
-    """  
-    A class to provide access to a MongoDB database.  
-    This class handles the connection to the database and provides methods to interact with collections and documents.  
-    """ 
+    """
+    A class to provide access to a MongoDB database.
+    This class handles the connection to the database and provides methods to interact with collections and documents.
+    """
 
-    def __init__(self, uri: str):
-        """ 
-        Constructor function to initialize the database connection.  
-        
-        Args:  
-            uri (str): The connection string URI for the MongoDB database.  
-        
-        Returns:  
-            None  
+    def __init__(self, uri: str, app_name: Optional[str] = None):
+        """
+        Constructor function to initialize the database connection.
+
+        Args:
+            uri (str): The connection string URI for the MongoDB database.
+            app_name (str, optional): Atlas appName. Defaults to db_config.APP_NAME.
+
+        Returns:
+            None
         """
         self.uri = uri
 
         try:
-            self.client = MongoClient(self.uri)
+            self.client = MongoClient(self.uri, appName=app_name or APP_NAME)
         except Exception as e:
             raise Exception(
                 "The following error occurred: ", e)

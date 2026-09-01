@@ -147,12 +147,15 @@ const ModelAdminPanel = () => {
 
   // Fetch details for a specific model
   const fetchModelDetails = React.useCallback(
-    async (modelId) => {
+    async (modelId, version) => {
       try {
-        // Always fetch fresh data from MongoDB
-        console.log('Fetching model from MongoDB:', modelId);
+        // Always fetch fresh data from MongoDB.
+        // The version must be sent explicitly — without it the backend returns
+        // the highest non-archived version, so selecting an older version
+        // (e.g. v1 active when a v2 draft exists) would silently snap back.
+        console.log('Fetching model from MongoDB:', modelId, version);
         const response = await fetch(
-          `${BACKEND_URL}/models/${modelId}`
+          `${BACKEND_URL}/models/${modelId}${version ? `?version=${version}` : ''}`
         );
         if (!response.ok)
           throw new Error('Failed to fetch model details');
@@ -214,8 +217,11 @@ const ModelAdminPanel = () => {
       const data = await response.json();
       setModels(data);
 
-      // Select active model by default if no model is currently selected
-      if (!selectedModelId) {
+      // Select active model by default if no model is currently selected.
+      // Read the ref — `selectedModelId` is captured from the first render by
+      // this useCallback, so it would always look unset and clobber the user's
+      // selection on every refresh.
+      if (!selectedModelIdRef.current) {
         const activeModel = data.find(
           (model) => model.status === 'active'
         );
@@ -229,11 +235,17 @@ const ModelAdminPanel = () => {
           setSelectedModel(activeModel);
         }
       }
+
+      return data;
     } catch (error) {
       console.error('Error fetching models:', error);
       showToast('Failed to load risk models', 'error');
+      return [];
     }
-  }, [showToast, selectedModelId]);
+    // selectedModelId intentionally omitted — read via ref above, and
+    // including it would rebuild this callback and refire the load effect
+    // on every selection change.
+  }, [showToast]);
 
   // Set up useEffect hooks after all callbacks are defined
 
@@ -326,7 +338,9 @@ const ModelAdminPanel = () => {
             (model) => model.status === 'active'
           );
           if (activeModel && !selectedModelIdRef.current) {
-            setSelectedModelId(activeModel.modelId);
+            setSelectedModelId(
+              `${activeModel.modelId}-v${activeModel.version}`
+            );
             setSelectedModel(activeModel);
           }
         }
@@ -536,9 +550,9 @@ const ModelAdminPanel = () => {
 
       // Always fetch from MongoDB to get fresh data
       console.log(
-        `Fetching details from MongoDB for model: ${modelId}`
+        `Fetching details from MongoDB for model: ${modelId} v${version}`
       );
-      fetchModelDetails(modelId);
+      fetchModelDetails(modelId, version);
 
       // Fetch performance data
       fetchModelPerformance(modelId, performanceTimeframe);
@@ -796,7 +810,7 @@ const ModelAdminPanel = () => {
       await fetchModels();
 
       // Fetch fresh model details from MongoDB
-      await fetchModelDetails(baseModelId);
+      await fetchModelDetails(baseModelId, version);
     } catch (error) {
       console.error('Error activating model in MongoDB:', error);
       showToast('Failed to activate risk model', 'error');
@@ -815,6 +829,9 @@ const ModelAdminPanel = () => {
 
       // Extract the base model ID from the composite ID
       const baseModelId = selectedModelId.split('-v')[0];
+      const selectedVersion = selectedModelId.includes('-v')
+        ? parseInt(selectedModelId.split('-v')[1])
+        : undefined;
 
       const response = await fetch(
         `${BACKEND_URL}/models/${baseModelId}/restore`,
@@ -834,7 +851,7 @@ const ModelAdminPanel = () => {
       await fetchModels();
 
       // Fetch fresh model details from MongoDB
-      await fetchModelDetails(baseModelId);
+      await fetchModelDetails(baseModelId, selectedVersion);
     } catch (error) {
       console.error('Error restoring model in MongoDB:', error);
       showToast('Failed to restore risk model', 'error');
@@ -856,22 +873,27 @@ const ModelAdminPanel = () => {
       const result = await response.json();
       console.log('MongoDB reset result:', result);
 
-      showToast('Models reset: version 2 deleted, default-risk-model active, behavioral-risk-model inactive', 'success');
+      showToast(
+        'Models reset: derived versions deleted, default-risk-model active, behavioral-risk-model inactive',
+        'success'
+      );
 
-      // Refresh models list to get the updated models
-      await fetchModels();
-      
+      // Refresh models list and select from the freshly fetched data.
+      // `models` state is not yet updated at this point, so use the return value.
+      const refreshed = await fetchModels();
+
       // Select the active default-risk-model after reset
-      setTimeout(() => {
-        const activeModel = models.find(
-          (model) => model.modelId === 'default-risk-model' && model.status === 'active'
+      const activeModel = refreshed.find(
+        (model) =>
+          model.modelId === 'default-risk-model' &&
+          model.status === 'active'
+      );
+      if (activeModel) {
+        setSelectedModelId(
+          `${activeModel.modelId}-v${activeModel.version}`
         );
-        if (activeModel) {
-          const compositeId = `${activeModel.modelId}-v${activeModel.version}`;
-          setSelectedModelId(compositeId);
-          setSelectedModel(activeModel);
-        }
-      }, 500); // Small delay to ensure models list is updated
+        setSelectedModel(activeModel);
+      }
     } catch (error) {
       console.error('Error resetting models in MongoDB:', error);
       showToast('Failed to reset risk models', 'error');
@@ -1103,6 +1125,14 @@ const ModelAdminPanel = () => {
 
         const updatedModel = await response.json();
 
+        // Editing an active model does not update in place — the backend
+        // inserts a new draft at version+1. Refresh the list so the dropdown
+        // contains that new version, then point the selection at it.
+        await fetchModels();
+        setSelectedModelId(
+          `${updatedModel.modelId}-v${updatedModel.version}`
+        );
+
         // Update the displayed model with the MongoDB response
         setSelectedModel(updatedModel);
 
@@ -1110,7 +1140,7 @@ const ModelAdminPanel = () => {
         highlightField('riskFactors', newRiskFactor.id);
 
         showToast(
-          `Risk factor '${newRiskFactor.id}' added to MongoDB in real-time`,
+          `Risk factor '${newRiskFactor.id}' added to ${updatedModel.modelId} (v${updatedModel.version})`,
           'success'
         );
       } catch (error) {
@@ -1237,13 +1267,16 @@ const ModelAdminPanel = () => {
                 // Extract the model ID and version
                 const parts = value.split('-v');
                 const modelId = parts[0];
+                const version =
+                  parts.length > 1 ? parseInt(parts[1]) : undefined;
 
                 // Always fetch from MongoDB to get fresh data
                 console.log(
                   'Fetching fresh data from MongoDB for:',
-                  modelId
+                  modelId,
+                  version
                 );
-                fetchModelDetails(modelId);
+                fetchModelDetails(modelId, version);
               }}
               value={
                 selectedModel

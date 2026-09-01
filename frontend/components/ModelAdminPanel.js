@@ -47,6 +47,18 @@ const getEventColor = (operationType) => {
   }
 };
 
+// Split a composite selection id ("<modelId>-v<version>") back into its parts.
+// Anchored at the end on purpose: a plain split('-v') also matches a hyphen-v
+// inside the modelId itself (e.g. "kyc-verification-model"), which truncates the
+// id and yields NaN for the version. A NaN version is then dropped from the
+// request, the backend picks an arbitrary document, and activation reports
+// "already active" against the wrong version.
+const parseCompositeModelId = (compositeId) => {
+  const match = /^(.+)-v(\d+)$/.exec(compositeId || '');
+  if (!match) return { modelId: compositeId, version: undefined };
+  return { modelId: match[1], version: parseInt(match[2], 10) };
+};
+
 // Turn a change-stream updatedFields path into something demo-readable.
 // Paths arrive dotted and indexed, e.g. `thresholds.flag`, `riskFactors.3.active`.
 const formatChangedField = (path) => {
@@ -143,6 +155,9 @@ const ModelAdminPanel = () => {
 
   // State for change stream events
   const [changeEvents, setChangeEvents] = useState([]);
+  // Reported by the backend's initial WS payload — never hardcode this, the
+  // collection has been renamed once already.
+  const [watchedCollection, setWatchedCollection] = useState('');
   const [wsConnected, setWsConnected] = useState(false);
   const [wsReconnecting, setWsReconnecting] = useState(false);
 
@@ -204,9 +219,7 @@ const ModelAdminPanel = () => {
     async (modelId, timeframe) => {
       try {
         // Extract base modelId if it's in the composite format
-        const baseModelId = modelId.includes('-v')
-          ? modelId.split('-v')[0]
-          : modelId;
+        const baseModelId = parseCompositeModelId(modelId).modelId;
 
         const response = await fetch(
           `${BACKEND_URL}/models/${baseModelId}/performance?timeframe=${timeframe}`
@@ -363,6 +376,7 @@ const ModelAdminPanel = () => {
         // Handle initial models data
         if (data.type === 'initial') {
           setModels(data.models);
+          if (data.collection) setWatchedCollection(data.collection);
 
           // Select first active model by default
           const activeModel = data.models.find(
@@ -572,10 +586,8 @@ const ModelAdminPanel = () => {
       });
 
       // With the new composite ID format (modelId-vVersion), we need to parse it
-      const parts = selectedModelId.split('-v');
-      const modelId = parts[0];
-      const version =
-        parts.length > 1 ? parseInt(parts[1]) : undefined;
+      const { modelId, version } =
+        parseCompositeModelId(selectedModelId);
 
       console.log(`Model selected: ${modelId}, version: ${version}`);
 
@@ -738,7 +750,9 @@ const ModelAdminPanel = () => {
 
       // Save to MongoDB
       const response = await fetch(
-        `${BACKEND_URL}/models/${selectedModelId.split('-v')[0]}`,
+        `${BACKEND_URL}/models/${
+          parseCompositeModelId(selectedModelId).modelId
+        }`,
         {
           method: 'PUT',
           headers: {
@@ -803,10 +817,8 @@ const ModelAdminPanel = () => {
       console.log('Activating model in MongoDB:', selectedModelId);
 
       // Extract both model ID and version
-      const parts = selectedModelId.split('-v');
-      const baseModelId = parts[0];
-      const version =
-        parts.length > 1 ? parseInt(parts[1]) : undefined;
+      const { modelId: baseModelId, version } =
+        parseCompositeModelId(selectedModelId);
 
       // Include version as a query parameter
       let url = `${BACKEND_URL}/models/${baseModelId}/activate`;
@@ -856,10 +868,8 @@ const ModelAdminPanel = () => {
       console.log('Restoring model in MongoDB:', selectedModelId);
 
       // Extract the base model ID from the composite ID
-      const baseModelId = selectedModelId.split('-v')[0];
-      const selectedVersion = selectedModelId.includes('-v')
-        ? parseInt(selectedModelId.split('-v')[1])
-        : undefined;
+      const { modelId: baseModelId, version: selectedVersion } =
+        parseCompositeModelId(selectedModelId);
 
       const response = await fetch(
         `${BACKEND_URL}/models/${baseModelId}/restore`,
@@ -1284,10 +1294,8 @@ const ModelAdminPanel = () => {
                 setSelectedModelId(value);
 
                 // Extract the model ID and version
-                const parts = value.split('-v');
-                const modelId = parts[0];
-                const version =
-                  parts.length > 1 ? parseInt(parts[1]) : undefined;
+                const { modelId, version } =
+                  parseCompositeModelId(value);
 
                 // Always fetch from MongoDB to get fresh data
                 console.log(
@@ -1714,7 +1722,8 @@ const ModelAdminPanel = () => {
                       >
                         <div style={{ color: palette.green.light2 }}>
                           {'>>'} MongoDB Change Stream watching
-                          collection: risk_models
+                          collection:{' '}
+                          {watchedCollection || '(connecting...)'}
                         </div>
                         <div style={{ color: palette.yellow.light2 }}>
                           {'>>'} Watching for operations: ["insert",
@@ -1734,9 +1743,10 @@ const ModelAdminPanel = () => {
                         </div>
                         {selectedModel && (
                           <div style={{ color: palette.blue.light2 }}>
-                            {'>>'} Current active model:{' '}
+                            {'>>'} Selected model:{' '}
                             {selectedModel.modelId} (v
-                            {selectedModel.version})
+                            {selectedModel.version}) -{' '}
+                            {selectedModel.status}
                           </div>
                         )}
                         {wsConnected && (

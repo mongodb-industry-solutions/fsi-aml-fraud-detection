@@ -394,8 +394,17 @@ async def activate_risk_model(
         query = {"modelId": model_id}
         if version:
             query["version"] = version
-        
-        model = await risk_models_collection.find_one(query)
+            model = await risk_models_collection.find_one(query)
+        else:
+            # No version given: resolve the newest non-archived version, matching
+            # GET /models/{id}. An unsorted find_one returns an arbitrary document
+            # — usually the oldest, which is typically the already-active one, so
+            # activation would report "already active" instead of promoting the
+            # draft the caller meant.
+            query["status"] = {"$ne": "archived"}
+            model = await risk_models_collection.find_one(
+                query, sort=[("version", -1)]
+            )
         if not model:
             raise HTTPException(status_code=404, detail="Risk model not found")
         
@@ -714,7 +723,13 @@ async def websocket_endpoint(websocket: WebSocket, db = Depends(get_database)):
             
             await websocket.send_json({
                 "type": "initial",
-                "models": models
+                "models": models,
+                # Report the real collection name rather than letting the UI
+                # hardcode it. The name changed once already (`risk_models` ->
+                # `threatsightRiskModels`, see dependencies.py) and the UI banner
+                # was left behind claiming to watch a collection that no longer
+                # exists.
+                "collection": RISK_MODELS_COLLECTION
             })
             
             # Send heartbeat every 30 seconds to keep connection alive

@@ -9,17 +9,26 @@ import { NextResponse } from 'next/server';
 
 const FRAUD_BACKEND_URL = process.env.FRAUD_BACKEND_URL || 'http://localhost:8000';
 
+/**
+ * Build the upstream URL, preserving the incoming query string.
+ *
+ * Every method needs this, not just GET: POST /models/:id/activate,
+ * POST /models/:id/restore and DELETE /models/:id all take a `version` query
+ * param. Dropping it made the backend fall back to resolving the model by id
+ * alone, which silently targeted the wrong version — activation of a draft
+ * reported "already active" because it had resolved the currently-active
+ * version instead. Local dev talks to the backend directly and never hit this.
+ */
+const buildTargetUrl = (request, path) => {
+  const pathString = Array.isArray(path) ? path.join('/') : path;
+  const queryString = request.nextUrl.searchParams.toString();
+  return `${FRAUD_BACKEND_URL}/${pathString}${queryString ? `?${queryString}` : ''}`;
+};
+
 export async function GET(request, { params }) {
   try {
     const { path } = params;
-    const pathString = Array.isArray(path) ? path.join('/') : path;
-
-    // Get search params from request
-    const searchParams = request.nextUrl.searchParams;
-    const queryString = searchParams.toString();
-
-    // Construct full URL
-    const url = `${FRAUD_BACKEND_URL}/${pathString}${queryString ? `?${queryString}` : ''}`;
+    const url = buildTargetUrl(request, path);
 
     console.log(`[Fraud Proxy] GET ${url}`);
 
@@ -46,8 +55,7 @@ export async function GET(request, { params }) {
 export async function POST(request, { params }) {
   try {
     const { path } = params;
-    const pathString = Array.isArray(path) ? path.join('/') : path;
-    const url = `${FRAUD_BACKEND_URL}/${pathString}`;
+    const url = buildTargetUrl(request, path);
 
     console.log(`[Fraud Proxy] POST ${url}`);
 
@@ -98,8 +106,7 @@ export async function POST(request, { params }) {
 export async function PUT(request, { params }) {
   try {
     const { path } = params;
-    const pathString = Array.isArray(path) ? path.join('/') : path;
-    const url = `${FRAUD_BACKEND_URL}/${pathString}`;
+    const url = buildTargetUrl(request, path);
 
     console.log(`[Fraud Proxy] PUT ${url}`);
 
@@ -150,8 +157,7 @@ export async function PUT(request, { params }) {
 export async function DELETE(request, { params }) {
   try {
     const { path } = params;
-    const pathString = Array.isArray(path) ? path.join('/') : path;
-    const url = `${FRAUD_BACKEND_URL}/${pathString}`;
+    const url = buildTargetUrl(request, path);
 
     console.log(`[Fraud Proxy] DELETE ${url}`);
 

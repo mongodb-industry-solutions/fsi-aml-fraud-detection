@@ -47,6 +47,22 @@ const getEventColor = (operationType) => {
   }
 };
 
+// Turn a change-stream updatedFields path into something demo-readable.
+// Paths arrive dotted and indexed, e.g. `thresholds.flag`, `riskFactors.3.active`.
+const formatChangedField = (path) => {
+  if (path === 'updatedAt') return null; // bookkeeping, not a real change
+  if (path === 'status') return 'status';
+  if (path === 'version') return 'version';
+  if (path === 'description') return 'description';
+  if (path.startsWith('thresholds.flag')) return 'flag threshold';
+  if (path.startsWith('thresholds.block')) return 'block threshold';
+  if (path.startsWith('thresholds')) return 'thresholds';
+  if (path.startsWith('riskFactors')) return 'risk factors';
+  if (path.startsWith('weights')) return 'weights';
+  if (path.startsWith('performance')) return 'performance metrics';
+  return path;
+};
+
 const getEventDescription = (event) => {
   // This function is kept for compatibility but we now use inline description
   // in the render function for more accurate data from the actual event
@@ -246,6 +262,21 @@ const ModelAdminPanel = () => {
     // including it would rebuild this callback and refire the load effect
     // on every selection change.
   }, [showToast]);
+
+  // Adopt a model document returned by a write (POST/PUT) as the new selection.
+  // The backend answers an edit of an *active* model with a NEW draft at
+  // version+1, so both the list and the composite selectedModelId have to move
+  // to that version. Leaving selectedModelId behind desyncs it from
+  // selectedModel, and Activate then targets the version the user is no longer
+  // looking at.
+  const adoptModelFromWrite = React.useCallback(
+    async (model) => {
+      await fetchModels();
+      setSelectedModelId(`${model.modelId}-v${model.version}`);
+      setSelectedModel(model);
+    },
+    [fetchModels]
+  );
 
   // Set up useEffect hooks after all callbacks are defined
 
@@ -741,8 +772,8 @@ const ModelAdminPanel = () => {
       const updatedModel = await response.json();
       console.log('MongoDB returned updated model:', updatedModel);
 
-      // Update the UI with the MongoDB data
-      setSelectedModel(updatedModel);
+      // Update the UI with the MongoDB data. This may be a new draft version.
+      await adoptModelFromWrite(updatedModel);
       setEditMode(false);
       setEditedModel(null);
 
@@ -757,12 +788,9 @@ const ModelAdminPanel = () => {
       });
 
       showToast(
-        'Risk model updated in MongoDB and UI refreshed with latest data',
+        `Risk model saved as ${updatedModel.modelId} (v${updatedModel.version}) - ${updatedModel.status}`,
         'success'
       );
-
-      // Refresh models list to show new version
-      fetchModels();
     } catch (error) {
       console.error('Error saving model to MongoDB:', error);
       showToast('Failed to update risk model in MongoDB', 'error');
@@ -991,10 +1019,8 @@ const ModelAdminPanel = () => {
 
       showToast('Risk model created successfully');
 
-      // Refresh models list
-      fetchModels();
-      // Select the new model
-      setSelectedModelId(data.modelId);
+      // Refresh models list and select the new model
+      await adoptModelFromWrite(data);
       setEditMode(false);
       setEditedModel(null);
     } catch (error) {
@@ -1126,15 +1152,8 @@ const ModelAdminPanel = () => {
         const updatedModel = await response.json();
 
         // Editing an active model does not update in place — the backend
-        // inserts a new draft at version+1. Refresh the list so the dropdown
-        // contains that new version, then point the selection at it.
-        await fetchModels();
-        setSelectedModelId(
-          `${updatedModel.modelId}-v${updatedModel.version}`
-        );
-
-        // Update the displayed model with the MongoDB response
-        setSelectedModel(updatedModel);
+        // inserts a new draft at version+1.
+        await adoptModelFromWrite(updatedModel);
 
         // Highlight the new risk factor
         highlightField('riskFactors', newRiskFactor.id);
@@ -1749,31 +1768,21 @@ const ModelAdminPanel = () => {
                             </div>
 
                             {changeEvents.map((event, idx) => {
-                              // Get detailed information about the changed fields
-                              let fieldsChanged = [];
-                              if (
-                                (event.operationType === 'update' ||
-                                  event.operationType ===
-                                    'replace') &&
-                                event.document
-                              ) {
-                                if (event.document.description)
-                                  fieldsChanged.push('description');
-                                if (event.document.thresholds?.flag)
-                                  fieldsChanged.push(
-                                    'flag threshold'
-                                  );
-                                if (event.document.thresholds?.block)
-                                  fieldsChanged.push(
-                                    'block threshold'
-                                  );
-                                if (event.document.riskFactors)
-                                  fieldsChanged.push('risk factors');
-                                if (event.document.status)
-                                  fieldsChanged.push('status');
-                                if (event.document.weights)
-                                  fieldsChanged.push('weights');
-                              }
+                              // Fields the change stream reports as actually
+                              // modified. Do NOT infer these from event.document
+                              // — that is updateLookup's CURRENT state, so every
+                              // field is present whether it changed or not.
+                              const updatedFields =
+                                event.updatedFields || [];
+                              const statusChanged =
+                                updatedFields.includes('status');
+                              const fieldsChanged = [
+                                ...new Set(
+                                  updatedFields
+                                    .map(formatChangedField)
+                                    .filter(Boolean)
+                                ),
+                              ];
 
                               // Use the event's timestamp if available
                               const timestamp = event.timestamp
@@ -1797,8 +1806,13 @@ const ModelAdminPanel = () => {
                                   break;
                                 case 'update':
                                 case 'replace':
-                                  if (status === 'active') {
+                                  if (
+                                    statusChanged &&
+                                    status === 'active'
+                                  ) {
                                     eventDescription = `Model activated: ${modelId} (v${version})`;
+                                  } else if (statusChanged) {
+                                    eventDescription = `Model status → ${status}: ${modelId} (v${version})`;
                                   } else {
                                     eventDescription = `Model updated: ${modelId} (v${version})`;
                                   }

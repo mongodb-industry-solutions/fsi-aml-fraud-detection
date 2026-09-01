@@ -736,6 +736,15 @@ async def websocket_endpoint(websocket: WebSocket, db = Depends(get_database)):
                     # Convert the document to JSON-serializable format
                     doc = convert_to_json_serializable(change["fullDocument"])
                     change_data["document"] = doc
+
+                    # fullDocument is resolved by updateLookup at read time, so it
+                    # reflects CURRENT state, not what changed. Forward the actual
+                    # changed field names so the UI can describe the event
+                    # truthfully instead of inferring from current status.
+                    updated_fields = (
+                        change.get("updateDescription", {}).get("updatedFields") or {}
+                    )
+                    change_data["updatedFields"] = sorted(updated_fields.keys())
                 elif change["operationType"] == "delete":
                     doc_id = change["documentKey"]["_id"]
                     if isinstance(doc_id, ObjectId):

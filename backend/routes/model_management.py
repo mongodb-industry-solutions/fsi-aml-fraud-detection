@@ -432,9 +432,9 @@ async def activate_risk_model(
 async def reset_risk_models(db = Depends(get_database)):
     """
     Reset risk models to clean state:
-    - Delete all models with version 2
-    - Set default-risk-model status to 'active' 
-    - Set behavioral-risk-model status to 'inactive'
+    - Delete every version above 1 (drafts created by editing an active model)
+    - Set default-risk-model v1 status to 'active'
+    - Set behavioral-risk-model v1 status to 'inactive'
     """
     # Get risk_models collection
     risk_models_collection = db[RISK_MODELS_COLLECTION]
@@ -443,21 +443,26 @@ async def reset_risk_models(db = Depends(get_database)):
         # Use a transaction to ensure all operations succeed or fail together
         async with await db.client.start_session() as session:
             async with session.start_transaction():
-                # 1. Delete all models with version 2
+                # 1. Delete every derived version, not just v2. Editing an
+                #    active model inserts version+1, so repeated demo runs
+                #    leave v3, v4, ... behind.
                 delete_result = await risk_models_collection.delete_many(
-                    {"version": 2},
+                    {"version": {"$gt": 1}},
                     session=session
                 )
                 
-                # 2. Set default-risk-model to active
-                default_result = await risk_models_collection.update_one(
+                # 2. Set default-risk-model to active.
+                #    update_many, not update_one — a modelId can have several
+                #    documents, and leaving siblings untouched is what makes
+                #    the UI and the database disagree about the status.
+                default_result = await risk_models_collection.update_many(
                     {"modelId": "default-risk-model"},
                     {"$set": {"status": "active", "updatedAt": datetime.now()}},
                     session=session
                 )
                 
                 # 3. Set behavioral-risk-model to inactive
-                behavioral_result = await risk_models_collection.update_one(
+                behavioral_result = await risk_models_collection.update_many(
                     {"modelId": "behavioral-risk-model"},
                     {"$set": {"status": "inactive", "updatedAt": datetime.now()}},
                     session=session
@@ -465,7 +470,7 @@ async def reset_risk_models(db = Depends(get_database)):
         
         # Prepare response message
         messages = []
-        messages.append(f"Deleted {delete_result.deleted_count} models with version 2")
+        messages.append(f"Deleted {delete_result.deleted_count} derived model versions (v2+)")
         
         if default_result.modified_count > 0:
             messages.append("Set default-risk-model to active")

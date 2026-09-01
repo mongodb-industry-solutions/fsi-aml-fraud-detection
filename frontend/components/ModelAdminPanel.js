@@ -1102,74 +1102,85 @@ const ModelAdminPanel = () => {
         active: true,
       });
 
+      // A model from "New Model" lives only in local state until its first
+      // write — PUT /models/{id} would 404 on it. The loaded models list is the
+      // source of truth for what MongoDB already has, so create vs. update is
+      // derived from it rather than tracked in a separate flag.
+      const modelExistsInDb = models.some(
+        (model) => model.modelId === editedModel.modelId
+      );
+
+      // Backend rejects null numerics; supply the same defaults as the form.
+      const normalizedFactors = updatedFactors.map((factor) => ({
+        ...factor,
+        threshold:
+          factor.threshold !== null && factor.threshold !== undefined
+            ? factor.threshold
+            : 1.0,
+        distanceThreshold:
+          factor.distanceThreshold !== null &&
+          factor.distanceThreshold !== undefined
+            ? factor.distanceThreshold
+            : 100.0,
+      }));
+
       // Save the changes directly to MongoDB to demonstrate real-time updates
       try {
+        const payload = {
+          description: editedModel.description,
+          weights: updatedWeights,
+          thresholds: editedModel.thresholds,
+          riskFactors: normalizedFactors,
+        };
+
         console.log(
-          'Saving new risk factor to MongoDB:',
+          modelExistsInDb
+            ? `Updating ${editedModel.modelId} with new risk factor:`
+            : `Creating ${editedModel.modelId} with new risk factor:`,
           newRiskFactor
         );
-        console.log(
-          'Full payload:',
-          JSON.stringify(
-            {
-              description: editedModel.description, // Include all required fields
-              weights: updatedWeights,
-              thresholds: editedModel.thresholds, // Include all required fields
-              riskFactors: updatedFactors,
-            },
-            null,
-            2
-          )
-        );
 
-        const response = await fetch(
-          `${BACKEND_URL}/models/${editedModel.modelId}`,
-          {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              description: editedModel.description, // Include all required fields
-              weights: updatedWeights,
-              thresholds: editedModel.thresholds, // Include all required fields
-              riskFactors: updatedFactors.map((factor) => ({
-                ...factor,
-                // Ensure numeric fields have valid defaults if null
-                threshold:
-                  factor.threshold !== null &&
-                  factor.threshold !== undefined
-                    ? factor.threshold
-                    : 1.0,
-                distanceThreshold:
-                  factor.distanceThreshold !== null &&
-                  factor.distanceThreshold !== undefined
-                    ? factor.distanceThreshold
-                    : 100.0,
-              })),
-            }),
-          }
-        );
+        const response = modelExistsInDb
+          ? await fetch(
+              `${BACKEND_URL}/models/${editedModel.modelId}`,
+              {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+              }
+            )
+          : await fetch(`${BACKEND_URL}/models/`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                modelId: editedModel.modelId,
+                ...payload,
+              }),
+            });
 
         if (!response.ok) {
           const errorData = await response.text();
           console.error('API Error Response:', errorData);
           throw new Error(
-            `Failed to update model: ${response.status} ${errorData}`
+            `Failed to ${
+              modelExistsInDb ? 'update' : 'create'
+            } model: ${response.status} ${errorData}`
           );
         }
 
         const updatedModel = await response.json();
 
         // Editing an active model does not update in place — the backend
-        // inserts a new draft at version+1.
+        // inserts a new draft at version+1. A create returns the new v1.
         await adoptModelFromWrite(updatedModel);
 
         // Highlight the new risk factor
         highlightField('riskFactors', newRiskFactor.id);
 
         showToast(
-          `Risk factor '${newRiskFactor.id}' added to ${updatedModel.modelId} (v${updatedModel.version})`,
+          modelExistsInDb
+            ? `Risk factor '${newRiskFactor.id}' added to ${updatedModel.modelId} (v${updatedModel.version})`
+            : `Created ${updatedModel.modelId} (v${updatedModel.version}) with risk factor '${newRiskFactor.id}'`,
           'success'
         );
       } catch (error) {

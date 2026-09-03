@@ -27,7 +27,7 @@ const buildTargetUrl = (request, path) => {
 
 export async function GET(request, { params }) {
   try {
-    const { path } = params;
+    const { path } = await params;
     const url = buildTargetUrl(request, path);
 
     console.log(`[Fraud Proxy] GET ${url}`);
@@ -54,7 +54,7 @@ export async function GET(request, { params }) {
 
 export async function POST(request, { params }) {
   try {
-    const { path } = params;
+    const { path } = await params;
     const url = buildTargetUrl(request, path);
 
     console.log(`[Fraud Proxy] POST ${url}`);
@@ -105,7 +105,7 @@ export async function POST(request, { params }) {
 
 export async function PUT(request, { params }) {
   try {
-    const { path } = params;
+    const { path } = await params;
     const url = buildTargetUrl(request, path);
 
     console.log(`[Fraud Proxy] PUT ${url}`);
@@ -156,7 +156,7 @@ export async function PUT(request, { params }) {
 
 export async function DELETE(request, { params }) {
   try {
-    const { path } = params;
+    const { path } = await params;
     const url = buildTargetUrl(request, path);
 
     console.log(`[Fraud Proxy] DELETE ${url}`);

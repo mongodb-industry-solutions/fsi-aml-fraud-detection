@@ -34,6 +34,15 @@ except ImportError:
     logger.warning("PDF routes not available")
     pdf_router = None
 
+# BIAN v14 service-domain surface. Additive — delegates to the native handlers, which stay
+# registered and unchanged. One route (FraudResolution/Retrieve); see routes/bian.py for why
+# the rest of this backend has no clean BIAN mapping.
+try:
+    from routes.bian import router as bian_router
+except ImportError:
+    logger.warning("BIAN routes not available")
+    bian_router = None
+
 # Note: Fallback routes removed after successful migration to organized structure
 
 # Setup logging
@@ -60,7 +69,7 @@ app = FastAPI(
     - Watchlist matching and compliance screening
     
     ### Intelligent Entity Resolution
-    - Atlas Search powered fuzzy matching
+    - MongoDB Search powered fuzzy matching
     - Duplicate detection during onboarding
     - Entity merging and master data management
     - Confidence scoring and match reasoning
@@ -72,7 +81,7 @@ app = FastAPI(
     - Connected component analysis
     
     ### Core Capabilities
-    - MongoDB Atlas Search integration for fuzzy matching
+    - MongoDB Search integration for fuzzy matching
     - Configurable matching algorithms with boost factors
     - Real-time entity resolution workflows
     - Comprehensive audit trails and compliance reporting
@@ -119,7 +128,7 @@ async def root():
         "features": [
             "Entity Management",
             "Intelligent Entity Resolution", 
-            "Atlas Search Integration",
+            "MongoDB Search Integration",
             "Relationship Management",
             "Network Analysis",
             "Agentic Investigation Pipeline"
@@ -230,7 +239,7 @@ def include_router_safely(app_instance, router, router_name):
 # Include routes in priority order (most specific first)
 
 # 1. Search routes (most specific prefixes)
-include_router_safely(app, atlas_search_router, "Atlas Search")
+include_router_safely(app, atlas_search_router, "MongoDB Search")
 include_router_safely(app, vector_search_router, "Vector Search") 
 include_router_safely(app, unified_search_router, "Unified Search")
 include_router_safely(app, entity_search_router, "Entity Search - Phase 7")  # Phase 7 Stage 2
@@ -264,6 +273,10 @@ include_router_safely(app, agent_investigation_router, "Agent Investigation")
 
 # 4.10. Agent Chat routes
 include_router_safely(app, agent_chat_router, "Agent Chat")
+
+# 4.11. BIAN v14 surface. After the agent routes it delegates to, and before the catch-all
+# `/entities` router — its paths are literal service-domain names, so they cannot collide.
+include_router_safely(app, bian_router, "BIAN Service Domains")
 
 # 5. Core entity routes (has catch-all routes, so include after more specific routes)  
 include_router_safely(app, core_entities_router, "Core Entities")

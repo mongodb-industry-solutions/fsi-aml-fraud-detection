@@ -36,7 +36,7 @@ class UnifiedSearchService:
         Initialize Unified Search service
         
         Args:
-            atlas_search_service: Atlas Search service for text-based matching
+            atlas_search_service: MongoDB Search service for text-based matching
             vector_search_service: Vector Search service for semantic similarity
         """
         self.atlas_search_service = atlas_search_service
@@ -163,7 +163,7 @@ class UnifiedSearchService:
         search_results = {}
         
         try:
-            # Prepare Atlas Search if enabled
+            # Prepare MongoDB Search if enabled
             if request.enable_atlas_search:
                 atlas_request = await self._prepare_atlas_search_request(request)
                 search_tasks["atlas"] = self._execute_atlas_search_with_timing(atlas_request)
@@ -203,13 +203,13 @@ class UnifiedSearchService:
     
     async def _execute_atlas_search_with_timing(self, request: EntitySearchRequest) -> SearchResponse:
         """
-        Execute Atlas Search with performance timing
+        Execute MongoDB Search with performance timing
         
         Args:
-            request: Atlas search request
+            request: MongoDB search request
             
         Returns:
-            SearchResponse: Atlas search results with timing
+            SearchResponse: MongoDB search results with timing
         """
         start_time = time.time()
         
@@ -222,13 +222,13 @@ class UnifiedSearchService:
             if result.search_metadata:
                 result.search_metadata["atlas_execution_time_ms"] = execution_time
             
-            logger.debug(f"Atlas search completed in {execution_time:.2f}ms with {result.total_matches} matches")
+            logger.debug(f"MongoDB search completed in {execution_time:.2f}ms with {result.total_matches} matches")
             
             return result
             
         except Exception as e:
             execution_time = (time.time() - start_time) * 1000
-            logger.error(f"Atlas search failed in {execution_time:.2f}ms: {e}")
+            logger.error(f"MongoDB search failed in {execution_time:.2f}ms: {e}")
             raise
     
     async def _execute_vector_search_with_timing(self, request: VectorSearchRequest) -> SearchResponse:
@@ -350,7 +350,7 @@ class UnifiedSearchService:
         Analyze matches that appear in both search results for confidence boosting
         
         Args:
-            atlas_matches: Atlas search matches
+            atlas_matches: MongoDB search matches
             vector_matches: Vector search matches
             intersection_ids: Entity IDs that appear in both results
             
@@ -561,12 +561,12 @@ class UnifiedSearchService:
                     "error": "At least one search method must be enabled"
                 }
             
-            # Check if Atlas Search has required fields
+            # Check if MongoDB Search has required fields
             if request.enable_atlas_search:
                 if not request.entity_name or request.entity_name.strip() == "":
                     return {
                         "valid": False,
-                        "error": "Atlas Search requires entity_name field"
+                        "error": "MongoDB Search requires entity_name field"
                     }
             
             # Check if Vector Search has required fields
@@ -587,13 +587,13 @@ class UnifiedSearchService:
     
     async def _prepare_atlas_search_request(self, request: UnifiedSearchRequest) -> EntitySearchRequest:
         """
-        Prepare Atlas Search request from unified request
+        Prepare MongoDB Search request from unified request
         
         Args:
             request: Unified search request
             
         Returns:
-            EntitySearchRequest: Atlas search request
+            EntitySearchRequest: MongoDB search request
         """
         return EntitySearchRequest(
             entity_name=request.entity_name,
@@ -627,7 +627,7 @@ class UnifiedSearchService:
         Calculate combined confidence score from both search methods
         
         Args:
-            atlas_score: Atlas search confidence score
+            atlas_score: MongoDB search confidence score
             vector_score: Vector search confidence score
             
         Returns:
@@ -652,7 +652,7 @@ class UnifiedSearchService:
         Calculate agreement level between search methods
         
         Args:
-            atlas_score: Atlas search score
+            atlas_score: MongoDB search score
             vector_score: Vector search score
             
         Returns:
@@ -793,7 +793,7 @@ class UnifiedSearchService:
                     insights.append("Low agreement suggests methods are finding different types of matches")
             
             if atlas_count > vector_count * 2:
-                insights.append("Atlas Search found significantly more matches - structured data may be more complete")
+                insights.append("MongoDB Search found significantly more matches - structured data may be more complete")
             elif vector_count > atlas_count * 2:
                 insights.append("Vector Search found significantly more matches - semantic patterns may be stronger")
             
@@ -886,7 +886,7 @@ class UnifiedSearchService:
             
             # Method balance recommendations
             if atlas_count == 0 and vector_count > 0:
-                recommendations.append("Atlas Search found no matches - verify entity name and structured data")
+                recommendations.append("MongoDB Search found no matches - verify entity name and structured data")
             elif vector_count == 0 and atlas_count > 0:
                 recommendations.append("Vector Search found no matches - try more descriptive semantic queries")
             

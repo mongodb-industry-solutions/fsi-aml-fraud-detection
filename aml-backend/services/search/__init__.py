@@ -2,7 +2,7 @@
 Search services module - Search and discovery services using repository pattern
 
 Contains focused services for:
-- Atlas Search operations using AtlasSearchRepository
+- MongoDB Search operations using AtlasSearchRepository
 - Vector Search operations using VectorSearchRepository  
 - Unified search orchestration and result aggregation
 """

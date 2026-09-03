@@ -1,7 +1,7 @@
 """
 Unified Search Models - Data models for unified search operations
 
-Models for combined Atlas Search and Vector Search operations with
+Models for combined MongoDB Search and Vector Search operations with
 intelligent result merging and ranking.
 """
 

@@ -1,7 +1,7 @@
 """
-AtlasSearchBuilder - Enhanced AggregationBuilder for MongoDB Atlas Search
+AtlasSearchBuilder - Enhanced AggregationBuilder for MongoDB Search
 
-Extends the mongodb_core_lib AggregationBuilder with Atlas Search-specific methods
+Extends the mongodb_core_lib AggregationBuilder with MongoDB Search-specific methods
 to eliminate manual pipeline construction and reduce code duplication.
 """
 
@@ -11,9 +11,9 @@ from reference.mongodb_core_lib import AggregationBuilder, AggregationStage
 
 class AtlasSearchBuilder(AggregationBuilder):
     """
-    Enhanced AggregationBuilder with Atlas Search-specific methods
+    Enhanced AggregationBuilder with MongoDB Search-specific methods
     
-    Provides fluent interface for building Atlas Search pipelines with:
+    Provides fluent interface for building MongoDB Search pipelines with:
     - Compound search operations
     - Autocomplete functionality  
     - Faceted search with $searchMeta
@@ -21,17 +21,42 @@ class AtlasSearchBuilder(AggregationBuilder):
     - Common search patterns (search + score + sort + paginate)
     """
     
-    def __init__(self, index_name: str = "default_search_index"):
+    def __init__(self, index_name: str = "default_search_index",
+                 scope_filter: Optional[Dict[str, Any]] = None):
         """
         Initialize AtlasSearchBuilder with default search index
-        
+
         Args:
-            index_name: Default Atlas Search index name
+            index_name: Default MongoDB Search index name
+            scope_filter: Optional MongoDB Search clause applied as a `filter` to
+                every stage this builder emits. Use when the index covers a
+                superset of the documents a caller may see -- an MongoDB Search
+                index cannot be scoped to a subset of a collection, and a
+                `find()`-level filter has no effect inside `$search`. A `filter`
+                clause restricts matches without contributing to the relevance
+                score, so ranking is unchanged.
         """
         super().__init__()
         self.default_index = index_name
-        
-    # ==================== ATLAS SEARCH STAGES ====================
+        self.scope_filter = scope_filter
+
+    def _scoped(self, operator: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Wrap a search operator so the builder's scope filter always applies."""
+        if not self.scope_filter:
+            return operator
+        compound = {"filter": [self.scope_filter]}
+        if operator:
+            compound["must"] = [operator]
+        return {"compound": compound}
+
+    def _scope_clauses(self, filters: Optional[List[Dict]]) -> Optional[List[Dict]]:
+        """Append the scope filter to an explicit list of `filter` clauses."""
+        if not self.scope_filter:
+            return filters
+        return list(filters or []) + [self.scope_filter]
+
+
+    # ==================== MongoDB Search STAGES ====================
     
     def compound_search(self, 
                        must: Optional[List[Dict]] = None,
@@ -60,9 +85,10 @@ class AtlasSearchBuilder(AggregationBuilder):
             compound_query["mustNot"] = must_not
         if should:
             compound_query["should"] = should
-        if filters:
-            compound_query["filter"] = filters
-            
+        scoped_filters = self._scope_clauses(filters)
+        if scoped_filters:
+            compound_query["filter"] = scoped_filters
+
         search_stage = {
             "$search": {
                 "index": index or self.default_index,
@@ -104,13 +130,13 @@ class AtlasSearchBuilder(AggregationBuilder):
         search_stage = {
             "$search": {
                 "index": index or self.default_index,
-                **autocomplete_stage
+                **self._scoped(autocomplete_stage)
             }
         }
-        
+
         self.pipeline.append(search_stage)
         return self
-        
+
     def text_search_atlas(self,
                          query: str,
                          path: Union[str, List[str]],
@@ -145,13 +171,13 @@ class AtlasSearchBuilder(AggregationBuilder):
         search_stage = {
             "$search": {
                 "index": index or self.default_index,
-                **text_stage
+                **self._scoped(text_stage)
             }
         }
-        
+
         self.pipeline.append(search_stage)
         return self
-        
+
     def search_meta(self,
                    facets: Optional[Dict[str, Dict[str, Any]]] = None,
                    operator: Optional[Dict[str, Any]] = None,
@@ -174,6 +200,10 @@ class AtlasSearchBuilder(AggregationBuilder):
             }
         }
         
+        # Facet counts are computed inside the search stage, so scoping has to
+        # happen here too -- a trailing `$match` would filter the documents but
+        # leave the bucket counts inflated by out-of-scope docs.
+        operator = self._scoped(operator)
         if operator:
             search_meta["$searchMeta"]["facet"]["operator"] = operator
         if facets:
@@ -295,7 +325,7 @@ class AtlasSearchBuilder(AggregationBuilder):
         Common pattern: Add search stage + score + sort
         
         Args:
-            search_stage: Atlas Search stage configuration
+            search_stage: MongoDB Search stage configuration
             score_field: Search score field name
             sort_direction: Sort direction for scores
             index: Search index name

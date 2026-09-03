@@ -10,7 +10,7 @@ from typing import Optional
 
 from models.core.transaction import TransactionActivityResponse, TransactionNetwork
 from repositories.impl.transaction_repository import TransactionRepository
-from dependencies import get_database
+from dependencies import get_database, FRAUD_EVAL_COLLECTION, ENTITIES_COLLECTION
 
 
 router = APIRouter(
@@ -27,8 +27,9 @@ router = APIRouter(
 def get_transaction_repository() -> TransactionRepository:
     """Dependency to get transaction repository instance"""
     db = get_database()
-    transactions_collection = db.fraudEvaluation
-    return TransactionRepository(transactions_collection)
+    transactions_collection = db[FRAUD_EVAL_COLLECTION]
+    customers_collection = db[ENTITIES_COLLECTION]
+    return TransactionRepository(transactions_collection, customers_collection)
 
 
 @router.get("/{entity_id}/transactions", response_model=TransactionActivityResponse)

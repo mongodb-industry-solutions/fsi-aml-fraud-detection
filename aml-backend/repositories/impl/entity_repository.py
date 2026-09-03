@@ -17,6 +17,7 @@ from reference.mongodb_core_lib import (
     SearchOptions, VectorSearchOptions
 )
 from models.core.entity import Entity, validate_entity_data
+from repositories import entity_fields as ef
 
 
 logger = logging.getLogger(__name__)
@@ -32,7 +33,7 @@ class EntityRepository(EntityRepositoryInterface):
     Entity repository implementation using mongodb_core_lib
     
     Provides clean, efficient entity data access with advanced MongoDB features
-    including Atlas Search, Vector Search, and optimized aggregation pipelines.
+    including MongoDB Search, Vector Search, and optimized aggregation pipelines.
     """
     
     def __init__(self, mongodb_repo: MongoDBRepository, collection_name: Optional[str] = None):
@@ -45,7 +46,7 @@ class EntityRepository(EntityRepositoryInterface):
         """
         self.repo = mongodb_repo
         # Get collection name from environment variable or use provided name
-        self.collection_name = collection_name or os.getenv('ENTITIES_COLLECTION', 'threatsightEntities')
+        self.collection_name = collection_name or os.getenv('ENTITIES_COLLECTION', 'customers')
         self.collection = self.repo.collection(self.collection_name)
         
         logger.info(f"EntityRepository initialized with collection: {self.collection_name}")
@@ -115,51 +116,38 @@ class EntityRepository(EntityRepositoryInterface):
             raise RepositoryError(f"Entity creation failed: {e}")
     
     async def find_by_id(self, entity_id: str) -> Optional[Dict[str, Any]]:
-        """Find entity by ID with error handling"""
+        """Find a party by identity.
+
+        The identity is a `customerId` string ("CUST-1ea73383"), not an
+        ObjectId -- passing one to `ObjectId()` raised `InvalidId` on every
+        call after the move to `customers`.
+        """
         try:
-            result = await self.collection.find_one({"_id": ObjectId(entity_id)})
+            result = await self.collection.find_one(ef.scoped({ef.CUSTOMER_ID: entity_id}))
             if result:
                 result["_id"] = str(result["_id"])
             return result
-            
+
         except Exception as e:
             logger.error(f"Failed to find entity {entity_id}: {e}")
             return None
     
     async def find_by_entity_id(self, entity_id: str) -> Optional[Dict[str, Any]]:
-        """Find entity by entityId field"""
+        """Find a party by identity and return it in the wire shape.
+
+        `entity_id` is a `customerId` ("CUST-1ea73383"). The projection
+        translates the BIAN document into the shape the frontend reads --
+        see repositories/entity_fields.py for why the translation lives here
+        and not in the JSX.
+        """
         try:
             # Use aggregation to find and transform the entity data to match frontend expectations
             pipeline = [
-                {"$match": {"entityId": entity_id}},
+                {"$match": ef.scoped({ef.CUSTOMER_ID: entity_id})},
                 {"$limit": 1},
-                {"$project": {
-                    "_id": 1,
-                    "entityId": 1,
-                    "scenarioKey": 1,
-                    "name": 1,  # Return full name object
-                    "entityType": 1,
-                    "status": 1,
-                    "dateOfBirth": 1,
-                    "addresses": 1,
-                    "identifiers": 1,
-                    "riskAssessment": 1,  # Return full risk assessment object
-                    "watchlistMatches": 1,
-                    "profileSummaryText": 1,
-                    "profileEmbedding": 1,  # Legacy embedding
-                    "behavioral_analytics": 1,  # Behavioral analytics for transaction simulator and UI
-                    "account_info": 1,  # Account info for transaction simulator
-                    "identifierEmbedding": 1,  # New identifier embedding
-                    "behavioralEmbedding": 1,  # New behavioral embedding
-                    "identifierText": 1,  # Identifier text representation
-                    "behavioralText": 1,  # Behavioral text representation
-                    "resolution": 1,
-                    "customerInfo": 1,
-                    "created_date": "$createdAt",
-                    "updated_date": "$updatedAt"
-                }}
+                {"$project": ef.wire_projection()}
             ]
-            
+
             results = await self.repo.execute_pipeline(self.collection_name, pipeline)
 
             if results and len(results) > 0:
@@ -186,15 +174,10 @@ class EntityRepository(EntityRepositoryInterface):
     async def find_multiple_by_ids(self, entity_ids: List[str]) -> List[Dict[str, Any]]:
         """Find multiple entities by IDs using optimized query"""
         try:
-            object_ids = [ObjectId(eid) for eid in entity_ids]
-            
-            # Use aggregation for efficient batch retrieval
+            # Identities are `customerId` strings, not ObjectIds.
             pipeline = (self.aggregation()
-                       .match({"_id": {"$in": object_ids}})
-                       .project({
-                           "_id": 1, "name": 1, "entity_type": 1, "status": 1,
-                           "risk_assessment": 1, "created_date": 1
-                       })
+                       .match(ef.scoped({ef.CUSTOMER_ID: {"$in": entity_ids}}))
+                       .project(ef.list_projection())
                        .build())
             
             results = await self.repo.execute_pipeline(self.collection_name, pipeline)
@@ -210,55 +193,36 @@ class EntityRepository(EntityRepositoryInterface):
             return []
     
     async def update(self, entity_id: str, update_data: Dict[str, Any]) -> bool:
-        """Update entity with optimistic concurrency control"""
-        try:
-            # Add update metadata
-            update_data["updated_date"] = datetime.utcnow()
-            
-            # Increment version for optimistic locking
-            update_operation = {
-                "$set": update_data,
-                "$inc": {"version": 1}
-            }
-            
-            result = await self.collection.update_one(
-                {"_id": ObjectId(entity_id)},
-                update_operation
-            )
-            
-            success = result.modified_count > 0
-            if success:
-                logger.info(f"Updated entity {entity_id}")
-            
-            return success
-            
-        except Exception as e:
-            logger.error(f"Failed to update entity {entity_id}: {e}")
-            return False
-    
+        """Not supported against the BIAN `customers` collection.
+
+        This method wrote the caller's dict verbatim plus snake_case metadata
+        (`updated_date`, `version`) that belongs to neither shape. Against
+        `threatsightEntities` that was merely untidy; against `customers` --
+        which is SHARED with the Leafy Bank payments demo -- it injects
+        non-BIAN fields into a collection another service owns records in.
+
+        Raising is deliberate, and follows the same reasoning as decision D5 on
+        `RelationshipRepository`: a write path that would corrupt the shared
+        collection should fail loudly rather than be repointed as a drive-by.
+        No live UI route reaches this today. Restore it by writing BIAN paths
+        through `entity_fields`, scoped on `sourceSystem`.
+        """
+        raise RepositoryError(
+            "EntityRepository.update is disabled against the BIAN `customers` "
+            "collection (phase-2 step 3). See repositories/entity_fields.py."
+        )
+
     async def delete(self, entity_id: str) -> bool:
-        """Soft delete entity by setting status to archived"""
-        try:
-            update_data = {
-                "status": "archived",
-                "archived_date": datetime.utcnow(),
-                "updated_date": datetime.utcnow()
-            }
-            
-            result = await self.collection.update_one(
-                {"_id": ObjectId(entity_id)},
-                {"$set": update_data, "$inc": {"version": 1}}
-            )
-            
-            success = result.modified_count > 0
-            if success:
-                logger.info(f"Archived entity {entity_id}")
-            
-            return success
-            
-        except Exception as e:
-            logger.error(f"Failed to delete entity {entity_id}: {e}")
-            return False
+        """Not supported against the BIAN `customers` collection.
+
+        Soft-deleted by setting `status: "archived"` -- not a value in the BIAN
+        status enum -- plus snake_case metadata. Disabled for the same reason as
+        `update()` above.
+        """
+        raise RepositoryError(
+            "EntityRepository.delete is disabled against the BIAN `customers` "
+            "collection (phase-2 step 3). See repositories/entity_fields.py."
+        )
     
     async def get_entities_paginated(self, skip: int = 0, limit: int = 20, 
                                    filters: Optional[Dict[str, Any]] = None) -> tuple[List[Dict[str, Any]], int]:
@@ -282,16 +246,21 @@ class EntityRepository(EntityRepositoryInterface):
             
             # Get distinct entity types
             entity_types_pipeline = [
-                {"$group": {"_id": "$entity_type"}},
+                {"$match": ef.scoped()},
+                {"$group": {"_id": f"${ef.TYPE}"}},
                 {"$match": {"_id": {"$ne": None}}},
                 {"$sort": {"_id": 1}}
             ]
             entity_types_result = await self.repo.execute_pipeline(self.collection_name, entity_types_pipeline)
-            entity_types = [doc["_id"] for doc in entity_types_result if doc["_id"]]
-            
+            # Stored uppercase; the dropdowns and the filters they feed both
+            # speak the source demo's lowercase vocabulary.
+            entity_types = [ef.type_to_wire(doc["_id"]) for doc in entity_types_result if doc["_id"]]
+            entity_types = sorted(set(entity_types))
+
             # Get distinct risk levels
             risk_levels_pipeline = [
-                {"$group": {"_id": "$risk_assessment.level"}},
+                {"$match": ef.scoped()},
+                {"$group": {"_id": f"${ef.RISK_LEVEL}"}},
                 {"$match": {"_id": {"$ne": None}}},
                 {"$sort": {"_id": 1}}
             ]
@@ -300,12 +269,13 @@ class EntityRepository(EntityRepositoryInterface):
             
             # Get distinct statuses
             statuses_pipeline = [
-                {"$group": {"_id": "$status"}},
+                {"$match": ef.scoped()},
+                {"$group": {"_id": f"${ef.STATUS}"}},
                 {"$match": {"_id": {"$ne": None}}},
                 {"$sort": {"_id": 1}}
             ]
             statuses_result = await self.repo.execute_pipeline(self.collection_name, statuses_pipeline)
-            statuses = [doc["_id"] for doc in statuses_result if doc["_id"]]
+            statuses = [ef.status_to_wire(doc["_id"]) for doc in statuses_result if doc["_id"]]
             
             return {
                 "entity_types": entity_types,
@@ -343,29 +313,7 @@ class EntityRepository(EntityRepositoryInterface):
                               .sort({"createdAt": -1})  # Use actual field name
                               .skip(offset)
                               .limit(limit)
-                              .project({
-                                  "_id": 1,
-                                  "entityId": 1,
-                                  "scenarioKey": 1,
-                                  "name": 1,  # Include full name object for compatibility
-                                  "name_full": "$name.full",  # Extract full name from nested structure
-                                  "entityType": 1,  # Use actual field name
-                                  "status": 1,
-                                  "riskAssessment": 1,  # Include full risk assessment object
-                                  "risk_level": "$riskAssessment.overall.level",  # Extract from nested risk assessment
-                                  "risk_score": "$riskAssessment.overall.score",  # Extract score from nested structure
-                                  "watchlistMatches": 1,  # Include watchlist matches
-                                  "watchlist_matches_count": {"$size": {"$ifNull": ["$watchlistMatches", []]}},  # Count array items
-                                  "has_watchlist_matches": {"$gt": [{"$size": {"$ifNull": ["$watchlistMatches", []]}}, 0]},
-                                  "behavioral_analytics": 1,  # Include behavioral analytics for transaction simulator (only if exists)
-                                  "account_info": 1,  # Include account info for transaction simulator (only if exists)
-                                  "identifierEmbedding": 1,  # Include identifier embedding
-                                  "behavioralEmbedding": 1,  # Include behavioral embedding
-                                  "identifierText": 1,  # Include identifier text
-                                  "behavioralText": 1,  # Include behavioral text
-                                  "created_date": "$createdAt",  # Map to expected field name
-                                  "updated_date": "$updatedAt"   # Map to expected field name
-                              })
+                              .project(ef.list_projection())
                               .build())
             
             logger.debug(f"Executing pipeline with projection including behavioral_analytics")
@@ -624,31 +572,44 @@ class EntityRepository(EntityRepositoryInterface):
         if "query" in criteria and criteria["query"]:
             conditions["$text"] = {"$search": criteria["query"]}
         
-        # Field mapping: criteria_key -> mongodb_field_name
-        # Handles both snake_case (from core routes) and camelCase (from search routes) inputs
+        # Field mapping: criteria_key -> BIAN `customers` path.
+        # Handles both snake_case (from core routes) and camelCase (from search routes) inputs.
         field_mapping = {
             # Entity type mapping (handle both formats)
-            "entity_type": "entityType",     # snake_case -> camelCase (database field)
-            "entityType": "entityType",      # camelCase -> camelCase (passthrough)
-            
-            # Risk level mapping (handle both formats) 
-            "risk_level": "riskAssessment.overall.level",   # snake_case -> correct nested path
-            "riskLevel": "riskAssessment.overall.level",    # camelCase -> correct nested path
-            
-            # Standard field mappings (same names in database)
-            "status": "status",
-            "nationality": "nationality", 
-            "residency": "residency",
-            "jurisdiction": "jurisdictionOfIncorporation",  # ✅ Fixed: was "jurisdiction", now correct path
-            "businessType": "customerInfo.businessType"  # Map to correct nested path
+            "entity_type": ef.TYPE,          # snake_case -> BIAN `type`
+            "entityType": ef.TYPE,           # camelCase  -> BIAN `type`
+
+            # Risk level mapping (handle both formats)
+            "risk_level": ef.RISK_LEVEL,
+            "riskLevel": ef.RISK_LEVEL,
+
+            # Standard field mappings
+            "status": ef.STATUS,
+            "nationality": ef.NATIONALITIES,   # now an array; equality still matches members
+            "residency": ef.RESIDENCY,
+            "jurisdiction": ef.JURISDICTION,
+            "businessType": ef.BUSINESS_TYPE,
         }
-        
+
+        # Values arriving from the frontend are the source demo's lowercase
+        # vocabulary ('individual', 'active'); BIAN stores them uppercase. An
+        # untranslated value matches nothing and renders an empty, unfiltered
+        # list with no error.
+        value_translators = {
+            ef.TYPE: ef.type_to_storage,
+            ef.STATUS: ef.status_to_storage,
+        }
+
         # Apply field mappings
         for criteria_key, mongodb_field in field_mapping.items():
             if criteria_key in criteria and criteria[criteria_key]:
-                conditions[mongodb_field] = criteria[criteria_key]
-                logger.debug(f"Mapped filter: {criteria_key} → {mongodb_field} = {criteria[criteria_key]}")
-        
+                value = criteria[criteria_key]
+                translate = value_translators.get(mongodb_field)
+                if translate:
+                    value = translate(value)
+                conditions[mongodb_field] = value
+                logger.debug(f"Mapped filter: {criteria_key} → {mongodb_field} = {value}")
+
 
         # Date range filtering (fix field name to match database schema)
         if "created_after" in criteria or "created_before" in criteria:
@@ -657,8 +618,12 @@ class EntityRepository(EntityRepositoryInterface):
                 date_filter["$gte"] = criteria["created_after"]
             if "created_before" in criteria:
                 date_filter["$lte"] = criteria["created_before"]
-            conditions["createdAt"] = date_filter  # Fixed: was "created_date", now "createdAt"
-        
+            conditions[ef.CREATED_AT] = date_filter
+
+        # `customers` is shared with the Leafy Bank payments demo. Without this
+        # guard the list returns 558 parties instead of our 554.
+        conditions = ef.scoped(conditions)
+
         logger.debug(f"Final MongoDB conditions: {conditions}")
         return conditions
     

@@ -61,11 +61,11 @@ const PIPELINE_STAGES = [
         number: 2, name: 'Case Analyst', glyph: 'Folder',
         color: palette.green.dark1, type: 'Agent', typeBg: palette.green.light3, typeColor: palette.green.dark2,
         role: '360° profile synthesis + crime typology classification',
-        detail: 'Single LLM call produces CaseFile + TypologyResult. RAG retrieval from typology_library via Atlas Search.',
+        detail: 'Single LLM call produces CaseFile + TypologyResult. RAG retrieval from typology_library via MongoDB Search.',
         value: 'Maps every case to a named AML typology — audit-ready classification.',
         uses: {
-          langgraph: ['with_structured_output()', 'Atlas Search RAG'],
-          mongodb: ['Atlas Search', 'Document Model'],
+          langgraph: ['with_structured_output()', 'MongoDB Search RAG'],
+          mongodb: ['MongoDB Search', 'Document Model'],
         },
       },
     ],
@@ -112,8 +112,8 @@ const PIPELINE_STAGES = [
         detail: 'Generates 5Ws narrative grounded in JSON evidence. RAG from compliance_policies. Temperature 0.1.',
         value: 'Produces filing-ready narratives — analyst reviews instead of writes.',
         uses: {
-          langgraph: ['with_structured_output()', 'Atlas Search RAG'],
-          mongodb: ['Atlas Search'],
+          langgraph: ['with_structured_output()', 'MongoDB Search RAG'],
+          mongodb: ['MongoDB Search'],
         },
       },
       {
@@ -204,7 +204,7 @@ decision: TriageDecision = result["parsed"]   # fully typed`,
   {
     title: 'RAG & Retrieval',
     features: [
-      { name: 'Atlas Search RAG', desc: 'Retrieves relevant typology patterns and compliance policies for grounded generation', where: 'Case Analyst, SAR Author' },
+      { name: 'MongoDB Search RAG', desc: 'Retrieves relevant typology patterns and compliance policies for grounded generation', where: 'Case Analyst, SAR Author' },
       { name: 'Typology library', desc: '12 AML crime typologies with red flags and regulatory references', where: 'Case Analyst typology classification' },
       { name: 'Compliance policies', desc: '6 FinCEN/regulatory policy documents for SAR formatting guidance', where: 'SAR Author narrative generation' },
     ],
@@ -304,7 +304,7 @@ db.transactionsv2.aggregate([
   },
   { name: '$facet', desc: 'Multi-dimensional analytics aggregation in a single pipeline — status distribution, typology counts, risk stats, and 7-day trends.', agent: 'Analytics Dashboard' },
   {
-    name: 'Atlas Search',
+    name: 'MongoDB Search',
     desc: 'Full-text + vector search powering RAG retrieval from typology_library (12 typologies) and compliance_policies (6 policies).',
     agent: 'Case Analyst, SAR Author',
     snippet: {

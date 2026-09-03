@@ -243,7 +243,7 @@ export default function InvestigationAnalytics() {
           <div style={{
             marginTop: spacing[2], fontSize: 10, fontFamily: FONT, color: palette.gray.base,
           }}>
-            Computed via <code>$group</code> by <code>investigation_status</code>
+            Computed via <code>$group</code> by <code>status</code>
           </div>
         </Card>
       )}
@@ -258,7 +258,7 @@ export default function InvestigationAnalytics() {
           <div style={{
             marginTop: spacing[2], fontSize: 10, fontFamily: FONT, color: palette.gray.base,
           }}>
-            Computed via <code>$group</code> on <code>typology.primary_typology</code> + <code>$sort</code> + <code>$limit 10</code>
+            Computed via <code>$group</code> on <code>caseAnalysis.typology.primaryTypology</code> + <code>$sort</code> + <code>$limit 10</code>
           </div>
         </Card>
       )}

@@ -202,7 +202,7 @@ For detailed documentation, see [README-RISK-MODEL.md](README-RISK-MODEL.md).
 
 ## Vector Search
 
-MongoDB Atlas Vector Search powers semantic similarity matching:
+MongoDB Vector Search powers semantic similarity matching:
 
 - **Fraud Patterns**: Text descriptions embedded via Amazon Titan, searched with `$vectorSearch` (cosine similarity, 1536 dimensions)
 - **Historical Transactions**: Transaction embeddings enable context-aware risk evaluation against similar past transactions

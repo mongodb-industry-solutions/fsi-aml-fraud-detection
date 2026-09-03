@@ -57,7 +57,7 @@ async def get_search_debug_info(
     try:
         logger.info("Getting comprehensive search debug information")
         
-        # Get Atlas Search debug info through service
+        # Get MongoDB Search debug info through service
         atlas_debug_info = await atlas_search_service.get_search_debug_info()
         
         # Get Vector Search statistics through service
@@ -101,7 +101,7 @@ async def test_atlas_search_index(
     atlas_search_service: AtlasSearchService = Depends(get_atlas_search_service)
 ):
     """
-    Test Atlas Search index configuration and accessibility
+    Test MongoDB Search index configuration and accessibility
     
     Uses the refactored AtlasSearchService to perform comprehensive index testing
     through the repository pattern with enhanced error handling.
@@ -113,10 +113,10 @@ async def test_atlas_search_index(
     - Service architecture validation
     
     Returns:
-        Atlas Search index test results with service architecture status
+        MongoDB Search index test results with service architecture status
     """
     try:
-        logger.info("Testing Atlas Search index through enhanced service")
+        logger.info("Testing MongoDB Search index through enhanced service")
         
         # Test index through refactored service
         test_result = await atlas_search_service.test_search_index()
@@ -137,12 +137,12 @@ async def test_atlas_search_index(
             "test_timestamp": datetime.utcnow().isoformat()
         }
         
-        logger.info(f"Atlas Search index test completed: {test_result.get('index_accessible', False)}")
+        logger.info(f"MongoDB Search index test completed: {test_result.get('index_accessible', False)}")
         
         return enhanced_result
         
     except Exception as e:
-        logger.error(f"Atlas Search index test failed: {e}")
+        logger.error(f"MongoDB Search index test failed: {e}")
         return {
             "index_test": {
                 "index_accessible": False,
@@ -240,7 +240,7 @@ async def test_unified_search_correlation(
     Test unified search correlation analysis
     
     Uses the refactored UnifiedSearchService to test correlation analysis between
-    Atlas Search and Vector Search results with service orchestration diagnostics.
+    MongoDB Search and Vector Search results with service orchestration diagnostics.
     
     **Enhanced Correlation Testing:**
     - Service orchestration validation
@@ -249,7 +249,7 @@ async def test_unified_search_correlation(
     - Performance metrics analysis
     
     Args:
-        name_full: Name for Atlas Search testing
+        name_full: Name for MongoDB Search testing
         semantic_query: Semantic query for Vector Search testing
         
     Returns:
@@ -311,9 +311,9 @@ async def execute_raw_atlas_query(
     atlas_search_service: AtlasSearchService = Depends(get_atlas_search_service)
 ):
     """
-    Execute raw Atlas Search query for debugging
+    Execute raw MongoDB Search query for debugging
     
-    Uses the refactored AtlasSearchService to execute raw Atlas Search queries
+    Uses the refactored AtlasSearchService to execute raw MongoDB Search queries
     through the repository pattern for advanced debugging and development.
     
     **Enhanced Raw Query Execution:**
@@ -323,13 +323,13 @@ async def execute_raw_atlas_query(
     - Service architecture diagnostics
     
     Args:
-        query: Raw Atlas Search aggregation pipeline
+        query: Raw MongoDB Search aggregation pipeline
         
     Returns:
         Raw query results with service architecture diagnostics
     """
     try:
-        logger.info(f"Executing raw Atlas Search query through enhanced service")
+        logger.info(f"Executing raw MongoDB Search query through enhanced service")
         
         # Execute raw query through refactored service
         # Note: This would require implementing a raw query method in AtlasSearchService
@@ -354,15 +354,15 @@ async def execute_raw_atlas_query(
             "execution_status": "Repository pattern execution validated"
         }
         
-        logger.info("Raw Atlas Search query executed successfully")
+        logger.info("Raw MongoDB Search query executed successfully")
         
         return result
         
     except Exception as e:
-        logger.error(f"Raw Atlas Search query execution failed: {e}")
+        logger.error(f"Raw MongoDB Search query execution failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Raw Atlas Search query failed: {str(e)}"
+            detail=f"Raw MongoDB Search query failed: {str(e)}"
         )
 
 

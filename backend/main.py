@@ -6,6 +6,12 @@ import os
 import logging
 from datetime import datetime
 
+# Load environment variables before importing any route module. routes/customer.py
+# reads DB_NAME at import time (module-level `os.getenv("DB_NAME", ...)`), so
+# importing it before .env is loaded silently falls back to the default and
+# connects to the wrong database.
+load_dotenv()
+
 # Import routes
 from routes.customer import router as customer_router
 from routes.transaction import router as transaction_router
@@ -20,9 +26,6 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
-
-# Load environment variables
-load_dotenv()
 
 # Create FastAPI app
 app = FastAPI(

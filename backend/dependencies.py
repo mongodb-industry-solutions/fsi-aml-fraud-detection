@@ -5,6 +5,8 @@ import os
 from dotenv import load_dotenv
 import logging
 
+from db_config import APP_NAME
+
 # Load environment variables
 load_dotenv()
 
@@ -22,14 +24,14 @@ def get_mongo_client():
     """Get synchronous MongoDB client"""
     global _mongo_client
     if _mongo_client is None:
-        _mongo_client = MongoClient(MONGODB_URI)
+        _mongo_client = MongoClient(MONGODB_URI, appName=APP_NAME)
     return _mongo_client
 
 def get_motor_client():
     """Get asynchronous MongoDB client"""
     global _motor_client
     if _motor_client is None:
-        _motor_client = AsyncIOMotorClient(MONGODB_URI)
+        _motor_client = AsyncIOMotorClient(MONGODB_URI, appName=APP_NAME)
     return _motor_client
 
 def get_database():
@@ -47,11 +49,12 @@ async def get_transactions_collection():
 
 async def get_risk_models_collection():
     db = get_database()
-    # Renamed 2026-07-29 by the leafy_bank_bian migration (was `risk_models`).
-    # Bracket access, not attribute access -- the new name is not a valid identifier
-    # style match for the accessor, and db.threatsightRiskModels would still work but
-    # bracket form makes the string explicit and greppable.
-    return db["threatsightRiskModels"]
+    # Renamed twice: 2026-07-29 by the leafy_bank_bian migration (was `risk_models`),
+    # then 2026-08-06 by the BIAN mapping (SD FraudModel). Documents here carry the
+    # STORED shape -- usageGuidelines / testResult, string `version`. Anything reading
+    # this collection must flatten via routes.model_management.to_wire().
+    # Bracket access, not attribute access -- makes the string explicit and greppable.
+    return db["fraudModel"]
 
 async def get_model_performance_collection():
     db = get_database()

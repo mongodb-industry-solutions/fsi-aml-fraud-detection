@@ -30,6 +30,7 @@ from services.dependencies import (
     get_vector_search_service
 )
 from repositories.factory.repository_factory import get_vector_search_repository
+from repositories import entity_fields as ef
 
 logger = logging.getLogger(__name__)
 
@@ -277,7 +278,7 @@ async def perform_comprehensive_search(
         request_entity_data = request.get("entity", {})
         search_config = request.get("searchConfig", {})
         
-        # Create proper request object with all expected fields for Atlas Search
+        # Create proper request object with all expected fields for MongoDB Search
         search_request = CompleteEntitySearchRequest(
             entity_name=request_entity_data.get('fullName', ''),
             entity_type=request_entity_data.get('entityType', 'individual'),
@@ -305,7 +306,12 @@ async def perform_comprehensive_search(
                     query_vector=query_embedding,
                     limit=search_config.get('maxResults', 10),
                     similarity_threshold=search_config.get('confidenceThreshold', 0.3),
-                    filters={"entityType": request_entity_data.get('entityType', 'individual')}
+                    # Storage-shaped: this is a post-$vectorSearch $match, which
+                    # runs before the wire projection. `entityType`/`individual`
+                    # matched nothing on the BIAN `customers` shape.
+                    filters={ef.TYPE: ef.type_to_storage(
+                        request_entity_data.get('entityType', 'individual')
+                    )}
                 )
             )
         else:
@@ -317,7 +323,9 @@ async def perform_comprehensive_search(
                     query_text=search_text,
                     limit=search_config.get('maxResults', 10),
                     similarity_threshold=search_config.get('confidenceThreshold', 0.3),
-                    filters={"entity_type": request_entity_data.get('entityType', 'individual')}
+                    filters={ef.TYPE: ef.type_to_storage(
+                        request_entity_data.get('entityType', 'individual')
+                    )}
                 )
             )
         
@@ -350,13 +358,13 @@ async def perform_comprehensive_search(
                 entity_id = match.entity_id
                 entity_data = getattr(match, 'entity_data', {})
                 search_score = getattr(match, 'search_score', 0)
-                match_reasons = getattr(match, 'match_reasons', ["Atlas search"])
+                match_reasons = getattr(match, 'match_reasons', ["MongoDB search"])
             elif isinstance(match, dict):
                 # Raw MongoDB document
                 entity_id = match.get("entityId", "")
                 entity_data = match
                 search_score = match.get("search_score", 0)
-                match_reasons = ["Atlas search"]
+                match_reasons = ["MongoDB search"]
             else:
                 continue
                 
@@ -1113,12 +1121,14 @@ async def analyze_hybrid_search_network_risk(
         try:
             # Enhanced transaction analysis using actual transactionsv2 collection
             from repositories.impl.transaction_repository import TransactionRepository
-            from dependencies import get_database
-            
-            # Get transaction repository to query transactionsv2 collection
+            from dependencies import (get_database, FRAUD_EVAL_COLLECTION,
+                                      ENTITIES_COLLECTION)
+
+            # Get transaction repository to query the fraud-evaluation collection
             db = get_database()
-            transactions_collection = db.fraudEvaluation
-            transaction_repo = TransactionRepository(transactions_collection)
+            transactions_collection = db[FRAUD_EVAL_COLLECTION]
+            customers_collection = db[ENTITIES_COLLECTION]
+            transaction_repo = TransactionRepository(transactions_collection, customers_collection)
             
             # Get transaction activity for the target entity
             transaction_activity = await transaction_repo.get_entity_transactions(

@@ -1,4 +1,9 @@
-"""Finalize Agent – assembles the final case document and persists to MongoDB."""
+"""Finalize Agent – assembles the final case document and persists to MongoDB.
+
+The document is assembled in the flat snake_case shape the LangGraph state uses, then
+translated once at the DB boundary into the BIAN `fraudResolution` shape. `state.py` is
+deliberately untouched -- see fraud_resolution_shape.py for why the seam sits here.
+"""
 
 import logging
 import time
@@ -6,9 +11,30 @@ import uuid
 from datetime import datetime, timezone
 
 from dependencies import get_mongo_client, DB_NAME
+from services.agents import fraud_resolution_shape as frs
+from services.agents.entity_resolution import resolve_to_customer_id
 from services.agents.state import InvestigationState
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_party(db, raw_id: str) -> tuple:
+    """`(customerId, partyResolution)` for a raw agent-facing entity id.
+
+    `resolve_to_customer_id` hands back the input unchanged when it cannot place the
+    id, so a non-`CUST-` result means unresolved. Never guess a party -- an
+    investigation attached to the wrong customer is worse than one attached to none.
+    """
+    if not raw_id:
+        return None, "UNRESOLVED"
+    try:
+        resolved = resolve_to_customer_id(raw_id, db)
+    except Exception:
+        logger.exception("Party resolution failed for %s", raw_id)
+        return None, "UNRESOLVED"
+    if not resolved or not resolved.startswith("CUST-"):
+        return None, "UNRESOLVED"
+    return resolved, "DIRECT" if raw_id.startswith("CUST-") else "SCENARIO_UNIQUE"
 
 
 def finalize_node(state: InvestigationState) -> dict:
@@ -76,7 +102,16 @@ def finalize_node(state: InvestigationState) -> dict:
     persistence_error = None
     try:
         client = get_mongo_client()
-        client[DB_NAME]["threatsightInvestigations"].insert_one(case_document)
+        db = client[DB_NAME]
+        raw_entity_id = case_document["entity_id"]
+        customer_id, party_resolution = _resolve_party(db, raw_entity_id)
+        stored = frs.to_stored(
+            case_document,
+            customer_id=customer_id,
+            party_resolution=party_resolution,
+            resolve_finding=lambda eid: _resolve_party(db, eid),
+        )
+        db[frs.COLLECTION].insert_one(stored)
         logger.info("Investigation %s persisted to MongoDB", case_id)
     except Exception as exc:
         logger.exception("Failed to persist investigation %s", case_id)

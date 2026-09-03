@@ -19,7 +19,7 @@ ThreatSight 360 addresses these challenges with real-time risk assessment, AI-po
 > - **Durable Human-in-the-Loop** via `interrupt_before` checkpoints and `MongoDBSaver` — analysts resume hours or days later with zero context loss
 > - **ThreatSight Copilot** — a global, conversational ReAct agent with 15 MongoDB-backed tools and rich artifact rendering (Markdown, Mermaid, sandboxed HTML)
 > - **Live pipeline visualization** — ReactFlow graph with SSE-streamed node activations, animated `Send` fan-out, and stacked sub-agent satellites
-> - **Compliance-grade narrative grounding** — Atlas Search RAG over typology library + FinCEN policy corpus
+> - **Compliance-grade narrative grounding** — MongoDB Search RAG over typology library + FinCEN policy corpus
 > - **Powered by Claude Haiku 4.5** on AWS Bedrock with `with_structured_output()` for type-safe agent decisions
 
 By the end of this guide, you'll have a comprehensive fraud detection and AML/KYC compliance system up and running capable of:
@@ -31,15 +31,16 @@ By the end of this guide, you'll have a comprehensive fraud detection and AML/KY
 - **ThreatSight Copilot**: ReAct agent with 15 tools spanning fund flow tracing, temporal analysis, entity similarity, network intelligence, and policy/typology lookup — with rich artifact rendering (Markdown, Mermaid diagrams, interactive HTML) for analyst-driven exploration
 - **Automated Case Investigation**: AI-generated investigation reports and case documentation
 - **Network Analysis**: Relationship mapping and graph analytics for compliance investigations
-- **Vector-based Pattern Recognition**: Advanced similarity matching using MongoDB Atlas Vector Search
+- **Vector-based Pattern Recognition**: Advanced similarity matching using MongoDB Vector Search
 - **Dynamic Risk Model Management**: Configurable risk models with real-time updates
 
-We will walk you through the process of configuring and using [MongoDB Atlas](https://www.mongodb.com/atlas/database) as your backend with [AWS Bedrock](https://aws.amazon.com/bedrock/) for AI-powered risk assessment and entity resolution in your [Next.js](https://nextjs.org/) and [FastAPI](https://fastapi.tiangolo.com/) application.
+We will walk you through the process of configuring and using [MongoDB Atlas](https://www.mongodb.com/atlas/database?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel) as your backend with [AWS Bedrock](https://aws.amazon.com/bedrock/) for AI-powered risk assessment and entity resolution in your [Next.js](https://nextjs.org/) and [FastAPI](https://fastapi.tiangolo.com/) application.
 
 ## Documentation
 
+
 | Document                                                                       | Description                               |
-| ------------------------------------------------------------------------------ | ----------------------------------------- |
+| -------------------------------------------------------------------------------- | ------------------------------------------- |
 | [Solution Architecture](docs/SOLUTION_ARCHITECTURE.md)                         | System architecture diagrams (mermaid)    |
 | [Agentic System Overview](docs/AGENTIC_SYSTEM_OVERVIEW.md)                     | All AI agent capabilities at a glance     |
 | [Investigation Pipeline](docs/AGENTIC_INVESTIGATION_PIPELINE.md)               | LangGraph SAR pipeline deep-dive          |
@@ -59,26 +60,26 @@ ThreatSight 360 uses a **dual-backend microservices architecture**:
 
 ### **Backend** (`/backend`, port 8000)
 
-- **Risk Model Management**: Multi-factor risk evaluation with risk models configurable in real-time with [MongoDB Atlas Change Streams](https://www.mongodb.com/docs/manual/changeStreams/).
-- **Transaction Screening**: Real-time transaction screening using [MongoDB Atlas Vector Search](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-overview/)
+- **Risk Model Management**: Multi-factor risk evaluation with risk models configurable in real-time with [MongoDB Atlas Change Streams](https://www.mongodb.com/docs/manual/changeStreams/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel).
+- **Transaction Screening**: Real-time transaction screening using [MongoDB Vector Search](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-overview/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel)
 
 ### **AML Backend** (`/aml-backend`, port 8001)
 
-- **Entity Management**: Comprehensive individual and organization entity management with Customer 360 view possible due to the [MongoDB Document Model](https://www.mongodb.com/docs/manual/core/data-modeling-introduction/)
-- **Intelligent Entity Resolution**: [MongoDB Atlas Search](https://www.mongodb.com/docs/atlas/atlas-search/) fuzzy matching and duplicate detection
+- **Entity Management**: Comprehensive individual and organization entity management with Customer 360 view possible due to the [MongoDB Document Model](https://www.mongodb.com/docs/manual/core/data-modeling-introduction/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel)
+- **Intelligent Entity Resolution**: [MongoDB Search](https://www.mongodb.com/docs/atlas/atlas-search/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel) fuzzy matching and duplicate detection
 - **LLM Classification Service**: AWS Bedrock Claude Haiku 4.5 for entity risk assessment
 - **Agentic Investigation Pipeline**: [LangGraph](https://langchain-ai.github.io/langgraph/)-orchestrated 6-agent SAR investigation system (Triage → Case Analyst → Trail Follower → Sub-Investigator → SAR Author → Compliance QA) with `MongoDBSaver` checkpointing, parallel `Send` fan-out for fetch tools and sub-agents, and durable `interrupt_before`-based human review
 - **ThreatSight Copilot**: ReAct agent with 15 tools for fund flow tracing, temporal analysis, entity similarity, and lead expansion with rich artifact rendering
 - **Investigation Service**: Automated case investigation and report generation
-- **Network Analysis**: Relationship and transaction graph traversal analytics using [MongoDB $graphLookup](https://www.mongodb.com/docs/manual/reference/operator/aggregation/graphLookup/)
-- **Atlas Search Integration**: Advanced search capabilities with [faceted filtering](https://www.mongodb.com/docs/atlas/atlas-search/facet/) and [autocomplete](https://www.mongodb.com/docs/atlas/atlas-search/autocomplete/)
+- **Network Analysis**: Relationship and transaction graph traversal analytics using [MongoDB $graphLookup](https://www.mongodb.com/docs/manual/reference/operator/aggregation/graphLookup/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel)
+- **MongoDB Search Integration**: Advanced search capabilities with [faceted filtering](https://www.mongodb.com/docs/atlas/atlas-search/facet/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel) and [autocomplete](https://www.mongodb.com/docs/atlas/atlas-search/autocomplete/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel)
 
 ### **Frontend** (`/frontend`, port 3000)
 
 - **Transaction Simulator**: Interactive fraud scenario testing
-- **Risk Model Management**: Dynamic risk model configuration interface and [MongoDB Change Streams](https://www.mongodb.com/docs/manual/changeStreams/) for live risk model synchronization
+- **Risk Model Management**: Dynamic risk model configuration interface and [MongoDB Change Streams](https://www.mongodb.com/docs/manual/changeStreams/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel) for live risk model synchronization
 - **Entity Management Dashboard**: Advanced entity 360 with relationship and transaction network visualization
-- **Intelligent Entity Resolution Workflow**: A multi-step entity onboarding workflow involving MongoDB full-text + vector + [hybrid search with $rankFusion](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-stage/#atlas-vector-search-rankfusion), network traversal using [$graphLookup](https://www.mongodb.com/docs/manual/reference/operator/aggregation/graphLookup/) and risk classification and case generation using LLMs
+- **Intelligent Entity Resolution Workflow**: A multi-step entity onboarding workflow involving MongoDB full-text + vector + [hybrid search with $rankFusion](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-stage/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel#atlas-vector-search-rankfusion), network traversal using [$graphLookup](https://www.mongodb.com/docs/manual/reference/operator/aggregation/graphLookup/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel) and risk classification and case generation using LLMs
 - **Agentic Investigations Dashboard**: Interactive investigation control surface with live pipeline visualization (ReactFlow), real-time SSE streaming, human review workflow, and a polished "Control Room" UI built with MongoDB LeafyGreen components and centralized design tokens
   - **ThreatSight Copilot**: Conversational assistant with tool access for fund flow tracing, temporal analysis, entity similarity, and lead expansion — includes an artifact panel that renders Markdown, Mermaid diagrams, and sandboxed HTML previews
 
@@ -122,6 +123,27 @@ The agentic investigation pipeline shows how a flagged alert is escalated throug
 - **Human Review (HITL)**: Durable pause via `interrupt_before` checkpoint for analyst sign-off
 - **Persist Case**: Finalizes and writes the case to MongoDB
 
+## Why MongoDB?
+
+Fraud detection and AML compliance need one platform to hold very different shapes of
+data and query them together, in real time:
+
+- **One document holds a whole customer, not a join.** A risk assessment needs a
+  customer's profile, their device history, and their transaction patterns in the same
+  read. Nested documents mean that read is one query, not five joined tables — and
+  fields can evolve per customer segment without a schema migration.
+- **Investigations are graph problems.** "Who else is connected to this shell company,
+  two hops out?" is a `$graphLookup` traversal, not a recursive SQL CTE. The agentic
+  pipeline's network analysis and the Entity 360 relationship view both run on it
+  directly, against live data.
+- **Fuzzy name matching and vector similarity in one query.** Sanctioned individuals
+  rarely appear under their exact legal name. `$rankFusion` combines MongoDB Search's
+  fuzzy text matching with vector similarity in a single aggregation stage, so entity
+  resolution doesn't have to run two searches and merge the results by hand.
+- **A risk model can change without a deploy.** Change Streams push a new risk model's
+  weights to every connected client the moment it's activated — no polling, no restart,
+  no separate pub/sub system to keep in sync with the database.
+
 Let's get started!
 
 ## Prerequisites
@@ -131,13 +153,12 @@ Before you begin working with this project, ensure that you have the following p
 - **Python 3.10–3.12**: The `backend` service supports Python 3.10+; `aml-backend` supports Python 3.10–3.12 (a transitive dependency, `voyageai`, isn't yet compatible with 3.13+). You can download a compatible version from the [official website](https://www.python.org/downloads/).
 - **Node.js 18+**: The frontend requires Node.js 18 or higher, which includes npm for package management. You can download it from the [official Node.js website](https://nodejs.org/).
 - **Poetry**: Both backend services use Poetry for dependency management. Install it by following the instructions on the [Poetry website](https://python-poetry.org/docs/#installation).
-- **MongoDB Atlas Account**: This project uses MongoDB Atlas for data storage, Atlas Search, and vector search capabilities. If you don't have an account, you can sign up for free at [MongoDB Atlas](https://www.mongodb.com/cloud/atlas/register). Once you have an account, follow these steps to set up a M10 tier cluster:
+- **MongoDB Atlas Account**: This project uses MongoDB Atlas for data storage, MongoDB Search, and vector search capabilities. If you don't have an account, you can sign up for free at [MongoDB Atlas](https://www.mongodb.com/cloud/atlas/register?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel). Once you have an account, follow these steps to set up a M10 tier cluster:
   - Log in to your MongoDB Atlas account.
   - Create a new project or use an existing one, and then click "create a new database".
   - Choose the M10 tier option.
   - Configure the cluster settings according to your preferences and then click "finish and close" on the bottom right.
   - Finally, add your IP to the network access list so you can access your cluster remotely.
-
 - **AWS Account with Bedrock Access**: You'll need an AWS account with access to the Bedrock service for AI foundation models used in both fraud detection and entity resolution. Visit the [AWS Console](https://aws.amazon.com/console/) to set up an account and request access to Bedrock.
 - **Docker (Optional)**: For containerized deployment, Docker is required. Install it from the [Docker website](https://www.docker.com/get-started).
 
@@ -219,13 +240,11 @@ Now it's time to clone the ThreatSight 360 source code from GitHub to your local
    ```bash
    cd /path/to/your/desired/directory
    ```
-
 3. Once you're in the desired directory, use the `git clone` command to clone the repository:
 
    ```bash
    git clone <repository-url>
    ```
-
 4. After running the `git clone` command, a new directory with the repository's name will be created in your chosen directory. To navigate into the cloned repository, use the `cd` command:
 
    ```bash
@@ -236,7 +255,7 @@ Now it's time to clone the ThreatSight 360 source code from GitHub to your local
 
 ### Set up Vector Search
 
-ThreatSight 360 leverages MongoDB Atlas Vector Search for advanced fraud pattern recognition and entity similarity matching. Follow these steps to enable it:
+ThreatSight 360 leverages MongoDB Vector Search for advanced fraud pattern recognition and entity similarity matching. Follow these steps to enable it:
 
 #### 1. Fraud Pattern Vector Index
 
@@ -265,7 +284,7 @@ ThreatSight 360 leverages MongoDB Atlas Vector Search for advanced fraud pattern
 
 #### 2. Entity Resolution Search Index
 
-1. Create another Atlas Search index named "entity_resolution_search".
+1. Create another MongoDB Search index named "entity_resolution_search".
 2. Select the "entities" collection.
 3. Use the following comprehensive index definition for entity resolution:
 
@@ -337,7 +356,7 @@ ThreatSight 360 leverages MongoDB Atlas Vector Search for advanced fraud pattern
 
 #### 3. Entity Text Search Index
 
-For enhanced entity text matching, create an Atlas Search index named "entity_text_search_index":
+For enhanced entity text matching, create a MongoDB Search index named "entity_text_search_index":
 
 ```json
 {
@@ -487,7 +506,7 @@ PORT=8001
 # Frontend URL for CORS
 FRONTEND_URL=http://localhost:3000
 
-# Atlas Search Configuration
+# MongoDB Search Configuration
 ATLAS_SEARCH_INDEX=entity_resolution_search
 ATLAS_TEXT_SEARCH_INDEX=entity_text_search_index
 ENTITY_VECTOR_INDEX=entity_vector_search_index
@@ -568,28 +587,29 @@ The [Transaction Synthetic Data Generation notebook](docs/ThreatSight360%20-%20T
 **What it generates:**
 
 - **50 Customer Profiles** with rich behavioral patterns including:
+
   - Personal and account information
   - Device fingerprints and usual locations (GeoJSON)
   - Transaction behavior patterns (average amounts, merchant categories, usual times)
   - Risk profiles with scoring and flags
-
 - **6 Months of Synthetic Transactions** (26,000+ transactions) with:
+
   - Realistic mix of normal (60%), suspicious (25%), and fraudulent (15%) transactions
   - Location data as GeoJSON for geospatial queries
   - Device information for device fingerprinting
   - Risk assessments with scores and flags
-
 - **5 Fraud Patterns** with AWS Bedrock embeddings:
+
   - Account Takeover
   - Card Testing
   - Transaction Laundering
   - Geographic Anomaly
   - Purchase Anomaly
-
 - **MongoDB Indexes** including:
+
   - Standard indexes for query performance
   - Geospatial indexes for location-based fraud detection
-  - Atlas Search indexes for text search
+  - MongoDB Search indexes for text search
   - Vector search indexes for pattern matching
 
 **Key Features Demonstrated:**
@@ -653,13 +673,11 @@ Before running the notebooks, ensure you have:
    # or
    pip install jupyterlab
    ```
-
 2. **Required Python packages**:
 
    ```bash
    pip install pymongo pandas faker numpy scikit-learn python-dotenv geojson boto3
    ```
-
 3. **MongoDB Atlas connection string** and **AWS Bedrock credentials** configured in the notebooks
 
 > [!Important]
@@ -677,22 +695,23 @@ The Transaction Simulator allows you to test and visualize how the fraud detecti
 1. Navigate to [http://localhost:3000/transaction-simulator](http://localhost:3000/transaction-simulator).
 2. Select a customer from the dropdown menu.
 3. Choose a predefined fraud scenario or configure your own:
+
    - Normal Transaction
    - Unusual Amount
    - Unusual Location
    - New Device
    - Multiple Red Flags
-
 4. Customize transaction details if needed:
+
    - Transaction type (purchase, withdrawal, transfer, deposit)
    - Payment method
    - Amount
    - Merchant category
    - Location information
    - Device information
-
 5. Click "Evaluate Transaction" to analyze the risk profile.
 6. Review the comprehensive risk assessment, including:
+
    - **Traditional Risk Assessment**: Rules-based evaluation with fraud pattern detection
    - **Advanced Vector Search**: AI-powered similarity matching against historical transactions
    - **Intelligent Vector Search Analysis**: Context-aware risk score calculation featuring:
@@ -712,18 +731,18 @@ The Entity Management interface provides comprehensive AML/KYC capabilities:
 
 1. Navigate to [http://localhost:3000/entities](http://localhost:3000/entities).
 2. Key capabilities include:
-   - **Advanced Search**: Multi-strategy search with Atlas Search, autocomplete, and faceted filtering
+   - **Advanced Search**: Multi-strategy search with MongoDB Search, autocomplete, and faceted filtering
    - **Entity Resolution**: AI-powered fuzzy matching and duplicate detection with vector search during onboarding
    - **Network Visualization**: Interactive relationship graphs using Cytoscape.js
-
 3. Search and filter entities using:
+
    - Name-based fuzzy search with autocomplete
    - Entity type filters (Individual, Organization)
    - Risk level filters (Low, Medium, High, Critical)
    - Geographic filters (Country, City, Nationality, Residency)
    - Business type and jurisdiction filters
-
 4. Click on any entity to view:
+
    - Detailed entity information and identifiers
    - Risk assessment details and watchlist matches
    - Relationship + transaction network visualization
@@ -735,26 +754,26 @@ The Enhanced Entity Resolution feature provides a comprehensive 5-step workflow 
 
 1. Navigate to [http://localhost:3000/entity-resolution/enhanced](http://localhost:3000/entity-resolution/enhanced).
 2. **Step 0 - Entity Input**: Enter new entity information using the simplified onboarding form:
+
    - Entity Type (Individual or Organization)
    - Full Name
    - Address
-
 3. **Step 1 - Parallel Search**: The system performs AI-powered search using three methods simultaneously:
-   - **Atlas Search**: Text-based fuzzy matching on names and addresses
+   - **MongoDB Search**: Text-based fuzzy matching on names and addresses
    - **Vector Search**: Semantic similarity analysis using AWS Bedrock AI embeddings
    - **Hybrid Search**: MongoDB $rankFusion combining both approaches with contribution analysis
-
 4. **Step 2 - Network Analysis**: Comprehensive network risk assessment for top 3 hybrid search matches:
+
    - **Relationship Networks**: Graph analysis with depth-2 traversal
    - **Transaction Networks**: Transaction pattern analysis with depth-1 traversal
-
 5. **Step 3 - AI Classification**: LLM-powered entity classification using AWS Bedrock Claude Haiku 4.5:
+
    - **Comprehensive Analysis**: Evaluates entity data, search results, and network analysis
    - **Risk Assessment**: Generates risk scores, confidence levels, and recommended actions
    - **AML/KYC Compliance**: Identifies compliance flags and concerns
    - **Network Positioning**: Analyzes entity's position within relationship networks
-
 6. **Step 4 - Case Investigation**: Automated case document creation for compliance workflows:
+
    - **Case Document Generation**: Creates MongoDB case document
    - **LLM Investigation Summary**: Professional investigation narrative using AI
    - **Workflow Consolidation**: Combines all previous steps into comprehensive case file
@@ -766,14 +785,15 @@ The Agentic Investigations page provides a full-featured control surface for lau
 
 1. Navigate to [http://localhost:3000/investigations](http://localhost:3000/investigations).
 2. The page is organized as a sidebar + workspace layout:
+
    - **Sidebar**: KPI summary (total cases, pending review, filed SARs), status filters, investigation list with risk-colored accent strips, and view toggles (All / Pending / Filed)
    - **Launch**: Select from pre-built demo scenarios (Auto-Close False Positive, Shell Company, PEP) or enter a custom entity ID to start a new investigation
    - **Live Pipeline**: Watch the investigation unfold in real-time via SSE streaming with an interactive ReactFlow pipeline graph — agent-to-agent main spine with tool/sub-agent satellites (animated `Send` fan-out for Triage's 4 fetch tools, Case Analyst's network + temporal analyst tools, and Trail Follower's stacked Sub-Investigator (×N) sub-agent card)
    - **Human Review**: When the pipeline pauses at the human review gate, approve, reject, or request changes before the case is finalized
    - **Investigation Detail**: Drill into any completed case to view the triage decision, typology classification, network and temporal analysis, sub-investigation findings, full SAR narrative, validation result, and immutable audit trail
    - **Analytics**: View investigation status distribution, typology counts, and risk score statistics
-
 3. Key UI features:
+
    - **Centralized design tokens** (`investigationTokens.js`) for consistent surfaces, shadows, and transitions
    - **Micro-interactions**: Staggered fade-in animations, hover lift effects, risk-colored accents, progress bar shimmer, and active-node glow on the pipeline graph
    - **Conic-gradient risk ring gauge** for at-a-glance risk score visualization
@@ -789,18 +809,19 @@ The ThreatSight Copilot is a global conversational AI assistant available on eve
 
 1. Click the chat bubble icon to open the Copilot panel.
 2. The Copilot is powered by a **ReAct agent** (LangGraph `create_react_agent`) with access to **15 specialized tools** for AML/KYC analysis:
+
    - **Entity Tools**: `get_entity_profile`, `screen_watchlists`, `search_entities`, `find_similar_entities` (vector search), `compare_entities`, `assess_entity_risk`
    - **Transaction Tools**: `query_entity_transactions`, `trace_fund_flow`, `analyze_temporal_patterns`
    - **Network Tools**: `analyze_entity_network`
    - **Policy Tools**: `lookup_typology`, `search_typologies`, `search_compliance_policies`
    - **Investigation Tools**: `search_investigations`, `get_investigation_detail`
-
 3. The Copilot supports **rich artifact rendering** in a side panel:
+
    - **Markdown**: Formatted analysis reports and summaries
    - **Mermaid Diagrams**: Visual fund flow graphs, network diagrams, and timelines
    - **Interactive HTML**: Sandboxed HTML previews with Tailwind CSS styling
-
 4. Key features:
+
    - Persistent thread history stored in `localStorage`
    - Durable state via `MongoDBSaver` checkpoints (conversations survive page refreshes)
    - Rate-limited to prevent abuse (configurable via `RATE_LIMIT_CHAT` environment variable)
@@ -816,6 +837,7 @@ The Risk Model Management interface allows administrators to configure and deplo
 1. Navigate to [http://localhost:3000/risk-models](http://localhost:3000/risk-models).
 2. View and select from available risk models in the system.
 3. Key capabilities include:
+
    - **Dynamic Risk Factor Management**: Add or modify risk factors without system changes
    - **Real-Time Updates**: See changes instantly using MongoDB Change Streams
    - **Version Control**: Create and manage multiple versions of risk models
@@ -823,15 +845,15 @@ The Risk Model Management interface allows administrators to configure and deplo
    - **Performance Metrics**: Track effectiveness with false positive/negative rates
    - **Custom Thresholds**: Configure flag and block thresholds for each model
    - **Model Reset Functionality**: Reset models to clean state by removing version 2 models and setting default configurations
-
 4. To create a new risk model:
+
    - Click "Create New Model"
    - Configure basic information (name, description)
    - Add risk factors with appropriate weights and thresholds
    - Set overall model thresholds
    - Save and optionally activate the model
-
 5. To reset models to default state:
+
    - Click "Reset Models" (located on the far right of the action buttons)
    - This will delete all version 2 models, set `default-risk-model` to active, and set `behavioral-risk-model` to inactive
    - Useful for returning to a clean baseline during testing or demos
@@ -858,12 +880,11 @@ For containerized deployment in production environments:
      -v ~/.aws/credentials:/root/.aws/credentials:ro \
      threatsight-aml:latest
    ```
-
 4. This will run containers for:
+
    - Frontend (port 3000) -- `docker/Dockerfile.frontend`
    - Fraud Detection Backend (port 8000) -- `Dockerfile.backend`
    - AML/KYC Backend (port 8001) -- `Dockerfile.aml-backend`
-
 5. Access the application at [http://localhost:3000](http://localhost:3000).
 
 > [!Note]
@@ -878,23 +899,23 @@ Check additional and accompanying resources below:
 
 ### MongoDB Resources
 
-- [MongoDB for Financial Services](https://www.mongodb.com/industries/financial-services)
-- [MongoDB Atlas Search Documentation](https://www.mongodb.com/docs/atlas/atlas-search/)
-- [MongoDB Atlas Vector Search](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-overview/)
-- [MongoDB Change Streams](https://www.mongodb.com/docs/manual/changeStreams/)
-- [MongoDB $graphLookup](https://www.mongodb.com/docs/manual/reference/operator/aggregation/graphLookup/)
-- [MongoDB $rankFusion](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-stage/#atlas-vector-search-rankfusion)
+- [MongoDB for Financial Services](https://www.mongodb.com/industries/financial-services?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel)
+- [MongoDB Search Documentation](https://www.mongodb.com/docs/atlas/atlas-search/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel)
+- [MongoDB Vector Search](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-overview/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel)
+- [MongoDB Change Streams](https://www.mongodb.com/docs/manual/changeStreams/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel)
+- [MongoDB $graphLookup](https://www.mongodb.com/docs/manual/reference/operator/aggregation/graphLookup/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel)
+- [MongoDB $rankFusion](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-stage/?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel#atlas-vector-search-rankfusion)
 - [MongoDB LeafyGreen UI](https://www.mongodb.design/)
 
 ### Financial Services & Compliance
 
-- [Building Real-time Fraud Detection Systems](https://www.mongodb.com/company/blog/innovation/building-financial-crime-mitigation-platform-with-mongodb-series-overview)
-- [Financial Services Solutions](https://www.mongodb.com/solutions/industries/financial-services)
+- [Building Real-time Fraud Detection Systems](https://www.mongodb.com/company/blog/innovation/building-financial-crime-mitigation-platform-with-mongodb-series-overview?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel)
+- [Financial Services Solutions](https://www.mongodb.com/solutions/industries/financial-services?utm_campaign=devrel&utm_source=github&utm_medium=referral&utm_content=fsi_fraud_detection&utm_term=learning.fuel)
 
 ### Key MongoDB Features Demonstrated
 
 - **Document Model**: Rich, nested structures for customer and entity profiles
-- **Atlas Search**: Full-text search with fuzzy matching and autocomplete
+- **MongoDB Search**: Full-text search with fuzzy matching and autocomplete
 - **Vector Search**: AI-powered similarity matching for fraud patterns and entity resolution
 - **$graphLookup**: Relationship network traversal for compliance investigations
 - **$rankFusion**: Hybrid search combining text and vector search

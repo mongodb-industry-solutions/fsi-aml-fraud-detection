@@ -1,7 +1,7 @@
 """
 Hybrid Search Service using MongoDB $rankFusion
 
-Implementation of MongoDB's native $rankFusion for combining Atlas Search and Vector Search
+Implementation of MongoDB's native $rankFusion for combining MongoDB Search and Vector Search
 results in a single optimized query. This replaces manual score combination logic with
 MongoDB's proven reciprocal rank fusion algorithm.
 """
@@ -12,6 +12,7 @@ from typing import List, Dict, Any, Optional
 from motor.motor_asyncio import AsyncIOMotorCollection
 
 from models.api.responses import HybridSearchResult, HybridSearchResponse
+from repositories import entity_fields as ef
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ class HybridSearchService:
     
     def __init__(self, collection: AsyncIOMotorCollection):
         self.collection = collection
-        self.atlas_index_name = "entity_text_search_index"  # Correct index name from working Atlas search
+        self.atlas_index_name = "entity_text_search_index"  # Correct index name from working MongoDB search
         self.vector_index_name = "entity_vector_search_index"
         self.vector_field_name = "profileEmbedding"  # Correct field name from working vector search
     
@@ -38,10 +39,10 @@ class HybridSearchService:
         Perform hybrid search using MongoDB $rankFusion
         
         Args:
-            query_text: Text query for Atlas Search
+            query_text: Text query for MongoDB Search
             query_embedding: Vector embedding for Vector Search
             limit: Maximum results to return
-            atlas_weight: Weight for Atlas Search pipeline (default: 1)
+            atlas_weight: Weight for MongoDB Search pipeline (default: 1)
             vector_weight: Weight for Vector Search pipeline (default: 1)
             num_candidates_multiplier: Multiplier for vector search candidates
             
@@ -81,25 +82,30 @@ class HybridSearchService:
                                                     {
                                                         "text": {
                                                             "query": query_text,
-                                                            "path": ["name.full"],
+                                                            # entity_text_search_index indexes
+                                                            # BIAN storage paths, not wire paths.
+                                                            "path": [ef.FULL_NAME],
                                                             "fuzzy": {"maxEdits": 1}
                                                         }
                                                     },
                                                     {
                                                         "text": {
                                                             "query": query_text,
-                                                            "path": ["name.aliases"],
+                                                            "path": [ef.ALIASES],
                                                             "fuzzy": {"maxEdits": 1}
                                                         }
                                                     },
                                                     {
                                                         "text": {
                                                             "query": query_text,
-                                                            "path": ["addresses.full"],
+                                                            "path": [ef.ADDRESS_LINE1],
                                                             "fuzzy": {"maxEdits": 2}
                                                         }
                                                     }
-                                                ]
+                                                ],
+                                                # `customers` is shared with the Leafy Bank payments
+                                                # demo -- scope every read or those rows leak in.
+                                                "filter": [ef.search_scope_clause()]
                                             }
                                         }
                                     },
@@ -112,7 +118,8 @@ class HybridSearchService:
                                             "path": self.vector_field_name,
                                             "queryVector": query_embedding,
                                             "numCandidates": num_candidates,
-                                            "limit": intermediate_limit
+                                            "limit": intermediate_limit,
+                                            "filter": ef.vector_scope_filter()
                                         }
                                     }
                                 ]
@@ -135,17 +142,12 @@ class HybridSearchService:
                     }
                 },
                 {
+                    # $rankFusion returns raw `customers` (BIAN storage shape) docs --
+                    # translate to the wire shape every other read path already uses.
                     "$project": {
-                        "entityId": 1,
-                        "name": 1,
-                        "entityType": 1,
-                        "riskAssessment": 1,
+                        **ef.wire_projection(include_embeddings=False),
                         "hybridScore": 1,
                         "scoreDetails": 1,
-                        "createdAt": 1,
-                        "updatedAt": 1,
-                        "primaryAddress": 1,
-                        "identifiers": 1
                     }
                 }
             ]

@@ -2,7 +2,11 @@
 
 import logging
 from langchain_core.tools import tool
-from dependencies import get_mongo_client, DB_NAME
+from dependencies import get_mongo_client, DB_NAME, RELATIONSHIPS_COLLECTION
+# Phase-2 step 3 migration: entity ids flowing into this tool are now
+# `customers.customerId` values (see services/agents/entity_resolution.py),
+# so the graph traverses on the same key the entity side resolves on.
+from repositories.relationship_fields import SOURCE_KEY, TARGET_KEY, TYPE_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -18,13 +22,13 @@ def analyze_entity_network(entity_id: str, max_depth: int = 2) -> dict:
     db = client[DB_NAME]
 
     pipeline = [
-        {"$match": {"source.entityId": entity_id}},
+        {"$match": {SOURCE_KEY: entity_id}},
         {
             "$graphLookup": {
-                "from": "threatsightRelationships",
-                "startWith": "$target.entityId",
-                "connectFromField": "target.entityId",
-                "connectToField": "source.entityId",
+                "from": RELATIONSHIPS_COLLECTION,
+                "startWith": f"${TARGET_KEY}",
+                "connectFromField": TARGET_KEY,
+                "connectToField": SOURCE_KEY,
                 "as": "network",
                 "maxDepth": max_depth,
                 "depthField": "hops",
@@ -33,8 +37,8 @@ def analyze_entity_network(entity_id: str, max_depth: int = 2) -> dict:
         {
             "$project": {
                 "_id": 0,
-                "direct_type": "$type",
-                "direct_target": "$target.entityId",
+                "direct_type": f"${TYPE_KEY}",
+                "direct_target": f"${TARGET_KEY}",
                 "direct_strength": "$strength",
                 "direct_verified": "$verified",
                 "network": {
@@ -42,9 +46,9 @@ def analyze_entity_network(entity_id: str, max_depth: int = 2) -> dict:
                         "input": "$network",
                         "as": "n",
                         "in": {
-                            "source": "$$n.source.entityId",
-                            "target": "$$n.target.entityId",
-                            "type": "$$n.type",
+                            "source": f"$$n.{SOURCE_KEY}",
+                            "target": f"$$n.{TARGET_KEY}",
+                            "type": f"$$n.{TYPE_KEY}",
                             "strength": "$$n.strength",
                             "confidence": "$$n.confidence",
                             "verified": "$$n.verified",
@@ -56,7 +60,7 @@ def analyze_entity_network(entity_id: str, max_depth: int = 2) -> dict:
         },
     ]
 
-    results = list(db["threatsightRelationships"].aggregate(pipeline))
+    results = list(db[RELATIONSHIPS_COLLECTION].aggregate(pipeline))
 
     if not results:
         return {

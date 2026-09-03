@@ -482,8 +482,18 @@ async def activate_risk_model(
         query = {"modelId": model_id}
         if version:
             query["version"] = version_str(version)
-
-        model = await risk_models_collection.find_one(query)
+            model = await risk_models_collection.find_one(query)
+        else:
+            # No version given: resolve the newest non-archived version, matching
+            # GET /models/{id}. An unsorted find_one returns an arbitrary document
+            # — usually the oldest, which is typically the already-active one, so
+            # activation would report "already active" instead of promoting the
+            # draft the caller meant. Versions are strings in storage, so take the
+            # numeric max via find_latest — a Mongo sort here is lexicographic.
+            model = await find_latest(
+                risk_models_collection,
+                {"modelId": model_id, "status": {"$ne": "archived"}},
+            )
         if not model:
             raise HTTPException(status_code=404, detail="Risk model not found")
         
@@ -520,9 +530,9 @@ async def activate_risk_model(
 async def reset_risk_models(db = Depends(get_database)):
     """
     Reset risk models to clean state:
-    - Delete all models with version 2
-    - Set default-risk-model status to 'active' 
-    - Set behavioral-risk-model status to 'inactive'
+    - Delete every version above 1 (drafts created by editing an active model)
+    - Set default-risk-model v1 status to 'active'
+    - Set behavioral-risk-model v1 status to 'inactive'
     """
     # Get risk_models collection
     risk_models_collection = db[RISK_MODELS_COLLECTION]
@@ -531,21 +541,29 @@ async def reset_risk_models(db = Depends(get_database)):
         # Use a transaction to ensure all operations succeed or fail together
         async with await db.client.start_session() as session:
             async with session.start_transaction():
-                # 1. Delete all models with version 2 (stored as a string, see to_stored)
+                # 1. Delete every derived version, not just v2. Editing an
+                #    active model inserts version+1, so repeated demo runs
+                #    leave v3, v4, ... behind. Keep version 1 only. Versions are
+                #    strings in storage, so match what v1 is rather than a numeric
+                #    `$gt` — Mongo orders strings lexicographically, so `{"$gt": 1}`
+                #    would match every string version, "1" included.
                 delete_result = await risk_models_collection.delete_many(
-                    {"version": version_str(2)},
+                    {"version": {"$ne": version_str(1)}},
                     session=session
                 )
                 
-                # 2. Set default-risk-model to active
-                default_result = await risk_models_collection.update_one(
+                # 2. Set default-risk-model to active.
+                #    update_many, not update_one — a modelId can have several
+                #    documents, and leaving siblings untouched is what makes
+                #    the UI and the database disagree about the status.
+                default_result = await risk_models_collection.update_many(
                     {"modelId": "default-risk-model"},
                     {"$set": {"status": "active", "updatedAt": datetime.now()}},
                     session=session
                 )
                 
                 # 3. Set behavioral-risk-model to inactive
-                behavioral_result = await risk_models_collection.update_one(
+                behavioral_result = await risk_models_collection.update_many(
                     {"modelId": "behavioral-risk-model"},
                     {"$set": {"status": "inactive", "updatedAt": datetime.now()}},
                     session=session
@@ -553,7 +571,7 @@ async def reset_risk_models(db = Depends(get_database)):
         
         # Prepare response message
         messages = []
-        messages.append(f"Deleted {delete_result.deleted_count} models with version 2")
+        messages.append(f"Deleted {delete_result.deleted_count} derived model versions (v2+)")
         
         if default_result.modified_count > 0:
             messages.append("Set default-risk-model to active")
@@ -802,7 +820,13 @@ async def websocket_endpoint(websocket: WebSocket, db = Depends(get_database)):
             
             await websocket.send_json({
                 "type": "initial",
-                "models": models
+                "models": models,
+                # Report the real collection name rather than letting the UI
+                # hardcode it. The name changed once already (`risk_models` ->
+                # `threatsightRiskModels`, see dependencies.py) and the UI banner
+                # was left behind claiming to watch a collection that no longer
+                # exists.
+                "collection": RISK_MODELS_COLLECTION
             })
             
             # Send heartbeat every 30 seconds to keep connection alive
@@ -824,6 +848,15 @@ async def websocket_endpoint(websocket: WebSocket, db = Depends(get_database)):
                     # Convert the document to JSON-serializable format
                     doc = convert_to_json_serializable(to_wire(change["fullDocument"]))
                     change_data["document"] = doc
+
+                    # fullDocument is resolved by updateLookup at read time, so it
+                    # reflects CURRENT state, not what changed. Forward the actual
+                    # changed field names so the UI can describe the event
+                    # truthfully instead of inferring from current status.
+                    updated_fields = (
+                        change.get("updateDescription", {}).get("updatedFields") or {}
+                    )
+                    change_data["updatedFields"] = sorted(updated_fields.keys())
                 elif change["operationType"] == "delete":
                     doc_id = change["documentKey"]["_id"]
                     if isinstance(doc_id, ObjectId):

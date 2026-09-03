@@ -47,6 +47,34 @@ const getEventColor = (operationType) => {
   }
 };
 
+// Split a composite selection id ("<modelId>-v<version>") back into its parts.
+// Anchored at the end on purpose: a plain split('-v') also matches a hyphen-v
+// inside the modelId itself (e.g. "kyc-verification-model"), which truncates the
+// id and yields NaN for the version. A NaN version is then dropped from the
+// request, the backend picks an arbitrary document, and activation reports
+// "already active" against the wrong version.
+const parseCompositeModelId = (compositeId) => {
+  const match = /^(.+)-v(\d+)$/.exec(compositeId || '');
+  if (!match) return { modelId: compositeId, version: undefined };
+  return { modelId: match[1], version: parseInt(match[2], 10) };
+};
+
+// Turn a change-stream updatedFields path into something demo-readable.
+// Paths arrive dotted and indexed, e.g. `thresholds.flag`, `riskFactors.3.active`.
+const formatChangedField = (path) => {
+  if (path === 'updatedAt') return null; // bookkeeping, not a real change
+  if (path === 'status') return 'status';
+  if (path === 'version') return 'version';
+  if (path === 'description') return 'description';
+  if (path.startsWith('thresholds.flag')) return 'flag threshold';
+  if (path.startsWith('thresholds.block')) return 'block threshold';
+  if (path.startsWith('thresholds')) return 'thresholds';
+  if (path.startsWith('riskFactors')) return 'risk factors';
+  if (path.startsWith('weights')) return 'weights';
+  if (path.startsWith('performance')) return 'performance metrics';
+  return path;
+};
+
 const getEventDescription = (event) => {
   // This function is kept for compatibility but we now use inline description
   // in the render function for more accurate data from the actual event
@@ -127,6 +155,9 @@ const ModelAdminPanel = () => {
 
   // State for change stream events
   const [changeEvents, setChangeEvents] = useState([]);
+  // Reported by the backend's initial WS payload — never hardcode this, the
+  // collection has been renamed once already.
+  const [watchedCollection, setWatchedCollection] = useState('');
   const [wsConnected, setWsConnected] = useState(false);
   const [wsReconnecting, setWsReconnecting] = useState(false);
 
@@ -147,12 +178,15 @@ const ModelAdminPanel = () => {
 
   // Fetch details for a specific model
   const fetchModelDetails = React.useCallback(
-    async (modelId) => {
+    async (modelId, version) => {
       try {
-        // Always fetch fresh data from MongoDB
-        console.log('Fetching model from MongoDB:', modelId);
+        // Always fetch fresh data from MongoDB.
+        // The version must be sent explicitly — without it the backend returns
+        // the highest non-archived version, so selecting an older version
+        // (e.g. v1 active when a v2 draft exists) would silently snap back.
+        console.log('Fetching model from MongoDB:', modelId, version);
         const response = await fetch(
-          `${BACKEND_URL}/models/${modelId}`
+          `${BACKEND_URL}/models/${modelId}${version ? `?version=${version}` : ''}`
         );
         if (!response.ok)
           throw new Error('Failed to fetch model details');
@@ -185,9 +219,7 @@ const ModelAdminPanel = () => {
     async (modelId, timeframe) => {
       try {
         // Extract base modelId if it's in the composite format
-        const baseModelId = modelId.includes('-v')
-          ? modelId.split('-v')[0]
-          : modelId;
+        const baseModelId = parseCompositeModelId(modelId).modelId;
 
         const response = await fetch(
           `${BACKEND_URL}/models/${baseModelId}/performance?timeframe=${timeframe}`
@@ -214,8 +246,11 @@ const ModelAdminPanel = () => {
       const data = await response.json();
       setModels(data);
 
-      // Select active model by default if no model is currently selected
-      if (!selectedModelId) {
+      // Select active model by default if no model is currently selected.
+      // Read the ref — `selectedModelId` is captured from the first render by
+      // this useCallback, so it would always look unset and clobber the user's
+      // selection on every refresh.
+      if (!selectedModelIdRef.current) {
         const activeModel = data.find(
           (model) => model.status === 'active'
         );
@@ -229,11 +264,32 @@ const ModelAdminPanel = () => {
           setSelectedModel(activeModel);
         }
       }
+
+      return data;
     } catch (error) {
       console.error('Error fetching models:', error);
       showToast('Failed to load risk models', 'error');
+      return [];
     }
-  }, [showToast, selectedModelId]);
+    // selectedModelId intentionally omitted — read via ref above, and
+    // including it would rebuild this callback and refire the load effect
+    // on every selection change.
+  }, [showToast]);
+
+  // Adopt a model document returned by a write (POST/PUT) as the new selection.
+  // The backend answers an edit of an *active* model with a NEW draft at
+  // version+1, so both the list and the composite selectedModelId have to move
+  // to that version. Leaving selectedModelId behind desyncs it from
+  // selectedModel, and Activate then targets the version the user is no longer
+  // looking at.
+  const adoptModelFromWrite = React.useCallback(
+    async (model) => {
+      await fetchModels();
+      setSelectedModelId(`${model.modelId}-v${model.version}`);
+      setSelectedModel(model);
+    },
+    [fetchModels]
+  );
 
   // Set up useEffect hooks after all callbacks are defined
 
@@ -320,13 +376,16 @@ const ModelAdminPanel = () => {
         // Handle initial models data
         if (data.type === 'initial') {
           setModels(data.models);
+          if (data.collection) setWatchedCollection(data.collection);
 
           // Select first active model by default
           const activeModel = data.models.find(
             (model) => model.status === 'active'
           );
           if (activeModel && !selectedModelIdRef.current) {
-            setSelectedModelId(activeModel.modelId);
+            setSelectedModelId(
+              `${activeModel.modelId}-v${activeModel.version}`
+            );
             setSelectedModel(activeModel);
           }
         }
@@ -527,18 +586,16 @@ const ModelAdminPanel = () => {
       });
 
       // With the new composite ID format (modelId-vVersion), we need to parse it
-      const parts = selectedModelId.split('-v');
-      const modelId = parts[0];
-      const version =
-        parts.length > 1 ? parseInt(parts[1]) : undefined;
+      const { modelId, version } =
+        parseCompositeModelId(selectedModelId);
 
       console.log(`Model selected: ${modelId}, version: ${version}`);
 
       // Always fetch from MongoDB to get fresh data
       console.log(
-        `Fetching details from MongoDB for model: ${modelId}`
+        `Fetching details from MongoDB for model: ${modelId} v${version}`
       );
-      fetchModelDetails(modelId);
+      fetchModelDetails(modelId, version);
 
       // Fetch performance data
       fetchModelPerformance(modelId, performanceTimeframe);
@@ -693,7 +750,9 @@ const ModelAdminPanel = () => {
 
       // Save to MongoDB
       const response = await fetch(
-        `${BACKEND_URL}/models/${selectedModelId.split('-v')[0]}`,
+        `${BACKEND_URL}/models/${
+          parseCompositeModelId(selectedModelId).modelId
+        }`,
         {
           method: 'PUT',
           headers: {
@@ -727,8 +786,8 @@ const ModelAdminPanel = () => {
       const updatedModel = await response.json();
       console.log('MongoDB returned updated model:', updatedModel);
 
-      // Update the UI with the MongoDB data
-      setSelectedModel(updatedModel);
+      // Update the UI with the MongoDB data. This may be a new draft version.
+      await adoptModelFromWrite(updatedModel);
       setEditMode(false);
       setEditedModel(null);
 
@@ -743,12 +802,9 @@ const ModelAdminPanel = () => {
       });
 
       showToast(
-        'Risk model updated in MongoDB and UI refreshed with latest data',
+        `Risk model saved as ${updatedModel.modelId} (v${updatedModel.version}) - ${updatedModel.status}`,
         'success'
       );
-
-      // Refresh models list to show new version
-      fetchModels();
     } catch (error) {
       console.error('Error saving model to MongoDB:', error);
       showToast('Failed to update risk model in MongoDB', 'error');
@@ -761,10 +817,8 @@ const ModelAdminPanel = () => {
       console.log('Activating model in MongoDB:', selectedModelId);
 
       // Extract both model ID and version
-      const parts = selectedModelId.split('-v');
-      const baseModelId = parts[0];
-      const version =
-        parts.length > 1 ? parseInt(parts[1]) : undefined;
+      const { modelId: baseModelId, version } =
+        parseCompositeModelId(selectedModelId);
 
       // Include version as a query parameter
       let url = `${BACKEND_URL}/models/${baseModelId}/activate`;
@@ -796,7 +850,7 @@ const ModelAdminPanel = () => {
       await fetchModels();
 
       // Fetch fresh model details from MongoDB
-      await fetchModelDetails(baseModelId);
+      await fetchModelDetails(baseModelId, version);
     } catch (error) {
       console.error('Error activating model in MongoDB:', error);
       showToast('Failed to activate risk model', 'error');
@@ -814,7 +868,8 @@ const ModelAdminPanel = () => {
       console.log('Restoring model in MongoDB:', selectedModelId);
 
       // Extract the base model ID from the composite ID
-      const baseModelId = selectedModelId.split('-v')[0];
+      const { modelId: baseModelId, version: selectedVersion } =
+        parseCompositeModelId(selectedModelId);
 
       const response = await fetch(
         `${BACKEND_URL}/models/${baseModelId}/restore`,
@@ -834,7 +889,7 @@ const ModelAdminPanel = () => {
       await fetchModels();
 
       // Fetch fresh model details from MongoDB
-      await fetchModelDetails(baseModelId);
+      await fetchModelDetails(baseModelId, selectedVersion);
     } catch (error) {
       console.error('Error restoring model in MongoDB:', error);
       showToast('Failed to restore risk model', 'error');
@@ -856,22 +911,27 @@ const ModelAdminPanel = () => {
       const result = await response.json();
       console.log('MongoDB reset result:', result);
 
-      showToast('Models reset: version 2 deleted, default-risk-model active, behavioral-risk-model inactive', 'success');
+      showToast(
+        'Models reset: derived versions deleted, default-risk-model active, behavioral-risk-model inactive',
+        'success'
+      );
 
-      // Refresh models list to get the updated models
-      await fetchModels();
-      
+      // Refresh models list and select from the freshly fetched data.
+      // `models` state is not yet updated at this point, so use the return value.
+      const refreshed = await fetchModels();
+
       // Select the active default-risk-model after reset
-      setTimeout(() => {
-        const activeModel = models.find(
-          (model) => model.modelId === 'default-risk-model' && model.status === 'active'
+      const activeModel = refreshed.find(
+        (model) =>
+          model.modelId === 'default-risk-model' &&
+          model.status === 'active'
+      );
+      if (activeModel) {
+        setSelectedModelId(
+          `${activeModel.modelId}-v${activeModel.version}`
         );
-        if (activeModel) {
-          const compositeId = `${activeModel.modelId}-v${activeModel.version}`;
-          setSelectedModelId(compositeId);
-          setSelectedModel(activeModel);
-        }
-      }, 500); // Small delay to ensure models list is updated
+        setSelectedModel(activeModel);
+      }
     } catch (error) {
       console.error('Error resetting models in MongoDB:', error);
       showToast('Failed to reset risk models', 'error');
@@ -969,10 +1029,8 @@ const ModelAdminPanel = () => {
 
       showToast('Risk model created successfully');
 
-      // Refresh models list
-      fetchModels();
-      // Select the new model
-      setSelectedModelId(data.modelId);
+      // Refresh models list and select the new model
+      await adoptModelFromWrite(data);
       setEditMode(false);
       setEditedModel(null);
     } catch (error) {
@@ -1044,73 +1102,85 @@ const ModelAdminPanel = () => {
         active: true,
       });
 
+      // A model from "New Model" lives only in local state until its first
+      // write — PUT /models/{id} would 404 on it. The loaded models list is the
+      // source of truth for what MongoDB already has, so create vs. update is
+      // derived from it rather than tracked in a separate flag.
+      const modelExistsInDb = models.some(
+        (model) => model.modelId === editedModel.modelId
+      );
+
+      // Backend rejects null numerics; supply the same defaults as the form.
+      const normalizedFactors = updatedFactors.map((factor) => ({
+        ...factor,
+        threshold:
+          factor.threshold !== null && factor.threshold !== undefined
+            ? factor.threshold
+            : 1.0,
+        distanceThreshold:
+          factor.distanceThreshold !== null &&
+          factor.distanceThreshold !== undefined
+            ? factor.distanceThreshold
+            : 100.0,
+      }));
+
       // Save the changes directly to MongoDB to demonstrate real-time updates
       try {
+        const payload = {
+          description: editedModel.description,
+          weights: updatedWeights,
+          thresholds: editedModel.thresholds,
+          riskFactors: normalizedFactors,
+        };
+
         console.log(
-          'Saving new risk factor to MongoDB:',
+          modelExistsInDb
+            ? `Updating ${editedModel.modelId} with new risk factor:`
+            : `Creating ${editedModel.modelId} with new risk factor:`,
           newRiskFactor
         );
-        console.log(
-          'Full payload:',
-          JSON.stringify(
-            {
-              description: editedModel.description, // Include all required fields
-              weights: updatedWeights,
-              thresholds: editedModel.thresholds, // Include all required fields
-              riskFactors: updatedFactors,
-            },
-            null,
-            2
-          )
-        );
 
-        const response = await fetch(
-          `${BACKEND_URL}/models/${editedModel.modelId}`,
-          {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              description: editedModel.description, // Include all required fields
-              weights: updatedWeights,
-              thresholds: editedModel.thresholds, // Include all required fields
-              riskFactors: updatedFactors.map((factor) => ({
-                ...factor,
-                // Ensure numeric fields have valid defaults if null
-                threshold:
-                  factor.threshold !== null &&
-                  factor.threshold !== undefined
-                    ? factor.threshold
-                    : 1.0,
-                distanceThreshold:
-                  factor.distanceThreshold !== null &&
-                  factor.distanceThreshold !== undefined
-                    ? factor.distanceThreshold
-                    : 100.0,
-              })),
-            }),
-          }
-        );
+        const response = modelExistsInDb
+          ? await fetch(
+              `${BACKEND_URL}/models/${editedModel.modelId}`,
+              {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+              }
+            )
+          : await fetch(`${BACKEND_URL}/models/`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                modelId: editedModel.modelId,
+                ...payload,
+              }),
+            });
 
         if (!response.ok) {
           const errorData = await response.text();
           console.error('API Error Response:', errorData);
           throw new Error(
-            `Failed to update model: ${response.status} ${errorData}`
+            `Failed to ${
+              modelExistsInDb ? 'update' : 'create'
+            } model: ${response.status} ${errorData}`
           );
         }
 
         const updatedModel = await response.json();
 
-        // Update the displayed model with the MongoDB response
-        setSelectedModel(updatedModel);
+        // Editing an active model does not update in place — the backend
+        // inserts a new draft at version+1. A create returns the new v1.
+        await adoptModelFromWrite(updatedModel);
 
         // Highlight the new risk factor
         highlightField('riskFactors', newRiskFactor.id);
 
         showToast(
-          `Risk factor '${newRiskFactor.id}' added to MongoDB in real-time`,
+          modelExistsInDb
+            ? `Risk factor '${newRiskFactor.id}' added to ${updatedModel.modelId} (v${updatedModel.version})`
+            : `Created ${updatedModel.modelId} (v${updatedModel.version}) with risk factor '${newRiskFactor.id}'`,
           'success'
         );
       } catch (error) {
@@ -1235,15 +1305,16 @@ const ModelAdminPanel = () => {
                 setSelectedModelId(value);
 
                 // Extract the model ID and version
-                const parts = value.split('-v');
-                const modelId = parts[0];
+                const { modelId, version } =
+                  parseCompositeModelId(value);
 
                 // Always fetch from MongoDB to get fresh data
                 console.log(
                   'Fetching fresh data from MongoDB for:',
-                  modelId
+                  modelId,
+                  version
                 );
-                fetchModelDetails(modelId);
+                fetchModelDetails(modelId, version);
               }}
               value={
                 selectedModel
@@ -1662,7 +1733,8 @@ const ModelAdminPanel = () => {
                       >
                         <div style={{ color: palette.green.light2 }}>
                           {'>>'} MongoDB Change Stream watching
-                          collection: risk_models
+                          collection:{' '}
+                          {watchedCollection || '(connecting...)'}
                         </div>
                         <div style={{ color: palette.yellow.light2 }}>
                           {'>>'} Watching for operations: ["insert",
@@ -1682,9 +1754,10 @@ const ModelAdminPanel = () => {
                         </div>
                         {selectedModel && (
                           <div style={{ color: palette.blue.light2 }}>
-                            {'>>'} Current active model:{' '}
+                            {'>>'} Selected model:{' '}
                             {selectedModel.modelId} (v
-                            {selectedModel.version})
+                            {selectedModel.version}) -{' '}
+                            {selectedModel.status}
                           </div>
                         )}
                         {wsConnected && (
@@ -1716,31 +1789,21 @@ const ModelAdminPanel = () => {
                             </div>
 
                             {changeEvents.map((event, idx) => {
-                              // Get detailed information about the changed fields
-                              let fieldsChanged = [];
-                              if (
-                                (event.operationType === 'update' ||
-                                  event.operationType ===
-                                    'replace') &&
-                                event.document
-                              ) {
-                                if (event.document.description)
-                                  fieldsChanged.push('description');
-                                if (event.document.thresholds?.flag)
-                                  fieldsChanged.push(
-                                    'flag threshold'
-                                  );
-                                if (event.document.thresholds?.block)
-                                  fieldsChanged.push(
-                                    'block threshold'
-                                  );
-                                if (event.document.riskFactors)
-                                  fieldsChanged.push('risk factors');
-                                if (event.document.status)
-                                  fieldsChanged.push('status');
-                                if (event.document.weights)
-                                  fieldsChanged.push('weights');
-                              }
+                              // Fields the change stream reports as actually
+                              // modified. Do NOT infer these from event.document
+                              // — that is updateLookup's CURRENT state, so every
+                              // field is present whether it changed or not.
+                              const updatedFields =
+                                event.updatedFields || [];
+                              const statusChanged =
+                                updatedFields.includes('status');
+                              const fieldsChanged = [
+                                ...new Set(
+                                  updatedFields
+                                    .map(formatChangedField)
+                                    .filter(Boolean)
+                                ),
+                              ];
 
                               // Use the event's timestamp if available
                               const timestamp = event.timestamp
@@ -1764,8 +1827,13 @@ const ModelAdminPanel = () => {
                                   break;
                                 case 'update':
                                 case 'replace':
-                                  if (status === 'active') {
+                                  if (
+                                    statusChanged &&
+                                    status === 'active'
+                                  ) {
                                     eventDescription = `Model activated: ${modelId} (v${version})`;
+                                  } else if (statusChanged) {
+                                    eventDescription = `Model status → ${status}: ${modelId} (v${version})`;
                                   } else {
                                     eventDescription = `Model updated: ${modelId} (v${version})`;
                                   }

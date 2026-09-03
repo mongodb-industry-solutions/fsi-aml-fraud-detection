@@ -9,17 +9,23 @@ import { NextResponse } from 'next/server';
 
 const AML_BACKEND_URL = process.env.AML_BACKEND_URL || 'http://localhost:8001';
 
+/**
+ * Build the upstream URL, preserving the incoming query string.
+ *
+ * Applies to every method, not just GET — a dropped query param makes the
+ * backend silently fall back to a default, which is far harder to spot than a
+ * failed request. Mirrors the fraud proxy.
+ */
+const buildTargetUrl = (request, path) => {
+  const pathString = Array.isArray(path) ? path.join('/') : path;
+  const queryString = request.nextUrl.searchParams.toString();
+  return `${AML_BACKEND_URL}/${pathString}${queryString ? `?${queryString}` : ''}`;
+};
+
 export async function GET(request, { params }) {
   try {
     const { path } = await params;
-    const pathString = Array.isArray(path) ? path.join('/') : path;
-
-    // Get search params from request
-    const searchParams = request.nextUrl.searchParams;
-    const queryString = searchParams.toString();
-
-    // Construct full URL
-    const url = `${AML_BACKEND_URL}/${pathString}${queryString ? `?${queryString}` : ''}`;
+    const url = buildTargetUrl(request, path);
 
     console.log(`[AML Proxy] GET ${url}`);
 
@@ -46,8 +52,7 @@ export async function GET(request, { params }) {
 export async function POST(request, { params }) {
   try {
     const { path } = await params;
-    const pathString = Array.isArray(path) ? path.join('/') : path;
-    const url = `${AML_BACKEND_URL}/${pathString}`;
+    const url = buildTargetUrl(request, path);
 
     console.log(`[AML Proxy] POST ${url}`);
 
@@ -113,8 +118,7 @@ export async function POST(request, { params }) {
 export async function PUT(request, { params }) {
   try {
     const { path } = await params;
-    const pathString = Array.isArray(path) ? path.join('/') : path;
-    const url = `${AML_BACKEND_URL}/${pathString}`;
+    const url = buildTargetUrl(request, path);
 
     console.log(`[AML Proxy] PUT ${url}`);
 
@@ -165,10 +169,7 @@ export async function PUT(request, { params }) {
 export async function DELETE(request, { params }) {
   try {
     const { path } = await params;
-    const pathString = Array.isArray(path) ? path.join('/') : path;
-
-    // Construct full URL
-    const url = `${AML_BACKEND_URL}/${pathString}`;
+    const url = buildTargetUrl(request, path);
 
     console.log(`[AML Proxy] DELETE ${url}`);
 

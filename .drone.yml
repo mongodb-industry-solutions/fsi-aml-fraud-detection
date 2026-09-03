@@ -245,3 +245,132 @@ steps:
     when:
       event:
         - push
+
+---
+kind: pipeline
+type: kubernetes
+name: production-bian-v2
+
+# TEMPORARY v2 deployment for the fraudEvaluation cutover validation.
+# Triggered ONLY by pushes to prod-v2 — never fires from main or staging.
+# Reuses blue's ECR repos (fsi-fraud-detection-bian-*) with :v2 tags, and
+# the existing Drone secrets (ecr_access_key, ecr_secret_key, prod_kubernetes_token).
+# Delete this block once the cutover is promoted to main (Phase 3 of the playbook).
+
+trigger:
+  branch:
+    - prod-v2
+
+steps:
+  # Step 1: Build Frontend Image (v2 tag)
+  - name: publish-frontend-v2
+    image: plugins/kaniko-ecr
+    settings:
+      create_repository: true
+      registry: 795250896452.dkr.ecr.us-east-1.amazonaws.com
+      repo: industrysolutions/fsi-fraud-detection-bian-frontend
+      tags:
+        - git-${DRONE_COMMIT_SHA:0:7}-v2
+        - v2-latest
+      dockerfile: docker/Dockerfile.frontend
+      access_key:
+        from_secret: ecr_access_key
+      secret_key:
+        from_secret: ecr_secret_key
+      build_args:
+        - NEXT_PUBLIC_API_URL=/api/fraud
+        - NEXT_PUBLIC_AML_API_URL=/api/aml
+        - BIAN_MODEL_URL=https://leafy-bank-bian-model.industrysolutions.prod.corp.mongodb.com
+    when:
+      event:
+        - push
+
+  # Step 2: Build Fraud Backend Image (v2 tag)
+  - name: publish-backend-v2
+    image: plugins/kaniko-ecr
+    settings:
+      create_repository: true
+      registry: 795250896452.dkr.ecr.us-east-1.amazonaws.com
+      repo: industrysolutions/fsi-fraud-detection-bian-backend
+      tags:
+        - git-${DRONE_COMMIT_SHA:0:7}-v2
+        - v2-latest
+      dockerfile: Dockerfile.backend
+      access_key:
+        from_secret: ecr_access_key
+      secret_key:
+        from_secret: ecr_secret_key
+    when:
+      event:
+        - push
+
+  # Step 3: Build AML Backend Image (v2 tag)
+  - name: publish-aml-backend-v2
+    image: plugins/kaniko-ecr
+    settings:
+      create_repository: true
+      registry: 795250896452.dkr.ecr.us-east-1.amazonaws.com
+      repo: industrysolutions/fsi-fraud-detection-bian-aml-backend
+      tags:
+        - git-${DRONE_COMMIT_SHA:0:7}-v2
+        - v2-latest
+      dockerfile: Dockerfile.aml-backend
+      access_key:
+        from_secret: ecr_access_key
+      secret_key:
+        from_secret: ecr_secret_key
+    when:
+      event:
+        - push
+
+  # Step 4: Deploy Combined Pod to Production (GREEN release + host)
+  - name: deploy-production-v2
+    image: public.ecr.aws/kanopy/drone-helm:v3
+    settings:
+      chart: mongodb/web-app
+      chart_version: 4.30.0
+      add_repos: [mongodb=https://10gen.github.io/helm-charts]
+      namespace: industrysolutions
+      release: fsi-fraud-detection-bian-v2-prod
+      values:
+        # Frontend main container
+        - 'image.repository=795250896452.dkr.ecr.us-east-1.amazonaws.com/industrysolutions/fsi-fraud-detection-bian-frontend'
+        - 'image.tag=git-${DRONE_COMMIT_SHA:0:7}-v2'
+        # Ingress configuration — distinct v2 host (blue untouched)
+        - 'ingress.enabled=true'
+        - 'ingress.hosts[0]=fsi-fraud-detection-bian-v2.industrysolutions.prod.corp.mongodb.com'
+        # WebSocket support via nginx ingress
+        - 'ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-read-timeout="3600"'
+        - 'ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-send-timeout="3600"'
+        # Service mesh
+        - 'mesh.enabled=true'
+        # Resource limits for frontend
+        - 'resources.limits.cpu=500m'
+        - 'resources.limits.memory=600Mi'
+        - 'resources.requests.cpu=100m'
+        - 'resources.requests.memory=150Mi'
+        # Sidecar: Fraud Backend (v2 tag)
+        - 'sidecarContainers[0].name=fraud-backend'
+        - 'sidecarContainers[0].image=795250896452.dkr.ecr.us-east-1.amazonaws.com/industrysolutions/fsi-fraud-detection-bian-backend:git-${DRONE_COMMIT_SHA:0:7}-v2'
+        - 'sidecarContainers[0].ports[0].containerPort=8000'
+        - 'sidecarContainers[0].ports[0].name=fraud-api'
+        - 'sidecarContainers[0].resources.limits.cpu=350m'
+        - 'sidecarContainers[0].resources.limits.memory=750Mi'
+        - 'sidecarContainers[0].resources.requests.cpu=100m'
+        - 'sidecarContainers[0].resources.requests.memory=256Mi'
+        # Sidecar: AML Backend (v2 tag)
+        - 'sidecarContainers[1].name=aml-backend'
+        - 'sidecarContainers[1].image=795250896452.dkr.ecr.us-east-1.amazonaws.com/industrysolutions/fsi-fraud-detection-bian-aml-backend:git-${DRONE_COMMIT_SHA:0:7}-v2'
+        - 'sidecarContainers[1].ports[0].containerPort=8001'
+        - 'sidecarContainers[1].ports[0].name=aml-api'
+        - 'sidecarContainers[1].resources.limits.cpu=350m'
+        - 'sidecarContainers[1].resources.limits.memory=750Mi'
+        - 'sidecarContainers[1].resources.requests.cpu=100m'
+        - 'sidecarContainers[1].resources.requests.memory=256Mi'
+      api_server: https://api.prod.corp.mongodb.com
+      kubernetes_token:
+        from_secret: prod_kubernetes_token
+      values_files: ['environment/production-bian-v2.yaml']
+    when:
+      event:
+        - push

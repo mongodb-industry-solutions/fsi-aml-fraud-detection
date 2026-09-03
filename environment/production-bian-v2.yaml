@@ -1,0 +1,203 @@
+# FSI Fraud Detection - GREEN temp deployment (fraudEvaluation cutover validation)
+# Clone of production-combined.yaml. Runs on the PROD cluster (ist-prod) under a
+# distinct release + host so the live blue deployment is untouched until the flip.
+#
+# Diff vs production-combined.yaml:
+#   - every secretKeyRef.name -> fsi-fraud-detection-bian-v2
+#   - sidecar images -> :v2-latest (Drone override pins the commit tag)
+#   - aml-backend gains FRAUD_EVAL_COLLECTION (secret) -> fraudEvaluationBian
+#   - ENTITIES_COLLECTION secret value -> customers (flipped in the v2 secret)
+#
+# The v2 secret (fsi-fraud-detection-bian-v2) is a copy of blue's with:
+#   ENTITIES_COLLECTION=customers   (was threatsightEntities)
+#   FRAUD_EVAL_COLLECTION=fraudEvaluationBian   (NEW key)
+#   RELATIONSHIPS_COLLECTION=<unchanged from blue>   (out of scope for this cutover)
+# All other keys (MONGODB_URI/AML_MONGODB_URI=ist-prod, DB_NAME=leafy_bank_bian,
+# search index names, LLM/EMBEDDINGS ARNs, VOYAGE_API_KEY) identical to blue.
+
+# Frontend main container environment variables
+env:
+  NODE_ENV: production
+  PORT: "8080"
+  HOSTNAME: "0.0.0.0"
+  # Client-side API URLs (proxied through Next.js API routes)
+  NEXT_PUBLIC_API_URL: /api/fraud
+  NEXT_PUBLIC_AML_API_URL: /api/aml
+  # Server-side backend URLs for proxy routes (internal pod communication)
+  FRAUD_BACKEND_URL: http://localhost:8000
+  AML_BACKEND_URL: http://localhost:8001
+  # WebSocket proxy port
+  WS_PROXY_PORT: "8081"
+
+# Sidecar containers (both backends)
+sidecarContainers:
+  # Fraud Detection Backend (port 8000)
+  - name: fraud-backend
+    image: 795250896452.dkr.ecr.us-east-1.amazonaws.com/industrysolutions/fsi-fraud-detection-bian-backend:v2-latest
+    imagePullPolicy: Always # Always pull latest image to avoid stale cache
+    ports:
+      - containerPort: 8000
+        name: fraud-api
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "750Mi"
+        cpu: "350m"
+    env:
+      - name: PORT
+        value: "8000"
+      - name: HOST
+        value: "0.0.0.0"
+      - name: PYTHONUNBUFFERED
+        value: "1"
+      # AWS Configuration (IRSA - no keys needed)
+      - name: AWS_REGION
+        value: "us-east-1"
+      - name: AWS_USE_SSO
+        value: "false"
+      # MongoDB Configuration (from v2 secret)
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-bian-v2
+            key: MONGODB_URI
+      - name: DB_NAME
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-bian-v2
+            key: DB_NAME
+      - name: LLM_MODEL_ARN
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-bian-v2
+            key: LLM_MODEL_ARN
+      - name: EMBEDDINGS_MODEL_ARN
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-bian-v2
+            key: EMBEDDINGS_MODEL_ARN
+
+  # AML/KYC Backend (port 8001)
+  - name: aml-backend
+    image: 795250896452.dkr.ecr.us-east-1.amazonaws.com/industrysolutions/fsi-fraud-detection-bian-aml-backend:v2-latest
+    imagePullPolicy: Always # Always pull latest image to avoid stale cache
+    ports:
+      - containerPort: 8001
+        name: aml-api
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "750Mi"
+        cpu: "350m"
+    env:
+      - name: PORT
+        value: "8001"
+      - name: HOST
+        value: "0.0.0.0"
+      - name: PYTHONUNBUFFERED
+        value: "1"
+      # AWS Configuration (IRSA - no keys needed)
+      - name: AWS_REGION
+        value: "us-east-1"
+      - name: AWS_USE_SSO
+        value: "false"
+      # MongoDB Configuration (from v2 secret)
+      - name: MONGODB_URI
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-bian-v2
+            key: AML_MONGODB_URI
+      - name: DB_NAME
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-bian-v2
+            key: AML_DB_NAME
+      # Collection names (from v2 secret) — flipped for the cutover:
+      # ENTITIES_COLLECTION=customers, FRAUD_EVAL_COLLECTION=fraudEvaluationBian.
+      # These two are a COUPLED PAIR — both must point at the CUST- vocabulary
+      # together. Flipping one alone reproduces the ist-prod incident.
+      - name: ENTITIES_COLLECTION
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-bian-v2
+            key: ENTITIES_COLLECTION
+      - name: FRAUD_EVAL_COLLECTION
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-bian-v2
+            key: FRAUD_EVAL_COLLECTION
+      - name: RELATIONSHIPS_COLLECTION
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-bian-v2
+            key: RELATIONSHIPS_COLLECTION
+      # MongoDB Search Index Names (from secrets)
+      - name: ATLAS_SEARCH_INDEX
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-bian-v2
+            key: ATLAS_SEARCH_INDEX
+      - name: ATLAS_TEXT_SEARCH_INDEX
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-bian-v2
+            key: ATLAS_TEXT_SEARCH_INDEX
+      - name: ENTITY_VECTOR_INDEX
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-bian-v2
+            key: ENTITY_VECTOR_INDEX
+      - name: TRANSACTION_VECTOR_INDEX
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-bian-v2
+            key: TRANSACTION_VECTOR_INDEX
+      # The three-index entity search path (identifier / behavioral / full-vector).
+      # Secret values match the code defaults today, so these are parity-with-secret
+      # rather than load-bearing — but wiring them means the secret stays the single
+      # place an index rename has to happen.
+      - name: ENTITY_VECTOR_SEARCH_INDEX
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-bian-v2
+            key: ENTITY_VECTOR_SEARCH_INDEX
+      - name: ENTITY_IDENTIFIER_VECTOR_INDEX
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-bian-v2
+            key: ENTITY_IDENTIFIER_VECTOR_INDEX
+      - name: ENTITY_BEHAVIORAL_VECTOR_INDEX
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-bian-v2
+            key: ENTITY_BEHAVIORAL_VECTOR_INDEX
+      - name: LLM_MODEL_ARN
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-bian-v2
+            key: LLM_MODEL_ARN
+      - name: EMBEDDINGS_MODEL_ARN
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-bian-v2
+            key: EMBEDDINGS_MODEL_ARN
+
+# Service Account with IRSA for AWS Bedrock access
+serviceAccount:
+  enabled: true
+  irsa:
+    accountId: "275662791714"
+    roleName: kanopy-prod-cicd-irsa
+
+# Kanopy security and ownership (requires web-app chart v4.30.0+)
+security:
+  dataClassification: "Internal"
+  dataDesignation:
+    - "MI"
+
+ownership:
+  driEmail: mehar.grewal@mongodb.com

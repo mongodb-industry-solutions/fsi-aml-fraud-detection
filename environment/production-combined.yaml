@@ -2,11 +2,12 @@
 # Unified pod deployment: Frontend + Fraud Backend + AML Backend
 # Environment: Production on the ist-prod cluster
 #
-# NOTE: ENTITIES_COLLECTION / RELATIONSHIPS_COLLECTION below are load-bearing for
-# the AML network analysis (NetworkRepository takes BOTH names from env). Their
-# secret values must be `threatsightEntities` / `threatsightRelationships` — the
-# actual collection names on both clusters. Wrong values render an empty network
-# graph with no error.
+# NOTE: FRAUD_EVAL_COLLECTION / ENTITIES_COLLECTION / RELATIONSHIPS_COLLECTION below
+# are a coupled set and are load-bearing for transaction activity and the AML network
+# analysis (NetworkRepository takes BOTH entity/relationship names from env). Their
+# secret values must be the BIAN names: `fraudEvaluationBian` / `customers` /
+# `relationships`. Flip all three together — a mixed set resolves CUST- entities
+# against legacy data and renders empty results with no error.
 
 # Frontend main container environment variables
 env:
@@ -109,10 +110,16 @@ sidecarContainers:
           secretKeyRef:
             name: fsi-fraud-detection-bian
             key: AML_DB_NAME
-      # Collection names (from secrets) — MUST be injected: the code defaults are the
-      # BIAN-renamed `threatsightEntities` / `threatsightRelationships`, which do not
-      # exist in the as-is fsi-threatsight360 clone on ist-prod. Without these the
-      # AML backend reads empty collections and returns nothing, silently.
+      # Collection names (from secrets) — MUST be injected. The secret supplies the
+      # BIAN names (`fraudEvaluationBian` / `customers` / `relationships`). The code
+      # default for FRAUD_EVAL_COLLECTION is the legacy `fraudEvaluation`, whose
+      # entity ids use the old `SHL9-`/`PEP0-` vocabulary and do not pair with
+      # `customers`. A missing or mismatched value reads the wrong data silently.
+      - name: FRAUD_EVAL_COLLECTION
+        valueFrom:
+          secretKeyRef:
+            name: fsi-fraud-detection-bian
+            key: FRAUD_EVAL_COLLECTION
       - name: ENTITIES_COLLECTION
         valueFrom:
           secretKeyRef:

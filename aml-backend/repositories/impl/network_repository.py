@@ -7,6 +7,7 @@ the methods that are actually used in the application.
 
 import logging
 import math
+from dataclasses import replace
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Set, Tuple
 from collections import deque
@@ -18,12 +19,40 @@ from repositories.interfaces.network_repository import (
 )
 from reference.mongodb_core_lib import MongoDBRepository, AggregationBuilder, GraphOperations
 from models.core.network import (
-    EntityNetwork, NetworkNode, NetworkEdge, 
+    EntityNetwork, NetworkNode, NetworkEdge,
     RelationshipType, NetworkRiskLevel
 )
+from repositories.relationship_fields import (
+    SOURCE_KEY, TARGET_KEY, TYPE_KEY, DIRECTION_BIDIRECTIONAL,
+    source_of, target_of, type_of,
+)
+from repositories import entity_fields as ef
 
 
 logger = logging.getLogger(__name__)
+
+# ─── entity-resolution edges ───────────────────────────────────────────────────
+# `build_sd7.py` deliberately keeps the 31 entity-resolution edges
+# (potential_duplicate / confirmed_same_entity) OUT of `relationships` — they assert
+# "these two records may be the same party", which is not a BIAN party association.
+# `sd1_resolution.py` routes them to `customers.screening.resolution.linkedEntities[]`
+# instead.
+#
+# The graph therefore cannot see them, and 26 customers — the seeded SDP*/CDI* duplicate
+# scenarios, i.e. exactly the ones an entity-resolution demo clicks on — render an empty
+# network. These synthesise edges from `linkedEntities` and union them into the traversal
+# result so the graph is whole again, without duplicating the edges into `relationships`.
+#
+# Depth-1 only, and deliberately so: an ER link is a statement about two records, not a
+# path money or influence travels along. Multi-hop traversal through "might be the same
+# person" would invent transitive claims the data does not make.
+LINKED_ENTITIES_PATH = "screening.resolution.linkedEntities"
+
+# Requires the `customerId` backfill on linkedEntities[] — the array natively carries only
+# the pre-migration source `entityId`, which nothing in `customers` can resolve. See
+# threat360-migration/backfill_linked_entity_customer_ids.py. Entries without it are
+# skipped rather than guessed at.
+LINKED_CUSTOMER_ID = "customerId"
 
 
 class NetworkRepository(NetworkRepositoryInterface):
@@ -34,9 +63,9 @@ class NetworkRepository(NetworkRepositoryInterface):
     removing ~500 lines of unused placeholder implementations.
     """
     
-    def __init__(self, mongodb_repo: MongoDBRepository, 
-                 entity_collection: str = "threatsightEntities",
-                 relationship_collection: str = "threatsightRelationships"):
+    def __init__(self, mongodb_repo: MongoDBRepository,
+                 entity_collection: str = "customers",
+                 relationship_collection: str = "relationships"):
         """Initialize Network repository"""
         self.repo = mongodb_repo
         self.entity_collection_name = entity_collection
@@ -56,14 +85,244 @@ class NetworkRepository(NetworkRepositoryInterface):
     
     # ==================== CORE NETWORK OPERATIONS ====================
     
+    async def _entity_resolution_edges(self, customer_ids: Set[str]) -> List[Dict[str, Any]]:
+        """Synthesise edges from screening.resolution.linkedEntities[] for a set of nodes.
+
+        Returns documents in the flat `relationships` shape so the existing edge-building
+        loop consumes them unchanged.
+
+        Takes the WHOLE node set, not just the centre. Before the migration these edges
+        lived in `relationships`, so the $graphLookup surfaced them on any node it reached —
+        that is how the old graph showed Cha Beyer hanging off Charles Marchand by a
+        confirmed_same_entity link, two hops from the centre. Synthesising for the centre
+        alone loses every ER link on a non-centre node.
+
+        `linkedEntities` is stored one-directionally, so both directions are collected: each
+        node's own array (outbound) and every customer whose array points back into the set
+        (inbound). Without the inbound half a master entity like CUST-8f50386c shows nothing
+        — it holds no links itself, its suspected duplicates hold links to it.
+        """
+        edges: List[Dict[str, Any]] = []
+        seen: Dict[Any, Dict[str, Any]] = {}
+        ids = [cid for cid in customer_ids if cid]
+        if not ids:
+            return edges
+
+        def add(source_id, target_id, link):
+            # One edge per unordered pair, then emitted in BOTH directions below.
+            #
+            # That reproduces the pre-migration graph exactly. The old app ran a forward
+            # and a reverse $graphLookup over `relationships` and deduped neither, so the
+            # single ER document per pair came back twice and rendered as two parallel
+            # arrows. It is a double-render, not two verdicts: CUST-f4a1b933 happens to
+            # hold two assertions about Noémi (confidence 0.636 and 0.779) but
+            # CUST-f723a10d holds one, and the old graph drew two edges for both.
+            #
+            # Highest confidence wins when a pair carries several assertions, so the edge
+            # reflects the strongest claim rather than whichever row was read first.
+            if not source_id or not target_id or source_id == target_id:
+                return
+            pair = frozenset((source_id, target_id))
+            confidence = link.get("confidence")
+            previous = seen.get(pair)
+            if previous is not None:
+                if not isinstance(confidence, (int, float)):
+                    return
+                prior = previous.get("confidence")
+                if isinstance(prior, (int, float)) and prior >= confidence:
+                    return
+                # A stronger assertion arrived — restate this pair's two edges.
+                edges[:] = [e for e in edges if e.get("_pair") != pair]
+            seen[pair] = {"confidence": confidence}
+            weight = confidence if isinstance(confidence, (int, float)) else 0.5
+            link_type = link.get("linkType") or "potential_duplicate"
+            for a, b in ((source_id, target_id), (target_id, source_id)):
+                edges.append({
+                    SOURCE_KEY: a,
+                    TARGET_KEY: b,
+                    # `linkType` is the ER vocabulary (potential_duplicate /
+                    # confirmed_same_entity); surfaced as-is so the UI can style ER edges
+                    # differently from business associations.
+                    TYPE_KEY: link_type,
+                    "strength": weight,
+                    "confidence": weight,
+                    # A `confirmed_same_entity` link is a decided verdict; a potential
+                    # duplicate is not.
+                    "verified": link_type == "confirmed_same_entity",
+                    "active": True,
+                    "direction": DIRECTION_BIDIRECTIONAL,
+                    "isEntityResolution": True,
+                    "_pair": pair,
+                })
+
+        id_set = set(ids)
+
+        def links_of(doc):
+            return (
+                ((doc.get("screening") or {}).get("resolution") or {}).get("linkedEntities")
+            ) or []
+
+        try:
+            projection = {ef.CUSTOMER_ID: 1, LINKED_ENTITIES_PATH: 1}
+
+            # Outbound: links held by the nodes themselves.
+            outbound = await self.repo.execute_pipeline(
+                self.entity_collection_name,
+                [
+                    {"$match": ef.scoped({ef.CUSTOMER_ID: {"$in": ids}})},
+                    {"$project": projection},
+                ],
+            )
+            for doc in outbound:
+                holder = doc.get(ef.CUSTOMER_ID)
+                for link in links_of(doc):
+                    if isinstance(link, dict):
+                        add(holder, link.get(LINKED_CUSTOMER_ID), link)
+
+            # Inbound: links held by anyone else that point INTO the node set.
+            inbound = await self.repo.execute_pipeline(
+                self.entity_collection_name,
+                [
+                    {"$match": ef.scoped({
+                        f"{LINKED_ENTITIES_PATH}.{LINKED_CUSTOMER_ID}": {"$in": ids}
+                    })},
+                    {"$project": projection},
+                ],
+            )
+            for doc in inbound:
+                holder = doc.get(ef.CUSTOMER_ID)
+                for link in links_of(doc):
+                    if isinstance(link, dict) and link.get(LINKED_CUSTOMER_ID) in id_set:
+                        add(holder, link.get(LINKED_CUSTOMER_ID), link)
+
+            # `_pair` is a frozenset used only for in-flight bookkeeping; it would break
+            # any downstream JSON serialisation of these documents.
+            for edge in edges:
+                edge.pop("_pair", None)
+
+            if edges:
+                logger.info(
+                    f"Entity resolution: synthesised {len(edges)} edge(s) for "
+                    f"{center_customer_id} from {LINKED_ENTITIES_PATH}"
+                )
+        except Exception as e:
+            # The association graph is the primary product here; losing the ER overlay
+            # should degrade the view, not fail the request.
+            logger.error(f"Failed to synthesise entity-resolution edges: {e}")
+
+        return edges
+
+    @staticmethod
+    def _cap_parallel_edges(relationships: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Allow at most two parallel edges per (unordered pair, type), keeping order.
+
+        This is a PARITY cap, not a dedupe. The pre-migration graph drew exactly two
+        arrows per relationship because the forward and reverse $graphLookup each returned
+        the same document and nothing deduped them. That doubling is the look being
+        preserved, so two copies must survive.
+
+        The cap exists because this implementation can reach one edge from more than those
+        two sweeps — the centre traversal and an ER-neighbour expansion can both return it,
+        which would render four parallel arrows and look like a bug. Anything beyond the
+        old graph's two is dropped.
+        """
+        counts: Dict[Any, int] = {}
+        capped = []
+        for rel in relationships:
+            key = (
+                frozenset((str(source_of(rel)), str(target_of(rel)))),
+                type_of(rel),
+            )
+            seen = counts.get(key, 0)
+            if seen >= 2:
+                continue
+            counts[key] = seen + 1
+            capped.append(rel)
+        return capped
+
+    async def _expand_from_er_neighbours(self, params: NetworkQueryParams,
+                                         er_edges: List[Dict[str, Any]],
+                                         center_customer_id: str) -> List[Dict[str, Any]]:
+        """Traverse associations outward from each entity-resolution neighbour.
+
+        Reuses _build_network_graph so every filter (confidence, verified, active) and the
+        $graphLookup traversal itself behave identically to a normal request — the only
+        difference is the start node and one less hop of depth.
+        """
+        neighbours = set()
+        for edge in er_edges:
+            for endpoint in (source_of(edge), target_of(edge)):
+                if endpoint and endpoint != center_customer_id:
+                    neighbours.add(str(endpoint))
+
+        expanded: List[Dict[str, Any]] = []
+        for neighbour in neighbours:
+            try:
+                sub_params = replace(
+                    params, center_entity_id=neighbour, max_depth=params.max_depth - 1
+                )
+                sub_data = await self._build_network_graph(sub_params)
+                expanded.extend(sub_data.get("relationships") or [])
+            except Exception as e:
+                logger.error(f"ER neighbour expansion failed for {neighbour}: {e}")
+
+        if expanded:
+            logger.info(
+                f"Entity resolution: expanded {len(expanded)} association edge(s) from "
+                f"{len(neighbours)} ER neighbour(s)"
+            )
+        return expanded
+
     async def build_entity_network(self, params: NetworkQueryParams) -> NetworkDataResponse:
         """Build entity network around a center entity"""
         start_time = datetime.utcnow()
-        
+
         try:
             # Get network relationships using native MongoDB $graphLookup
             network_data = await self._build_network_graph(params)
-            
+
+            # Union in entity-resolution edges, which live on
+            # customers.screening.resolution.linkedEntities[] rather than in
+            # `relationships` (see LINKED_ENTITIES_PATH above). Skipped when the caller has
+            # filtered to specific association types — an ER link is not one of them.
+            if not params.relationship_types:
+                # Every node the association traversal reached, plus the centre — ER links
+                # must surface on non-centre nodes too, exactly as they did when they lived
+                # in `relationships`.
+                node_ids = {params.center_entity_id}
+                for rel in network_data["relationships"]:
+                    node_ids.add(str(source_of(rel)))
+                    node_ids.add(str(target_of(rel)))
+
+                er_edges = await self._entity_resolution_edges(node_ids)
+                network_data["relationships"].extend(er_edges)
+
+                # When the centre has no association edges of its own — true for all 26
+                # ER-only customers — the $graphLookup reaches nothing, so the centre's ER
+                # neighbours arrive as bare leaf nodes with their OWN associations missing.
+                # (Noémi's graph showed the duplicate links but lost N. Conor Rosario's two
+                # employed_by edges.) Re-run the traversal seeded from those neighbours,
+                # spending one hop on the ER link itself.
+                #
+                # Only for the CENTRE's ER neighbours. Expanding from ER nodes discovered
+                # off a depth-2 node would reach past max_depth, which the old graph did
+                # not do — Cha Beyer appears there as a leaf.
+                centre_er = [
+                    e for e in er_edges
+                    if params.center_entity_id in (source_of(e), target_of(e))
+                ]
+                if centre_er and params.max_depth > 1:
+                    network_data["relationships"].extend(
+                        await self._expand_from_er_neighbours(
+                            params, centre_er, params.center_entity_id
+                        )
+                    )
+
+                # Keep the old graph's two-arrows-per-edge look, but no more than that.
+                network_data["relationships"] = self._cap_parallel_edges(
+                    network_data["relationships"]
+                )
+
             # Convert to NetworkNode and NetworkEdge objects
             nodes = []
             edges = []
@@ -71,10 +330,10 @@ class NetworkRepository(NetworkRepositoryInterface):
             
             # Process relationships to build network
             for relationship in network_data["relationships"]:
-                # Use new schema field mappings
-                source_id = str(relationship["source"]["entityId"])
-                target_id = str(relationship["target"]["entityId"])
-                
+                # Endpoint keys come from relationship_fields (flat BIAN shape)
+                source_id = str(source_of(relationship))
+                target_id = str(target_of(relationship))
+
                 entity_ids.add(source_id)
                 entity_ids.add(target_id)
                 
@@ -96,7 +355,7 @@ class NetworkRepository(NetworkRepositoryInterface):
                     strength_enum = RelationshipStrength.POSSIBLE
                 
                 # Use original relationship type string directly for display
-                relationship_type_str = relationship.get("type", "unknown")
+                relationship_type_str = type_of(relationship)
                 
                 edge = NetworkEdge(
                     source_id=source_id,
@@ -160,12 +419,12 @@ class NetworkRepository(NetworkRepositoryInterface):
             
             # Step 1: SIMPLIFIED statistics using ACTUAL entity model fields
             stats_pipeline = [
-                {"$match": {"entityId": {"$in": list(entity_ids)}}},
+                {"$match": ef.scoped({ef.CUSTOMER_ID: {"$in": list(entity_ids)}})},
                 {"$addFields": {
                     # Calculate simple centrality based on connected_entities count
                     "connection_count": {"$size": {"$ifNull": ["$connected_entities", []]}},
                     # Extract risk score (0-1) and convert to 0-100 for display
-                    "risk_score_pct": {"$multiply": [{"$ifNull": ["$riskAssessment.overall.score", 0]}, 1]}
+                    "risk_score_pct": {"$multiply": [{"$ifNull": ["$riskProfile.overall.score", 0]}, 1]}
                 }},
                 {"$facet": {
                     # Basic Statistics using ACTUAL fields
@@ -184,7 +443,7 @@ class NetworkRepository(NetworkRepositoryInterface):
                     # Risk Distribution using ACTUAL field
                     "risk_distribution": [
                         {"$group": {
-                            "_id": "$riskAssessment.overall.level",
+                            "_id": "$riskProfile.overall.level",
                             "count": {"$sum": 1}
                         }},
                         {"$sort": {"_id": 1}}
@@ -193,7 +452,7 @@ class NetworkRepository(NetworkRepositoryInterface):
                     # Entity Type Distribution using ACTUAL field
                     "entity_type_distribution": [
                         {"$group": {
-                            "_id": "$entityType",
+                            "_id": {"$toLower": "$type"},
                             "count": {"$sum": 1}
                         }}
                     ],
@@ -204,7 +463,7 @@ class NetworkRepository(NetworkRepositoryInterface):
                         {"$sort": {"connection_count": -1}},
                         {"$limit": 5},
                         {"$project": {
-                            "entityId": 1,
+                            "entityId": "$customerId",
                             "name": 1,
                             "connection_count": 1,
                             "risk_score": "$risk_score_pct"
@@ -224,7 +483,7 @@ class NetworkRepository(NetworkRepositoryInterface):
                         {"$sort": {"prominence_score": -1}},
                         {"$limit": 5},
                         {"$project": {
-                            "entityId": 1,
+                            "entityId": "$customerId",
                             "name": 1,
                             "prominence_score": 1,
                             "connection_count": 1,
@@ -235,7 +494,7 @@ class NetworkRepository(NetworkRepositoryInterface):
             ]
 
             # Execute statistics pipeline on entities
-            stats_results = await self.repo.execute_pipeline("threatsightEntities", stats_pipeline)
+            stats_results = await self.repo.execute_pipeline(self.entity_collection_name, stats_pipeline)
             
             # Step 2: Calculate relationship distribution during edge processing
             relationship_ids = [str(rel.get("_id", "")) for rel in network_data["relationships"]]
@@ -253,16 +512,16 @@ class NetworkRepository(NetworkRepositoryInterface):
                     relationship_dist_pipeline = [
                         {"$match": {"_id": {"$in": valid_object_ids}}},
                         {"$group": {
-                            "_id": "$type",
+                            "_id": f"${TYPE_KEY}",
                             "count": {"$sum": 1},
                             "avg_confidence": {"$avg": "$confidence"},
                             "verified_count": {"$sum": {"$cond": ["$verified", 1, 0]}},
-                            "bidirectional_count": {"$sum": {"$cond": [{"$eq": ["$direction", "bidirectional"]}, 1, 0]}}
+                            "bidirectional_count": {"$sum": {"$cond": [{"$eq": ["$direction", DIRECTION_BIDIRECTIONAL]}, 1, 0]}}
                         }},
                         {"$sort": {"count": -1}}
                     ]
-                    
-                    rel_dist_results = await self.repo.execute_pipeline("threatsightRelationships", relationship_dist_pipeline)
+
+                    rel_dist_results = await self.repo.execute_pipeline(self.relationship_collection_name, relationship_dist_pipeline)
                 else:
                     rel_dist_results = []
             else:
@@ -412,14 +671,14 @@ class NetworkRepository(NetworkRepositoryInterface):
             # Build match conditions with new schema
             match_conditions = {
                 "$or": [
-                    {"source.entityId": entity_id},
-                    {"target.entityId": entity_id}
+                    {SOURCE_KEY: entity_id},
+                    {TARGET_KEY: entity_id}
                 ]
             }
-            
+
             # Add filters
             if relationship_types:
-                match_conditions["type"] = {"$in": [rt.value for rt in relationship_types]}
+                match_conditions[TYPE_KEY] = {"$in": [rt.value for rt in relationship_types]}
             
             if min_confidence:
                 match_conditions["confidence"] = {"$gte": min_confidence}
@@ -440,10 +699,9 @@ class NetworkRepository(NetworkRepositoryInterface):
             connected_entity_ids = set()
             
             for rel in relationships:
-                # Use new schema field mappings
-                source_id = str(rel["source"]["entityId"])
-                target_id = str(rel["target"]["entityId"])
-                
+                source_id = str(source_of(rel))
+                target_id = str(target_of(rel))
+
                 # Determine connected entity (the one that's not the input entity)
                 connected_id = target_id if source_id == entity_id else source_id
                 
@@ -452,7 +710,7 @@ class NetworkRepository(NetworkRepositoryInterface):
                     
                     connections.append({
                         "connected_entity_id": connected_id,
-                        "relationship_type": rel.get("type", "unknown"),
+                        "relationship_type": type_of(rel),
                         "confidence_score": rel.get("confidence", 0.0),
                         "verified": rel.get("verified", False),
                         "strength": rel.get("strength", 0.0),
@@ -501,19 +759,19 @@ class NetworkRepository(NetworkRepositoryInterface):
             # Build filter conditions for relationship types
             restrict_conditions = {}
             if relationship_types:
-                restrict_conditions["type"] = {
+                restrict_conditions[TYPE_KEY] = {
                     "$in": [rt.value for rt in relationship_types]
                 }
-            
+
             # Use $graphLookup to find all reachable entities and their paths
             pipeline = [
-                {"$match": {"entityId": source_entity_id}},
+                {"$match": ef.scoped({ef.CUSTOMER_ID: source_entity_id})},
                 {
                     "$graphLookup": {
                         "from": self.relationship_collection_name,
-                        "startWith": "$entityId",
-                        "connectFromField": "source.entityId",
-                        "connectToField": "target.entityId",
+                        "startWith": "$customerId",
+                        "connectFromField": SOURCE_KEY,
+                        "connectToField": TARGET_KEY,
                         "as": "forward_paths",
                         "maxDepth": max_depth - 1,
                         "depthField": "depth"
@@ -522,9 +780,9 @@ class NetworkRepository(NetworkRepositoryInterface):
                 {
                     "$graphLookup": {
                         "from": self.relationship_collection_name,
-                        "startWith": "$entityId", 
-                        "connectFromField": "target.entityId",
-                        "connectToField": "source.entityId",
+                        "startWith": "$customerId",
+                        "connectFromField": TARGET_KEY,
+                        "connectToField": SOURCE_KEY,
                         "as": "reverse_paths",
                         "maxDepth": max_depth - 1,
                         "depthField": "depth"
@@ -539,8 +797,8 @@ class NetworkRepository(NetworkRepositoryInterface):
                 {
                     "$match": {
                         "$or": [
-                            {"all_paths.source.entityId": target_entity_id},
-                            {"all_paths.target.entityId": target_entity_id}
+                            {f"all_paths.{SOURCE_KEY}": target_entity_id},
+                            {f"all_paths.{TARGET_KEY}": target_entity_id}
                         ]
                     }
                 },
@@ -556,8 +814,8 @@ class NetworkRepository(NetworkRepositoryInterface):
                     }
                 })
             
-            results = await self.repo.execute_pipeline("threatsightEntities", pipeline)
-            
+            results = await self.repo.execute_pipeline(self.entity_collection_name, pipeline)
+
             if not results:
                 logger.info(f"❌ MIGRATION: No path found from {source_entity_id} to {target_entity_id}")
                 return None
@@ -567,13 +825,13 @@ class NetworkRepository(NetworkRepositoryInterface):
             
             # Get detailed path reconstruction
             path_pipeline = [
-                {"$match": {"entityId": source_entity_id}},
+                {"$match": ef.scoped({ef.CUSTOMER_ID: source_entity_id})},
                 {
                     "$graphLookup": {
                         "from": self.relationship_collection_name,
-                        "startWith": "$entityId",
-                        "connectFromField": "source.entityId", 
-                        "connectToField": "target.entityId",
+                        "startWith": "$customerId",
+                        "connectFromField": SOURCE_KEY,
+                        "connectToField": TARGET_KEY,
                         "as": "path_relationships",
                         "maxDepth": target_depth,
                         "depthField": "depth"
@@ -596,18 +854,18 @@ class NetworkRepository(NetworkRepositoryInterface):
                     }
                 })
             
-            path_results = await self.repo.execute_pipeline("threatsightEntities", path_pipeline)
-            
+            path_results = await self.repo.execute_pipeline(self.entity_collection_name, path_pipeline)
+
             if not path_results:
                 return None
-            
+
             # Format path for return
             path = []
             for rel in path_results[0]["relationships"]:
                 path.append({
-                    "source_entity_id": rel["source"]["entityId"],
-                    "target_entity_id": rel["target"]["entityId"],
-                    "relationship_type": rel.get("type", "unknown"),
+                    "source_entity_id": source_of(rel),
+                    "target_entity_id": target_of(rel),
+                    "relationship_type": type_of(rel),
                     "confidence": rel.get("confidence", 0.0)
                 })
             
@@ -635,18 +893,18 @@ class NetworkRepository(NetworkRepositoryInterface):
                 # Match all relationships involving target entities
                 {"$match": {
                     "$or": [
-                        {"source.entityId": {"$in": entity_ids}},
-                        {"target.entityId": {"$in": entity_ids}}
+                        {SOURCE_KEY: {"$in": entity_ids}},
+                        {TARGET_KEY: {"$in": entity_ids}}
                     ],
                     "active": True
                 }},
-                
+
                 # Create unified entity-relationship records
                 {"$facet": {
                     "outgoing": [
-                        {"$match": {"source.entityId": {"$in": entity_ids}}},
+                        {"$match": {SOURCE_KEY: {"$in": entity_ids}}},
                         {"$group": {
-                            "_id": "$source.entityId",
+                            "_id": f"${SOURCE_KEY}",
                             "outgoing_count": {"$sum": 1},
                             "outgoing_weighted": {"$sum": "$confidence"},
                             "outgoing_high_conf": {
@@ -657,21 +915,21 @@ class NetworkRepository(NetworkRepositoryInterface):
                                     "$confidence",
                                     {"$switch": {
                                         "branches": [
-                                            {"case": {"$in": ["$type", ["confirmed_same_entity", "business_associate_suspected"]]}, "then": 0.9},
-                                            {"case": {"$in": ["$type", ["director_of", "ubo_of", "parent_of_subsidiary"]]}, "then": 0.7},
-                                            {"case": {"$in": ["$type", ["household_member", "professional_colleague_public"]]}, "then": 0.3}
+                                            {"case": {"$in": [f"${TYPE_KEY}", ["confirmed_same_entity", "business_associate_suspected"]]}, "then": 0.9},
+                                            {"case": {"$in": [f"${TYPE_KEY}", ["director_of", "ubo_of", "parent_of_subsidiary"]]}, "then": 0.7},
+                                            {"case": {"$in": [f"${TYPE_KEY}", ["household_member", "professional_colleague_public"]]}, "then": 0.3}
                                         ],
                                         "default": 0.5
                                     }}
                                 ]}
                             },
-                            "relationship_types": {"$addToSet": "$type"}
+                            "relationship_types": {"$addToSet": f"${TYPE_KEY}"}
                         }}
                     ],
                     "incoming": [
-                        {"$match": {"target.entityId": {"$in": entity_ids}}},
+                        {"$match": {TARGET_KEY: {"$in": entity_ids}}},
                         {"$group": {
-                            "_id": "$target.entityId",
+                            "_id": f"${TARGET_KEY}",
                             "incoming_count": {"$sum": 1},
                             "incoming_weighted": {"$sum": "$confidence"},
                             "incoming_high_conf": {
@@ -822,32 +1080,32 @@ class NetworkRepository(NetworkRepositoryInterface):
             # Build aggregation pipeline to count connections using new schema
             match_conditions = {"active": True}
             if connection_types:
-                match_conditions["type"] = {
+                match_conditions[TYPE_KEY] = {
                     "$in": [rt.value for rt in connection_types]
                 }
-            
+
             # Count outgoing connections
             outgoing_pipeline = [
                 {"$match": match_conditions},
                 {
                     "$group": {
-                        "_id": "$source.entityId",
+                        "_id": f"${SOURCE_KEY}",
                         "outgoing_count": {"$sum": 1},
                         "avg_confidence": {"$avg": "$confidence"},
-                        "relationship_types": {"$addToSet": "$type"}
+                        "relationship_types": {"$addToSet": f"${TYPE_KEY}"}
                     }
                 }
             ]
-            
+
             # Count incoming connections
             incoming_pipeline = [
                 {"$match": match_conditions},
                 {
                     "$group": {
-                        "_id": "$target.entityId",
+                        "_id": f"${TARGET_KEY}",
                         "incoming_count": {"$sum": 1},
                         "avg_confidence": {"$avg": "$confidence"},
-                        "relationship_types": {"$addToSet": "$type"}
+                        "relationship_types": {"$addToSet": f"${TYPE_KEY}"}
                     }
                 }
             ]
@@ -907,18 +1165,18 @@ class NetworkRepository(NetworkRepositoryInterface):
                     entity_id = hub["entity_id"]
                     
                     # Get entity details for risk assessment
-                    entity = await self.entity_collection.find_one({"entityId": entity_id})
+                    # Raw BIAN document -- read it through the entity_fields
+                    # accessors rather than the wire shape.
+                    entity = await self.entity_collection.find_one(
+                        ef.scoped({ef.CUSTOMER_ID: entity_id})
+                    )
                     if entity:
-                        risk_assessment = entity.get("riskAssessment", {})
-                        hub["risk_level"] = risk_assessment.get("overall", {}).get("level", "unknown")
-                        hub["risk_score"] = risk_assessment.get("overall", {}).get("score", 0.0)
-                        
-                        # Handle entity name
-                        entity_name = entity.get("name", "Unknown")
-                        if isinstance(entity_name, dict):
-                            entity_name = entity_name.get("full", entity_name.get("display", "Unknown"))
-                        hub["entity_name"] = str(entity_name)
-                        hub["entity_type"] = entity.get("entityType", "unknown")
+                        risk_overall = ef.risk_overall_of(entity)
+                        hub["risk_level"] = risk_overall.get("level", "unknown")
+                        hub["risk_score"] = risk_overall.get("score", 0.0)
+
+                        hub["entity_name"] = str(ef.name_of(entity) or "Unknown")
+                        hub["entity_type"] = ef.type_of(entity) or "unknown"
                     else:
                         hub["risk_level"] = "unknown"
                         hub["risk_score"] = 0.0
@@ -951,14 +1209,16 @@ class NetworkRepository(NetworkRepositoryInterface):
                                   relationship_types: Optional[List[RelationshipType]] = None) -> Dict[str, float]:
         """Propagate risk scores through network relationships using new schema"""
         try:
-            # Get source entity risk score using entityId field
-            source_entity = await self.entity_collection.find_one({"entityId": source_entity_id})
+            # Get source party risk score by `customerId`
+            source_entity = await self.entity_collection.find_one(
+                ef.scoped({ef.CUSTOMER_ID: source_entity_id})
+            )
             if not source_entity:
                 logger.warning(f"Source entity {source_entity_id} not found for risk propagation")
                 return {}
-            
-            # Extract risk score from new schema format
-            initial_risk = source_entity.get("riskAssessment", {}).get("overall", {}).get("score", 0.0)
+
+            # Raw BIAN document -- risk lives under `riskProfile.overall`
+            initial_risk = ef.risk_overall_of(source_entity).get("score", 0.0)
             if initial_risk < min_propagated_score:
                 logger.debug(f"Initial risk {initial_risk} below threshold {min_propagated_score}")
                 return {}
@@ -1051,12 +1311,14 @@ class NetworkRepository(NetworkRepositoryInterface):
                                          analysis_depth: int = 2) -> Dict[str, Any]:
         """Calculate overall network risk score for an entity using new schema"""
         try:
-            # Get entity's own risk using entityId field
-            entity = await self.entity_collection.find_one({"entityId": entity_id})
+            # Get the party's own risk by `customerId`
+            entity = await self.entity_collection.find_one(
+                ef.scoped({ef.CUSTOMER_ID: entity_id})
+            )
             if not entity:
                 return {"error": "Entity not found"}
-            
-            base_risk = entity.get("riskAssessment", {}).get("overall", {}).get("score", 0.0)
+
+            base_risk = ef.risk_overall_of(entity).get("score", 0.0)
             
             # Analyze network connections
             connections = await self.get_entity_connections(entity_id, max_depth=analysis_depth)
@@ -1139,15 +1401,15 @@ class NetworkRepository(NetworkRepositoryInterface):
             adjacency_pipeline = [
                 {"$match": {
                     "$or": [
-                        {"source.entityId": {"$in": entity_ids}},
-                        {"target.entityId": {"$in": entity_ids}}
+                        {SOURCE_KEY: {"$in": entity_ids}},
+                        {TARGET_KEY: {"$in": entity_ids}}
                     ],
                     "active": True,
                     "confidence": {"$gte": 0.7}  # High confidence connections for communities
                 }},
                 {"$group": {
-                    "_id": "$source.entityId",
-                    "connections": {"$addToSet": "$target.entityId"}
+                    "_id": f"${SOURCE_KEY}",
+                    "connections": {"$addToSet": f"${TARGET_KEY}"}
                 }},
                 {"$addFields": {
                     "entityId": "$_id"
@@ -1310,7 +1572,7 @@ class NetworkRepository(NetworkRepositoryInterface):
             
             # Add filters with new schema fields
             if params.relationship_types:
-                restrict_conditions["type"] = {
+                restrict_conditions[TYPE_KEY] = {
                     "$in": [rt.value for rt in params.relationship_types]
                 }
             
@@ -1325,25 +1587,25 @@ class NetworkRepository(NetworkRepositoryInterface):
             
             # Create aggregation pipeline using native $graphLookup
             pipeline = (self.aggregation()
-                .match({"entityId": params.center_entity_id})
+                .match(ef.scoped({ef.CUSTOMER_ID: params.center_entity_id}))
                 .graph_lookup(
                     from_collection=self.relationship_collection_name,
-                    start_with="$entityId",
-                    connect_from="target.entityId",
-                    connect_to="source.entityId", 
+                    start_with="$customerId",
+                    connect_from=TARGET_KEY,
+                    connect_to=SOURCE_KEY,
                     as_field="forward_relationships",
                     max_depth=params.max_depth - 1  # $graphLookup is 0-indexed
                 )
                 .graph_lookup(
                     from_collection=self.relationship_collection_name,
-                    start_with="$entityId",
-                    connect_from="source.entityId",
-                    connect_to="target.entityId",
-                    as_field="reverse_relationships", 
+                    start_with="$customerId",
+                    connect_from=SOURCE_KEY,
+                    connect_to=TARGET_KEY,
+                    as_field="reverse_relationships",
                     max_depth=params.max_depth - 1
                 )
                 .project({
-                    "entityId": 1,
+                    "entityId": "$customerId",
                     "all_relationships": {
                         "$concatArrays": ["$forward_relationships", "$reverse_relationships"]
                     }
@@ -1356,13 +1618,13 @@ class NetworkRepository(NetworkRepositoryInterface):
             if restrict_conditions:
                 # MongoDB $graphLookup with restrictSearchWithMatch requires manual pipeline construction
                 manual_pipeline = [
-                    {"$match": {"entityId": params.center_entity_id}},
+                    {"$match": ef.scoped({ef.CUSTOMER_ID: params.center_entity_id})},
                     {
                         "$graphLookup": {
                             "from": self.relationship_collection_name,
-                            "startWith": "$entityId",
-                            "connectFromField": "target.entityId", 
-                            "connectToField": "source.entityId",
+                            "startWith": "$customerId",
+                            "connectFromField": TARGET_KEY,
+                            "connectToField": SOURCE_KEY,
                             "as": "forward_relationships",
                             "maxDepth": params.max_depth - 1,
                             "restrictSearchWithMatch": restrict_conditions
@@ -1371,9 +1633,9 @@ class NetworkRepository(NetworkRepositoryInterface):
                     {
                         "$graphLookup": {
                             "from": self.relationship_collection_name,
-                            "startWith": "$entityId", 
-                            "connectFromField": "source.entityId",
-                            "connectToField": "target.entityId",
+                            "startWith": "$customerId", 
+                            "connectFromField": SOURCE_KEY,
+                            "connectToField": TARGET_KEY,
                             "as": "reverse_relationships",
                             "maxDepth": params.max_depth - 1,
                             "restrictSearchWithMatch": restrict_conditions
@@ -1381,7 +1643,7 @@ class NetworkRepository(NetworkRepositoryInterface):
                     },
                     {
                         "$project": {
-                            "entityId": 1,
+                            "entityId": "$customerId",
                             "all_relationships": {
                                 "$concatArrays": ["$forward_relationships", "$reverse_relationships"]
                             }
@@ -1392,10 +1654,10 @@ class NetworkRepository(NetworkRepositoryInterface):
                     {"$limit": params.max_relationships}
                 ]
                 
-                relationships = await self.repo.execute_pipeline("threatsightEntities", manual_pipeline)
+                relationships = await self.repo.execute_pipeline(self.entity_collection_name,manual_pipeline)
             else:
                 # Use fluent interface when no complex filters
-                relationships = await self.repo.execute_pipeline("threatsightEntities", pipeline)
+                relationships = await self.repo.execute_pipeline(self.entity_collection_name,pipeline)
             
             # Remove duplicates based on relationship ID
             seen_ids = set()
@@ -1423,18 +1685,29 @@ class NetworkRepository(NetworkRepositoryInterface):
             return {"relationships": [], "max_depth": 0}
     
     async def _get_entities_batch(self, entity_ids: List[str]) -> List[Dict[str, Any]]:
-        """Get entity details in batch"""
+        """Get entity details in batch, translated to the wire shape.
+
+        Node builders downstream read `entityId`, `name.full`, `entityType` and
+        `riskAssessment.overall` -- the source shape. Projecting here keeps that
+        contract while the collection underneath is BIAN, so the graph-node code
+        needs no BIAN paths of its own.
+        """
         try:
-            entities = await self.entity_collection.find(
-                {"entityId": {"$in": entity_ids}}
-            ).to_list(None)
-            
+            pipeline = [
+                {"$match": ef.scoped({ef.CUSTOMER_ID: {"$in": entity_ids}})},
+                {"$project": ef.list_projection()},
+            ]
+            entities = await self.repo.execute_pipeline(
+                self.entity_collection_name, pipeline
+            )
+
             # Ensure consistent string representation
             for entity in entities:
-                entity["_id"] = str(entity["_id"])
-            
+                if "_id" in entity:
+                    entity["_id"] = str(entity["_id"])
+
             return entities
-            
+
         except Exception as e:
             logger.error(f"Failed to get entities batch: {e}")
             return []

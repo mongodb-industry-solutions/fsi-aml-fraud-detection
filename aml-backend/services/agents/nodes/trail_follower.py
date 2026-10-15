@@ -11,8 +11,21 @@ from datetime import datetime, timezone
 
 from langchain_core.messages import SystemMessage, HumanMessage
 
-from dependencies import get_mongo_client, DB_NAME
+from dependencies import get_mongo_client, DB_NAME, RELATIONSHIPS_COLLECTION
 from models.agents.investigation import TrailAnalysis
+# Phase-2 step 3: the UI surface moved its party identity to `customerId`, so
+# relationship_fields.SOURCE_KEY/TARGET_KEY now point at `sourceCustomerId` /
+# `targetCustomerId`. The agent tools still read `threatsightEntities`, whose
+# identity is the source `entityId` -- so they stay pinned to the retained
+# `*EntityRef` pair, which build_sd7.py populates on every relationship
+# document alongside the customer ids. Traversing on the customer keys from an
+# `entityId` seed returns zero edges and raises nothing.
+# Migrate this surface to `customers` and drop the aliasing in a later pass.
+from repositories.relationship_fields import (
+    SOURCE_ENTITY_REF_KEY as SOURCE_KEY,
+    TARGET_ENTITY_REF_KEY as TARGET_KEY,
+    TYPE_KEY,
+)
 from services.agents.llm import get_llm, get_model_id, extract_token_usage, invoke_with_retry
 from services.agents.prompts import TRAIL_FOLLOWER_SYSTEM
 from services.agents.state import InvestigationState
@@ -33,36 +46,36 @@ def _trace_ownership_chains(db, entity_id: str, max_depth: int = 3) -> list[dict
     """Trace ownership/control chains from the subject entity via $graphLookup."""
     pipeline = [
         {"$match": {
-            "source.entityId": entity_id,
-            "type": {"$in": list(OWNERSHIP_TYPES)},
+            SOURCE_KEY: entity_id,
+            TYPE_KEY: {"$in": list(OWNERSHIP_TYPES)},
         }},
         {
             "$graphLookup": {
-                "from": "threatsightRelationships",
-                "startWith": "$target.entityId",
-                "connectFromField": "target.entityId",
-                "connectToField": "source.entityId",
+                "from": RELATIONSHIPS_COLLECTION,
+                "startWith": f"${TARGET_KEY}",
+                "connectFromField": TARGET_KEY,
+                "connectToField": SOURCE_KEY,
                 "as": "chain",
                 "maxDepth": max_depth - 1,
                 "depthField": "hops",
                 "restrictSearchWithMatch": {
-                    "type": {"$in": list(OWNERSHIP_TYPES)},
+                    TYPE_KEY: {"$in": list(OWNERSHIP_TYPES)},
                 },
             }
         },
         {"$project": {
             "_id": 0,
-            "direct_target": "$target.entityId",
-            "direct_type": "$type",
+            "direct_target": f"${TARGET_KEY}",
+            "direct_type": f"${TYPE_KEY}",
             "direct_strength": "$strength",
             "chain": {
                 "$map": {
                     "input": "$chain",
                     "as": "c",
                     "in": {
-                        "source": "$$c.source.entityId",
-                        "target": "$$c.target.entityId",
-                        "type": "$$c.type",
+                        "source": f"$$c.{SOURCE_KEY}",
+                        "target": f"$$c.{TARGET_KEY}",
+                        "type": f"$$c.{TYPE_KEY}",
                         "strength": "$$c.strength",
                         "hops": "$$c.hops",
                     },
@@ -70,7 +83,7 @@ def _trace_ownership_chains(db, entity_id: str, max_depth: int = 3) -> list[dict
             },
         }},
     ]
-    results = list(db["threatsightRelationships"].aggregate(pipeline))
+    results = list(db[RELATIONSHIPS_COLLECTION].aggregate(pipeline))
 
     chains = []
     for row in results:

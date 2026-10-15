@@ -58,7 +58,7 @@ function EnhancedEntityResolutionPage() {
   // Workflow steps
   const WORKFLOW_STEPS = [
     { id: 0, title: 'Entity Input', description: 'Capture entity information' },
-    { id: 1, title: 'Parallel Search', description: 'Atlas & Vector search analysis' },
+    { id: 1, title: 'Parallel Search', description: 'MongoDB Search & Vector Search analysis' },
     { id: 2, title: 'Network Analysis', description: 'Graph traversal & risk assessment' },
     { id: 3, title: 'AI Classification', description: 'Risk categorization & recommendations' },
     { id: 4, title: 'Case Investigation', description: 'Deep analysis & final decisions' }
@@ -457,7 +457,7 @@ function EnhancedEntityResolutionPage() {
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: spacing[2] }}>
               {/* MongoDB Single Database Advantage */}
               <Callout variant="tip" style={{ marginBottom: spacing[3], width: '100%' }}>
-                <strong>Single Database, Multiple Search Types:</strong> Atlas
+                <strong>Single Database, Multiple Search Types:</strong> MongoDB
                 Search, Vector Search, and Hybrid Search all run within the same
                 MongoDB cluster - eliminating data movement and reducing operational
                 complexity that comes with Elasticsearch + Vector DB architectures.

@@ -20,7 +20,7 @@ ThreatSight360 offers a comprehensive fraud detection, AML compliance, and risk 
 
 3. **Entity Management and Resolution:** This advanced module provides AI-powered entity resolution with hybrid search capabilities (Full-text + Vector + $rankFusion), enabling financial institutions to identify related entities, detect duplicate records, and visualize complex relationship and transaction networks (with $graphLookup).
 
-4. **Enhanced Entity Resolution / KYC:** A dedicated onboarding and duplicate-detection workflow that walks through a 5-step pipeline: entity input, parallel search (Atlas Search + Vector Search + $rankFusion hybrid), top-3 network comparison with Cytoscape graph visualization, streaming AI classification via Claude on AWS Bedrock, and full case investigation report generation.
+4. **Enhanced Entity Resolution / KYC:** A dedicated onboarding and duplicate-detection workflow that walks through a 5-step pipeline: entity input, parallel search (MongoDB Search + Vector Search + $rankFusion hybrid), top-3 network comparison with Cytoscape graph visualization, streaming AI classification via Claude on AWS Bedrock, and full case investigation report generation.
 
 5. **Agentic Investigation Pipeline:** A fully autonomous LangGraph StateGraph (11 logical stages / 17 compiled nodes, counting dispatcher and fan-out worker nodes) that conducts SAR investigations end-to-end — from alert triage through data gathering, network and temporal analysis, sub-investigations, narrative generation, validation, and human-in-the-loop review before finalization. Investigations are persisted with MongoDBSaver checkpoints, surviving backend restarts.
 
@@ -45,7 +45,7 @@ These modules work together (in production systems, not in the demo) to create a
 
 ## MongoDB Technologies Showcased
 
-- **Atlas Vector Search** - For semantic similarity search across transaction patterns, entity matching, and copilot tool queries
+- **MongoDB Vector Search** - For semantic similarity search across transaction patterns, entity matching, and copilot tool queries
 - **Atlas Text Search** - For fuzzy text matching in entity resolution, entity management autocomplete, and investigation search
 - **MongoDB $rankFusion** - For hybrid search combining text and vector results with native reciprocal rank fusion score transparency
 - **Aggregation Framework** - For complex network analysis, graph operations, investigation analytics ($facet), and risk propagation
@@ -157,7 +157,7 @@ The system stands apart from traditional fraud detection solutions by incorporat
    - Select "Normal Transaction" scenario
    - Uses default settings with amount equal to the customer's average, known location and device
    - Evaluate Transaction and show low risk score results (classical rules based risk calculation)
-   - Click on the "Vector Search Fraud Assessment" tab to show the vector embedding + search process. The system retrieves the top 15 most similar historical transactions via Atlas Vector Search, with the top 5 surfaced in the UI for visual inspection while all 15 are used in the weighted risk scoring calculation
+   - Click on the "Vector Search Fraud Assessment" tab to show the vector embedding + search process. The system retrieves the top 15 most similar historical transactions via MongoDB Vector Search, with the top 5 surfaced in the UI for visual inspection while all 15 are used in the weighted risk scoring calculation
 
 2. **Amount Anomaly Detection:**
    - Select "Unusual Amount" scenario
@@ -185,7 +185,7 @@ After running the Multiple Risk Factors scenario, explain the vector search scor
 **Talking Points:**
 
 - **Vector Search Process:** "The system converts the current transaction into a 1536-dimensional vector using AWS Bedrock's embedding model. This vector captures the semantic meaning of the transaction details."
-- **Similarity Scoring:** "MongoDB Atlas Vector Search uses cosine similarity to find the most similar historical transactions. The similarity scores range from 0 to 1, where 1 indicates identical transactions."
+- **Similarity Scoring:** "MongoDB Vector Search uses cosine similarity to find the most similar historical transactions. The similarity scores range from 0 to 1, where 1 indicates identical transactions."
 - **Risk Score Calculation:** "The vector search risk score is calculated by:
   - Finding the top 15 most similar transactions from our fraud pattern database
   - Weighting each match by its similarity score (0.67-1.0 range typically)
@@ -299,7 +299,7 @@ The entity list supports advanced faceted filtering:
 
 **Talking Points:**
 
-- **Vector Search:** "This uses MongoDB Atlas Vector Search on pre-computed profile embeddings (1536 dimensions). It finds semantically similar entities — even when names are spelled differently or aliases are used."
+- **Vector Search:** "This uses MongoDB Vector Search on pre-computed profile embeddings (1536 dimensions). It finds semantically similar entities — even when names are spelled differently or aliases are used."
 
 #### 5.5 Relationship Network Analysis Tab
 
@@ -356,7 +356,7 @@ This module showcases MongoDB's $rankFusion hybrid search, parallel Atlas + Vect
 
 The system executes three search strategies simultaneously:
 
-1. **Atlas Search Tab** — Full-text fuzzy matching on `name.full`, `name.aliases`, `addresses.full`
+1. **MongoDB Search Tab** — Full-text fuzzy matching on `name.full`, `name.aliases`, `addresses.full`
 2. **Vector Search Tab** — AI embedding-based semantic similarity (1536-dimensional vectors)
 3. **Hybrid ($rankFusion) Tab** — Combines both using MongoDB's native reciprocal rank fusion
 
@@ -368,7 +368,7 @@ For each result in the Hybrid tab, observe:
 **Talking Points:**
 
 - **$rankFusion:** "MongoDB's native $rankFusion combines text and vector search results in a single aggregation query. No external orchestration, no manual score normalization — the database handles it."
-- **Query Transparency:** "We expose the exact MongoDB queries to the audience. You can see the compound Atlas Search query with fuzzy matching and the $vectorSearch pipeline side by side."
+- **Query Transparency:** "We expose the exact MongoDB queries to the audience. You can see the compound MongoDB Search query with fuzzy matching and the $vectorSearch pipeline side by side."
 - **Competitive Advantage:** "Other platforms require separate Elasticsearch clusters for text search and Pinecone/Weaviate for vector search, then custom application logic to merge results. MongoDB does it all natively in one query."
 
 #### 6.4 Top-3 Network Comparison (Step 3)
@@ -626,7 +626,7 @@ When an artifact is generated:
 
 | Technology | Where Used | Value |
 |-----------|-----------|-------|
-| **Atlas Vector Search** | Transaction Simulator (fraud pattern matching), Entity Management (similar profiles), Entity Resolution (semantic matching), Copilot tools | Find semantically similar records without exact text matches |
+| **MongoDB Vector Search** | Transaction Simulator (fraud pattern matching), Entity Management (similar profiles), Entity Resolution (semantic matching), Copilot tools | Find semantically similar records without exact text matches |
 | **Atlas Text Search** | Entity Management (autocomplete, fuzzy search), Entity Resolution (full-text matching), Copilot (entity/investigation search) | Fast, fuzzy text search with relevance scoring |
 | **$rankFusion** | Entity Resolution (hybrid search combining Atlas + Vector) | Native hybrid search in one aggregation — no external orchestration |
 | **$graphLookup** | Entity Management (relationship networks), Entity Resolution (top-3 network comparison), Investigation Pipeline (network analysis node), Copilot (network tool) | Multi-depth graph traversal without a separate graph database |
@@ -648,7 +648,7 @@ When an artifact is generated:
 | `DB_NAME` | `fsi-threatsight360` | Database name |
 | `AWS_REGION` | `us-east-1` | AWS region for Bedrock |
 | `LLM_MODEL_ARN` | Haiku 4.5 inference profile | Override default LLM model for agents and classification |
-| `ATLAS_SEARCH_INDEX` | `entity_resolution_search` | Atlas Search index name |
+| `ATLAS_SEARCH_INDEX` | `entity_resolution_search` | MongoDB Search index name |
 | `ENTITY_VECTOR_INDEX` | `entity_vector_search_index` | Vector Search index name |
 | `RATE_LIMIT_INVESTIGATE` | `10` | Max investigation launches per 60 seconds |
 | `RATE_LIMIT_CHAT` | `30` | Max chat messages per 60 seconds |

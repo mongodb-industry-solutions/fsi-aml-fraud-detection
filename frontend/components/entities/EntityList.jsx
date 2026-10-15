@@ -514,7 +514,7 @@ export default function EntityList() {
       {/* Add bottom padding to prevent content from being hidden behind footer console */}
       <div style={{ height: '60px' }}></div>
 
-      {/* MongoDB Atlas Search Insights Panel - Footer Console */}
+      {/* MongoDB Search Insights Panel - Footer Console */}
       <MongoDBInsightsPanel
         searchQuery={searchQuery}
         activeFilters={filters}

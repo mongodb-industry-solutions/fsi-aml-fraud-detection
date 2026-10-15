@@ -1,5 +1,5 @@
 """
-Simplified Atlas Search Repository - Core functionality only
+Simplified MongoDB Search Repository - Core functionality only
 
 Reduced from 1000+ lines with 47 methods to ~250 lines with 6 essential methods.
 Eliminates 87% of unused code while preserving all production functionality.
@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 @dataclass
 class SearchQueryParams:
-    """Parameters for Atlas Search queries"""
+    """Parameters for MongoDB Search queries"""
     query: str
     fields: Optional[List[str]] = None
     fuzzy: bool = True
@@ -35,6 +35,7 @@ class AutocompleteParams:
 
 from reference.mongodb_core_lib import MongoDBRepository, AggregationBuilder, SearchOptions
 from utils.atlas_search_builder import AtlasSearchBuilder
+from repositories import entity_fields as ef
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -42,9 +43,9 @@ logger.setLevel(logging.DEBUG)
 
 class AtlasSearchRepository:
     """
-    Simplified Atlas Search repository - Core functionality only
+    Simplified MongoDB Search repository - Core functionality only
     
-    Provides the 6 essential Atlas Search methods actually used in production:
+    Provides the 6 essential MongoDB Search methods actually used in production:
     - autocomplete_search() - Real-time autocomplete suggestions  
     - find_entity_matches() - Entity matching for resolution workflows
     - faceted_search() - Faceted filtering with counts
@@ -56,15 +57,15 @@ class AtlasSearchRepository:
     """
     
     def __init__(self, mongodb_repo: MongoDBRepository, 
-                 collection_name: str = "threatsightEntities",
+                 collection_name: str = "customers",
                  search_index_name: str = "entity_search_indexv2"):
         """
-        Initialize Atlas Search repository
+        Initialize MongoDB Search repository
         
         Args:
             mongodb_repo: MongoDB repository instance from core lib
             collection_name: Name of the collection to search
-            search_index_name: Name of the Atlas Search index
+            search_index_name: Name of the MongoDB Search index
         """
         self.repo = mongodb_repo
         self.collection_name = collection_name
@@ -75,13 +76,41 @@ class AtlasSearchRepository:
         import os
         self.text_search_index = os.getenv("ATLAS_TEXT_SEARCH_INDEX", "entity_text_search_index")
         
-        # Initialize atlas search capabilities
+        # Initialize MongoDB search capabilities
         self.ai_search = self.repo.ai_search(collection_name)
         self.aggregation = self.repo.aggregation
         
         
         logger.info(f"AtlasSearchRepository initialized with autocomplete index: {self.search_index_name}, text index: {self.text_search_index}")
-    
+
+    def _builder(self, index_name: Optional[str] = None) -> AtlasSearchBuilder:
+        """Build a search builder scoped to this demo's parties.
+
+        `customers` is shared with the Leafy Bank payments demo, and an Atlas
+        Search index cannot be scoped to a subset of a collection -- the guard
+        has to live inside the `$search` stage. Always construct builders here
+        rather than calling `AtlasSearchBuilder(...)` directly, or four payments
+        parties leak into AML results with no error.
+        """
+        return AtlasSearchBuilder(
+            index_name or self.search_index_name,
+            scope_filter=ef.search_scope_clause(),
+        )
+
+    def _search_result_projection(self) -> Dict[str, Any]:
+        """Wire-shape projection for a `$search` result doc, plus the search score.
+
+        `compound_search_paginated`/`text_search_paginated` return raw BIAN
+        `customers` docs (`customerId`, `type`, `riskProfile`, ...). Every
+        consumer of these results (`atlas_search_service.py`, the resolution
+        routes) reads wire keys (`entityId`, `entityType`, `riskAssessment`).
+        Without this, results silently carry blank fields and the wrong id
+        (falls back to the raw `_id` ObjectId).
+        """
+        proj = ef.wire_projection(include_embeddings=False)
+        proj["search_score"] = 1
+        return proj
+
     # ==================== CORE SEARCH OPERATIONS (6 ESSENTIAL METHODS) ====================
     
     async def autocomplete_search(self, params: AutocompleteParams) -> List[Dict[str, Any]]:
@@ -94,10 +123,10 @@ class AtlasSearchRepository:
             project_field = params.field.split('.')[0] if '.' in params.field else params.field
             
             # Use AtlasSearchBuilder fluent interface
-            pipeline = (AtlasSearchBuilder(self.search_index_name)
+            pipeline = (self._builder()
                        .autocomplete(params.query, params.field, fuzzy=fuzzy_config)
                        .limit(params.limit)
-                       .project({project_field: 1, "_id": 1, "entityId": 1})
+                       .project({project_field: 1, "_id": 1, ef.CUSTOMER_ID: 1})
                        .build())
             
             # Execute autocomplete search
@@ -119,8 +148,8 @@ class AtlasSearchRepository:
                         name_value = ""
                         break
                 
-                # Get entity ID (prefer entityId, fallback to _id)
-                entity_id = result.get("entityId") or str(result.get("_id", ""))
+                # Party identity is `customerId`; the wire key stays `entityId`.
+                entity_id = result.get(ef.CUSTOMER_ID) or str(result.get("_id", ""))
                 
                 if name_value and name_value not in seen and entity_id:
                     suggestions.append({
@@ -153,7 +182,7 @@ class AtlasSearchRepository:
                 should_conditions.append({
                     "text": {
                         "query": entity_name,
-                        "path": ["name.full"],
+                        "path": [ef.FULL_NAME],
                         "fuzzy": {"maxEdits": 2}
                     }
                 })
@@ -161,7 +190,7 @@ class AtlasSearchRepository:
                 should_conditions.append({
                     "text": {
                         "query": entity_name,
-                        "path": ["name.aliases"],
+                        "path": [ef.ALIASES],
                         "fuzzy": {"maxEdits": 2}
                     }
                 })
@@ -170,14 +199,14 @@ class AtlasSearchRepository:
                 should_conditions.append({
                     "text": {
                         "query": entity_name,
-                        "path": ["name.full"]
+                        "path": [ef.FULL_NAME]
                     }
                 })
                 # Use text search for aliases
                 should_conditions.append({
                     "text": {
                         "query": entity_name,
-                        "path": ["name.aliases"]
+                        "path": [ef.ALIASES]
                     }
                 })
             
@@ -187,7 +216,7 @@ class AtlasSearchRepository:
                 filters.append({
                     "text": {
                         "query": entity_type,
-                        "path": "entityType"
+                        "path": ef.TYPE
                     }
                 })
             
@@ -200,7 +229,7 @@ class AtlasSearchRepository:
                             should_conditions.append({
                                 "text": {
                                     "query": value,
-                                    "path": ["addresses.full"],
+                                    "path": [ef.ADDRESS_LINE1],
                                     "fuzzy": {"maxEdits": 1} if fuzzy else None
                                 }
                             })
@@ -209,7 +238,7 @@ class AtlasSearchRepository:
                             should_conditions.append({
                                 "text": {
                                     "query": value,
-                                    "path": [field, "identifiers.value"],
+                                    "path": [field, ef.IDENTIFIER_VALUE],
                                     "fuzzy": {"maxEdits": 1} if fuzzy else None
                                 }
                             })
@@ -246,16 +275,17 @@ class AtlasSearchRepository:
         """Perform compound search with multiple conditions using fluent builder interface"""
         try:
             # Use AtlasSearchBuilder fluent interface
-            pipeline = (AtlasSearchBuilder(self.search_index_name)
+            pipeline = (self._builder()
                        .compound_search_paginated(
                            must=must,
-                           should=should, 
+                           should=should,
                            filters=filters,
                            limit=limit
                        )
+                       .project(self._search_result_projection())
                        .build())
             
-            logger.debug(f"Executing Atlas Search pipeline: {pipeline}")
+            logger.debug(f"Executing MongoDB Search pipeline: {pipeline}")
             
             # Execute compound search
             results = await self.repo.execute_pipeline(self.collection_name, pipeline)
@@ -285,16 +315,17 @@ class AtlasSearchRepository:
         """Perform compound search with specified index name"""
         try:
             # Use AtlasSearchBuilder fluent interface with custom index
-            pipeline = (AtlasSearchBuilder(index_name)
+            pipeline = (self._builder(index_name)
                        .compound_search_paginated(
                            must=must,
-                           should=should, 
+                           should=should,
                            filters=filters,
                            limit=limit
                        )
+                       .project(self._search_result_projection())
                        .build())
             
-            logger.debug(f"Executing Atlas Search pipeline with index {index_name}: {pipeline}")
+            logger.debug(f"Executing MongoDB Search pipeline with index {index_name}: {pipeline}")
             
             # Execute compound search
             results = await self.repo.execute_pipeline(self.collection_name, pipeline)
@@ -337,10 +368,10 @@ class AtlasSearchRepository:
                     }
             
             # Use AtlasSearchBuilder for faceted search
-            search_path = ["name.full", "name.aliases", "addresses.full"]
+            search_path = [ef.FULL_NAME, ef.ALIASES, ef.ADDRESS_LINE1]
             
             # Get facets using fluent interface
-            facets_pipeline = (AtlasSearchBuilder(self.search_index_name)
+            facets_pipeline = (self._builder()
                               .faceted_search_complete(
                                   query=query if query and query != "*" else None,
                                   path=search_path,
@@ -353,12 +384,13 @@ class AtlasSearchRepository:
             
             # Get search results using fluent interface (only if there's a query)
             if query and query != "*":
-                results_pipeline = (AtlasSearchBuilder(self.search_index_name)
+                results_pipeline = (self._builder()
                                    .text_search_paginated(
                                        query=query,
                                        path=search_path,
                                        limit=limit
                                    )
+                                   .project(self._search_result_projection())
                                    .build())
                 search_results = await self.repo.execute_pipeline(self.collection_name, results_pipeline)
             else:

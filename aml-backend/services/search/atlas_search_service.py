@@ -1,7 +1,7 @@
 """
-Atlas Search Service - Refactored to use repository pattern
+MongoDB Search Service - Refactored to use repository pattern
 
-Clean service focused on business logic for Atlas Search operations,
+Clean service focused on business logic for MongoDB Search operations,
 using AtlasSearchRepository for all data access operations.
 """
 
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class AtlasSearchService:
     """
-    Atlas Search service using repository pattern
+    MongoDB Search service using repository pattern
     
     Focuses on business logic for entity search operations while delegating
     all data access to AtlasSearchRepository. Provides clean interfaces for
@@ -28,7 +28,7 @@ class AtlasSearchService:
     
     def __init__(self, atlas_search_repo: AtlasSearchRepository):
         """
-        Initialize Atlas Search service
+        Initialize MongoDB Search service
         
         Args:
             atlas_search_repo: AtlasSearchRepository for data access
@@ -39,13 +39,13 @@ class AtlasSearchService:
         self.default_limit = 20
         self.fuzzy_max_edits = 2
         
-        logger.info("Atlas Search service initialized with repository pattern")
+        logger.info("MongoDB Search service initialized with repository pattern")
     
     # ==================== ENTITY MATCHING OPERATIONS ====================
     
     async def find_entity_matches(self, search_request: EntitySearchRequest) -> SearchResponse:
         """
-        Find potential entity matches using Atlas Search
+        Find potential entity matches using MongoDB Search
         
         Args:
             search_request: Search criteria and parameters
@@ -304,7 +304,7 @@ class AtlasSearchService:
             logger.debug(f"Processing match_data keys: {list(match_data.keys())}")
             logger.debug(f"search_score value: {match_data.get('search_score')}, score value: {match_data.get('score')}")
             
-            # Extract relevance score from Atlas Search (MongoDB adds it as search_score)
+            # Extract relevance score from MongoDB Search (MongoDB adds it as search_score)
             relevance_score = match_data.get("search_score", 0.0) or match_data.get("score", 0.0)
             
             logger.debug(f"Final relevance_score: {relevance_score}")
@@ -401,7 +401,7 @@ class AtlasSearchService:
             float: Confidence score between 0 and 1
         """
         try:
-            # Atlas Search score is in search_score field (from $meta: searchScore)
+            # MongoDB Search score is in search_score field (from $meta: searchScore)
             search_score = match_data.get("search_score", 0.0)
             base_score = match_data.get("score", 0.0)
             
@@ -530,4 +530,4 @@ class AtlasSearchService:
             return reasons
             
         except Exception:
-            return ["Atlas Search match"]
+            return ["MongoDB Search match"]

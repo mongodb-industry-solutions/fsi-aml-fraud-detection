@@ -11,7 +11,7 @@ import { palette } from '@leafygreen-ui/palette';
 import { spacing } from '@leafygreen-ui/tokens';
 
 /**
- * MongoDB Insights Panel - Showcases Atlas Search Magic
+ * MongoDB Insights Panel - Showcases MongoDB Search Magic
  * 
  * Features:
  * - Real-time autocomplete pipeline visualization
@@ -34,7 +34,7 @@ export default function MongoDBInsightsPanel({
     performance: false
   });
 
-  // Generate Atlas Search autocomplete pipeline
+  // Generate MongoDB Search autocomplete pipeline
   const generateAutocompletePipeline = () => {
     if (!searchQuery || searchQuery.length < 2) return null;
     
@@ -178,7 +178,7 @@ export default function MongoDBInsightsPanel({
             fontSize: '14px',
             margin: 0 
           }}>
-            MongoDB Atlas Search Insights
+            MongoDB Search Insights
           </Body>
           
           {/* Status indicators in header */}
@@ -281,7 +281,7 @@ export default function MongoDBInsightsPanel({
         {/* Autocomplete Insights */}
         <ExpandableCard 
           title="Real-time Autocomplete"
-          description={`Atlas Search autocomplete using name.full field with fuzzy matching${searchQuery ? ` for "${searchQuery}"` : ''}`}
+          description={`MongoDB Search autocomplete using name.full field with fuzzy matching${searchQuery ? ` for "${searchQuery}"` : ''}`}
           defaultOpen={autocompleteActive}
           style={{ marginBottom: spacing[3] }}
           darkMode={true}
@@ -293,7 +293,7 @@ export default function MongoDBInsightsPanel({
                   <strong>Index Field:</strong> name.full with autocomplete analyzer (2-15 character n-grams)
                 </Callout>
                 
-                <H3 style={{ marginBottom: spacing[2], color: palette.gray.light3 }}>Atlas Search Pipeline</H3>
+                <H3 style={{ marginBottom: spacing[2], color: palette.gray.light3 }}>MongoDB Search Pipeline</H3>
                 <Code 
                   language="javascript"
                   style={{ marginBottom: spacing[3] }}
@@ -348,7 +348,7 @@ export default function MongoDBInsightsPanel({
             )}
             
             <Body style={{ color: palette.gray.light1 }}>
-              Atlas Search facets provide real-time counts for filtering options, 
+              MongoDB Search facets provide real-time counts for filtering options, 
               enabling dynamic user interfaces with instant feedback.
             </Body>
           </div>

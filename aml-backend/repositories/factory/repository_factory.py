@@ -10,6 +10,7 @@ from typing import Dict, Any, Optional
 import os
 
 from reference.mongodb_core_lib import MongoDBRepository
+from db_config import APP_NAME
 from repositories.impl.entity_repository import EntityRepository
 from repositories.impl.relationship_repository import RelationshipRepository
 from repositories.impl.atlas_search_repository import AtlasSearchRepository
@@ -48,7 +49,8 @@ class RepositoryFactory:
         self.mongodb_repo = MongoDBRepository(
             connection_string=self.connection_string,
             database_name=self.database_name,
-            bedrock_client=self.bedrock_client
+            bedrock_client=self.bedrock_client,
+            app_name=APP_NAME
         )
         
         # Repository instances cache
@@ -68,7 +70,7 @@ class RepositoryFactory:
         if "entity" not in self._repositories:
             self._repositories["entity"] = EntityRepository(
                 mongodb_repo=self.mongodb_repo,
-                collection_name="threatsightEntities"
+                collection_name=os.getenv("ENTITIES_COLLECTION", "customers")
             )
             logger.debug("Created EntityRepository instance")
         
@@ -95,12 +97,12 @@ class RepositoryFactory:
         Get or create AtlasSearchRepository instance
         
         Returns:
-            AtlasSearchRepository: Configured Atlas Search repository
+            AtlasSearchRepository: Configured MongoDB Search repository
         """
         if "atlas_search" not in self._repositories:
             self._repositories["atlas_search"] = AtlasSearchRepository(
                 mongodb_repo=self.mongodb_repo,
-                collection_name="threatsightEntities",
+                collection_name=os.getenv("ENTITIES_COLLECTION", "customers"),
                 search_index_name=os.getenv("ATLAS_SEARCH_INDEX", "entity_search_indexv2")
             )
             logger.debug("Created AtlasSearchRepository instance")
@@ -117,7 +119,10 @@ class RepositoryFactory:
         if "vector_search" not in self._repositories:
             self._repositories["vector_search"] = VectorSearchRepository(
                 mongodb_repo=self.mongodb_repo,
-                collection_name="threatsightEntities",
+                # Step 3 recased entity / atlas_search / network but missed this
+                # fourth site: it HARDCODED threatsightEntities and so silently
+                # overrode ENTITIES_COLLECTION, exactly like the other two did.
+                collection_name=os.getenv("ENTITIES_COLLECTION", "customers"),
                 vector_index_name=os.getenv("ENTITY_VECTOR_SEARCH_INDEX", "entity_vector_search_index")
             )
             logger.debug("Created VectorSearchRepository instance")
@@ -134,8 +139,8 @@ class RepositoryFactory:
         if "network" not in self._repositories:
             self._repositories["network"] = NetworkRepository(
                 mongodb_repo=self.mongodb_repo,
-                entity_collection=os.getenv("ENTITIES_COLLECTION", "threatsightEntities"),
-                relationship_collection=os.getenv("RELATIONSHIPS_COLLECTION", "threatsightRelationships")
+                entity_collection=os.getenv("ENTITIES_COLLECTION", "customers"),
+                relationship_collection=os.getenv("RELATIONSHIPS_COLLECTION", "relationships")
             )
             logger.debug("Created NetworkRepository instance")
         
@@ -203,7 +208,7 @@ class RepositoryFactory:
             health_status["timestamp"] = datetime.utcnow().isoformat()
             
             # Test MongoDB connection
-            collections = ["threatsightEntities", "entity_relationships"]
+            collections = ["customers", "entity_relationships"]
             for collection_name in collections:
                 collection = self.mongodb_repo.collection(collection_name)
                 # Simple ping test
@@ -257,7 +262,8 @@ class RepositoryFactory:
         if repo_type == "entity":
             return EntityRepository(
                 mongodb_repo=self.mongodb_repo,
-                collection_name=config.get("collection_name", "threatsightEntities")
+                collection_name=config.get("collection_name",
+                                           os.getenv("ENTITIES_COLLECTION", "customers"))
             )
         elif repo_type == "relationship":
             return RelationshipRepository(
@@ -267,20 +273,22 @@ class RepositoryFactory:
         elif repo_type == "atlas_search":
             return AtlasSearchRepository(
                 mongodb_repo=self.mongodb_repo,
-                collection_name=config.get("collection_name", "threatsightEntities"),
+                collection_name=config.get("collection_name",
+                                           os.getenv("ENTITIES_COLLECTION", "customers")),
                 search_index_name=config.get("search_index_name", "entity_search_indexv2")
             )
         elif repo_type == "vector_search":
             return VectorSearchRepository(
                 mongodb_repo=self.mongodb_repo,
-                collection_name=config.get("collection_name", "threatsightEntities"),
+                collection_name=config.get("collection_name",
+                                           os.getenv("ENTITIES_COLLECTION", "customers")),
                 vector_index_name=config.get("vector_index_name", "entity_vector_search_index")
             )
         elif repo_type == "network":
             return NetworkRepository(
                 mongodb_repo=self.mongodb_repo,
-                entity_collection=config.get("entity_collection", os.getenv("ENTITIES_COLLECTION", "threatsightEntities")),
-                relationship_collection=config.get("relationship_collection", os.getenv("RELATIONSHIPS_COLLECTION", "threatsightRelationships"))
+                entity_collection=config.get("entity_collection", os.getenv("ENTITIES_COLLECTION", "customers")),
+                relationship_collection=config.get("relationship_collection", os.getenv("RELATIONSHIPS_COLLECTION", "relationships"))
             )
         else:
             raise ValueError(f"Unknown repository type: {repo_type}")
@@ -429,7 +437,7 @@ def get_atlas_search_repository() -> AtlasSearchRepository:
     FastAPI dependency function to get AtlasSearchRepository instance
     
     Returns:
-        AtlasSearchRepository: Configured Atlas Search repository
+        AtlasSearchRepository: Configured MongoDB Search repository
     """
     factory = get_global_repository_factory()
     return factory.get_atlas_search_repository()

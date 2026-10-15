@@ -5,6 +5,7 @@ import os
 from dotenv import load_dotenv
 import logging
 from db.mongo_db import MongoDBAccess
+from db_config import APP_NAME
 
 # Load environment variables
 load_dotenv()
@@ -24,14 +25,14 @@ def get_mongo_client():
     """Get synchronous MongoDB client"""
     global _mongo_client
     if _mongo_client is None:
-        _mongo_client = MongoClient(MONGODB_URI)
+        _mongo_client = MongoClient(MONGODB_URI, appName=APP_NAME)
     return _mongo_client
 
 def get_motor_client():
     """Get asynchronous MongoDB client"""
     global _motor_client
     if _motor_client is None:
-        _motor_client = AsyncIOMotorClient(MONGODB_URI)
+        _motor_client = AsyncIOMotorClient(MONGODB_URI, appName=APP_NAME)
     return _motor_client
 
 def get_database():
@@ -47,9 +48,14 @@ def get_mongodb_access():
 
 # Access to specific collections
 async def get_entities_collection():
-    """Get entities collection for async operations"""
+    """Get the party collection for async operations.
+
+    Returns the raw BIAN `customers` collection -- callers must apply
+    `entity_fields.scoped()` themselves, since this collection is shared with
+    the Leafy Bank payments demo.
+    """
     db = get_database()
-    return db.threatsightEntities
+    return db[ENTITIES_COLLECTION]
 
 # Dependencies for getting MongoDB access in FastAPI routes
 def get_db_dependency():
@@ -69,7 +75,37 @@ def get_async_db_dependency():
     return get_database()
 
 # Configuration constants
-ENTITIES_COLLECTION = "threatsightEntities"
+#
+# Phase-2 step 3: parties now come from the BIAN `customers` collection. The
+# collection is SHARED with the Leafy Bank payments demo (558 docs, 554 ours),
+# so every read must be scoped -- see repositories/entity_fields.py `scoped()`
+# and `search_scope_clause()`.
+#
+# ⚠️ Like RELATIONSHIPS_COLLECTION, this is injected from the
+# `fsi-fraud-detection-bian` Kanopy secret in staging and prod, and the SECRET
+# VALUE WINS OVER THIS DEFAULT. Deploying without flipping the secret points the
+# new code at `threatsightEntities`, whose documents have none of the BIAN paths
+# -- every field renders blank and nothing errors.
+ENTITIES_COLLECTION = os.getenv("ENTITIES_COLLECTION", "customers")
+
+# BIAN `relationships` (phase 2). Several agent tools used to inline the literal
+# "threatsightRelationships"; they now import this so the collection flip reaches
+# every consumer at once. Field paths for these documents live in
+# repositories/relationship_fields.py.
+RELATIONSHIPS_COLLECTION = os.getenv("RELATIONSHIPS_COLLECTION", "relationships")
+
+# Fraud evaluations. Read-only -- nothing in either backend writes here, so a
+# parallel copy cannot drift from the live one.
+#
+# The collection name is configurable because its ENTITY REFERENCES ARE COUPLED TO
+# `ENTITIES_COLLECTION`: `fromEntityId`/`toEntityId` join against the entity docs, and
+# the two vocabularies are incompatible. The as-is copy of legacy `transactionsv2`
+# carries `SHL9-`/`PEP0-` ids and pairs with `threatsightEntities`; the BIAN build
+# carries `CUST-` ids and pairs with `customers`. Rewriting one in place breaks
+# whichever deployment is not yet on the matching code, so migrate by loading the
+# rekeyed build into a SEPARATE collection and flipping this var -- rollback is then
+# an env change, not a 12,766-doc restore. Flip it together with ENTITIES_COLLECTION.
+FRAUD_EVAL_COLLECTION = os.getenv("FRAUD_EVAL_COLLECTION", "fraudEvaluation")
 
 # LangGraph checkpoint collections. Both the investigation graph (services/agents/graph.py)
 # and the chat agent (services/agents/chat_agent.py) share these, which preserves the

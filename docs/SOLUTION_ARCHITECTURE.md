@@ -187,7 +187,7 @@ flowchart TD
     subgraph AMLBackend["AML Backend :8001"]
         subgraph ResolutionFlow["Entity Resolution Engine"]
             OnboardForm["Onboarding<br/>Input"]
-            AtlasSearch["Atlas Search<br/>Fuzzy Matching"]
+            AtlasSearch["MongoDB Search<br/>Fuzzy Matching"]
             VectorSearch["Vector Search<br/>Semantic Similarity"]
             HybridSearch["Hybrid Search<br/>$rankFusion"]
             NetworkAnalysis["Network Analysis<br/>$graphLookup (depth 2)"]
@@ -253,7 +253,7 @@ flowchart TD
 | Step | Action | MongoDB Features Used |
 |------|--------|---------------------|
 | 0 | Entity input (name, address, type) | -- |
-| 1 | Parallel search (Atlas + Vector + Hybrid) | Atlas Search, Vector Search, `$rankFusion` |
+| 1 | Parallel search (Atlas + Vector + Hybrid) | MongoDB Search, Vector Search, `$rankFusion` |
 | 2 | Network analysis for top 3 matches | `$graphLookup` on `relationships` and `transactionsv2` |
 | 3 | LLM classification | Bedrock Claude Sonnet |
 | 4 | Case generation + PDF export | Document insert, ReportLab PDF |
@@ -385,8 +385,8 @@ erDiagram
 |------------|-----------|------|---------|
 | `transactions` | `transaction_vector_index` | Vector Search | Fraud pattern similarity (1536d, cosine) |
 | `fraud_patterns` | `transaction_vector_index` | Vector Search | Pattern embedding search |
-| `entities` | `entity_resolution_search` | Atlas Search | Faceted search with autocomplete |
-| `entities` | `entity_text_search_index` | Atlas Search | Text matching (name, address, identifiers) |
+| `entities` | `entity_resolution_search` | MongoDB Search | Faceted search with autocomplete |
+| `entities` | `entity_text_search_index` | MongoDB Search | Text matching (name, address, identifiers) |
 | `entities` | `entity_vector_search_index` | Vector Search | Semantic entity matching (1536d, cosine) |
 | `typology_library` | (vector index) | Vector Search | RAG typology retrieval |
 | `compliance_policies` | (vector index) | Vector Search | RAG policy retrieval |

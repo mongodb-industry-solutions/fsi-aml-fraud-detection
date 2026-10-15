@@ -403,7 +403,7 @@ export const amlAPI = {
   },
 
   // =====================================
-  // ATLAS SEARCH FACETED ENDPOINTS
+  // MONGODB SEARCH FACETED ENDPOINTS
   // =====================================
 
   /**

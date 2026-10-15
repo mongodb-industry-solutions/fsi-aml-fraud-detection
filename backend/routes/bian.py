@@ -14,6 +14,29 @@ Path provenance, from the local BIAN v14 index (`kg -s bian`):
     POST /FraudEvaluation/Evaluate                                    Evaluate
     GET  /PartyReferenceDataDirectory/{id}/Retrieve                   Retrieve
     POST /PartyReferenceDataDirectory/Request                         Request
+    POST /PartyReferenceDataDirectory/Register                        Register
+    PUT  /PartyReferenceDataDirectory/{id}/Update                     Update
+    GET  /FraudModel/{id}/Retrieve                                    Retrieve
+    POST /FraudModel/Create                                           Create
+
+The four routes below the original three were added after a code-level audit of all ~110
+native routes across both backends. Only six mapped cleanly; the rest were rejected, and
+the two most common reasons are worth stating because they will come up again:
+
+  * **The two-id trap.** BIAN sub-resource paths need a second id — `Production/{productionid}`,
+    `Testing/{testingid}`, `Associations/{associationsid}`. This service has no value to put
+    in any of them, so `/models/{id}/activate`, `/models/{id}/performance`,
+    `/models/{id}/feedback` and every entity-resolution route stay native.
+  * **No id-less list operation.** BIAN defines none on these SDs, so `GET /models/`,
+    `GET /transactions/` and the risk/flag feeds have no target. `PartyReferenceDataDirectory`
+    is the one exception this file makes, by project convention (see `party_request`).
+
+Also rejected: `PUT /models/{model_id}` (`FraudModel` has no top-level `Update` in v14 —
+only under `Testing/{testingid}`), `POST /transactions/` (persists, which contradicts the
+score-without-storing semantics of `Evaluate` documented below), all six `/fraud-patterns/*`
+routes (no SD covers a fraud-typology collection — consistent with the collection-level
+rejection of `threatsightFraudPatterns` in `bian-mapping.md`), and `WS /models/change-stream`
+(BIAN has no streaming operation).
 
 The party surface mirrors the Leafy Bank accounts service exactly
 (`leaf-bank-bian/backend/accounts/main.py:132,149`), so the two read as one system:
@@ -27,15 +50,26 @@ demo (`fsi-payments-processing` `PaymentRail/…`): literal SD name in the path,
 retrieves with the CR instance id, `POST` for the body-carrying verbs.
 """
 
+import json
+
 from fastapi import APIRouter, Body, Depends
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 from typing import Any, Dict, Optional
 
 from db.mongo_db import MongoDBAccess
+from dependencies import get_database
+from models.customer import CustomerModel
 from services.fraud_detection import FraudDetectionService
 
 from routes.customer import get_db as get_customer_db
+from routes.customer import create_customer as native_create_customer
 from routes.customer import get_customer as native_get_customer
 from routes.customer import list_customers as native_list_customers
+from routes.customer import update_customer as native_update_customer
+from routes.model_management import RiskModelCreate
+from routes.model_management import create_risk_model as native_create_risk_model
+from routes.model_management import get_risk_model as native_get_risk_model
 from routes.transaction import evaluate_transaction as native_evaluate_transaction
 from routes.transaction import get_fraud_detection_service
 
@@ -175,3 +209,125 @@ async def party_request(
         behavioral_source=body.get("behavioralSource"),
     )
     return {"customers": [_strip(c) for c in customers]}
+
+
+@router.post(
+    "/PartyReferenceDataDirectory/Register",
+    status_code=201,
+    response_description="BIAN PartyReferenceDataDirectory/Register — create a customer",
+)
+async def party_register(
+    customer: CustomerModel = Body(...),
+    db: MongoDBAccess = Depends(get_customer_db),
+):
+    """BIAN `PartyReferenceDataDirectory` / `Register` — create a party.
+
+    `Register` is the id-less creation verb on this SD and is a genuine v14 operation
+    (`POST /PartyReferenceDataDirectory/Register`), unlike the `Request` route above, which
+    is this project's deliberate convention for the list BIAN does not define.
+
+    The native handler returns a `JSONResponse` rather than a dict (it sets 201 itself), so
+    the body is decoded to re-envelope it. That is plumbing, not logic — the document is
+    passed through untouched and the 201 is preserved.
+    """
+    created = await native_create_customer(customer=customer, db=db)
+    document = json.loads(created.body)
+
+    return JSONResponse(
+        status_code=201,
+        content={
+            "customerId": document["customerId"],
+            "customer": _strip(document),
+        },
+    )
+
+
+@router.put(
+    "/PartyReferenceDataDirectory/{partyreferencedatadirectoryid}/Update",
+    response_description="BIAN PartyReferenceDataDirectory/Update — amend a customer",
+)
+async def party_update(
+    partyreferencedatadirectoryid: str,
+    customer: CustomerModel = Body(...),
+    db: MongoDBAccess = Depends(get_customer_db),
+):
+    """BIAN `PartyReferenceDataDirectory` / `Update` — amend an existing party.
+
+    Delegates to the native `PUT /customers/{customer_id}`, so the partial-update semantics
+    (only non-null fields are `$set`) and the 404 on an unknown id are unchanged.
+
+    Envelope matches `party_retrieve` — `{customerId, customer}`.
+    """
+    updated = await native_update_customer(
+        customer_id=partyreferencedatadirectoryid,
+        customer=customer,
+        db=db,
+    )
+    return {
+        "customerId": updated["customerId"],
+        "customer": _strip(updated),
+    }
+
+
+# --- Stage 0: Design — FraudModel ------------------------------------------------------
+
+@router.get(
+    "/FraudModel/{fraudmodelid}/Retrieve",
+    response_description="BIAN FraudModel/Retrieve — one scoring model",
+)
+async def fraud_model_retrieve(
+    fraudmodelid: str,
+    version: Optional[int] = None,
+    db=Depends(get_database),
+):
+    """BIAN `FraudModel` / `Retrieve` — a single scoring model by id.
+
+    `{fraudmodelid}` is the native `model_id`. `version` stays a query parameter: `modelId`
+    alone is not unique (the collection's unique index is `modelId` + `version`), and BIAN
+    has no path segment for a model version, so omitting it keeps the native "latest
+    non-archived" default.
+
+    The native handler already returns the wire shape — `to_wire()` lifts
+    `usageGuidelines.*` back to flat `thresholds` / `weights` / `riskFactors` and casts the
+    stored string `version` to an int — so no translation happens here. Only the Mongo key
+    is dropped: the BIAN identity of this record is `modelId`.
+    """
+    model = await native_get_risk_model(
+        model_id=fraudmodelid,
+        version=version,
+        db=db,
+    )
+    document = _strip(jsonable_encoder(model))
+
+    return {
+        "modelId": document["modelId"],
+        "fraudModel": document,
+    }
+
+
+@router.post(
+    "/FraudModel/Create",
+    response_description="BIAN FraudModel/Create — register a new scoring model version",
+)
+async def fraud_model_create(
+    model: RiskModelCreate,
+    db=Depends(get_database),
+):
+    """BIAN `FraudModel` / `Create` — register a model.
+
+    Id-less creation verb, so no path parameter. The native handler owns the versioning
+    rule (a repeat `modelId` mints the next version rather than colliding) and the `draft`
+    starting status; neither is re-implemented here.
+
+    Note what this operation deliberately does NOT cover: activating a model. BIAN's
+    `PUT /FraudModel/{id}/Production/{productionid}/Execute` needs a production-instance id
+    that this service has no value for, and `Execute` means *run the model*, not *flip a
+    lifecycle flag* — so `POST /models/{id}/activate` stays native only.
+    """
+    created = await native_create_risk_model(model=model, db=db)
+    document = _strip(jsonable_encoder(created))
+
+    return {
+        "modelId": document["modelId"],
+        "fraudModel": document,
+    }

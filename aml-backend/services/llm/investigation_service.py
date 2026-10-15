@@ -219,7 +219,7 @@ Type: {entity_input.get('entityType', 'Unknown')}
 Address: {entity_input.get('address', 'Not provided')}
 
 === SEARCH & NETWORK ANALYSIS CONTEXT ===
-- Atlas Search: {len(search_results.get('atlasResults', []))} matches
+- MongoDB Search: {len(search_results.get('atlasResults', []))} matches
 - Vector Search: {len(search_results.get('vectorResults', []))} matches  
 - Hybrid Search: {len(search_results.get('hybridResults', []))} matches
 - Network Entities Analyzed: {network_analysis.get('entitiesAnalyzed', 0)}
@@ -257,7 +257,7 @@ Type: {entity_input.get('entityType', 'Unknown')}
 Address: {entity_input.get('address', 'Not provided')}
 
 SEARCH RESULTS:
-- Atlas Search: {len(search_results.get('atlasResults', []))} matches
+- MongoDB Search: {len(search_results.get('atlasResults', []))} matches
 - Vector Search: {len(search_results.get('vectorResults', []))} matches  
 - Hybrid Search: {len(search_results.get('hybridResults', []))} matches
 
@@ -336,7 +336,7 @@ Write in professional compliance language suitable for case documentation."""
 
 This case investigation analyzed {entity_name} through a comprehensive entity resolution workflow including parallel search analysis, network risk assessment, and AI-powered classification. The entity has been classified with a {risk_level} risk level (score: {risk_score}/100) based on available data and network analysis.
 
-The investigation utilized multiple search methods including Atlas Search for text-based matching, Vector Search for semantic analysis, and Hybrid Search combining both approaches. Network analysis was performed to assess relationship patterns and risk propagation through connected entities.
+The investigation utilized multiple search methods including MongoDB Search for text-based matching, Vector Search for semantic analysis, and Hybrid Search combining both approaches. Network analysis was performed to assess relationship patterns and risk propagation through connected entities.
 
 Based on the comprehensive analysis, the recommended action is to {recommended_action} this entity. This recommendation takes into account the risk assessment results, network positioning analysis, and data quality factors identified during the investigation process."""
 

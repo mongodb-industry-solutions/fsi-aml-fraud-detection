@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document explains how MongoDB's $rankFusion calculates scores in our hybrid search implementation that combines Atlas Search (text) and Vector Search (semantic similarity).
+This document explains how MongoDB's $rankFusion calculates scores in our hybrid search implementation that combines MongoDB Search (text) and Vector Search (semantic similarity).
 
 ## Score Calculation Breakdown
 
@@ -137,7 +137,7 @@ if score_details and 'details' in score_details:
         pipeline_value = detail.get('value', 0.0)           # Original pipeline score
         
         if pipeline_name == 'atlas':
-            atlas_score = pipeline_value      # Raw Atlas Search score
+            atlas_score = pipeline_value      # Raw MongoDB Search score
         elif pipeline_name == 'vector':  
             vector_score = pipeline_value     # Raw Vector similarity score
 ```

@@ -110,11 +110,13 @@ const TransactionActivityTable = ({ entityId, onError }) => {
   };
 
   const getStatusBadge = (status) => {
-    return status === 'completed' ? (
-      <Badge variant="green">✅ Completed</Badge>
-    ) : (
-      <Badge variant="yellow">⏳ Pending</Badge>
-    );
+    const statusMap = {
+      CLEARED: { variant: 'green', text: '✅ Completed' },
+      PENDING: { variant: 'yellow', text: '⏳ Pending' },
+      FLAGGED: { variant: 'red', text: '🚩 Flagged' },
+    };
+    const config = statusMap[status?.toUpperCase()] || { variant: 'gray', text: status || 'Unknown' };
+    return <Badge variant={config.variant}>{config.text}</Badge>;
   };
 
   const formatTags = (tags) => {

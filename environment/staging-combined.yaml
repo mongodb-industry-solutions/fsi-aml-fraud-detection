@@ -103,7 +103,7 @@ sidecarContainers:
           secretKeyRef:
             name: fsi-fraud-detection-secrets
             key: AML_DB_NAME
-      # Atlas Search Index Names (from secrets)
+      # MongoDB Search Index Names (from secrets)
       - name: ATLAS_SEARCH_INDEX
         valueFrom:
           secretKeyRef:

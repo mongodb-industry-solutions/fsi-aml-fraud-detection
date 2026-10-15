@@ -2,7 +2,7 @@
 Search routes - Comprehensive search functionality using refactored services
 
 Focused routes for different search modalities:
-- Atlas Search endpoints using AtlasSearchService
+- MongoDB Search endpoints using AtlasSearchService
 - Vector Search endpoints using VectorSearchService  
 - Unified Search endpoints using UnifiedSearchService
 """

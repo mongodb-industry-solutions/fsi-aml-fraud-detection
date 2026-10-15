@@ -1,7 +1,7 @@
 """
-Atlas Search Repository Implementation - Concrete implementation using mongodb_core_lib
+MongoDB Search Repository Implementation - Concrete implementation using mongodb_core_lib
 
-Complete, production-ready implementation of Atlas Search operations using the 
+Complete, production-ready implementation of MongoDB Search operations using the 
 mongodb_core_lib utilities for optimal performance and advanced search capabilities.
 """
 
@@ -11,10 +11,10 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from bson import ObjectId
 
-# Simplified Atlas Search Repository - No interface overhead
+# Simplified MongoDB Search Repository - No interface overhead
 @dataclass
 class SearchQueryParams:
-    """Parameters for Atlas Search queries"""
+    """Parameters for MongoDB Search queries"""
     query: str
     fields: Optional[List[str]] = None
     fuzzy: bool = True
@@ -44,9 +44,9 @@ logger.setLevel(logging.DEBUG)
 
 class AtlasSearchRepository:
     """
-    Simplified Atlas Search repository - Core functionality only
+    Simplified MongoDB Search repository - Core functionality only
     
-    Provides the 5 essential Atlas Search methods actually used in production:
+    Provides the 5 essential MongoDB Search methods actually used in production:
     - autocomplete_search() - Real-time autocomplete suggestions  
     - faceted_search() - Faceted filtering with counts
     - get_search_analytics() - Search performance metrics
@@ -58,19 +58,19 @@ class AtlasSearchRepository:
                  collection_name: str = "entities",
                  search_index_name: str = "entity_search_index_v2"):
         """
-        Initialize Atlas Search repository
+        Initialize MongoDB Search repository
         
         Args:
             mongodb_repo: MongoDB repository instance from core lib
             collection_name: Name of the collection to search
-            search_index_name: Name of the Atlas Search index
+            search_index_name: Name of the MongoDB Search index
         """
         self.repo = mongodb_repo
         self.collection_name = collection_name
         self.search_index_name = search_index_name
         self.collection = self.repo.collection(collection_name)
         
-        # Initialize atlas search capabilities
+        # Initialize MongoDB search capabilities
         self.ai_search = self.repo.ai_search(collection_name)
         self.aggregation = self.repo.aggregation
         
@@ -84,7 +84,7 @@ class AtlasSearchRepository:
     # ==================== CORE SEARCH OPERATIONS ====================
     
     async def text_search(self, params: SearchQueryParams) -> Dict[str, Any]:
-        """Perform text search using Atlas Search with fluent builder interface"""
+        """Perform text search using MongoDB Search with fluent builder interface"""
         try:
             # Build fuzzy configuration
             fuzzy_config = None
@@ -162,7 +162,7 @@ class AtlasSearchRepository:
                        )
                        .build())
             
-            logger.debug(f"Executing Atlas Search pipeline: {pipeline}")
+            logger.debug(f"Executing MongoDB Search pipeline: {pipeline}")
             
             # Execute compound search
             results = await self.repo.execute_pipeline(self.collection_name, pipeline)

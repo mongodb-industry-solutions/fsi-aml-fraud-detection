@@ -181,6 +181,10 @@ presented as ownership percentages.
 7. Regulatory compliance: Does the narrative meet FinCEN SAR formatting requirements? \
 Is it an appropriate length (not excessively verbose)?
 
+SCORE: `score` is a fraction between 0.0 and 1.0 (e.g. 0.85 for a narrative that \
+passes with minor issues). Do NOT report it as a 0-100 percentage — a value above \
+1.0 is rejected and the whole validation is discarded.
+
 ROUTING RULES (note: "human_review" is the APPROVAL node, not a failure state):
 - route_to "human_review": narrative passes quality checks and is ready for analyst approval.
 - route_to "narrative": narrative has quality issues that can be fixed by re-drafting.

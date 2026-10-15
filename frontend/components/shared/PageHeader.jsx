@@ -13,7 +13,7 @@ import Icon from '@leafygreen-ui/icon';
 
 const PageHeader = ({
   title = "Enhanced Entity Resolution Intelligence",
-  description = "Complete entity resolution platform combining MongoDB Atlas Search and Vector Search. Experience traditional fuzzy matching and AI-powered semantic discovery together.",
+  description = "Complete entity resolution platform combining MongoDB Search and Vector Search. Experience traditional fuzzy matching and AI-powered semantic discovery together.",
   icon = "University",
   badges = [],
   showControls = false,

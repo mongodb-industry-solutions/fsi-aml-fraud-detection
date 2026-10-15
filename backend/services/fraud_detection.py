@@ -32,6 +32,13 @@ WEIGHT_PATTERN = float(os.getenv("WEIGHT_PATTERN", 0.15))
 # _update_customer_risk_profile) rather than an invented weight.
 FLAG_IMPACT = 2.5
 
+# Baseline of riskProfile.components.activity.score before any factor impacts are added.
+# Verified against the source dump (fsi-threatsight360.entities.json): across all 504
+# entities, activity.score - sum(factors[].impact) == 20 with zero exceptions. The other
+# components have their own baselines (identity/profile/network 10, external 0) but this
+# service only ever writes `activity`, so only this one is needed here.
+ACTIVITY_SCORE_BASE = 20.0
+
 FLAG_DESCRIPTIONS = {
     "unusual_amount": "Transaction amount deviates from the customer's historical pattern.",
     "unexpected_location": "Transaction originated outside the customer's usual locations.",
@@ -1102,13 +1109,18 @@ class FraudDetectionService:
             risk_profile = customer.get("riskProfile") or {}
             current_score = float((risk_profile.get("overall") or {}).get("score") or 0.0)
 
-            # NOTE: pre-existing scale mismatch, carried over deliberately rather than
-            # silently rescaled. `len(flags) * 2.5` spans 0-12.5, but
-            # riskProfile.overall.score is a 0-100 scale. Five flags therefore move the
-            # score by 12.5 points, not to 12.5. Raise with the data-model owner before
-            # changing the formula.
-            new_score = max(0.0, min(100.0, current_score + len(flags) * 2.5))
-            new_level = self._determine_risk_level(new_score)
+            # Customers built from the fraud source (build_risk_profile_fraud) carry a
+            # scalar score and `components: {}` by design — that source has no
+            # decomposition. There is nothing to recompute from, and treating the empty
+            # object as zero-weighted components would reset a legitimate 83-100 score to
+            # 0. Record the factors, leave `overall` alone.
+            components = risk_profile.get("components") or {}
+            if not components:
+                logger.info(
+                    f"Customer {customer_id} has no riskProfile.components (fraud-sourced "
+                    f"profile); recording activity factors without rescoring overall"
+                )
+
             # Customer dates are stored as ISO strings (not BSON dates), and the migrated
             # values are UTC with a trailing Z. A naive local timestamp in the same field
             # would break ordering, so match the stored format exactly.
@@ -1125,37 +1137,162 @@ class FraudDetectionService:
                 for flag in flags
             ]
 
-            result = self.db_client.get_collection(
-                db_name=self.db_name,
-                collection_name=self.customer_collection
-            ).update_one(
-                scoped({"_id": customer["_id"]}),
+            # An aggregation-pipeline update, so score and factors are derived from the
+            # SAME post-union factor array inside one atomic write. The previous version
+            # computed the score from `len(flags)` (the request) and added it to the stored
+            # score, which compounded on every re-assessment of the same transaction: one
+            # customer reached the 100 cap over 13 identical runs while `components` — the
+            # thing the score is supposed to summarise — never moved.
+            #
+            # Deriving instead of incrementing makes replay a no-op for free: $setUnion
+            # already dedupes identical factor documents, so a repeated assessment adds no
+            # factor, which changes no score. No per-transaction ledger needed.
+            factors_path = "$riskProfile.components.activity.factors"
+            pipeline = [
                 {
                     "$set": {
-                        "riskProfile.assessedAt": assessed_at,
-                        # score and level are siblings; updating one alone leaves the
-                        # document self-contradictory. `trend` is left untouched — its
-                        # direction is ambiguous and it is an open data-model question.
-                        "riskProfile.overall.score": new_score,
-                        "riskProfile.overall.level": new_level,
-                    },
-                    "$addToSet": {
-                        "riskProfile.components.activity.factors": {"$each": factors}
-                    },
-                    "$push": {
-                        "riskProfile.history": {
-                            "date": assessed_at,
-                            "score": new_score,
-                            "level": new_level,
-                            # New enum value: migrated customers carry only
-                            # "initial_assessment". The canonical spec's validator does
-                            # not constrain changeTrigger, so nothing rejects it, but it
-                            # needs adding to the spec's documented values.
-                            "changeTrigger": "transaction_assessment",
+                        "riskProfile.components.activity.factors": {
+                            "$setUnion": [{"$ifNull": [factors_path, []]}, factors]
+                        }
+                    }
+                },
+                {
+                    # activity.score = base + sum of the deduped factor impacts. Baseline
+                    # and formula verified against the source dump — see
+                    # ACTIVITY_SCORE_BASE. Clamped to the field's 0-100 scale, which also
+                    # retires the old scale mismatch: the flag count no longer moves the
+                    # overall score directly, it moves one weighted component.
+                    "$set": {
+                        "riskProfile.components.activity.score": {
+                            "$min": [
+                                100.0,
+                                {
+                                    "$add": [
+                                        ACTIVITY_SCORE_BASE,
+                                        {"$sum": f"{factors_path}.impact"},
+                                    ]
+                                },
+                            ]
+                        }
+                    }
+                },
+            ]
+
+            if components:
+                pipeline += [
+                    {
+                        # overall.score = floor(sum(component.score * component.weight)).
+                        # `floor` matches both the seed builder and the stored
+                        # initial_assessment history entries (19.5 -> 19). Driven off
+                        # $objectToArray so it stays correct if the component set changes.
+                        "$set": {
+                            "riskProfile.overall.score": {
+                                "$floor": {
+                                    "$sum": {
+                                        "$map": {
+                                            "input": {
+                                                "$objectToArray": "$riskProfile.components"
+                                            },
+                                            "as": "c",
+                                            "in": {
+                                                "$multiply": [
+                                                    {"$ifNull": ["$$c.v.score", 0]},
+                                                    {"$ifNull": ["$$c.v.weight", 0]},
+                                                ]
+                                            },
+                                        }
+                                    }
+                                }
+                            }
                         }
                     },
-                }
+                    {
+                        # score and level are siblings; updating one alone leaves the
+                        # document self-contradictory. Thresholds mirror
+                        # _determine_risk_level (35 / 55) — the seed builder derives level
+                        # on the same boundaries, so stored and recomputed values agree.
+                        # `trend` is left untouched: it is faithful source data
+                        # (RISK_TREND maps source "increasing" -> "worsening"), not
+                        # something this service can infer from one transaction.
+                        "$set": {
+                            "riskProfile.overall.level": {
+                                "$switch": {
+                                    "branches": [
+                                        {
+                                            "case": {
+                                                "$lt": ["$riskProfile.overall.score", 35]
+                                            },
+                                            "then": "low",
+                                        },
+                                        {
+                                            "case": {
+                                                "$lt": ["$riskProfile.overall.score", 55]
+                                            },
+                                            "then": "medium",
+                                        },
+                                    ],
+                                    "default": "high",
+                                }
+                            }
+                        }
+                    },
+                    {
+                        # History records real change only. Appending unconditionally would
+                        # grow an audit trail of identical entries on every replay — which
+                        # is how the compounding bug stayed invisible for 13 runs.
+                        "$set": {
+                            "riskProfile.history": {
+                                "$cond": [
+                                    {
+                                        "$ne": [
+                                            "$riskProfile.overall.score",
+                                            current_score,
+                                        ]
+                                    },
+                                    {
+                                        "$concatArrays": [
+                                            {"$ifNull": ["$riskProfile.history", []]},
+                                            [
+                                                {
+                                                    "date": assessed_at,
+                                                    "score": "$riskProfile.overall.score",
+                                                    "level": "$riskProfile.overall.level",
+                                                    # New enum value: migrated customers
+                                                    # carry only "initial_assessment". The
+                                                    # canonical spec's validator does not
+                                                    # constrain changeTrigger, so nothing
+                                                    # rejects it, but it needs adding to
+                                                    # the spec's documented values.
+                                                    "changeTrigger": "transaction_assessment",
+                                                }
+                                            ],
+                                        ]
+                                    },
+                                    {"$ifNull": ["$riskProfile.history", []]},
+                                ]
+                            }
+                        }
+                    },
+                ]
+
+            pipeline.append({"$set": {"riskProfile.assessedAt": assessed_at}})
+
+            collection = self.db_client.get_collection(
+                db_name=self.db_name,
+                collection_name=self.customer_collection
             )
+            result = collection.update_one(scoped({"_id": customer["_id"]}), pipeline)
+
+            new_score = current_score
+            new_level = (risk_profile.get("overall") or {}).get("level")
+            if components:
+                updated = collection.find_one(
+                    scoped({"_id": customer["_id"]}),
+                    {"riskProfile.overall": 1, "_id": 0},
+                )
+                overall = ((updated or {}).get("riskProfile") or {}).get("overall") or {}
+                new_score = overall.get("score", current_score)
+                new_level = overall.get("level", new_level)
 
             logger.info(
                 f"Updated riskProfile for {customer_id}: {current_score} -> {new_score} "

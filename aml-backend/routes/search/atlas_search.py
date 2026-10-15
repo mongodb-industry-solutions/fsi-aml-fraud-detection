@@ -1,7 +1,7 @@
 """
-Atlas Search Routes - Traditional fuzzy matching and search functionality
+MongoDB Search Routes - Traditional fuzzy matching and search functionality
 
-Focused routes for Atlas Search capabilities using AtlasSearchService:
+Focused routes for MongoDB Search capabilities using AtlasSearchService:
 - Traditional fuzzy matching with typo tolerance
 - Exact identifier matching and boost factors
 - Autocomplete and suggestion functionality
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/search/atlas",
-    tags=["Atlas Search"],
+    tags=["MongoDB Search"],
     responses={
         400: {"model": ErrorResponse, "description": "Bad request"},
         500: {"model": ErrorResponse, "description": "Internal server error"}
@@ -37,7 +37,7 @@ async def find_entity_matches_atlas(
     atlas_search_service: AtlasSearchService = Depends(get_atlas_search_service)
 ):
     """
-    Find entity matches using Atlas Search with enhanced service architecture
+    Find entity matches using MongoDB Search with enhanced service architecture
     
     Uses the refactored AtlasSearchService for intelligent fuzzy matching with:
     - Repository pattern for clean data access
@@ -45,7 +45,7 @@ async def find_entity_matches_atlas(
     - Configurable fuzzy matching thresholds
     - Detailed match reasoning and validation
     
-    **Atlas Search Strengths:**
+    **MongoDB Search Strengths:**
     - Excellent fuzzy matching for name variations
     - Typo tolerance and partial matching
     - Address normalization and similarity
@@ -53,41 +53,41 @@ async def find_entity_matches_atlas(
     - Exact identifier matching with high confidence
     
     Args:
-        input_data: Entity information for Atlas Search matching
+        input_data: Entity information for MongoDB Search matching
         limit: Maximum number of matches to return
         fuzzy_threshold: Optional custom fuzzy matching threshold
         
     Returns:
-        FindMatchesResponse: Atlas Search results with confidence scores
+        FindMatchesResponse: MongoDB Search results with confidence scores
     """
     try:
-        logger.info(f"Executing Atlas Search for entity: {input_data.name_full}")
+        logger.info(f"Executing MongoDB Search for entity: {input_data.name_full}")
         
-        # Validate input requirements for Atlas Search
+        # Validate input requirements for MongoDB Search
         if not input_data.name_full or input_data.name_full.strip() == "":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Name is required for Atlas Search entity matching"
+                detail="Name is required for MongoDB Search entity matching"
             )
         
-        # Execute Atlas Search through refactored service
+        # Execute MongoDB Search through refactored service
         result = await atlas_search_service.find_entity_matches(
             input_data, 
             limit,
             fuzzy_threshold=fuzzy_threshold
         )
         
-        logger.info(f"Atlas Search completed: {result.totalMatches} matches found for '{input_data.name_full}'")
+        logger.info(f"MongoDB Search completed: {result.totalMatches} matches found for '{input_data.name_full}'")
         
         return result
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Atlas Search failed: {e}")
+        logger.error(f"MongoDB Search failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Atlas Search failed: {str(e)}"
+            detail=f"MongoDB Search failed: {str(e)}"
         )
 
 
@@ -99,7 +99,7 @@ async def get_atlas_search_suggestions(
     atlas_search_service: AtlasSearchService = Depends(get_atlas_search_service)
 ):
     """
-    Get autocomplete suggestions using Atlas Search
+    Get autocomplete suggestions using MongoDB Search
     
     Uses the refactored AtlasSearchService for real-time autocomplete suggestions
     with repository-based data access and enhanced performance.
@@ -107,7 +107,7 @@ async def get_atlas_search_suggestions(
     **Autocomplete Features:**
     - Real-time suggestions as users type
     - Configurable field targeting (name, address, etc.)
-    - Fast response times with Atlas Search optimization
+    - Fast response times with MongoDB Search optimization
     - Repository pattern for clean data access
     
     Args:
@@ -119,7 +119,7 @@ async def get_atlas_search_suggestions(
         Autocomplete suggestions with metadata
     """
     try:
-        logger.info(f"Getting Atlas Search suggestions for query: '{query}' in field: {field}")
+        logger.info(f"Getting MongoDB Search suggestions for query: '{query}' in field: {field}")
         
         # Validate query length
         if len(query.strip()) < 2:
@@ -133,7 +133,7 @@ async def get_atlas_search_suggestions(
         # Get suggestions through refactored service
         suggestions = await atlas_search_service.get_search_suggestions(query, field, limit)
         
-        logger.info(f"Atlas Search suggestions completed: {len(suggestions)} suggestions for '{query}'")
+        logger.info(f"MongoDB Search suggestions completed: {len(suggestions)} suggestions for '{query}'")
         
         return {
             "query": query,
@@ -143,7 +143,7 @@ async def get_atlas_search_suggestions(
         }
         
     except Exception as e:
-        logger.error(f"Error getting Atlas Search suggestions: {e}")
+        logger.error(f"Error getting MongoDB Search suggestions: {e}")
         return {
             "query": query,
             "field": field,
@@ -157,9 +157,9 @@ async def test_atlas_search_index(
     atlas_search_service: AtlasSearchService = Depends(get_atlas_search_service)
 ):
     """
-    Test Atlas Search index configuration and connectivity
+    Test MongoDB Search index configuration and connectivity
     
-    Uses the refactored AtlasSearchService to verify that the Atlas Search index
+    Uses the refactored AtlasSearchService to verify that the MongoDB Search index
     is properly configured and accessible through the repository pattern.
     
     **Enhanced Testing:**
@@ -172,12 +172,12 @@ async def test_atlas_search_index(
         Index test results with detailed diagnostics
     """
     try:
-        logger.info("Testing Atlas Search index configuration")
+        logger.info("Testing MongoDB Search index configuration")
         
         # Test search index through refactored service
         test_result = await atlas_search_service.test_search_index()
         
-        logger.info(f"Atlas Search index test completed: {test_result.get('index_accessible', False)}")
+        logger.info(f"MongoDB Search index test completed: {test_result.get('index_accessible', False)}")
         
         return {
             "search_index_test": test_result,
@@ -187,7 +187,7 @@ async def test_atlas_search_index(
         }
         
     except Exception as e:
-        logger.error(f"Atlas Search index test failed: {e}")
+        logger.error(f"MongoDB Search index test failed: {e}")
         return {
             "search_index_test": {
                 "index_accessible": False,
@@ -205,7 +205,7 @@ async def compound_atlas_search(
     atlas_search_service: AtlasSearchService = Depends(get_atlas_search_service)
 ):
     """
-    Execute compound Atlas Search with multiple criteria
+    Execute compound MongoDB Search with multiple criteria
     
     Uses the refactored AtlasSearchService for complex compound searches
     with multiple search criteria and advanced scoring algorithms.
@@ -224,7 +224,7 @@ async def compound_atlas_search(
         Compound search results with relevance scoring
     """
     try:
-        logger.info(f"Executing compound Atlas Search with criteria: {search_criteria}")
+        logger.info(f"Executing compound MongoDB Search with criteria: {search_criteria}")
         
         # Validate search criteria
         if not search_criteria:
@@ -245,17 +245,17 @@ async def compound_atlas_search(
             "service_architecture": "Repository pattern with AtlasSearchService"
         }
         
-        logger.info(f"Compound Atlas Search completed: {results['total_found']} results")
+        logger.info(f"Compound MongoDB Search completed: {results['total_found']} results")
         
         return results
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Compound Atlas Search failed: {e}")
+        logger.error(f"Compound MongoDB Search failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Compound Atlas Search failed: {str(e)}"
+            detail=f"Compound MongoDB Search failed: {str(e)}"
         )
 
 
@@ -264,10 +264,10 @@ async def get_atlas_search_statistics(
     atlas_search_service: AtlasSearchService = Depends(get_atlas_search_service)
 ):
     """
-    Get Atlas Search performance statistics and metrics
+    Get MongoDB Search performance statistics and metrics
     
     Uses the refactored AtlasSearchService to provide comprehensive
-    statistics about Atlas Search performance and usage patterns.
+    statistics about MongoDB Search performance and usage patterns.
     
     **Enhanced Statistics:**
     - Repository-based metrics collection
@@ -276,10 +276,10 @@ async def get_atlas_search_statistics(
     - Query pattern analysis
     
     Returns:
-        Comprehensive Atlas Search statistics and metrics
+        Comprehensive MongoDB Search statistics and metrics
     """
     try:
-        logger.info("Getting Atlas Search statistics")
+        logger.info("Getting MongoDB Search statistics")
         
         # Get search statistics through refactored service
         # Note: This would need to be implemented in AtlasSearchService
@@ -302,34 +302,34 @@ async def get_atlas_search_statistics(
             ]
         }
         
-        logger.info("Atlas Search statistics retrieved successfully")
+        logger.info("MongoDB Search statistics retrieved successfully")
         
         return stats
         
     except Exception as e:
-        logger.error(f"Error getting Atlas Search statistics: {e}")
+        logger.error(f"Error getting MongoDB Search statistics: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get Atlas Search statistics: {str(e)}"
+            detail=f"Failed to get MongoDB Search statistics: {str(e)}"
         )
 
 
 @router.get("/demo_scenarios")
 async def get_atlas_search_demo_scenarios():
     """
-    Get demo scenarios showcasing Atlas Search excellence
+    Get demo scenarios showcasing MongoDB Search excellence
     
-    Provides examples demonstrating Atlas Search strengths in handling
+    Provides examples demonstrating MongoDB Search strengths in handling
     real-world data variations with the enhanced service architecture.
     
     Returns:
-        Demo scenarios highlighting Atlas Search capabilities
+        Demo scenarios highlighting MongoDB Search capabilities
     """
     return {
         "atlas_search_excellence_scenarios": [
             {
                 "scenario_name": "Name Variation Handling",
-                "description": "Atlas Search excels at finding entities despite name variations",
+                "description": "MongoDB Search excels at finding entities despite name variations",
                 "test_input": {
                     "name_full": "Sam Brittany Miller",
                     "query_variations": ["Samantha Miller", "S. Miller", "Sam B. Miller"]

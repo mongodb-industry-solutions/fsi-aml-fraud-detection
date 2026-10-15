@@ -58,7 +58,7 @@ class PotentialMatch(BaseModel):
     dateOfBirth: Optional[str] = Field(None, description="Date of birth")
     primaryAddress_full: Optional[str] = Field(None, description="Primary address full string")
     riskAssessment_overall_score: Optional[float] = Field(None, description="Overall risk score")
-    searchScore: float = Field(..., description="Atlas Search score")
+    searchScore: float = Field(..., description="MongoDB Search score")
     matchReasons: List[str] = Field(default_factory=list, description="Reasons for match (similar_name, shared_address, etc.)")
     entityType: Optional[str] = Field(None, description="Type of entity (individual, organization)")
     
@@ -115,23 +115,23 @@ class ResolutionResponse(BaseModel):
     relationshipId: Optional[str] = Field(None, description="ID of created relationship if applicable")
     updatedEntities: List[str] = Field(default_factory=list, description="List of updated entity IDs")
 
-# Atlas Search Query Models
+# MongoDB Search Query Models
 
 class FuzzyOptions(BaseModel):
-    """Options for fuzzy matching in Atlas Search"""
+    """Options for fuzzy matching in MongoDB Search"""
     maxEdits: int = Field(default=2, ge=1, le=2, description="Maximum edit distance")
     prefixLength: int = Field(default=0, ge=0, description="Number of characters at start that must match exactly")
     maxExpansions: int = Field(default=50, ge=1, description="Maximum number of variations to generate")
 
 class CompoundQuery(BaseModel):
-    """Atlas Search compound query structure"""
+    """MongoDB Search compound query structure"""
     must: List[Dict[str, Any]] = Field(default_factory=list)
     should: List[Dict[str, Any]] = Field(default_factory=list)
     mustNot: List[Dict[str, Any]] = Field(default_factory=list)
     filter: List[Dict[str, Any]] = Field(default_factory=list)
 
 class SearchQueryBuilder(BaseModel):
-    """Helper class for building Atlas Search queries"""
+    """Helper class for building MongoDB Search queries"""
     index: str = Field(default="entity_search_indexv2")
     compound: CompoundQuery = Field(default_factory=CompoundQuery)
     limit: int = Field(default=10, ge=1, le=100)
@@ -251,7 +251,7 @@ class SearchQueryBuilder(BaseModel):
             pass
     
     def build_aggregation_pipeline(self):
-        """Build the complete aggregation pipeline for Atlas Search"""
+        """Build the complete aggregation pipeline for MongoDB Search"""
         # Build compound query with optimization
         compound_query = self.compound.dict(exclude_none=True)
         

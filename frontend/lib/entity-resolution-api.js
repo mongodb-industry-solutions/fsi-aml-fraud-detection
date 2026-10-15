@@ -370,7 +370,7 @@ export function getRiskLevel(riskScore) {
 
 /**
  * Get match confidence level
- * @param {number} searchScore - Search score from Atlas Search
+ * @param {number} searchScore - Search score from MongoDB Search
  * @returns {Object} Confidence level with label and color
  */
 export function getMatchConfidence(searchScore) {
@@ -511,12 +511,12 @@ export async function executeDemoScenario(scenarioId) {
 }
 
 /**
- * Perform unified entity search using both Atlas Search and Vector Search
+ * Perform unified entity search using both MongoDB Search and Vector Search
  * @param {Object} searchRequest - Unified search request
- * @param {string} searchRequest.name_full - Full name for Atlas Search
- * @param {string} searchRequest.address_full - Address for Atlas Search
- * @param {string} searchRequest.date_of_birth - Date of birth for Atlas Search
- * @param {string} searchRequest.identifier_value - Identifier for Atlas Search
+ * @param {string} searchRequest.name_full - Full name for MongoDB Search
+ * @param {string} searchRequest.address_full - Address for MongoDB Search
+ * @param {string} searchRequest.date_of_birth - Date of birth for MongoDB Search
+ * @param {string} searchRequest.identifier_value - Identifier for MongoDB Search
  * @param {string} searchRequest.semantic_query - Semantic query for Vector Search
  * @param {Array<string>} searchRequest.search_methods - Methods to use: ["atlas"], ["vector"], or ["atlas", "vector"]
  * @param {number} searchRequest.limit - Maximum results per method
@@ -579,7 +579,7 @@ export function getSearchMethodDescription(method) {
   const descriptionMap = {
     'atlas': 'Traditional fuzzy matching and exact identifier search',
     'vector': 'AI-powered semantic similarity and behavioral pattern recognition',
-    'both': 'Combined Atlas Search and Vector Search with correlation analysis'
+    'both': 'Combined MongoDB Search and Vector Search with correlation analysis'
   };
   return descriptionMap[method] || 'Unknown search method';
 }

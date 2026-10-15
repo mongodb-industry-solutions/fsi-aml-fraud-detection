@@ -179,7 +179,7 @@ class AggregationBuilder:
         return self
         
     def text_search(self, query: str, options: Optional[SearchOptions] = None) -> 'AggregationBuilder':
-        """Add a $search stage for Atlas Search"""
+        """Add a $search stage for MongoDB Search"""
         search_spec = {
             "text": {
                 "query": query,
@@ -661,7 +661,7 @@ class AIVectorSearch:
             
     async def create_vector_index(self, field: str = "embedding",
                                 index_name: str = "vector_index") -> Dict[str, Any]:
-        """Create Atlas Vector Search index"""
+        """Create MongoDB Vector Search index"""
         index_def = {
             "name": index_name,
             "type": "vectorSearch",
@@ -852,10 +852,11 @@ class DataValidator:
 
 class MongoDBRepository:
     """Unified repository combining all MongoDB features"""
-    
+
     def __init__(self, connection_string: str, database_name: str,
-                 bedrock_client: Optional[boto3.client] = None):
-        self.client = AsyncIOMotorClient(connection_string)
+                 bedrock_client: Optional[boto3.client] = None,
+                 app_name: Optional[str] = None):
+        self.client = AsyncIOMotorClient(connection_string, appName=app_name)
         self.db = self.client[database_name]
         self.bedrock_client = bedrock_client
         

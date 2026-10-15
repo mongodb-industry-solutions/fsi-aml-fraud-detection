@@ -129,12 +129,12 @@ const TYPOLOGY_LABELS = {
 };
 
 const TOOL_FRIENDLY_NAMES = {
-  get_entity_profile: 'Fetching Entity Profile (db.entities.findOne)',
+  get_entity_profile: 'Fetching Entity Profile (db.customers.findOne)',
   query_entity_transactions: 'Querying Transactions (aggregate pipeline)',
   analyze_entity_network: 'Analyzing Entity Network ($graphLookup)',
-  screen_watchlists: 'Screening Watchlists (db.entities.find)',
-  search_typologies: 'Searching Typology Library (Atlas Search RAG)',
-  search_compliance_policies: 'Searching Compliance Policies (Atlas Search RAG)',
+  screen_watchlists: 'Screening Watchlists (db.customers.find)',
+  search_typologies: 'Searching Typology Library (MongoDB Search RAG)',
+  search_compliance_policies: 'Searching Compliance Policies (MongoDB Search RAG)',
   compute_network_metrics: 'Computing Network Metrics ($graphLookup)',
   temporal_analysis: 'Temporal Pattern Analysis ($setWindowFields)',
   trace_ownership_chains: 'Tracing Ownership Chains ($graphLookup)',

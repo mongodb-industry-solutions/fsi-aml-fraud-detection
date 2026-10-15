@@ -18,6 +18,28 @@ logger = logging.getLogger(__name__)
 MAX_VALIDATION_LOOPS = 2
 
 
+def _describe_parse_failure(llm_result: dict) -> str:
+    """Why `parsed` came back None, for the log line.
+
+    `with_structured_output(..., include_raw=True)` puts the Pydantic
+    ValidationError under `parsing_error` and the model's actual tool call under
+    `raw`. Without both, the warning is unactionable -- the original version
+    logged neither, which is why this failure went undiagnosed.
+    """
+    err = llm_result.get("parsing_error")
+    raw = llm_result.get("raw")
+    tool_args = None
+    calls = getattr(raw, "tool_calls", None)
+    if calls:
+        tool_args = calls[0].get("args")
+    detail = f"parsing_error={err!r}"
+    if tool_args is not None:
+        detail += f" tool_call_args={str(tool_args)[:500]}"
+    elif raw is not None:
+        detail += f" raw_content={str(getattr(raw, 'content', raw))[:300]}"
+    return detail
+
+
 def validation_node(state: InvestigationState) -> Command:
     t0 = time.perf_counter()
     loop_count = state.get("validation_count", 0) + 1
@@ -64,11 +86,30 @@ def validation_node(state: InvestigationState) -> Command:
         HumanMessage(content=payload),
     ])
     result: ValidationResult | None = llm_result["parsed"]
+
+    # A schema-validation failure is NOT an exception -- `include_raw=True`
+    # captures it in `parsing_error`, so `invoke_with_retry`'s tenacity decorator
+    # never sees it and never retries. Retry once here before degrading.
+    if result is None:
+        logger.warning(
+            "Validation output failed schema validation, retrying once: %s",
+            _describe_parse_failure(llm_result),
+        )
+        llm_result = invoke_with_retry(llm, [
+            SystemMessage(content=VALIDATION_SYSTEM),
+            HumanMessage(content=payload),
+        ])
+        result = llm_result["parsed"]
+
     token_usage = extract_token_usage(llm_result["raw"])
     duration_ms = int((time.perf_counter() - t0) * 1000)
 
     if result is None:
-        logger.warning("Validation LLM returned unparseable output — using empty fallback")
+        logger.warning(
+            "Validation LLM returned unparseable output after retry — escalating to "
+            "human_review. Cause: %s",
+            _describe_parse_failure(llm_result),
+        )
         result = ValidationResult(route_to="human_review", issues=["LLM failed to return structured output"])
 
     audit_entry = {

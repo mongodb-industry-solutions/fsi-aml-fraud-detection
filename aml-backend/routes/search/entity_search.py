@@ -1,7 +1,7 @@
 """
 Enhanced Entity Search Routes - Phase 7 Stage 2 Implementation
 
-Comprehensive entity search API endpoints leveraging the full Atlas Search index with
+Comprehensive entity search API endpoints leveraging the full MongoDB Search index with
 advanced faceted filtering, autocomplete, and intelligent search capabilities.
 
 These routes provide:
@@ -82,7 +82,7 @@ async def unified_entity_search(
     """
     Unified entity search with comprehensive faceted filtering
     
-    Supports all available Atlas Search facets:
+    Supports all available MongoDB Search facets:
     - Entity classification: entityType, businessType
     - Risk assessment: riskLevel
     - Geography: country, city, nationality, residency, jurisdiction
@@ -330,7 +330,7 @@ async def get_available_facets(
     """
     Get available facet values with counts for filtering UI
     
-    Returns all available facet values from the Atlas Search index:
+    Returns all available facet values from the MongoDB Search index:
     - entityType: Individual, Organization counts
     - riskLevel: Low, Medium, High, Critical counts  
     - riskScore: Numeric distribution boundaries
@@ -383,23 +383,23 @@ async def get_search_analytics(
     entity_search_service: EntitySearchService = Depends(get_entity_search_service)
 ):
     """
-    Get real-time search analytics from Atlas Search backend
+    Get real-time search analytics from MongoDB Search backend
     
     Provides insights into:
     - Total search volume
     - Popular search queries  
-    - Real backend performance metrics (Atlas Search timing)
+    - Real backend performance metrics (MongoDB Search timing)
     - Search trends over time
     
     Features:
     - Real backend timing (not frontend network timing)
-    - Atlas Search performance insights
+    - MongoDB Search performance insights
     - User behavior analytics
     """
     try:
-        logger.info("Getting real-time search analytics from Atlas Search backend")
+        logger.info("Getting real-time search analytics from MongoDB Search backend")
         
-        # Get real analytics from Atlas Search repository
+        # Get real analytics from MongoDB Search repository
         analytics = await entity_search_service.get_search_analytics()
         
         # Get performance metrics with real backend timing
@@ -444,7 +444,7 @@ async def search_health_check(
     
     Validates:
     - EntitySearchService availability
-    - Atlas Search index connectivity
+    - MongoDB Search index connectivity
     - Repository dependencies
     
     Returns:

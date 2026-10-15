@@ -8,13 +8,15 @@ import logging
 import time
 from datetime import datetime, timezone
 
-from dependencies import get_mongo_client, DB_NAME
+from dependencies import (get_mongo_client, DB_NAME,
+                          FRAUD_EVAL_COLLECTION as COLLECTION)
 from models.agents.investigation import TemporalAnalysis
+from repositories import entity_fields as ef
+from services.agents.entity_resolution import agentic_scoped
 from services.agents.state import InvestigationState
 
 logger = logging.getLogger(__name__)
 
-COLLECTION = "fraudEvaluation"
 STRUCTURING_THRESHOLD = 10_000
 STRUCTURING_LOWER = 8_000
 DORMANCY_GAP_DAYS = 30
@@ -369,6 +371,28 @@ def temporal_analyst_node(state: InvestigationState) -> dict:
 
     client = get_mongo_client()
     db = client[DB_NAME]
+
+    # `fraudEvaluation` only ever holds AML-sourced entities' evaluations, so a
+    # fraud-sourced id (out of scope for this surface -- see agentic_scoped())
+    # would silently read back as "no suspicious activity" rather than the
+    # true reason: this entity isn't in this data source at all.
+    if not db["customers"].find_one(agentic_scoped({ef.CUSTOMER_ID: entity_id}), {"_id": 1}):
+        duration_ms = int((time.perf_counter() - t0) * 1000)
+        profile = TemporalAnalysis(timeline_summary="Entity not in AML scope -- skipped.")
+        return {
+            "temporal_analysis": profile.model_dump(),
+            "_node_tool_calls": [{
+                "tool": "temporal_analysis",
+                "input": json.dumps({"entity_id": entity_id}),
+                "output": json.dumps({"skipped": True, "reason": "entity not in AML scope"}),
+            }],
+            "agent_audit_log": [{
+                "agent": "temporal_analyst",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "duration_ms": duration_ms,
+                "reasoning": "Entity not found in AML-scoped customers -- skipped temporal analysis",
+            }],
+        }
 
     structuring = _detect_structuring(db, entity_id)
     velocity = _detect_velocity_anomalies(db, entity_id)

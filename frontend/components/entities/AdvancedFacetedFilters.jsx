@@ -87,7 +87,7 @@ export default function AdvancedFacetedFilters({
       options.push(<Option key="" value="">All</Option>);
     }
     
-    // Handle Atlas Search facet bucket format
+    // Handle MongoDB Search facet bucket format
     if (facetData && facetData.buckets && Array.isArray(facetData.buckets)) {
       facetData.buckets.forEach((bucket) => {
         const value = bucket._id;

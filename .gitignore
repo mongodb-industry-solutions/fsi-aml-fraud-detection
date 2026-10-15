@@ -23,8 +23,9 @@ setup-hooks.sh
 .drone-multicontainer-pods.yml
 .drone-seperate-pods.yml
 
-# claude
-**/.claude
+# claude: share the plugin config, keep per-developer overrides local
+**/.claude/*
+!**/.claude/settings.json
 
 # task-def.json
 **/task-def.json

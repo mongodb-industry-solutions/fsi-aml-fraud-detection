@@ -128,7 +128,7 @@ poetry run uvicorn main:app --reload --port 8000    # Development server (8000 f
 
 **Service Layer:**
 - `services/core/`: Entity resolution, matching, confidence scoring
-- `services/search/`: Atlas Search, Vector Search, Hybrid Search ($rankFusion)
+- `services/search/`: MongoDB Search, Vector Search, Hybrid Search ($rankFusion)
 - `services/network/`: Graph analysis with NetworkAnalysisService
 
 **MongoDB Core Library** (`reference/mongodb_core_lib.py`):
@@ -207,7 +207,7 @@ poetry run uvicorn main:app --reload --port 8000    # Development server (8000 f
 ### Enhanced Frontend Components
 
 **ParallelSearchInterface.jsx**:
-- Three-tab interface: Atlas Search, Vector Search, Hybrid ($rankFusion)
+- Three-tab interface: MongoDB Search, Vector Search, Hybrid ($rankFusion)
 - Expandable query details card showing actual MongoDB queries executed
 - Clickable entity names that open modal with EntityDetailWrapper
 - Color-coded contribution percentage pills for hybrid results
@@ -251,14 +251,14 @@ poetry run uvicorn main:app --reload --port 8000    # Development server (8000 f
 }
 ```
 
-## MongoDB Atlas Search Configuration
+## MongoDB Search Configuration
 
 **Required Indexes:**
-- `entity_text_search_index`: Atlas Search for text matching (name.full, name.aliases, addresses.full, entityType)
+- `entity_text_search_index`: MongoDB Search for text matching (name.full, name.aliases, addresses.full, entityType)
 - `entity_vector_search_index`: Vector similarity search for semantic matching
 - `transaction_vector_index`: Fraud pattern vectors
 
-**Atlas Search Index Mapping** (entity_text_search_index):
+**MongoDB Search Index Mapping** (entity_text_search_index):
 ```json
 {
   "mappings": {
@@ -289,7 +289,7 @@ poetry run uvicorn main:app --reload --port 8000    # Development server (8000 f
 }
 ```
 
-**Atlas Search Features Used:**
+**MongoDB Search Features Used:**
 - Compound queries with fuzzy matching
 - Separate name and address queries for optimal matching
 - Entity type filtering
@@ -370,7 +370,7 @@ AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
 AWS_REGION=us-east-1
 
-# Atlas Search Indexes
+# MongoDB Search Indexes
 ATLAS_SEARCH_INDEX=entity_resolution_search
 ATLAS_TEXT_SEARCH_INDEX=entity_text_search_index
 ENTITY_VECTOR_INDEX=entity_vector_search_index
@@ -458,7 +458,7 @@ const { error, clearError } = useAMLAPIError();
 
 - Network graphs limited to 100-500 nodes for performance
 - Use pagination for entity lists (20-50 items per page)
-- Atlas Search queries optimized with proper indexes and field-specific paths
+- MongoDB Search queries optimized with proper indexes and field-specific paths
 - Vector search limited to top-K results (typically K=10-20)
 - Hybrid search combines both searches in single MongoDB aggregation for optimal performance
 
@@ -556,7 +556,7 @@ const { error, clearError } = useAMLAPIError();
 **Frontend Query Transparency:**
 - Expandable card shows actual MongoDB queries executed
 - Separated name and address queries for optimal matching
-- Real Atlas Search paths: `name.full`, `name.aliases`, `addresses.full`
+- Real MongoDB Search paths: `name.full`, `name.aliases`, `addresses.full`
 - LeafyGreen Code component for syntax-highlighted JSON display
 
 ### Network Analysis Recent Changes
@@ -586,6 +586,6 @@ const { error, clearError } = useAMLAPIError();
 3. **Bidirectional Edge Display**: Always create two separate directed edges for bidirectional relationships
 4. **MongoDB Aggregation**: Always use fluent AggregationBuilder pattern, avoid raw pipeline arrays
 5. **Component Circular Imports**: Pass components as props to avoid webpack module resolution errors
-6. **Atlas Search Paths**: Use correct field paths (`name.full`, `name.aliases`, `addresses.full`) not legacy paths
+6. **MongoDB Search Paths**: Use correct field paths (`name.full`, `name.aliases`, `addresses.full`) not legacy paths
 7. **Navigation Consistency**: All entity resolution links should point to `/entity-resolution/enhanced`
-8. **Hybrid Search Configuration**: Always use 1:1 weights and `entity_text_search_index` for Atlas Search
+8. **Hybrid Search Configuration**: Always use 1:1 weights and `entity_text_search_index` for MongoDB Search

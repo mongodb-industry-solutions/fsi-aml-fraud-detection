@@ -4,7 +4,7 @@ Seed script for the agentic investigation pipeline.
 Creates ONLY the new agent-specific collections:
   - typology_library   (~12 AML typology patterns)
   - compliance_policies (~6 SAR / FinCEN guidance docs)
-  - investigations      (empty, with indexes)
+  - fraudResolution     (indexes only -- the case collection is never dropped)
 
 Existing entities (504), transactionsv2 (12,766), and relationships (519)
 are reused as-is -- this script never touches them.
@@ -20,6 +20,8 @@ from datetime import datetime, timezone
 
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
+
+from services.agents import fraud_resolution_shape as frs
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -339,7 +341,7 @@ POLICIES = [
 
 
 async def seed_agent_collections() -> dict:
-    """Insert typology_library, compliance_policies, and set up investigations."""
+    """Insert typology_library, compliance_policies, and index fraudResolution."""
     client = AsyncIOMotorClient(MONGODB_URI)
     db = client[DB_NAME]
 
@@ -362,15 +364,17 @@ async def seed_agent_collections() -> dict:
     await coll.create_index("policy_id", unique=True)
     stats["compliance_policies"] = len(result.inserted_ids)
 
-    # ── investigations (empty, with indexes) ──────────────────────────
-    coll = db["threatsightInvestigations"]
-    existing = await coll.count_documents({})
-    if existing == 0:
-        await coll.create_index("case_id", unique=True, sparse=True)
-        await coll.create_index("investigation_status")
-        await coll.create_index("created_at")
-        await coll.create_index("entity_id")
-    stats["investigations_indexes"] = "created"
+    # ── fraudResolution (indexes only -- never drop, it holds real cases) ─
+    # The six indexes declared for `fraudResolution` in the canonical spec (v4_33):
+    #   python3 bian-data-model/bian.py indexes fraudResolution
+    coll = db[frs.COLLECTION]
+    await coll.create_index(frs.CASE_ID, unique=True, sparse=True)
+    await coll.create_index([(frs.CREATED_AT, -1)])
+    await coll.create_index([(frs.STATUS, 1), (frs.CREATED_AT, -1)])
+    await coll.create_index(frs.CUSTOMER_ID, sparse=True)
+    await coll.create_index(frs.PRIMARY_TYPOLOGY)
+    await coll.create_index(frs.TRANSACTION_REFERENCE)
+    stats["fraud_resolution_indexes"] = "created"
 
     # ── alerts (empty, with indexes) ─────────────────────────────────
     coll = db["threatsightAlerts"]

@@ -57,13 +57,13 @@ The AML backend follows a **clean architecture pattern** with three-layer organi
 
 Before you begin, ensure you have the following:
 
-- **Python 3.10–3.12**: Required by `pyproject.toml`. Python 3.13+ isn't yet supported because a transitive dependency, `voyageai`, doesn't support it.
+- **Python 3.11–3.12**: Required by `pyproject.toml`. The 3.11 floor comes from `Pillow >= 13.0.0`, which dropped Python 3.10; the `<3.13` ceiling comes from `numpy = "<2.0"` (numpy 1.26.x has no 3.13 wheels).
 
   If your system's default Python is 3.13+, install a compatible version with [pyenv](https://github.com/pyenv/pyenv) and let Poetry use it for this project:
 
   ```bash
   brew install pyenv        # or your platform's pyenv install method
-  pyenv install 3.12.7      # any 3.10.x-3.12.x build works
+  pyenv install 3.12.7      # any 3.11.x-3.12.x build works
   cd aml-backend
   poetry env use "$(pyenv root)/versions/3.12.7/bin/python"
   poetry install
@@ -574,7 +574,7 @@ db.entity_relationships.createIndex({ relationship_type: 1 });
 Create a `Dockerfile.aml-backend`:
 
 ```dockerfile
-FROM python:3.10-slim-buster
+FROM python:3.12-slim-bookworm
 
 ENV GET_POETRY_IGNORE_DEPRECATION=1
 

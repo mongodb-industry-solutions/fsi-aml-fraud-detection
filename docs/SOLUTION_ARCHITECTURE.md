@@ -419,7 +419,7 @@ flowchart TB
     end
 
     subgraph StandaloneDocker["Standalone Container"]
-        AMLContainer["threatsight-aml<br/>python:3.10-slim-buster<br/>:8001"]
+        AMLContainer["threatsight-aml<br/>python:3.12-slim-bookworm<br/>:8001"]
     end
 
     subgraph KubernetesPod["Kubernetes Pod (environment/*.yaml)"]

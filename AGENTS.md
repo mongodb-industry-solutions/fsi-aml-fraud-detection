@@ -16,8 +16,8 @@ deep architectural detail, see [docs/CLAUDE.md](docs/CLAUDE.md),
 cd backend && poetry install
 poetry run uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
-# AML backend (port 8001) -- needs Python 3.10-3.12, not 3.13
-# (voyageai, a transitive dependency, isn't yet compatible with 3.13+)
+# AML backend (port 8001) -- needs Python 3.11-3.12, not 3.13
+# (Pillow 13 requires >=3.11; numpy <2.0 has no 3.13 wheels)
 cd aml-backend && poetry install
 poetry run uvicorn main:app --host 0.0.0.0 --port 8001 --reload
 
@@ -125,9 +125,11 @@ Constraints worth knowing before you debug a failure:
   `botocore[crt]` installed (`NoCredentialsError` at call time, not client
   creation time). `aml-backend/pyproject.toml` already pins a version that
   works.
-- **`AML backend requires Python 3.10-3.12`, not 3.13.** `voyageai` (a
-  transitive dependency) isn't compatible with 3.13+ yet, even though the
-  fraud backend itself tolerates `>=3.10,<4.0`.
+- **`AML backend requires Python 3.11-3.12`, not 3.13.** The 3.11 floor comes
+  from `Pillow >= 13.0.0` (fixes CVE-2026-96639; Pillow 13 dropped 3.10 and
+  ships no cp310 wheel). The `<3.13` ceiling comes from `numpy = "<2.0"` —
+  the locked numpy 1.26.x has no 3.13 wheels. The fraud backend itself
+  tolerates `>=3.10,<4.0`.
 - **`get_voyage_embeddings()` in `aml-backend/services/agents/embeddings.py`
   has no callers.** Typology/policy lookup (`policy_tools.py`) uses
   `$regex`/`$or` text queries, not vector search. Voyage support is present

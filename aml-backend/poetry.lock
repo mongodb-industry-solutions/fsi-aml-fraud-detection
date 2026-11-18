@@ -1687,6 +1687,24 @@ files = [
 ]
 
 [[package]]
+name = "ownership-rules"
+version = "0.2.0"
+description = "OFAC 50 Percent Rule and BIS Affiliates Rule as data: tri-state verdicts with proof paths, plus conformance vectors from the OFAC and BIS FAQs."
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "ownership_rules-0.2.0-py3-none-any.whl", hash = "sha256:27f39819e794c6a33602a2ce60fc97c3d514396adc1439777eb173ce2f0da795"},
+]
+
+[package.extras]
+test = ["hypothesis (>=6)", "pytest (>=7)"]
+
+[package.source]
+type = "url"
+url = "https://github.com/Mattbusel/ownership-rules/releases/download/v0.2.0/ownership_rules-0.2.0-py3-none-any.whl"
+
+[[package]]
 name = "packaging"
 version = "26.0"
 description = "Core utilities for Python packages"
@@ -3264,4 +3282,4 @@ cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and pyt
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.13"
-content-hash = "56f4c89743d3533a629cf7ddf46faeb00aaa55dfe6707eadf022654218f35c82"
+content-hash = "43c59eadfb6ac94426edb88409366755577e2f5bae7b9040c9258c84ba8d63ef"

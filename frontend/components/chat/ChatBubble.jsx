@@ -38,6 +38,7 @@ const TOOL_STATUS_LABELS = {
   query_entity_transactions: 'Querying transactions',
   analyze_entity_network:    'Analyzing network',
   screen_watchlists:         'Screening watchlists',
+  screen_sanctions_ownership:'Checking sanctioned ownership',
   search_typologies:         'Searching typologies',
   lookup_typology:           'Looking up typology',
   search_compliance_policies:'Searching policies',

@@ -18,7 +18,10 @@ from services.agents.llm import get_llm
 
 from services.agents.tools.entity_tools import get_entity_profile, screen_watchlists
 from services.agents.tools.transaction_tools import query_entity_transactions
-from services.agents.tools.network_tools import analyze_entity_network
+from services.agents.tools.network_tools import (
+    analyze_entity_network,
+    screen_sanctions_ownership,
+)
 from services.agents.tools.policy_tools import (
     lookup_typology,
     search_typologies,
@@ -48,6 +51,7 @@ and prioritise risks.
 
 You have direct access to:
 - Entity profiles, transaction records, network graphs, watchlist screening
+- Sanctions ownership screening (OFAC 50 Percent Rule over ownership chains)
 - Past investigation cases and their full evidence (including sub-investigations)
 - AML typology libraries and regulatory compliance policies
 - Fund flow tracing across transaction chains (multi-hop)
@@ -61,7 +65,7 @@ GUIDELINES:
 - Cite data sources in brackets: [entity_profile], [transactions], \
   [network_analysis], [watchlist], [investigation:<case_id>], \
   [typology:<id>], [compliance_policy], [fund_flow], [temporal_analysis], \
-  [similar_entities], [entity_risk_assessment].
+  [similar_entities], [entity_risk_assessment], [sanctions_ownership].
 - When discussing risk, reference the specific evidence that drives the score.
 - Flag potential regulatory concerns proactively and recommend concrete next \
   steps when evidence warrants (e.g. filing a SAR, escalating for review).
@@ -70,7 +74,10 @@ GUIDELINES:
   because..."
 - Chain multiple tools when needed to answer complex questions. For example, \
   to answer "Is Entity A connected to any sanctioned entities?", first expand \
-  the network, then check watchlists on connected entities.
+  the network, then check watchlists on connected entities. To answer \
+  "Do sanctioned parties own Entity A?", use screen_sanctions_ownership and \
+  quote its explanation; "possibly" means a sanctioned owner holds a share \
+  of unknown size.
 - Format responses with clear structure using headers and bullet points.
 - You may trace fund flows, detect temporal anomalies, find similar entities, \
   compare entities, summarize investigation history, explain typologies, \
@@ -202,6 +209,7 @@ ALL_TOOLS = [
     query_entity_transactions,
     analyze_entity_network,
     screen_watchlists,
+    screen_sanctions_ownership,
     search_typologies,
     lookup_typology,
     search_compliance_policies,
